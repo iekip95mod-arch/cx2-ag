@@ -1,0 +1,126 @@
+problem: magnitude = 10 m/s, angle = 30 degrees, frame = lab
+variable: components
+outcome: solved
+result: ((5 * sqrt(3)), 5) m/s
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.vectors.magnitude-components.two-dimension
+  envelope version: <not recorded>
+  normalized problem: magnitude_angle_to_components(10, 30, degrees, lab, 1, dimension(1, 0, -1), precision(exact, 0))
+  requested method: validate typed metadata, apply x = r cos(theta) and y = r sin(theta), verify exact formulas, then approximate only final components when measured
+  active assumption: vector frame is lab
+  active assumption: the supplied unit has dimension L T^-1
+  angle convention: input angle in degrees, converted exactly to radians before trigonometric evaluation
+  branch convention: <not recorded>
+  unit policy: preserve the declared physical dimension and unit, verify exact expressions before final-only approximation, with exact expressions retained
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Resolve magnitude and direction into Cartesian components
+    rule: vec.components.plan, Cartesian vector conversion
+    claim: no claim
+    explanation: Use x = r cos(theta) and y = r sin(theta) in the declared frame
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Magnitude-angle component relations
+    applicability: the conversion is two-dimensional
+    applicability: the vector frame is declared
+    applicability: the angle unit is degrees or radians
+    applicability: magnitude and Cartesian components carry the same physical dimension
+    fact: frame: lab
+    fact: dimension: L T^-1
+    fact: angle unit: degrees
+    fact: precision: exact expressions retained
+    alternative: direct Cartesian input
+    rationale: the registered component laws retain the frame and dimension while the adapter checks each formula
+    verification: rank comparison, passed, magnitude-angle input defines a two-component result
+    verification: frame declaration, passed, frame 'lab'
+    verification: angle-unit validation, passed, degrees
+    verification: dimensional analysis, passed, magnitude and components have dimension L T^-1, angle has dimension 1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the vector frame
+      rule: vec.components.check-frame, Declared vector frame
+      claim: definition
+      explanation: Component laws require a named Cartesian frame
+      proof obligation: obl.vector-components.frame-declared, the vector frame is declared
+      target claim: the magnitude and components use a named frame
+      check method: frame declaration
+      expected: a nonempty frame name
+      observed: frame 'lab'
+      verification: frame declaration, passed, frame 'lab'
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check the input angle unit
+      rule: vec.components.check-angle-unit, Declared angle unit
+      claim: definition
+      explanation: Trigonometric evaluation requires degrees or radians
+      proof obligation: obl.vector-components.angle-unit-explicit, the angle unit is explicitly degrees or radians
+      target claim: the component laws receive a dimensionless angle measure
+      check method: angle-unit validation
+      expected: degrees or radians
+      observed: degrees
+      verification: angle-unit validation, passed, degrees
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the component-law dimensions
+      rule: vec.components.check-dimension, Component-law dimensions
+      claim: definition
+      explanation: Sine and cosine are dimensionless, so each component keeps the magnitude dimension
+      proof obligation: obl.vector-components.dimensions-preserved, magnitude and Cartesian components have the same physical dimension
+      target claim: x and y have the magnitude dimension
+      check method: dimensional analysis
+      expected: r times a dimensionless trigonometric factor
+      observed: magnitude and components have dimension L T^-1, angle has dimension 1
+      verification: dimensional analysis, passed, magnitude and components have dimension L T^-1, angle has dimension 1
+      verified: yes
+    1.4 transformation
+      phase: solve
+      goal: Compute the x component
+      rule: vec.components.x, Cartesian x component
+      claim: equivalent expression
+      explanation: Apply x = r cos(theta)
+      detail: Reach for this when you have a vector as a length and an angle and you want how far it reaches along the x axis. Picture the vector as the hypotenuse of a right triangle with its legs on the axes: the x leg is the side next to the angle, and the cosine is what relates a hypotenuse to the side next to it. The angle is measured from the positive x axis, which is what makes cosine the x one and sine the y one.
+      proof obligation: obl.vector-components.component-relations, the Cartesian components satisfy x = r cos(theta) and y = r sin(theta)
+      action: Compute the x component
+      before: (10 * cos((30 * (pi * (180^-1)))))
+      after: (5 * sqrt(3))
+      reversible: yes
+      verification: Giac zero check, passed, the returned exact expression passed an independent zero check
+      verified: yes
+      backend requests: 4
+    1.5 transformation
+      phase: solve
+      goal: Compute the y component
+      rule: vec.components.y, Cartesian y component
+      claim: equivalent expression
+      explanation: Apply y = r sin(theta)
+      detail: Reach for this for the other leg of the same triangle, the one across from the angle rather than next to it, which is what sine relates to the hypotenuse. It always comes in a pair with the x component: a vector given as a length and an angle needs both before it can be added to anything, because only components add axis by axis.
+      proof obligation: obl.vector-components.component-relations, the Cartesian components satisfy x = r cos(theta) and y = r sin(theta)
+      action: Compute the y component
+      before: (10 * sin((30 * (pi * (180^-1)))))
+      after: 5
+      reversible: yes
+      verification: Giac zero check, passed, the returned exact expression passed an independent zero check
+      verified: yes
+      backend requests: 4
+    1.6 check
+      phase: check
+      goal: Check final component precision
+      rule: vec.components.report-precision, Final-only component precision
+      claim: definition
+      explanation: Exact formulas are verified before any requested numeric approximation
+      proof obligation: obl.vector-components.precision-final, precision is applied only after exact component formulas are verified
+      target claim: component reporting preserves the declared precision
+      check method: operation ordering
+      expected: exact component expressions
+      observed: exact expressions retained
+      verification: operation ordering, passed, exact expressions retained
+      verified: yes

@@ -1,0 +1,3 @@
+#define NDL_VERSION 62
+#define NDL_REVISION 2022
+#define NDL_MAX_OSID 49

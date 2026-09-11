@@ -1,0 +1,23 @@
+diff --git a/../core/cpu.cpp b/cpu.cpp
+index e1c56c1..e702d28 100644
+--- a/../core/cpu.cpp
++++ b/cpu.cpp
+@@ -68,8 +68,8 @@ void cpu_arm_loop()
+         {
+             if(*flags_ptr & RF_ARMLOADER_CB)
+             {
+-                *flags_ptr &= ~RF_ARMLOADER_CB;
+-                armloader_cb();
++                if(armloader_cb())
++                    continue;
+             }
+             else
+             {
+@@ -434,6 +434,7 @@ void set_reg_bx(uint8_t i, uint32_t value)
+ 
+ void cpu_reset()
+ {
++    armloader_reset();
+     memset(&arm, 0, sizeof arm);
+     arm.control = 0x00050078;
+     arm.cpsr_low28 = MODE_SVC | 0xC0;

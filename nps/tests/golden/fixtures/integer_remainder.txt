@@ -1,0 +1,47 @@
+problem: irem(17,5)
+outcome: evaluated
+result: 2
+detail: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The remainder is 2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: irem(17, 5)
+  requested method: irem
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: irem(17, 5)
+    rule: plan.integer-method, Divide into equal groups and retain what is left
+    claim: no claim
+    explanation: Divide into equal groups and retain what is left
+    detail: irem(17, 5): Divide into equal groups and retain what is left
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Divide into equal groups and retain what is left
+    applicability: nonnegative integer literals fit the method's stated bounds
+    fact: irem(17, 5)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, irem(17, 5)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integer
+      goal: irem(17, 5)
+      rule: int.division, Divide into equal groups and retain what is left
+      claim: equivalent expression
+      explanation: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The remainder is 2
+      detail: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The remainder is 2. For a nonnegative dividend and positive divisor, the identity dividend = divisor * quotient + remainder with 0 <= remainder < divisor determines one quotient and one remainder
+      proof obligation: obl.int.division-identity, Divide into equal groups and retain what is left
+      action: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The remainder is 2
+      before: irem(17, 5)
+      after: 2
+      reversible: yes
+      verification: exact integer division identity, passed, 17 * 1 = 5 * 3 + 2, with 0 <= remainder < divisor
+      verified: yes

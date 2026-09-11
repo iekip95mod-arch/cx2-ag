@@ -1,0 +1,102 @@
+# Ki for TI-Nspire CX II. Derived from Makefile.nspire, with three changes: paths point at this
+# machine's ndl toolchain, MicroPython is dropped because the 1.12 tree here has no Nspire port
+# and only supplies -lmicropy externally, and LTO is off for build speed while this is iterating.
+# Builds luagiac.luax.tns only; the khicas.zip and /shared copies upstream does are not wanted here.
+NDL_SDK ?= $(abspath $(dir $(firstword $(MAKEFILE_LIST)))/../../ndl-src/ndl-sdk)
+SDK ?= $(NDL_SDK)
+PREFIX = $(SDK)/toolchain/install
+
+GCC = nspire-gcc
+CXX = nspire-g++
+LD = nspire-ld
+GENZEHN = genzehn
+FLTO =
+
+GCCFLAGS = -g -Os -marm -I$(PREFIX)/include -fno-strict-aliasing -DHAVE_CONFIG_H -I. -I.. \
+	-DIN_GIAC -DTIMEOUT -DNSPIRE_NEWLIB -DKHICAS -DNO_PHYSICAL_CONSTANTS \
+	-DSTATIC_BUILTIN_LEXER_FUNCTIONS -DGIAC_BINARY_ARCHIVE -DNO_UNARY_FUNCTION_COMPOSE \
+	-DNO_STDEXCEPT -fno-exceptions -D_GNU_SOURCE $(FLTO)
+
+LDFLAGS = -g -Wl,--nspireio,--gc-sections -L$(PREFIX)/lib $(FLTO) -lmpfi -lmpfr -lgmp
+
+EXE = luagiac.luax.tns
+DISTDIR = .
+
+OBJS = sym2poly.o gausspol.o threaded.o maple.o ti89.o mathml.o moyal.o misc.o permu.o desolve.o \
+	input_parser.o symbolic.o index.o modpoly.o modfactor.o ezgcd.o derive.o solve.o intg.o \
+	intgab.o risch.o lin.o series.o subst.o vecteur.o sparse.o csturm.o tex.o global.o ifactor.o \
+	alg_ext.o gauss.o isom.o help.o plot.o plot3d.o rpn.o prog.o pari.o cocoa.o unary.o usual.o \
+	identificateur.o gen.o input_lexer.o tinymt32.o first.o quater.o kdisplay.o k_csdk.o kadd.o \
+	caseval.o graphic.o sha256.o qrcodegen.o
+
+# sha256 is in OBJS because upstream got it from MicroPython, which this build drops. Upstream's
+# Makefile.nspire leaves sha256.o commented out for exactly that reason.
+
+# QuickJS is dropped, not merely unused. Its iterator tables declare int *pdone while the
+# implementations take BOOL *pdone, and cutils.h line 54 makes BOOL the ndl enum from
+# nucleus.h, which is 1 byte under the ARM EABI short-enum default. The callee writes one byte
+# where the caller reads four. GCC 14 turns that into an error rather than the warning older
+# compilers gave, which is how it surfaced. It is behind ifdef QUICKJS in kdisplay.cc and
+# caseval.c, so removing the define and the objects is enough.
+
+# Debian's +dfsg repack drops the generated parser and lexer, so regenerate them here. The
+# giac_yy prefix is not optional: the grammar calls giac_yyerror and input_lexer.h declares
+# giac_yylex, so a default-prefix bison emits calls to a yylex nothing defines. Taken from
+# AM_YFLAGS in Makefile.am. macOS bison is 2.3 and too old for this grammar.
+BISON = /opt/homebrew/opt/bison/bin/bison
+LEX = flex
+
+all: $(EXE)
+
+# Flags here decide which ifdef branches compile, so a stale object built under different flags
+# links against symbols that no longer exist. Make has no idea unless told. Kept below all: so it
+# does not become the default goal.
+$(OBJS): Makefile.ki
+
+input_parser.cc input_parser.h: input_parser.yy
+	$(BISON) -p giac_yy -d -o input_parser.cc input_parser.yy
+	cp input_parser.hh input_parser.h
+
+input_lexer.cc: input_lexer.ll
+	$(LEX) -P giac_yy -o input_lexer.cc input_lexer.ll
+
+.cc.o:
+	$(CXX) $(GCCFLAGS) -c $<
+
+.c.o:
+	$(GCC) $(GCCFLAGS) -c $<
+
+tijs.o: tijs.js
+	arm-none-eabi-objcopy --input binary --output arm-none-eabi --binary-architecture arm $< $@
+
+qjscalcjs.o: qjscalcjs.js
+	arm-none-eabi-objcopy --input binary --output arm-none-eabi --binary-architecture arm $< $@
+
+luagiac.o: luagiac.c
+	$(GCC) -Os -Wall -W -marm -c $<
+
+luagiac.luax.elf: $(OBJS) luagiac.o luabridge.o
+	$(LD) $^ -o $(DISTDIR)/$@ $(LDFLAGS)
+
+luagiac.luax.tns.zehn: luagiac.luax.elf
+	$(GENZEHN) --compress --input $(DISTDIR)/$^ --output $(DISTDIR)/$@ --name "luagiac" --uses-lcd-blit true
+
+luagiac.luax.tns: luagiac.luax.tns.zehn
+	make-prg $(DISTDIR)/$^ $(DISTDIR)/$@
+	genzehn --info --input luagiac.luax.tns
+
+giacprobe.o: giacprobe.c
+	$(GCC) $(GCCFLAGS) -c $<
+
+giacprobe.elf: $(OBJS) giacprobe.o luabridge.o
+	$(LD) $^ -o $@ $(LDFLAGS)
+
+giacprobe.tns: giacprobe.elf
+	$(GENZEHN) --compress --input $< --output giacprobe.tns.zehn --name "giacprobe" --uses-lcd-blit true
+	make-prg giacprobe.tns.zehn $@
+
+kilua.tns: khicas.lua
+	luna khicas.lua kilua.tns
+
+clean:
+	rm -f *.o luagiac.luax.*

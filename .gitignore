@@ -1,0 +1,165 @@
+# These rules were local to one machine in .git/info/exclude, which does not travel with a clone.
+# They are tracked now so an agent in a fresh checkout ignores the same things this one does.
+
+# A global ignore on this machine excludes AGENTS.md and CLAUDE.md in every repository. The three at
+# the root predate it and stayed tracked, so the rule was invisible until it kept
+# research/folder-hiding/AGENTS.md out of this repository entirely, while the root AGENTS.md went on
+# telling agents to read it first. Instruction files are the contract here, so they come back.
+!AGENTS.md
+!CLAUDE.md
+!GEMINI.md
+
+# Host tooling. nsptool under here is what the nspire MCP invokes, so this does not move. Anchored
+# to the root: a bare tools/ matches at any depth and silently swallowed nps/tools/, which cost two
+# lanes their new files before a commit refused them. The negations below keep the sources we own.
+!/tools/
+/tools/*
+!/tools/nsptool/
+!/tools/keysvc/
+/tools/nsptool/*
+/tools/keysvc/*
+!/tools/nsptool/*.c
+!/tools/nsptool/*.py
+!/tools/keysvc/*.c
+!/tools/keysvc/*.h
+!/tools/keysvc/*.py
+!/tools/nsptool/tests/
+!/tools/keysvc/tests/
+/tools/nsptool/tests/*
+/tools/keysvc/tests/*
+!/tools/nsptool/tests/*.c
+!/tools/nsptool/tests/*.py
+!/tools/keysvc/tests/*.c
+!/tools/keysvc/tests/*.h
+!/tools/keysvc/tests/*.py
+
+.DS_Store
+.idea/
+__pycache__/
+
+# Build outputs, wherever they land. The vendored trees under vendor/ ship .tns and .bin files that
+# are the vendored thing itself, so those two extensions are deliberately absent from this list.
+*.o
+*.a
+*.lo
+*.la
+*.so
+*.so.*
+*.dylib
+*.exe
+*.elf
+*.gcda
+*.gcno
+
+# Emulator boot and flash images, about 12 GB and individually past the 100 MiB GitHub limit. Stays
+# at the root: the nspire MCP server hard codes IMAGES_DIR to "images" and resolves boot1.img under
+# it, with no override, so moving this takes the emulator down for every lane at once. The tracked
+# README beside them records what each base image is and where it came from.
+/images/*
+!/images/README.md
+
+# Build trees. Anchored so a source directory named build elsewhere is not swallowed.
+/nps/build/
+/device/
+
+# Scratch and investigation material, none of it built against.
+/scratch/
+/.Internal/references/
+/.ndl-migration-recovery/
+
+# Vendored third-party trees. The upstream sources, licenses and provenance files are tracked. What
+# is excluded below is either regenerable or too large for GitHub, so a clone builds it rather than
+# carrying it. See vendor-history/README.md for upstreams and the patches carried on top.
+/vendor/ndl-src/ndl-sdk/toolchain/download/
+/vendor/ndl-src/ndl-sdk/toolchain/install/
+/vendor/ndl-src/ndl-sdk/toolchain/build/
+/vendor/libnspire-install/
+/vendor/*/autom4te.cache/
+/vendor/**/.libs/
+/vendor/**/.deps/
+/vendor/**/config.status
+/vendor/**/config.log
+/vendor/**/libtool
+/vendor/**/*.tar.gz
+/vendor/**/*.tar.xz
+/vendor/**/*.tar.bz2
+/vendor/**/*.tgz
+/vendor/firebird-src/headless/firebird-headless
+
+# Upstream carries its own CI. Nothing in this repository runs on push and nothing here should.
+/vendor/**/.github/workflows/
+
+# Build trees inside the vendored sources. Everything below is produced by running a build here, so
+# a clone rebuilds rather than inheriting objects linked against this machine's toolchain.
+/vendor/firebird-src/build-qt5/
+/vendor/firebird-src/headless/build/
+/vendor/khi-src/micropython-1.12/ports/*/build/
+*.dSYM/
+/vendor/firebird-src/callback-experiment-0908/callback-test-*
+/vendor/firebird-src/callback-experiment-0908/cpu-lifecycle-test
+/vendor/firebird-src/callback-experiment-0908/cpu-lifecycle-test-san
+/vendor/firebird-src/callback-experiment-0908/ownership-test-*
+/vendor/firebird-src/callback-experiment-0908/queued-test-*
+/vendor/firebird-src/callback-experiment-0908/reviewer-lifecycle-*
+/vendor/firebird-src/callback-experiment-0908/firebird-headless-experiment
+
+# The GMP, MPFR and MPFI sources are vendored as the upstream archives they came in, because the two
+# build scripts beside them delete and re-extract these directories on every run. Tracking the
+# extracted trees would mean a build leaves thousands of modified files behind in a shared checkout.
+/vendor/deps/gmp-6.3.0/
+/vendor/deps/mpfr-4.2.2/
+/vendor/deps/mpfi-master/
+!/vendor/deps/*.tar.gz
+!/vendor/deps/*.tar.xz
+
+# The handbook renders. The JSON sources, the reviews and the assets are tracked, and so are the two
+# PDFs, which are the form anybody actually reads. HTML and DOCX are 58 MB of the same content.
+/docs/nps-manual/*.html
+/docs/nps-manual/*.docx
+
+# What configure wrote on this machine. These carry this checkout's absolute paths, so a clone that
+# inherited them would drive a toolchain at a path it does not have. The inputs they are generated
+# from, Makefile.am, Makefile.in, config.h.in and libnspire.pc.in, stay tracked and reconfigure.
+/vendor/libnspire-src/**/Makefile
+/vendor/libnspire-src/config.h
+/vendor/libnspire-src/libnspire.pc
+/vendor/libnspire-src/stamp-h1
+/vendor/**/*~
+
+# Vendored EABase, EASTL and etl. The provenance and license files under them are tracked and stay
+# tracked, because .gitignore never untracks what is already in the index. Only the headers we
+# compile against were vendored, so upstream tests, benchmarks and docs are excluded.
+/nps/third_party/EABase/
+/nps/third_party/EASTL/
+/nps/third_party/etl/
+
+# The folder-hiding prototype's compiled output. Its sources, factory manifests, staging documents
+# and test evidence are tracked, because the nested instructions there treat them as recovery
+# material rather than as artifacts a build regenerates.
+/research/folder-hiding/build/
+
+# Where agents do their work. Everything under here is a lane checkout, a build tree or a scratch
+# file, so none of it belongs in a commit. The convention is written up in AGENTS.md.
+/.Internal/workspaces/
+
+# Scratch worktrees. Agents run lanes in sibling checkouts of this repo, and a pathspec-less add in
+# the shared tree will otherwise sweep another lane's entire worktree into a commit.
+/.lane-*/
+/.lead-tree*/
+/.headcheck/
+/.headcheck-*/
+/.headcheck-build/
+/.headcheck.lock
+/.headcheck-selftest-index
+
+# claude-code-runtime
+**/.claude/scheduled_tasks.lock
+**/.claude/scheduled_tasks.json
+**/.claude/routines/.state/
+**/.claude/worktrees/
+**/.claude/checkpoints/
+**/.claude/mailbox/
+**/.claude/agent-registry.json
+**/.claude/agent-memory-local
+**/.claude/first-run
+**/.claude/assistant-daemon-state.json

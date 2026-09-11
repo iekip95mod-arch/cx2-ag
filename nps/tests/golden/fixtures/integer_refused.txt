@@ -1,0 +1,18 @@
+problem: factorial(101)
+outcome: unsupported form
+detail: factorial walkthroughs support integers from 0 through 100
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: factorial(101)
+  requested method: factorial
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

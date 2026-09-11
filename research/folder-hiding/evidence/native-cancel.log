@@ -1,0 +1,17 @@
+mode=2 documents=/documents/ hwsubtype=2
+input length=-1 text=(null)
+code rejected or cancelled
+operation rc=0
+visible 0 exists=0 size=0 path=/documents/HideLab/Dot.tns
+concealed 0 exists=1 size=17744 path=/documents/HideLab/.Dot.tns
+visible 1 exists=0 size=0 path=/documents/HideLab/Extension.tns
+concealed 1 exists=1 size=17744 path=/documents/HideLab/Extension.bin
+visible 2 exists=0 size=0 path=/documents/HideLab/Outside.tns
+concealed 2 exists=1 size=17744 path=/hide-research-store/Outside.tns
+visible 3 exists=0 size=0 path=/documents/HideLab/Folder
+concealed 3 exists=1 size=0 path=/documents/HideLab/.Folder
+visible 4 exists=0 size=0 path=/documents/HideLab/LockedFolder
+concealed 4 exists=1 size=0 path=/hide-research-store/LockedFolder
+before home refresh
+before browser refresh
+after browser refresh

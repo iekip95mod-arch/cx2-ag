@@ -1,0 +1,78 @@
+problem: sqrt(x)
+variable: x
+outcome: integrated
+result: (((2 * x * sqrt(x)) * (3^-1)) + C)
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.indefinite.single-variable
+  envelope version: <not recorded>
+  normalized problem: sqrt(x)
+  requested method: integrate by rule
+  active assumption: x >= 0
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Integrate sqrt(x) with respect to x
+    rule: calculus.integrate.rules, Integrate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Integrate by rule
+    applicability: every form in the integrand has an antiderivative rule
+    applicability: every function argument and every power base is the variable or linear in it
+    fact: integrate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
+    verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
+    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integrate
+      goal: Integrate sqrt(x)
+      rule: i.function, Square-root integral
+      claim: equivalent expression
+      explanation: Use the known antiderivative of this function
+      detail: Write the square root as power 1/2. Raising the exponent by one gives 3/2, and dividing by 3/2 multiplies by 2/3. Write the result as the argument times its square root to keep the real branch visible. The argument must be nonnegative. At a zero endpoint, use the continuous value of the primitive.
+      domain restriction: x >= 0
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Use ((2 * x * sqrt(x)) * (3^-1))
+      before: int(sqrt(x), x)
+      after: ((2 * x * sqrt(x)) * (3^-1))
+      reversible: no
+      verification: rule-local invariant, passed, the argument is the variable itself, so no substitution is needed
+      verified: yes
+    1.2 transformation
+      phase: integrate
+      goal: State the general antiderivative
+      rule: i.constant-of-integration, Constant of integration
+      claim: equivalent expression
+      explanation: Any constant differentiates to zero, so adding one gives another antiderivative
+      detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Add the constant C
+      before: ((2 * x * sqrt(x)) * (3^-1))
+      after: (((2 * x * sqrt(x)) * (3^-1)) + C)
+      reversible: no
+      verification: rule-local invariant, passed, the derivative of a constant is zero
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the answer
+      rule: calculus.integrate.check-by-differentiation, Check by differentiation
+      claim: equivalent expression
+      explanation: Differentiate the result and compare it with the integrand
+      detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
+      proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
+      target claim: the derivative of (((2 * x * sqrt(x)) * (3^-1)) + C) is sqrt(x)
+      check method: differentiate by rule, then simplify the exact difference with Giac
+      expected: zero
+      observed: 0
+      verification: native differentiation and Giac exact difference, passed, the exact difference is zero under the recorded domain restrictions
+      verified: yes

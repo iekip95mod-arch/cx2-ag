@@ -1,0 +1,2661 @@
+# Supported derivative rules and nested combinations, PRD section 22.1 row 2.
+#
+# Section 22.1 also asks for the Giac cross-check on this row. That cannot run on the host, since
+# Giac is not linked here, so the cross-check is device evidence and this file carries the half a
+# host can hold: the rule that fired, the answer, and that every displayed transformation carries a
+# passing verification.
+#
+# The engine does not tidy its answer, so 2 * 1 and x^1 appear in what it returns. The comparison
+# canonicalises both sides, which is why a case can name the tidy form.
+
+case derivative.constant.integer
+  family derivative
+  input 5
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant.zero
+  family derivative
+  input 0
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant.negative
+  family derivative
+  input -3
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant.other-symbol
+  family derivative
+  input a
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant.decimal
+  family derivative
+  input 2.5
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.variable.itself
+  family derivative
+  input x
+  variable x
+  expect differentiated
+  result 1
+
+case derivative.variable.other-letter
+  family derivative
+  input t
+  variable t
+  expect differentiated
+  result 1
+
+case derivative.power.square
+  family derivative
+  input x^2
+  variable x
+  expect differentiated
+  result 2*x
+
+case derivative.power.cube
+  family derivative
+  input x^3
+  variable x
+  expect differentiated
+  result 3*x^2
+
+case derivative.power.fifth
+  family derivative
+  input x^5
+  variable x
+  expect differentiated
+  result 5*x^4
+
+case derivative.power.tenth
+  family derivative
+  input x^10
+  variable x
+  expect differentiated
+  result 10*x^9
+
+case derivative.power.reciprocal
+  family derivative
+  input x^-1
+  variable x
+  expect differentiated
+  result -1*x^-2
+
+case derivative.power.negative-square
+  family derivative
+  input x^-2
+  variable x
+  expect differentiated
+  result -2*x^-3
+
+case derivative.constant-multiple.integer
+  family derivative
+  input 3x
+  variable x
+  expect differentiated
+  result 3
+
+case derivative.constant-multiple.negative
+  family derivative
+  input -4x
+  variable x
+  expect differentiated
+  result -4
+
+# A negative coefficient written without a star. The parser once refused this while accepting 2x,
+# so the two spellings are both kept.
+case derivative.constant-multiple.negative-juxtaposed
+  family derivative
+  input -2x
+  variable x
+  expect differentiated
+  result -2
+
+case derivative.constant-multiple.of-a-power
+  family derivative
+  input 3x^2
+  variable x
+  expect differentiated
+  result 6*x
+
+case derivative.constant-multiple.fraction
+  family derivative
+  input x/2
+  variable x
+  expect differentiated
+  result 1/2
+
+case derivative.constant-multiple.negation
+  family derivative
+  input -x
+  variable x
+  expect differentiated
+  result -1
+
+case derivative.constant-multiple.of-a-function
+  family derivative
+  input 3*sin(x)
+  variable x
+  expect differentiated
+  result 3*cos(x)
+
+case derivative.sum.variable-and-square
+  family derivative
+  input x + x^2
+  variable x
+  expect differentiated
+  result 1 + 2*x
+
+case derivative.sum.with-a-constant
+  family derivative
+  input x^2 + x + 1
+  variable x
+  expect differentiated
+  result 2*x + 1
+
+case derivative.sum.polynomial
+  family derivative
+  input 3*x^2 - 2*x + 7
+  variable x
+  expect differentiated
+  result 6*x - 2
+
+case derivative.sum.difference
+  family derivative
+  input x - x^2
+  variable x
+  expect differentiated
+  result 1 - 2*x
+
+case derivative.function.sine
+  family derivative
+  input sin(x)
+  variable x
+  expect differentiated
+  result cos(x)
+
+case derivative.function.cosine
+  family derivative
+  input cos(x)
+  variable x
+  expect differentiated
+  result -sin(x)
+
+case derivative.function.tangent
+  family derivative
+  input tan(x)
+  variable x
+  expect differentiated
+  result cos(x)^-2
+
+case derivative.function.exponential
+  family derivative
+  input exp(x)
+  variable x
+  expect differentiated
+  result exp(x)
+
+case derivative.function.logarithm
+  family derivative
+  input ln(x)
+  variable x
+  expect differentiated
+  result x^-1
+
+case derivative.function.square-root
+  family derivative
+  input sqrt(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1
+
+case derivative.product.variable-and-sine
+  family derivative
+  input x*sin(x)
+  variable x
+  expect differentiated
+  result sin(x) + x*cos(x)
+
+case derivative.product.milestone-zero
+  family derivative
+  input x^2*sin(x)
+  variable x
+  expect differentiated
+  result x^2*cos(x) + 2*x*sin(x)
+
+case derivative.product.variable-and-exponential
+  family derivative
+  input x*exp(x)
+  variable x
+  expect differentiated
+  result exp(x) + x*exp(x)
+
+case derivative.product.two-trigonometric
+  family derivative
+  input sin(x)*cos(x)
+  variable x
+  expect differentiated
+  result cos(x)*cos(x) - sin(x)*sin(x)
+
+case derivative.product.square-and-exponential
+  family derivative
+  input x^2*exp(x)
+  variable x
+  expect differentiated
+  result 2*x*exp(x) + x^2*exp(x)
+
+case derivative.product.sine-and-exponential
+  family derivative
+  input sin(x)*exp(x)
+  variable x
+  expect differentiated
+  result cos(x)*exp(x) + sin(x)*exp(x)
+
+case derivative.product.cube-and-cosine
+  family derivative
+  input x^3*cos(x)
+  variable x
+  expect differentiated
+  result 3*x^2*cos(x) - x^3*sin(x)
+
+case derivative.quotient.variable-over-sine
+  family derivative
+  input x/sin(x)
+  variable x
+  expect differentiated
+  result (sin(x) - x*cos(x))*sin(x)^-2
+
+case derivative.quotient.sine-over-variable
+  family derivative
+  input sin(x)/x
+  variable x
+  expect differentiated
+  result (cos(x)*x - sin(x))*x^-2
+
+case derivative.quotient.square-over-linear
+  family derivative
+  input x^2/(x + 1)
+  variable x
+  expect differentiated
+  result (2*x*(x + 1) - x^2)*(x + 1)^-2
+
+case derivative.quotient.exponential-over-variable
+  family derivative
+  input exp(x)/x
+  variable x
+  expect differentiated
+  result (exp(x)*x - exp(x))*x^-2
+
+case derivative.quotient.tangent-written-out
+  family derivative
+  input sin(x)/cos(x)
+  variable x
+  expect differentiated
+  result (cos(x)*cos(x) + sin(x)*sin(x))*cos(x)^-2
+
+case derivative.quotient.variable-over-linear
+  family derivative
+  input x/(x + 1)
+  variable x
+  expect differentiated
+  result ((x + 1) - x)*(x + 1)^-2
+
+case derivative.chain.sine-of-square
+  family derivative
+  input sin(x^2)
+  variable x
+  expect differentiated
+  result cos(x^2)*2*x
+
+case derivative.chain.cosine-of-square
+  family derivative
+  input cos(x^2)
+  variable x
+  expect differentiated
+  result -sin(x^2)*2*x
+
+case derivative.chain.exponential-of-linear
+  family derivative
+  input exp(2*x)
+  variable x
+  expect differentiated
+  result exp(2*x)*2
+
+case derivative.chain.exponential-of-square
+  family derivative
+  input exp(x^2)
+  variable x
+  expect differentiated
+  result exp(x^2)*2*x
+
+case derivative.chain.logarithm-of-linear
+  family derivative
+  input ln(2*x + 1)
+  variable x
+  expect differentiated
+  result (2*x + 1)^-1*2
+
+case derivative.chain.logarithm-of-sine
+  family derivative
+  input ln(sin(x))
+  variable x
+  expect differentiated
+  result sin(x)^-1*cos(x)
+
+case derivative.chain.logarithm-of-square
+  family derivative
+  input ln(x^2)
+  variable x
+  expect differentiated
+  result (x^2)^-1*2*x
+
+case derivative.chain.root-of-a-sum
+  family derivative
+  input sqrt(x^2 + 1)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x^2 + 1)^-1*2*x
+
+case derivative.chain.root-of-linear
+  family derivative
+  input sqrt(2*x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(2*x)^-1*2
+
+case derivative.chain.root-of-a-shift
+  family derivative
+  input sqrt(x + 1)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x + 1)^-1
+
+case derivative.chain.power-of-a-sum
+  family derivative
+  input (x + 1)^3
+  variable x
+  expect differentiated
+  result 3*(x + 1)^2
+
+case derivative.chain.power-of-linear
+  family derivative
+  input (2*x + 1)^4
+  variable x
+  expect differentiated
+  result 4*(2*x + 1)^3*2
+
+case derivative.chain.sine-of-linear
+  family derivative
+  input sin(2*x)
+  variable x
+  expect differentiated
+  result cos(2*x)*2
+
+case derivative.chain.cosine-of-linear
+  family derivative
+  input cos(3*x)
+  variable x
+  expect differentiated
+  result -sin(3*x)*3
+
+case derivative.chain.sine-of-a-shift
+  family derivative
+  input sin(x + 1)
+  variable x
+  expect differentiated
+  result cos(x + 1)
+
+case derivative.chain.tangent-of-linear
+  family derivative
+  input tan(2*x)
+  variable x
+  expect differentiated
+  result cos(2*x)^-2*2
+
+case derivative.chain.tangent-of-square
+  family derivative
+  input tan(x^2)
+  variable x
+  expect differentiated
+  result cos(x^2)^-2*2*x
+
+case derivative.chain.power-of-sine
+  family derivative
+  input sin(x)^3
+  variable x
+  expect differentiated
+  result 3*sin(x)^2*cos(x)
+
+case derivative.chain.square-of-cosine
+  family derivative
+  input cos(x)^2
+  variable x
+  expect differentiated
+  result 2*cos(x)*(-sin(x))
+
+case derivative.chain.exponential-of-sine
+  family derivative
+  input exp(sin(x))
+  variable x
+  expect differentiated
+  result exp(sin(x))*cos(x)
+
+case derivative.adversarial.wide-constant-sum
+  family derivative
+  input 1+2+3+4+5+6+7+8+9+10+11+12+13+14+15+16+17+18+19+20
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.adversarial.zero-to-a-huge-power
+  family derivative
+  input 0^9223372036854775807
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.adversarial.exponent-at-the-signed-maximum
+  family derivative
+  input x^9223372036854775807
+  variable x
+  expect differentiated
+  result 9223372036854775807*x^9223372036854775806
+
+case derivative.chain.sine-of-cube
+  family derivative
+  input sin(x^3)
+  variable x
+  expect differentiated
+  result cos(x^3)*3*x^2
+
+case derivative.chain.cosine-of-cube
+  family derivative
+  input cos(x^3)
+  variable x
+  expect differentiated
+  result -sin(x^3)*3*x^2
+
+case derivative.chain.exponential-of-cube
+  family derivative
+  input exp(x^3)
+  variable x
+  expect differentiated
+  result exp(x^3)*3*x^2
+
+case derivative.chain.tangent-of-cube
+  family derivative
+  input tan(x^3)
+  variable x
+  expect differentiated
+  result cos(x^3)^-2*3*x^2
+
+case derivative.chain.root-of-cube
+  family derivative
+  input sqrt(x^3)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x^3)^-1*3*x^2
+
+case derivative.chain.sine-of-sine
+  family derivative
+  input sin(sin(x))
+  variable x
+  expect differentiated
+  result cos(sin(x))*cos(x)
+
+case derivative.chain.cosine-of-sine
+  family derivative
+  input cos(sin(x))
+  variable x
+  expect differentiated
+  result -sin(sin(x))*cos(x)
+
+case derivative.chain.exponential-of-cosine
+  family derivative
+  input exp(cos(x))
+  variable x
+  expect differentiated
+  result exp(cos(x))*(-sin(x))
+
+case derivative.chain.sine-of-exponential
+  family derivative
+  input sin(exp(x))
+  variable x
+  expect differentiated
+  result cos(exp(x))*exp(x)
+
+case derivative.chain.root-of-sine
+  family derivative
+  input sqrt(sin(x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(sin(x))^-1*cos(x)
+
+case derivative.chain.logarithm-of-cosine
+  family derivative
+  input ln(cos(x))
+  variable x
+  expect differentiated
+  result cos(x)^-1*(-sin(x))
+
+case derivative.chain.tangent-of-sine
+  family derivative
+  input tan(sin(x))
+  variable x
+  expect differentiated
+  result cos(sin(x))^-2*cos(x)
+
+case derivative.chain.sine-of-a-quadratic
+  family derivative
+  input sin(x^2 + 1)
+  variable x
+  expect differentiated
+  result cos(x^2 + 1)*2*x
+
+case derivative.chain.exponential-of-a-quadratic
+  family derivative
+  input exp(x^2 + 1)
+  variable x
+  expect differentiated
+  result exp(x^2 + 1)*2*x
+
+case derivative.chain.logarithm-of-a-quadratic
+  family derivative
+  input ln(x^2 + 1)
+  variable x
+  expect differentiated
+  result (x^2 + 1)^-1*2*x
+
+case derivative.chain.power-of-a-quadratic
+  family derivative
+  input (x^2 + 1)^3
+  variable x
+  expect differentiated
+  result 3*(x^2 + 1)^2*2*x
+
+case derivative.chain.reciprocal-of-a-shift
+  family derivative
+  input (x + 1)^-1
+  variable x
+  expect differentiated
+  result -1*(x + 1)^-2
+
+case derivative.chain.reciprocal-of-linear
+  family derivative
+  input (2*x + 1)^-1
+  variable x
+  expect differentiated
+  result -1*(2*x + 1)^-2*2
+
+case derivative.product.square-and-cosine
+  family derivative
+  input x^2*cos(x)
+  variable x
+  expect differentiated
+  result 2*x*cos(x) - x^2*sin(x)
+
+case derivative.product.variable-and-cosine
+  family derivative
+  input x*cos(x)
+  variable x
+  expect differentiated
+  result cos(x) - x*sin(x)
+
+case derivative.product.variable-and-tangent
+  family derivative
+  input x*tan(x)
+  variable x
+  expect differentiated
+  result tan(x) + x*cos(x)^-2
+
+case derivative.product.variable-and-root
+  family derivative
+  input x*sqrt(x)
+  variable x
+  expect differentiated
+  result sqrt(x) + x*(1/2)*sqrt(x)^-1
+
+case derivative.product.sine-and-logarithm
+  family derivative
+  input sin(x)*ln(x)
+  variable x
+  expect differentiated
+  result cos(x)*ln(x) + sin(x)*x^-1
+
+case derivative.product.exponential-and-logarithm
+  family derivative
+  input exp(x)*ln(x)
+  variable x
+  expect differentiated
+  result exp(x)*ln(x) + exp(x)*x^-1
+
+case derivative.product.exponential-and-cosine
+  family derivative
+  input exp(x)*cos(x)
+  variable x
+  expect differentiated
+  result exp(x)*cos(x) + exp(x)*(-sin(x))
+
+case derivative.product.sine-and-tangent
+  family derivative
+  input sin(x)*tan(x)
+  variable x
+  expect differentiated
+  result cos(x)*tan(x) + sin(x)*cos(x)^-2
+
+case derivative.product.square-and-logarithm
+  family derivative
+  input x^2*ln(x)
+  variable x
+  expect differentiated
+  result 2*x*ln(x) + x^2*x^-1
+
+case derivative.product.root-and-sine
+  family derivative
+  input sqrt(x)*sin(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1*sin(x) + sqrt(x)*cos(x)
+
+case derivative.quotient.cosine-over-variable
+  family derivative
+  input cos(x)/x
+  variable x
+  expect differentiated
+  result (-sin(x)*x - cos(x))*x^-2
+
+case derivative.quotient.variable-over-exponential
+  family derivative
+  input x/exp(x)
+  variable x
+  expect differentiated
+  result (exp(x) - x*exp(x))*exp(x)^-2
+
+case derivative.quotient.logarithm-over-variable
+  family derivative
+  input ln(x)/x
+  variable x
+  expect differentiated
+  result (x^-1*x - ln(x))*x^-2
+
+case derivative.quotient.exponential-over-sine
+  family derivative
+  input exp(x)/sin(x)
+  variable x
+  expect differentiated
+  result (exp(x)*sin(x) - exp(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.square-over-sine
+  family derivative
+  input x^2/sin(x)
+  variable x
+  expect differentiated
+  result (2*x*sin(x) - x^2*cos(x))*sin(x)^-2
+
+case derivative.sum.four-term-polynomial
+  family derivative
+  input x^3 + x^2 + x + 1
+  variable x
+  expect differentiated
+  result 3*x^2 + 2*x + 1
+
+case derivative.sum.two-trigonometric
+  family derivative
+  input sin(x) + cos(x)
+  variable x
+  expect differentiated
+  result cos(x) - sin(x)
+
+case derivative.sum.exponential-and-logarithm
+  family derivative
+  input exp(x) + ln(x)
+  variable x
+  expect differentiated
+  result exp(x) + x^-1
+
+case derivative.sum.power-and-function
+  family derivative
+  input x^2 + sin(x)
+  variable x
+  expect differentiated
+  result 2*x + cos(x)
+
+case derivative.sum.root-and-power
+  family derivative
+  input sqrt(x) + x^2
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1 + 2*x
+
+case derivative.sum.variable-less-reciprocal
+  family derivative
+  input x - 1/x
+  variable x
+  expect differentiated
+  result 1 + x^-2
+
+case derivative.constant-multiple.of-a-cube
+  family derivative
+  input 5*x^3
+  variable x
+  expect differentiated
+  result 15*x^2
+
+case derivative.constant-multiple.negative-of-a-function
+  family derivative
+  input -2*sin(x)
+  variable x
+  expect differentiated
+  result -2*cos(x)
+
+case derivative.constant-multiple.of-a-root
+  family derivative
+  input 2*sqrt(x)
+  variable x
+  expect differentiated
+  result sqrt(x)^-1
+
+case derivative.chain.three-levels-sine-of-exponential-of-square
+  family derivative
+  input sin(exp(x^2))
+  variable x
+  expect differentiated
+  result cos(exp(x^2))*exp(x^2)*2*x
+
+case derivative.chain.three-levels-logarithm-of-sine-of-square
+  family derivative
+  input ln(sin(x^2))
+  variable x
+  expect differentiated
+  result sin(x^2)^-1*cos(x^2)*2*x
+
+case derivative.chain.three-levels-root-of-cosine-of-linear
+  family derivative
+  input sqrt(cos(2*x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(cos(2*x))^-1*(-sin(2*x))*2
+
+case derivative.chain.three-levels-exponential-of-sine-of-square
+  family derivative
+  input exp(sin(x^2))
+  variable x
+  expect differentiated
+  result exp(sin(x^2))*cos(x^2)*2*x
+
+case derivative.chain.tangent-of-exponential
+  family derivative
+  input tan(exp(x))
+  variable x
+  expect differentiated
+  result cos(exp(x))^-2*exp(x)
+
+case derivative.chain.exponential-of-a-shifted-linear
+  family derivative
+  input exp(2*x + 1)
+  variable x
+  expect differentiated
+  result exp(2*x + 1)*2
+
+case derivative.chain.sine-of-a-shifted-linear
+  family derivative
+  input sin(3*x - 2)
+  variable x
+  expect differentiated
+  result cos(3*x - 2)*3
+
+case derivative.chain.logarithm-of-a-shift
+  family derivative
+  input ln(x + 2)
+  variable x
+  expect differentiated
+  result (x + 2)^-1
+
+case derivative.chain.root-of-a-shifted-linear
+  family derivative
+  input sqrt(3*x + 1)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(3*x + 1)^-1*3
+
+case derivative.chain.square-of-a-polynomial
+  family derivative
+  input (x^2 + x)^2
+  variable x
+  expect differentiated
+  result 2*(x^2 + x)*(2*x + 1)
+
+case derivative.chain.cube-of-a-scaled-variable
+  family derivative
+  input (2*x)^3
+  variable x
+  expect differentiated
+  result 3*(2*x)^2*2
+
+case derivative.chain.logarithm-of-a-logarithm
+  family derivative
+  input ln(ln(x))
+  variable x
+  expect differentiated
+  result ln(x)^-1*x^-1
+
+case derivative.chain.exponential-of-an-exponential
+  family derivative
+  input exp(exp(x))
+  variable x
+  expect differentiated
+  result exp(exp(x))*exp(x)
+
+case derivative.chain.root-of-a-root
+  family derivative
+  input sqrt(sqrt(x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(sqrt(x))^-1*(1/2)*sqrt(x)^-1
+
+case derivative.chain.reciprocal-of-sine
+  family derivative
+  input sin(x)^-1
+  variable x
+  expect differentiated
+  result -1*sin(x)^-2*cos(x)
+
+case derivative.chain.negative-square-of-cosine
+  family derivative
+  input cos(x)^-2
+  variable x
+  expect differentiated
+  result -2*cos(x)^-3*(-sin(x))
+
+case derivative.chain.logarithm-of-a-product
+  family derivative
+  input ln(x*sin(x))
+  variable x
+  expect differentiated
+  result (x*sin(x))^-1*(sin(x) + x*cos(x))
+
+case derivative.chain.square-of-a-product
+  family derivative
+  input (x*sin(x))^2
+  variable x
+  expect differentiated
+  result 2*(x*sin(x))*(sin(x) + x*cos(x))
+
+case derivative.constant-multiple.of-a-chain
+  family derivative
+  input 3*sin(2*x)
+  variable x
+  expect differentiated
+  result 3*cos(2*x)*2
+
+case derivative.product.variable-and-a-chain
+  family derivative
+  input x*sin(x^2)
+  variable x
+  expect differentiated
+  result sin(x^2) + x*cos(x^2)*2*x
+
+case derivative.product.exponential-and-a-chain
+  family derivative
+  input exp(x)*sin(2*x)
+  variable x
+  expect differentiated
+  result exp(x)*sin(2*x) + exp(x)*cos(2*x)*2
+
+case derivative.product.three-factors
+  family derivative
+  input x*sin(x)*cos(x)
+  variable x
+  expect differentiated
+  result (sin(x) + x*cos(x))*cos(x) + x*sin(x)*(-sin(x))
+
+case derivative.product.exponential-square-and-sine
+  family derivative
+  input exp(x)*x^2*sin(x)
+  variable x
+  expect differentiated
+  result (exp(x)*x^2 + exp(x)*2*x)*sin(x) + exp(x)*x^2*cos(x)
+
+case derivative.product.square-and-root
+  family derivative
+  input x^2*sqrt(x)
+  variable x
+  expect differentiated
+  result 2*x*sqrt(x) + x^2*(1/2)*sqrt(x)^-1
+
+case derivative.product.square-and-tangent
+  family derivative
+  input x^2*tan(x)
+  variable x
+  expect differentiated
+  result 2*x*tan(x) + x^2*cos(x)^-2
+
+case derivative.product.logarithm-squared
+  family derivative
+  input ln(x)*ln(x)
+  variable x
+  expect differentiated
+  result x^-1*ln(x) + ln(x)*x^-1
+
+case derivative.quotient.chain-over-variable
+  family derivative
+  input sin(x^2)/x
+  variable x
+  expect differentiated
+  result (cos(x^2)*2*x*x - sin(x^2))*x^-2
+
+case derivative.quotient.variable-over-a-chain
+  family derivative
+  input x/sin(x^2)
+  variable x
+  expect differentiated
+  result (sin(x^2) - x*cos(x^2)*2*x)*sin(x^2)^-2
+
+case derivative.quotient.exponential-over-linear
+  family derivative
+  input exp(x)/(x + 1)
+  variable x
+  expect differentiated
+  result (exp(x)*(x + 1) - exp(x))*(x + 1)^-2
+
+case derivative.quotient.linear-over-variable
+  family derivative
+  input (x + 1)/x
+  variable x
+  expect differentiated
+  result (x - (x + 1))*x^-2
+
+case derivative.quotient.root-over-variable
+  family derivative
+  input sqrt(x)/x
+  variable x
+  expect differentiated
+  result ((1/2)*sqrt(x)^-1*x - sqrt(x))*x^-2
+
+case derivative.quotient.square-over-a-quadratic
+  family derivative
+  input x^2/(x^2 + 1)
+  variable x
+  expect differentiated
+  result (2*x*(x^2 + 1) - x^2*2*x)*(x^2 + 1)^-2
+
+case derivative.quotient.variable-over-a-quadratic
+  family derivative
+  input x/(x^2 + 1)
+  variable x
+  expect differentiated
+  result ((x^2 + 1) - x*2*x)*(x^2 + 1)^-2
+
+case derivative.quotient.cotangent-written-out
+  family derivative
+  input cos(x)/sin(x)
+  variable x
+  expect differentiated
+  result (-sin(x)*sin(x) - cos(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.sine-over-a-square
+  family derivative
+  input sin(x)/x^2
+  variable x
+  expect differentiated
+  result (cos(x)*x^2 - sin(x)*2*x)*(x^2)^-2
+
+case derivative.sum.variable-and-a-chain
+  family derivative
+  input x + sin(x^2)
+  variable x
+  expect differentiated
+  result 1 + cos(x^2)*2*x
+
+case derivative.sum.function-and-a-product
+  family derivative
+  input sin(x) + x^2*cos(x)
+  variable x
+  expect differentiated
+  result cos(x) + 2*x*cos(x) - x^2*sin(x)
+
+case derivative.sum.pythagorean-identity
+  family derivative
+  input sin(x)^2 + cos(x)^2
+  variable x
+  expect differentiated
+  result 2*sin(x)*cos(x) + 2*cos(x)*(-sin(x))
+
+case derivative.sum.expanded-cube
+  family derivative
+  input x^3 - 3*x^2 + 3*x - 1
+  variable x
+  expect differentiated
+  result 3*x^2 - 6*x + 3
+
+case derivative.chain.logarithm-of-an-exponential
+  family derivative
+  input ln(exp(x))
+  variable x
+  expect differentiated
+  result exp(x)^-1*exp(x)
+
+case derivative.chain.exponential-of-a-logarithm
+  family derivative
+  input exp(ln(x))
+  variable x
+  expect differentiated
+  result exp(ln(x))*x^-1
+
+case derivative.chain.root-of-an-exponential
+  family derivative
+  input sqrt(exp(x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(exp(x))^-1*exp(x)
+
+case derivative.chain.root-of-a-logarithm
+  family derivative
+  input sqrt(ln(x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(ln(x))^-1*x^-1
+
+case derivative.chain.tangent-of-a-logarithm
+  family derivative
+  input tan(ln(x))
+  variable x
+  expect differentiated
+  result cos(ln(x))^-2*x^-1
+
+case derivative.chain.tangent-of-a-cosine
+  family derivative
+  input tan(cos(x))
+  variable x
+  expect differentiated
+  result cos(cos(x))^-2*(-sin(x))
+
+case derivative.chain.sine-of-a-logarithm
+  family derivative
+  input sin(ln(x))
+  variable x
+  expect differentiated
+  result cos(ln(x))*x^-1
+
+case derivative.chain.cosine-of-an-exponential
+  family derivative
+  input cos(exp(x))
+  variable x
+  expect differentiated
+  result -sin(exp(x))*exp(x)
+
+case derivative.chain.cosine-of-a-logarithm
+  family derivative
+  input cos(ln(x))
+  variable x
+  expect differentiated
+  result -sin(ln(x))*x^-1
+
+case derivative.chain.exponential-of-a-tangent
+  family derivative
+  input exp(tan(x))
+  variable x
+  expect differentiated
+  result exp(tan(x))*cos(x)^-2
+
+case derivative.chain.sine-of-a-tangent
+  family derivative
+  input sin(tan(x))
+  variable x
+  expect differentiated
+  result cos(tan(x))*cos(x)^-2
+
+case derivative.chain.logarithm-of-a-tangent
+  family derivative
+  input ln(tan(x))
+  variable x
+  expect differentiated
+  result tan(x)^-1*cos(x)^-2
+
+case derivative.chain.logarithm-of-a-root
+  family derivative
+  input ln(sqrt(x))
+  variable x
+  expect differentiated
+  result sqrt(x)^-1*(1/2)*sqrt(x)^-1
+
+case derivative.chain.root-of-a-tangent
+  family derivative
+  input sqrt(tan(x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(tan(x))^-1*cos(x)^-2
+
+case derivative.chain.square-of-an-exponential
+  family derivative
+  input exp(x)^2
+  variable x
+  expect differentiated
+  result 2*exp(x)*exp(x)
+
+case derivative.chain.square-of-a-logarithm
+  family derivative
+  input ln(x)^2
+  variable x
+  expect differentiated
+  result 2*ln(x)*x^-1
+
+case derivative.chain.square-of-a-tangent
+  family derivative
+  input tan(x)^2
+  variable x
+  expect differentiated
+  result 2*tan(x)*cos(x)^-2
+
+case derivative.chain.cube-of-a-root
+  family derivative
+  input sqrt(x)^3
+  variable x
+  expect differentiated
+  result 3*sqrt(x)^2*(1/2)*sqrt(x)^-1
+
+case derivative.chain.cube-of-a-cosine
+  family derivative
+  input cos(x)^3
+  variable x
+  expect differentiated
+  result 3*cos(x)^2*(-sin(x))
+
+case derivative.chain.sine-of-a-product
+  family derivative
+  input sin(x*cos(x))
+  variable x
+  expect differentiated
+  result cos(x*cos(x))*(cos(x) + x*(-sin(x)))
+
+case derivative.chain.sine-of-a-sum-of-functions
+  family derivative
+  input sin(x + cos(x))
+  variable x
+  expect differentiated
+  result cos(x + cos(x))*(1 - sin(x))
+
+case derivative.chain.sine-of-a-reciprocal
+  family derivative
+  input sin(1/x)
+  variable x
+  expect differentiated
+  result cos(1/x)*(-1*x^-2)
+
+case derivative.chain.exponential-of-a-reciprocal
+  family derivative
+  input exp(1/x)
+  variable x
+  expect differentiated
+  result exp(1/x)*(-1*x^-2)
+
+case derivative.product.cosine-and-tangent
+  family derivative
+  input cos(x)*tan(x)
+  variable x
+  expect differentiated
+  result -sin(x)*tan(x) + cos(x)*cos(x)^-2
+
+case derivative.product.tangent-and-exponential
+  family derivative
+  input tan(x)*exp(x)
+  variable x
+  expect differentiated
+  result cos(x)^-2*exp(x) + tan(x)*exp(x)
+
+case derivative.product.root-and-cosine
+  family derivative
+  input sqrt(x)*cos(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1*cos(x) + sqrt(x)*(-sin(x))
+
+case derivative.product.root-and-exponential
+  family derivative
+  input sqrt(x)*exp(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1*exp(x) + sqrt(x)*exp(x)
+
+case derivative.product.root-and-logarithm
+  family derivative
+  input sqrt(x)*ln(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1*ln(x) + sqrt(x)*x^-1
+
+case derivative.product.tangent-and-logarithm
+  family derivative
+  input tan(x)*ln(x)
+  variable x
+  expect differentiated
+  result cos(x)^-2*ln(x) + tan(x)*x^-1
+
+case derivative.product.cosine-and-logarithm
+  family derivative
+  input cos(x)*ln(x)
+  variable x
+  expect differentiated
+  result -sin(x)*ln(x) + cos(x)*x^-1
+
+case derivative.product.cube-and-sine
+  family derivative
+  input x^3*sin(x)
+  variable x
+  expect differentiated
+  result 3*x^2*sin(x) + x^3*cos(x)
+
+case derivative.product.cube-and-exponential
+  family derivative
+  input x^3*exp(x)
+  variable x
+  expect differentiated
+  result 3*x^2*exp(x) + x^3*exp(x)
+
+case derivative.product.cube-and-logarithm
+  family derivative
+  input x^3*ln(x)
+  variable x
+  expect differentiated
+  result 3*x^2*ln(x) + x^3*x^-1
+
+case derivative.product.two-chains
+  family derivative
+  input sin(2*x)*cos(3*x)
+  variable x
+  expect differentiated
+  result cos(2*x)*2*cos(3*x) + sin(2*x)*(-sin(3*x))*3
+
+case derivative.product.exponential-chain-and-sine-chain
+  family derivative
+  input exp(2*x)*sin(x^2)
+  variable x
+  expect differentiated
+  result exp(2*x)*2*sin(x^2) + exp(2*x)*cos(x^2)*2*x
+
+case derivative.quotient.tangent-over-variable
+  family derivative
+  input tan(x)/x
+  variable x
+  expect differentiated
+  result (cos(x)^-2*x - tan(x))*x^-2
+
+case derivative.quotient.root-over-sine
+  family derivative
+  input sqrt(x)/sin(x)
+  variable x
+  expect differentiated
+  result ((1/2)*sqrt(x)^-1*sin(x) - sqrt(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.logarithm-over-sine
+  family derivative
+  input ln(x)/sin(x)
+  variable x
+  expect differentiated
+  result (x^-1*sin(x) - ln(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.exponential-over-cosine
+  family derivative
+  input exp(x)/cos(x)
+  variable x
+  expect differentiated
+  result (exp(x)*cos(x) - exp(x)*(-sin(x)))*cos(x)^-2
+
+case derivative.quotient.cube-over-linear
+  family derivative
+  input x^3/(x + 1)
+  variable x
+  expect differentiated
+  result (3*x^2*(x + 1) - x^3)*(x + 1)^-2
+
+case derivative.quotient.linear-over-a-quadratic
+  family derivative
+  input (x + 1)/(x^2 + 1)
+  variable x
+  expect differentiated
+  result ((x^2 + 1) - (x + 1)*2*x)*(x^2 + 1)^-2
+
+case derivative.quotient.sine-over-linear
+  family derivative
+  input sin(x)/(x + 1)
+  variable x
+  expect differentiated
+  result (cos(x)*(x + 1) - sin(x))*(x + 1)^-2
+
+case derivative.quotient.exponential-over-a-quadratic
+  family derivative
+  input exp(x)/(x^2 + 1)
+  variable x
+  expect differentiated
+  result (exp(x)*(x^2 + 1) - exp(x)*2*x)*(x^2 + 1)^-2
+
+case derivative.quotient.cosine-over-exponential
+  family derivative
+  input cos(x)/exp(x)
+  variable x
+  expect differentiated
+  result (-sin(x)*exp(x) - cos(x)*exp(x))*exp(x)^-2
+
+case derivative.quotient.variable-over-logarithm
+  family derivative
+  input x/ln(x)
+  variable x
+  expect differentiated
+  result (ln(x) - x*x^-1)*ln(x)^-2
+
+case derivative.quotient.variable-over-tangent
+  family derivative
+  input x/tan(x)
+  variable x
+  expect differentiated
+  result (tan(x) - x*cos(x)^-2)*tan(x)^-2
+
+case derivative.quotient.two-chains
+  family derivative
+  input sin(2*x)/cos(2*x)
+  variable x
+  expect differentiated
+  result (cos(2*x)*2*cos(2*x) - sin(2*x)*(-sin(2*x))*2)*cos(2*x)^-2
+
+case derivative.sum.root-and-logarithm
+  family derivative
+  input sqrt(x) + ln(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1 + x^-1
+
+case derivative.sum.product-and-function
+  family derivative
+  input x*sin(x) + cos(x)
+  variable x
+  expect differentiated
+  result sin(x) + x*cos(x) - sin(x)
+
+case derivative.symbolic.parameter-times-a-square
+  family derivative
+  input a*x^2
+  variable x
+  expect differentiated
+  result 2*a*x
+
+case derivative.product.variable-times-itself
+  family derivative
+  input x*x
+  variable x
+  expect differentiated
+  result x + x
+
+case derivative.power.zero-exponent
+  family derivative
+  input x^0
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant.zero-to-the-zero
+  family derivative
+  input 0^0
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.constant-multiple.decimal
+  family derivative
+  input 2.5*x
+  variable x
+  expect differentiated
+  result 5/2
+
+case derivative.symbolic.variable-over-a-parameter
+  family derivative
+  input x/a
+  variable x
+  expect differentiated
+  result a^-1
+
+case derivative.chain.sine-of-a-negation
+  family derivative
+  input sin(-x)
+  variable x
+  expect differentiated
+  result -cos(-x)
+
+case derivative.chain.sine-of-a-halved-variable
+  family derivative
+  input sin(x/2)
+  variable x
+  expect differentiated
+  result cos(x/2)/2
+
+case derivative.symbolic.exponential-of-a-parametric-multiple
+  family derivative
+  input exp(a*x)
+  variable x
+  expect differentiated
+  result exp(a*x)*a
+
+case derivative.sum.square-less-a-constant
+  family derivative
+  input x^2 - 4
+  variable x
+  expect differentiated
+  result 2*x
+
+case derivative.product.variable-cubed-as-a-product
+  family derivative
+  input x*x*x
+  variable x
+  expect differentiated
+  result (x + x)*x + x*x
+
+case derivative.constant-multiple.negated-quadratic
+  family derivative
+  input -(x^2 + 1)
+  variable x
+  expect differentiated
+  result -2*x
+
+case derivative.chain.square-of-the-exponential
+  family derivative
+  input exp(x)^2
+  variable x
+  expect differentiated
+  result 2*exp(x)*exp(x)
+
+case derivative.quotient.square-over-a-negative-shift
+  family derivative
+  input x^2/(x - 1)
+  variable x
+  expect differentiated
+  result (2*x*(x - 1) - x^2)*(x - 1)^-2
+
+case derivative.constant-multiple.wide-coefficient
+  family derivative
+  input 99999999999999999999999999*x
+  variable x
+  expect differentiated
+  result 99999999999999999999999999
+
+case derivative.chain.sine-of-a-negative-shift
+  family derivative
+  input sin(x - 1)
+  variable x
+  expect differentiated
+  result cos(x - 1)
+
+case derivative.chain.cosine-of-a-negative-shift
+  family derivative
+  input cos(x - 1)
+  variable x
+  expect differentiated
+  result -sin(x - 1)
+
+case derivative.chain.exponential-of-a-negative-shift
+  family derivative
+  input exp(x - 1)
+  variable x
+  expect differentiated
+  result exp(x - 1)
+
+case derivative.chain.logarithm-of-a-negative-shift
+  family derivative
+  input ln(x - 1)
+  variable x
+  expect differentiated
+  result (x - 1)^-1
+
+case derivative.chain.root-of-a-negative-shift
+  family derivative
+  input sqrt(x - 1)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x - 1)^-1
+
+case derivative.chain.tangent-of-a-negative-shift
+  family derivative
+  input tan(x - 1)
+  variable x
+  expect differentiated
+  result cos(x - 1)^-2
+
+case derivative.chain.square-of-a-negative-shift
+  family derivative
+  input (x - 1)^2
+  variable x
+  expect differentiated
+  result 2*(x - 1)
+
+case derivative.chain.reciprocal-of-a-negative-shift
+  family derivative
+  input (x - 1)^-1
+  variable x
+  expect differentiated
+  result -1*(x - 1)^-2
+
+case derivative.chain.negative-square-of-a-negative-shift
+  family derivative
+  input (x - 1)^-2
+  variable x
+  expect differentiated
+  result -2*(x - 1)^-3
+
+case derivative.chain.sine-of-a-shifted-square
+  family derivative
+  input sin(x^2 - 1)
+  variable x
+  expect differentiated
+  result cos(x^2 - 1)*2*x
+
+case derivative.chain.exponential-of-a-negative-multiple
+  family derivative
+  input exp(-2*x)
+  variable x
+  expect differentiated
+  result -2*exp(-2*x)
+
+case derivative.chain.sine-of-a-negative-multiple
+  family derivative
+  input sin(-2*x)
+  variable x
+  expect differentiated
+  result -2*cos(-2*x)
+
+case derivative.chain.cosine-of-a-negation
+  family derivative
+  input cos(-x)
+  variable x
+  expect differentiated
+  result sin(-x)
+
+# A symbolic argument leaves the condition open, so these differentiate and carry the condition the
+# answer holds under. A literal settles it, and when it settles it false there is no value to
+# differentiate and no condition a reader could meet, so those two refuse instead.
+case derivative.domain.logarithm-of-a-negation
+  family derivative
+  input ln(-x)
+  variable x
+  expect differentiated
+  result -1*(-x)^-1
+  restriction (-x) > 0
+
+case derivative.domain.root-of-a-negation
+  family derivative
+  input sqrt(-x)
+  variable x
+  expect differentiated
+  result -1*(1/2)*sqrt(-x)^-1
+  restriction (-x) >= 0
+
+case derivative.domain.logarithm-of-zero
+  family derivative
+  input ln(0)
+  variable x
+  expect unsupported form
+  detail the expression is undefined here, so there is nothing to differentiate
+
+case derivative.domain.root-of-minus-one
+  family derivative
+  input sqrt(-1)
+  variable x
+  expect unsupported form
+  detail the expression is undefined here, so there is nothing to differentiate
+
+# An expression that divides by zero has no value, so there is nothing to differentiate. The three
+# cases where the zero is written out live in invalid.txt. This one is undefined only after the
+# denominator folds, so it is the only one that reaches the guard's canonicalize-and-recheck branch
+# rather than its raw-tree branch, and without it that branch is untested.
+case derivative.adversarial.denominator-only-zero-once-folded
+  family derivative
+  input x/(2-2)
+  variable x
+  expect unsupported form
+  detail the expression divides by zero, which has no value to differentiate
+
+# The other side of the guard. A denominator that folds to one is not a division by zero, and the
+# refusal must not reach it.
+case derivative.adversarial.denominator-that-folds-to-one
+  family derivative
+  input x/(2-1)
+  variable x
+  expect differentiated
+  result 1
+
+# The third corner, where the zero is symbolic rather than written out. canonicalize still does not
+# gather like terms, so this one is settled by the condition the reciprocal raises rather than by the
+# divisor fold: a - a can never be non-zero, so the condition cannot be met and there is nothing to
+# differentiate. It reached the guard's other branch, which is why the case is here and not beside
+# the two above.
+case derivative.adversarial.symbolic-denominator-that-cancels
+  family derivative
+  input x/(a-a)
+  variable x
+  expect unsupported form
+  detail the expression is undefined here, so there is nothing to differentiate
+
+case derivative.sum.variable-less-itself
+  family derivative
+  input x - x
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.sum.five-copies-of-the-variable
+  family derivative
+  input x + x + x + x + x
+  variable x
+  expect differentiated
+  result 5
+
+case derivative.product.four-copies-of-the-variable
+  family derivative
+  input x*x*x*x
+  variable x
+  expect differentiated
+  result ((x + x)*x + x*x)*x + x*x*x
+
+case derivative.product.coefficient-inside-the-product-rule
+  family derivative
+  input 2*x*sin(x)
+  variable x
+  expect differentiated
+  result 2*sin(x) + 2*x*cos(x)
+
+case derivative.product.coefficient-on-two-functions
+  family derivative
+  input 3*sin(x)*cos(x)
+  variable x
+  expect differentiated
+  result 3*cos(x)*cos(x) - 3*sin(x)*sin(x)
+
+case derivative.product.square-written-out-times-sine
+  family derivative
+  input x*x*sin(x)
+  variable x
+  expect differentiated
+  result (x + x)*sin(x) + x*x*cos(x)
+
+case derivative.product.variable-sine-and-exponential
+  family derivative
+  input x*sin(x)*exp(x)
+  variable x
+  expect differentiated
+  result (sin(x) + x*cos(x))*exp(x) + x*sin(x)*exp(x)
+
+case derivative.product.two-trigonometric-and-an-exponential
+  family derivative
+  input sin(x)*cos(x)*exp(x)
+  variable x
+  expect differentiated
+  result (cos(x)*cos(x) - sin(x)*sin(x))*exp(x) + sin(x)*cos(x)*exp(x)
+
+case derivative.product.variable-logarithm-and-sine
+  family derivative
+  input x*ln(x)*sin(x)
+  variable x
+  expect differentiated
+  result (ln(x) + x*x^-1)*sin(x) + x*ln(x)*cos(x)
+
+case derivative.product.four-varying-factors
+  family derivative
+  input x*sin(x)*cos(x)*exp(x)
+  variable x
+  expect differentiated
+  result ((sin(x) + x*cos(x))*cos(x) - x*sin(x)*sin(x))*exp(x) + x*sin(x)*cos(x)*exp(x)
+
+case derivative.product.variable-and-logarithm
+  family derivative
+  input x*ln(x)
+  variable x
+  expect differentiated
+  result ln(x) + x*x^-1
+
+case derivative.product.root-and-tangent
+  family derivative
+  input sqrt(x)*tan(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1*tan(x) + sqrt(x)*cos(x)^-2
+
+case derivative.product.sine-times-itself
+  family derivative
+  input sin(x)*sin(x)
+  variable x
+  expect differentiated
+  result cos(x)*sin(x) + sin(x)*cos(x)
+
+case derivative.product.cosine-times-itself
+  family derivative
+  input cos(x)*cos(x)
+  variable x
+  expect differentiated
+  result -sin(x)*cos(x) - cos(x)*sin(x)
+
+case derivative.product.exponential-times-itself
+  family derivative
+  input exp(x)*exp(x)
+  variable x
+  expect differentiated
+  result exp(x)*exp(x) + exp(x)*exp(x)
+
+case derivative.product.tangent-times-itself
+  family derivative
+  input tan(x)*tan(x)
+  variable x
+  expect differentiated
+  result cos(x)^-2*tan(x) + tan(x)*cos(x)^-2
+
+case derivative.product.square-and-a-chain
+  family derivative
+  input x^2*sin(2*x)
+  variable x
+  expect differentiated
+  result 2*x*sin(2*x) + x^2*cos(2*x)*2
+
+case derivative.quotient.shift-over-a-negative-shift
+  family derivative
+  input (x + 1)/(x - 1)
+  variable x
+  expect differentiated
+  result ((x - 1) - (x + 1))*(x - 1)^-2
+
+case derivative.quotient.variable-over-a-negative-shift
+  family derivative
+  input x/(x - 1)
+  variable x
+  expect differentiated
+  result ((x - 1) - x)*(x - 1)^-2
+
+case derivative.quotient.logarithm-over-the-exponential
+  family derivative
+  input ln(x)/exp(x)
+  variable x
+  expect differentiated
+  result (x^-1*exp(x) - ln(x)*exp(x))*exp(x)^-2
+
+case derivative.quotient.tangent-over-sine
+  family derivative
+  input tan(x)/sin(x)
+  variable x
+  expect differentiated
+  result (cos(x)^-2*sin(x) - tan(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.root-over-the-logarithm
+  family derivative
+  input sqrt(x)/ln(x)
+  variable x
+  expect differentiated
+  result ((1/2)*sqrt(x)^-1*ln(x) - sqrt(x)*x^-1)*ln(x)^-2
+
+case derivative.quotient.square-over-a-cube
+  family derivative
+  input x^2/x^3
+  variable x
+  expect differentiated
+  result (2*x*x^3 - x^2*3*x^2)*(x^3)^-2
+
+case derivative.quotient.sine-over-a-quadratic
+  family derivative
+  input sin(x)/(x^2 + 1)
+  variable x
+  expect differentiated
+  result (cos(x)*(x^2 + 1) - sin(x)*2*x)*(x^2 + 1)^-2
+
+case derivative.chain.reciprocal-of-a-product
+  family derivative
+  input 1/(x*sin(x))
+  variable x
+  expect differentiated
+  result -1*(x*sin(x))^-2*(sin(x) + x*cos(x))
+
+case derivative.quotient.variable-over-a-squared-shift
+  family derivative
+  input x/(x + 1)^2
+  variable x
+  expect differentiated
+  result ((x + 1)^2 - x*2*(x + 1))*((x + 1)^2)^-2
+
+case derivative.quotient.square-over-a-cubic
+  family derivative
+  input x^2/(x^3 + 1)
+  variable x
+  expect differentiated
+  result (2*x*(x^3 + 1) - x^2*3*x^2)*(x^3 + 1)^-2
+
+case derivative.quotient.quadratic-over-a-quadratic-difference
+  family derivative
+  input (x^2 + 1)/(x^2 - 1)
+  variable x
+  expect differentiated
+  result (2*x*(x^2 - 1) - (x^2 + 1)*2*x)*(x^2 - 1)^-2
+
+case derivative.quotient.exponential-over-the-logarithm
+  family derivative
+  input exp(x)/ln(x)
+  variable x
+  expect differentiated
+  result (exp(x)*ln(x) - exp(x)*x^-1)*ln(x)^-2
+
+case derivative.quotient.sine-over-a-root
+  family derivative
+  input sin(x)/sqrt(x)
+  variable x
+  expect differentiated
+  result (cos(x)*sqrt(x) - sin(x)*(1/2)*sqrt(x)^-1)*sqrt(x)^-2
+
+case derivative.quotient.tangent-over-the-exponential
+  family derivative
+  input tan(x)/exp(x)
+  variable x
+  expect differentiated
+  result (cos(x)^-2*exp(x) - tan(x)*exp(x))*exp(x)^-2
+
+case derivative.quotient.variable-over-cosine
+  family derivative
+  input x/cos(x)
+  variable x
+  expect differentiated
+  result (cos(x) + x*sin(x))*cos(x)^-2
+
+case derivative.quotient.square-over-the-exponential
+  family derivative
+  input x^2/exp(x)
+  variable x
+  expect differentiated
+  result (2*x*exp(x) - x^2*exp(x))*exp(x)^-2
+
+case derivative.quotient.square-over-cosine
+  family derivative
+  input x^2/cos(x)
+  variable x
+  expect differentiated
+  result (2*x*cos(x) + x^2*sin(x))*cos(x)^-2
+
+case derivative.quotient.logarithm-over-cosine
+  family derivative
+  input ln(x)/cos(x)
+  variable x
+  expect differentiated
+  result (x^-1*cos(x) + ln(x)*sin(x))*cos(x)^-2
+
+case derivative.quotient.root-over-cosine
+  family derivative
+  input sqrt(x)/cos(x)
+  variable x
+  expect differentiated
+  result ((1/2)*sqrt(x)^-1*cos(x) + sqrt(x)*sin(x))*cos(x)^-2
+
+case derivative.quotient.root-over-the-exponential
+  family derivative
+  input sqrt(x)/exp(x)
+  variable x
+  expect differentiated
+  result ((1/2)*sqrt(x)^-1*exp(x) - sqrt(x)*exp(x))*exp(x)^-2
+
+case derivative.quotient.variable-over-its-root
+  family derivative
+  input x/sqrt(x)
+  variable x
+  expect differentiated
+  result (sqrt(x) - x*(1/2)*sqrt(x)^-1)*sqrt(x)^-2
+
+# The answer is one, and the quotient rule cannot say so: it produces x minus x over x squared and
+# nothing collects the numerator, because canonical form sorts and folds but does not cancel.
+case derivative.quotient.variable-over-itself
+  family derivative
+  input x/x
+  variable x
+  expect differentiated
+  result (x - x)*x^-2
+
+case derivative.chain.one-over-a-square
+  family derivative
+  input 1/x^2
+  variable x
+  expect differentiated
+  result -1*(x^2)^-2*2*x
+
+case derivative.constant-multiple.two-over-the-variable
+  family derivative
+  input 2/x
+  variable x
+  expect differentiated
+  result -2*x^-2
+
+case derivative.constant-multiple.minus-one-over-the-variable
+  family derivative
+  input -1/x
+  variable x
+  expect differentiated
+  result x^-2
+
+case derivative.product.two-reciprocals
+  family derivative
+  input x^-1*x^-1
+  variable x
+  expect differentiated
+  result -x^-2*x^-1 - x^-1*x^-2
+
+case derivative.constant-multiple.square-over-two
+  family derivative
+  input x^2/2
+  variable x
+  expect differentiated
+  result x
+
+case derivative.constant-multiple.decimal-on-a-square
+  family derivative
+  input 0.5*x^2
+  variable x
+  expect differentiated
+  result 1/2*2*x
+
+case derivative.sum.variable-and-a-decimal
+  family derivative
+  input x + 0.5
+  variable x
+  expect differentiated
+  result 1
+
+case derivative.chain.negative-square-of-sine
+  family derivative
+  input sin(x)^-2
+  variable x
+  expect differentiated
+  result -2*sin(x)^-3*cos(x)
+
+case derivative.chain.zero-power-of-sine
+  family derivative
+  input sin(x)^0
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.chain.reciprocal-of-cosine
+  family derivative
+  input cos(x)^-1
+  variable x
+  expect differentiated
+  result cos(x)^-2*sin(x)
+
+case derivative.chain.reciprocal-of-tangent
+  family derivative
+  input tan(x)^-1
+  variable x
+  expect differentiated
+  result -1*tan(x)^-2*cos(x)^-2
+
+case derivative.chain.negative-square-of-tangent
+  family derivative
+  input tan(x)^-2
+  variable x
+  expect differentiated
+  result -2*tan(x)^-3*cos(x)^-2
+
+case derivative.chain.reciprocal-of-the-exponential
+  family derivative
+  input exp(x)^-1
+  variable x
+  expect differentiated
+  result -1*exp(x)^-2*exp(x)
+
+case derivative.chain.negative-square-of-the-exponential
+  family derivative
+  input exp(x)^-2
+  variable x
+  expect differentiated
+  result -2*exp(x)^-3*exp(x)
+
+case derivative.chain.reciprocal-of-the-logarithm
+  family derivative
+  input ln(x)^-1
+  variable x
+  expect differentiated
+  result -1*ln(x)^-2*x^-1
+
+case derivative.chain.negative-square-of-the-logarithm
+  family derivative
+  input ln(x)^-2
+  variable x
+  expect differentiated
+  result -2*ln(x)^-3*x^-1
+
+case derivative.chain.reciprocal-of-the-root
+  family derivative
+  input sqrt(x)^-1
+  variable x
+  expect differentiated
+  result -1*sqrt(x)^-2*(1/2)*sqrt(x)^-1
+
+case derivative.chain.negative-square-of-the-root
+  family derivative
+  input sqrt(x)^-2
+  variable x
+  expect differentiated
+  result -2*sqrt(x)^-3*(1/2)*sqrt(x)^-1
+
+case derivative.chain.negative-square-of-a-shift
+  family derivative
+  input (x + 1)^-2
+  variable x
+  expect differentiated
+  result -2*(x + 1)^-3
+
+case derivative.chain.zero-power-of-a-shift
+  family derivative
+  input (x + 1)^0
+  variable x
+  expect differentiated
+  result 0
+
+case derivative.chain.negative-square-of-linear
+  family derivative
+  input (2*x + 1)^-2
+  variable x
+  expect differentiated
+  result -2*(2*x + 1)^-3*2
+
+case derivative.chain.reciprocal-of-a-quadratic
+  family derivative
+  input (x^2 + 1)^-1
+  variable x
+  expect differentiated
+  result -1*(x^2 + 1)^-2*2*x
+
+case derivative.chain.negative-square-of-a-quadratic
+  family derivative
+  input (x^2 + 1)^-2
+  variable x
+  expect differentiated
+  result -2*(x^2 + 1)^-3*2*x
+
+case derivative.chain.square-of-a-quadratic-difference
+  family derivative
+  input (x^2 - 1)^2
+  variable x
+  expect differentiated
+  result 2*(x^2 - 1)*2*x
+
+case derivative.chain.reciprocal-of-a-polynomial
+  family derivative
+  input (x^2 + x)^-1
+  variable x
+  expect differentiated
+  result -1*(x^2 + x)^-2*(2*x + 1)
+
+case derivative.chain.negative-square-of-a-product
+  family derivative
+  input (x*sin(x))^-2
+  variable x
+  expect differentiated
+  result -2*(x*sin(x))^-3*(sin(x) + x*cos(x))
+
+case derivative.chain.square-of-a-cubic
+  family derivative
+  input (x^3 + 1)^2
+  variable x
+  expect differentiated
+  result 2*(x^3 + 1)*3*x^2
+
+case derivative.chain.square-of-a-trigonometric-sum
+  family derivative
+  input (sin(x) + cos(x))^2
+  variable x
+  expect differentiated
+  result 2*(sin(x) + cos(x))*(cos(x) - sin(x))
+
+case derivative.chain.square-of-a-cosine-product
+  family derivative
+  input (x*cos(x))^2
+  variable x
+  expect differentiated
+  result 2*(x*cos(x))*(cos(x) - x*sin(x))
+
+case derivative.chain.square-of-a-descending-linear
+  family derivative
+  input (3*x - 1)^2
+  variable x
+  expect differentiated
+  result 2*(3*x - 1)*3
+
+case derivative.chain.sine-of-a-root
+  family derivative
+  input sin(sqrt(x))
+  variable x
+  expect differentiated
+  result cos(sqrt(x))*(1/2)*sqrt(x)^-1
+
+case derivative.chain.cosine-of-a-root
+  family derivative
+  input cos(sqrt(x))
+  variable x
+  expect differentiated
+  result -sin(sqrt(x))*(1/2)*sqrt(x)^-1
+
+case derivative.chain.exponential-of-a-root
+  family derivative
+  input exp(sqrt(x))
+  variable x
+  expect differentiated
+  result exp(sqrt(x))*(1/2)*sqrt(x)^-1
+
+case derivative.chain.tangent-of-a-root
+  family derivative
+  input tan(sqrt(x))
+  variable x
+  expect differentiated
+  result cos(sqrt(x))^-2*(1/2)*sqrt(x)^-1
+
+case derivative.chain.cosine-of-cosine
+  family derivative
+  input cos(cos(x))
+  variable x
+  expect differentiated
+  result sin(cos(x))*sin(x)
+
+case derivative.chain.tangent-of-tangent
+  family derivative
+  input tan(tan(x))
+  variable x
+  expect differentiated
+  result cos(tan(x))^-2*cos(x)^-2
+
+case derivative.chain.cosine-of-a-reciprocal
+  family derivative
+  input cos(1/x)
+  variable x
+  expect differentiated
+  result sin(x^-1)*x^-2
+
+case derivative.chain.tangent-of-a-reciprocal
+  family derivative
+  input tan(1/x)
+  variable x
+  expect differentiated
+  result -cos(x^-1)^-2*x^-2
+
+case derivative.chain.root-of-a-reciprocal
+  family derivative
+  input sqrt(1/x)
+  variable x
+  expect differentiated
+  result -1*(1/2)*sqrt(x^-1)^-1*x^-2
+
+case derivative.chain.logarithm-of-a-reciprocal
+  family derivative
+  input ln(1/x)
+  variable x
+  expect differentiated
+  result -1*(x^-1)^-1*x^-2
+
+case derivative.chain.logarithm-of-a-cube
+  family derivative
+  input ln(x^3)
+  variable x
+  expect differentiated
+  result (x^3)^-1*3*x^2
+
+case derivative.chain.root-of-a-square
+  family derivative
+  input sqrt(x^2)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x^2)^-1*2*x
+
+case derivative.chain.tangent-of-a-shift
+  family derivative
+  input tan(x + 1)
+  variable x
+  expect differentiated
+  result cos(x + 1)^-2
+
+case derivative.chain.exponential-of-a-shift
+  family derivative
+  input exp(x + 1)
+  variable x
+  expect differentiated
+  result exp(x + 1)
+
+case derivative.chain.cosine-of-a-shift
+  family derivative
+  input cos(x + 1)
+  variable x
+  expect differentiated
+  result -sin(x + 1)
+
+case derivative.chain.root-of-a-sine-of-linear
+  family derivative
+  input sqrt(sin(2*x))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(sin(2*x))^-1*cos(2*x)*2
+
+case derivative.chain.logarithm-of-a-cosine-of-linear
+  family derivative
+  input ln(cos(2*x))
+  variable x
+  expect differentiated
+  result -2*cos(2*x)^-1*sin(2*x)
+
+case derivative.chain.root-of-a-polynomial
+  family derivative
+  input sqrt(x^2 + x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x^2 + x)^-1*(2*x + 1)
+
+case derivative.chain.exponential-of-a-polynomial
+  family derivative
+  input exp(x^2 + x)
+  variable x
+  expect differentiated
+  result exp(x^2 + x)*(2*x + 1)
+
+case derivative.chain.sine-of-a-cubic-sum
+  family derivative
+  input sin(x^3 + x)
+  variable x
+  expect differentiated
+  result cos(x^3 + x)*(3*x^2 + 1)
+
+case derivative.chain.sine-of-a-squared-shift
+  family derivative
+  input sin((x + 1)^2)
+  variable x
+  expect differentiated
+  result cos((x + 1)^2)*2*(x + 1)
+
+case derivative.chain.cube-of-a-sine-of-a-square
+  family derivative
+  input sin(x^2)^3
+  variable x
+  expect differentiated
+  result 3*sin(x^2)^2*cos(x^2)*2*x
+
+case derivative.chain.three-levels-sine-of-cosine-of-sine
+  family derivative
+  input sin(cos(sin(x)))
+  variable x
+  expect differentiated
+  result -cos(cos(sin(x)))*sin(sin(x))*cos(x)
+
+case derivative.chain.three-levels-of-the-exponential
+  family derivative
+  input exp(exp(exp(x)))
+  variable x
+  expect differentiated
+  result exp(exp(exp(x)))*exp(exp(x))*exp(x)
+
+case derivative.chain.three-levels-of-the-logarithm
+  family derivative
+  input ln(ln(ln(x)))
+  variable x
+  expect differentiated
+  result ln(ln(x))^-1*ln(x)^-1*x^-1
+
+case derivative.chain.three-levels-of-the-root
+  family derivative
+  input sqrt(sqrt(sqrt(x)))
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(sqrt(sqrt(x)))^-1*(1/2)*sqrt(sqrt(x))^-1*(1/2)*sqrt(x)^-1
+
+case derivative.chain.three-levels-sine-of-exponential-of-sine
+  family derivative
+  input sin(exp(sin(x)))
+  variable x
+  expect differentiated
+  result cos(exp(sin(x)))*exp(sin(x))*cos(x)
+
+case derivative.chain.three-levels-tangent-of-sine-of-cosine
+  family derivative
+  input tan(sin(cos(x)))
+  variable x
+  expect differentiated
+  result -cos(sin(cos(x)))^-2*cos(cos(x))*sin(x)
+
+case derivative.chain.logarithm-of-a-root-of-a-quadratic
+  family derivative
+  input ln(sqrt(x^2 + 1))
+  variable x
+  expect differentiated
+  result sqrt(x^2 + 1)^-1*(1/2)*sqrt(x^2 + 1)^-1*2*x
+
+case derivative.chain.exponential-of-a-root-of-a-shift
+  family derivative
+  input exp(sqrt(x + 1))
+  variable x
+  expect differentiated
+  result exp(sqrt(x + 1))*(1/2)*sqrt(x + 1)^-1
+
+case derivative.sum.five-term-polynomial
+  family derivative
+  input x^4 + x^3 + x^2 + x + 1
+  variable x
+  expect differentiated
+  result 4*x^3 + 3*x^2 + 2*x + 1
+
+case derivative.sum.three-trigonometric
+  family derivative
+  input sin(x) + cos(x) + tan(x)
+  variable x
+  expect differentiated
+  result cos(x) - sin(x) + cos(x)^-2
+
+case derivative.sum.exponential-and-sine
+  family derivative
+  input exp(x) + sin(x)
+  variable x
+  expect differentiated
+  result exp(x) + cos(x)
+
+case derivative.sum.root-and-sine
+  family derivative
+  input sqrt(x) + sin(x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(x)^-1 + cos(x)
+
+case derivative.sum.logarithm-and-the-variable
+  family derivative
+  input ln(x) + x
+  variable x
+  expect differentiated
+  result x^-1 + 1
+
+case derivative.sum.tangent-and-a-square
+  family derivative
+  input tan(x) + x^2
+  variable x
+  expect differentiated
+  result cos(x)^-2 + 2*x
+
+case derivative.sum.two-negative-powers
+  family derivative
+  input x^-1 + x^-2
+  variable x
+  expect differentiated
+  result -x^-2 - 2*x^-3
+
+case derivative.sum.variable-and-its-reciprocal
+  family derivative
+  input x + x^-1
+  variable x
+  expect differentiated
+  result 1 - x^-2
+
+case derivative.sum.trigonometric-difference
+  family derivative
+  input sin(x) - cos(x)
+  variable x
+  expect differentiated
+  result cos(x) + sin(x)
+
+case derivative.sum.square-less-sine
+  family derivative
+  input x^2 - sin(x)
+  variable x
+  expect differentiated
+  result 2*x - cos(x)
+
+case derivative.sum.constant-and-sine
+  family derivative
+  input 1 + sin(x)
+  variable x
+  expect differentiated
+  result cos(x)
+
+case derivative.sum.two-scaled-terms
+  family derivative
+  input 2*x + 3*sin(x)
+  variable x
+  expect differentiated
+  result 2 + 3*cos(x)
+
+case derivative.sum.square-and-a-reciprocal
+  family derivative
+  input x^2 + 1/x
+  variable x
+  expect differentiated
+  result 2*x - x^-2
+
+case derivative.sum.two-exponential-chains
+  family derivative
+  input exp(2*x) + exp(3*x)
+  variable x
+  expect differentiated
+  result exp(2*x)*2 + exp(3*x)*3
+
+case derivative.sum.two-chains-of-a-square
+  family derivative
+  input sin(x^2) + cos(x^2)
+  variable x
+  expect differentiated
+  result cos(x^2)*2*x - sin(x^2)*2*x
+
+case derivative.sum.two-products
+  family derivative
+  input x*sin(x) + x*cos(x)
+  variable x
+  expect differentiated
+  result sin(x) + x*cos(x) + cos(x) - x*sin(x)
+
+case derivative.symbolic.quadratic-with-three-parameters
+  family derivative
+  input a*x^2 + b*x + c
+  variable x
+  expect differentiated
+  result 2*a*x + b
+
+case derivative.symbolic.square-and-a-parametric-multiple
+  family derivative
+  input x^2 + a*x
+  variable x
+  expect differentiated
+  result 2*x + a
+
+case derivative.symbolic.parameter-times-sine
+  family derivative
+  input a*sin(x)
+  variable x
+  expect differentiated
+  result a*cos(x)
+
+case derivative.symbolic.parameter-times-the-exponential
+  family derivative
+  input a*exp(x)
+  variable x
+  expect differentiated
+  result a*exp(x)
+
+case derivative.symbolic.parameter-over-the-variable
+  family derivative
+  input a/x
+  variable x
+  expect differentiated
+  result -a*x^-2
+
+case derivative.symbolic.square-over-a-parameter
+  family derivative
+  input x^2/a
+  variable x
+  expect differentiated
+  result 2*x/a
+
+case derivative.symbolic.sine-of-a-parametric-multiple
+  family derivative
+  input sin(a*x)
+  variable x
+  expect differentiated
+  result cos(a*x)*a
+
+case derivative.symbolic.cosine-of-a-parametric-multiple
+  family derivative
+  input cos(a*x)
+  variable x
+  expect differentiated
+  result -sin(a*x)*a
+
+case derivative.symbolic.logarithm-of-a-parametric-multiple
+  family derivative
+  input ln(a*x)
+  variable x
+  expect differentiated
+  result (a*x)^-1*a
+
+case derivative.symbolic.root-of-a-parametric-multiple
+  family derivative
+  input sqrt(a*x)
+  variable x
+  expect differentiated
+  result (1/2)*sqrt(a*x)^-1*a
+
+case derivative.symbolic.square-of-a-parametric-multiple
+  family derivative
+  input (a*x)^2
+  variable x
+  expect differentiated
+  result 2*(a*x)*a
+
+case derivative.symbolic.cube-of-a-parametric-shift
+  family derivative
+  input (x + a)^3
+  variable x
+  expect differentiated
+  result 3*(x + a)^2
+
+case derivative.symbolic.two-parameters-on-the-variable
+  family derivative
+  input a*b*x
+  variable x
+  expect differentiated
+  result a*b
+
+case derivative.symbolic.a-function-of-a-parameter-is-constant
+  family derivative
+  input sin(a)*x
+  variable x
+  expect differentiated
+  result sin(a)
+
+case derivative.symbolic.exponential-of-a-parametric-shift
+  family derivative
+  input exp(x + a)
+  variable x
+  expect differentiated
+  result exp(x + a)
+
+case derivative.symbolic.parameter-inside-the-product-rule
+  family derivative
+  input a*x*sin(x)
+  variable x
+  expect differentiated
+  result a*sin(x) + a*x*cos(x)
+
+case derivative.symbolic.two-parametric-multiples
+  family derivative
+  input a*x + b*x
+  variable x
+  expect differentiated
+  result a + b
+
+case derivative.symbolic.variable-over-a-parametric-multiple
+  family derivative
+  input x/(a*x)
+  variable x
+  expect differentiated
+  result ((a*x) - x*a)*(a*x)^-2
+
+case derivative.chain.four-levels-of-sine
+  family derivative
+  input sin(sin(sin(sin(x))))
+  variable x
+  expect differentiated
+  result cos(sin(sin(sin(x))))*cos(sin(sin(x)))*cos(sin(x))*cos(x)
+
+# Both of these are the constant one written so the rule engine cannot see it. The quotient rule
+# produces a numerator whose two halves cancel, and nothing collects it, so the answer is right and
+# does not look it. A simplifier that arrives later has to keep these passing.
+case derivative.quotient.square-times-its-reciprocal
+  family derivative
+  input x^2*x^-2
+  variable x
+  expect differentiated
+  result (2*x*x^2 - x^2*2*x)*(x^2)^-2
+
+case derivative.quotient.sine-over-itself
+  family derivative
+  input sin(x)/sin(x)
+  variable x
+  expect differentiated
+  result (cos(x)*sin(x) - sin(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.two-divisions-in-a-row
+  family derivative
+  input x/sin(x)/cos(x)
+  variable x
+  expect differentiated
+  result ((sin(x) - x*cos(x))*sin(x)^-2*cos(x) + x*sin(x)^-1*sin(x))*cos(x)^-2
+
+case derivative.quotient.product-over-a-function
+  family derivative
+  input sqrt(x)*ln(x)/sin(x)
+  variable x
+  expect differentiated
+  result (((1/2)*sqrt(x)^-1*ln(x) + sqrt(x)*x^-1)*sin(x) - sqrt(x)*ln(x)*cos(x))*sin(x)^-2
+
+case derivative.quotient.chain-over-a-product-inside
+  family derivative
+  input sin(x*exp(x))/x
+  variable x
+  expect differentiated
+  result (cos(x*exp(x))*(exp(x) + x*exp(x))*x - sin(x*exp(x)))*x^-2
+
+case derivative.chain.square-of-a-reciprocal-sum
+  family derivative
+  input (x^-1 + 1)^2
+  variable x
+  expect differentiated
+  result -2*(x^-1 + 1)*x^-2
+
+case derivative.chain.four-levels-of-the-exponential
+  family derivative
+  input exp(exp(exp(exp(x))))
+  variable x
+  expect differentiated
+  result exp(exp(exp(exp(x))))*exp(exp(exp(x)))*exp(exp(x))*exp(x)
+
+case derivative.product.four-different-factors
+  family derivative
+  input x*sqrt(x)*ln(x)*exp(x)
+  variable x
+  expect differentiated
+  result ((sqrt(x) + x*(1/2)*sqrt(x)^-1)*ln(x) + x*sqrt(x)*x^-1)*exp(x) + x*sqrt(x)*ln(x)*exp(x)
+
+# One over one over x is x, whose derivative is one. The chain rule gets there as (1/x) to the minus
+# two times x to the minus two, which is one, and stays written that way.
+case derivative.chain.reciprocal-of-a-reciprocal
+  family derivative
+  input 1/(1/x)
+  variable x
+  expect differentiated
+  result (x^-1)^-2*x^-2
+
+case derivative.quotient.three-factor-product-over-the-exponential
+  family derivative
+  input x^2*sin(x)*cos(x)/exp(x)
+  variable x
+  expect differentiated
+  result (((2*x*sin(x) + x^2*cos(x))*cos(x) - x^2*sin(x)*sin(x))*exp(x) - x^2*sin(x)*cos(x)*exp(x))*exp(x)^-2
+
+# The numeric mode cases that used to sit here are in numeric_mode.txt, which holds every family's.

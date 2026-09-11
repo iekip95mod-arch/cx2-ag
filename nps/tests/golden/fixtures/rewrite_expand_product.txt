@@ -1,0 +1,135 @@
+problem: (x + 1)(x + 2)
+variable: expand
+outcome: rewritten
+result: ((x^2) + (3 * x) + 2)
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.polynomial-rewrite.single-expression
+  envelope version: <not recorded>
+  normalized problem: ((x + 1) * (x + 2))
+  requested method: expand
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Rewrite ((x + 1) * (x + 2))
+    rule: alg.expand.distribute-and-collect, Multiply the brackets out, then gather like terms
+    claim: no claim
+    explanation: Multiply the brackets out, then gather like terms
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Multiply the brackets out, then gather like terms
+    applicability: every number in the expression is exact
+    applicability: every move comes from a registered rewriting rule
+    fact: asked to expand ((x + 1) * (x + 2))
+    rationale: each bracket is multiplied out before anything is gathered, so the distribution and the collecting stay separate steps
+    verification: literal inspection, passed, no decimal literal appears in the expression
+    verification: registered rewriting rule dispatch, passed, every move came from a registered rewriting rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.distribute, Distributive law
+      claim: equivalent expression
+      explanation: Every term inside the bracket is multiplied by what is outside
+      detail: A product with a sum in it is the sum of the products, term by term. Nothing is combined yet, so each product is still visible on its own.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Multiply every term of (x + 1) by (x + 2)
+      before: ((x + 1) * (x + 2))
+      after: ((x * (x + 2)) + (1 * (x + 2)))
+      reversible: yes
+      verification: rule-local invariant, passed, the distributive law was applied to one product
+      verified: yes
+    1.2 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.distribute, Distributive law
+      claim: equivalent expression
+      explanation: Every term inside the bracket is multiplied by what is outside
+      detail: A product with a sum in it is the sum of the products, term by term. Nothing is combined yet, so each product is still visible on its own.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Multiply every term of (x + 2) by x
+      before: ((x * (x + 2)) + (1 * (x + 2)))
+      after: (((x * x) + (2 * x)) + (1 * (x + 2)))
+      at: 0
+      reversible: yes
+      verification: rule-local invariant, passed, the distributive law was applied to one product
+      verified: yes
+    1.3 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.distribute, Distributive law
+      claim: equivalent expression
+      explanation: Every term inside the bracket is multiplied by what is outside
+      detail: A product with a sum in it is the sum of the products, term by term. Nothing is combined yet, so each product is still visible on its own.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Multiply every term of (x + 2) by 1
+      before: (((x * x) + (2 * x)) + (1 * (x + 2)))
+      after: (((x * x) + (2 * x)) + ((x * 1) + (2 * 1)))
+      at: 1
+      reversible: yes
+      verification: rule-local invariant, passed, the distributive law was applied to one product
+      verified: yes
+    1.4 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.fold-arithmetic, Work out the arithmetic
+      claim: equivalent expression
+      explanation: Numbers standing together are worked out first
+      detail: Only the numbers are touched: one operation on written numbers becomes the number it equals, and nothing else in the expression moves.
+      proof obligation: obl.alg.fold-preserves-value, folding the constants leaves the expression's value alone
+      action: Multiply (2 * 1) to get 2
+      before: (((x * x) + (2 * x)) + ((x * 1) + (2 * 1)))
+      after: (((x * x) + (2 * x)) + ((x * 1) + 2))
+      at: 1.1
+      reversible: yes
+      verification: exact rational arithmetic, passed, Multiply (2 * 1) to get 2
+      verified: yes
+    1.5 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.gather-powers, Repeated factors are a power
+      claim: equivalent expression
+      explanation: The same factor multiplied several times is that factor to a power
+      detail: Counting how many times a factor appears in the term and writing it as an exponent changes nothing about the value, and it is what lets like terms be seen as alike.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Write (x * x) as (x^2)
+      before: (((x * x) + (2 * x)) + ((x * 1) + 2))
+      after: ((x^2) + (2 * x) + x + 2)
+      reversible: yes
+      verification: rule-local invariant, passed, the exponents count the same factors the product had
+      verified: yes
+    1.6 transformation
+      phase: rewrite
+      goal: expand the expression
+      rule: alg.collect-like-terms, Collect like terms
+      claim: equivalent expression
+      explanation: Terms differing only by their coefficient add into one
+      detail: Two terms with the same part beside the coefficient are one term whose coefficient is the sum of theirs, because that is the distributive law read backwards.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Add the coefficients of x: 2 and 1 make 3
+      before: ((x^2) + (2 * x) + x + 2)
+      after: ((x^2) + (3 * x) + 2)
+      reversible: yes
+      verification: rule-local invariant, passed, both terms carry the same non-numeric part, so the distributive law gathers them
+      verified: yes
+    1.7 check
+      phase: check
+      goal: Check the rewritten expression
+      rule: alg.rewrite.check-by-evaluation, Check by working both forms out
+      claim: equivalent expression
+      explanation: Work the first form and the last one out at the same values
+      detail: Every rule used here keeps the value of the expression, so the two forms must agree wherever they are both defined. Working both out at several exact values can show that they do not, and a backend is asked for the symbolic answer when one is supplied.
+      proof obligation: obl.rewrite.same-value, the rewritten expression has the value the original had
+      target claim: ((x + 1) * (x + 2)) and ((x^2) + (3 * x) + 2) are the same expression
+      check method: work both forms out exactly at several assignments
+      expected: the two forms take the same value
+      observed: the forms agreed at all 6 assignments
+      verification: exact evaluation at 6 rational assignments, passed, both forms took the same value at all 6 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+      verified: yes

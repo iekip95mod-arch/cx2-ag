@@ -1,0 +1,75 @@
+problem: sin(x)/x
+variable: x
+outcome: differentiated
+result: (((cos(x) * x) + (-(sin(x) * 1))) * (x^-2))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.derivative.single-variable
+  envelope version: <not recorded>
+  normalized problem: (sin(x) * (x^(-1)))
+  requested method: differentiate by rule
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Differentiate (sin(x) * (x^(-1))) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: differentiate
+      goal: Differentiate (sin(x) * (x^(-1)))
+      rule: d.quotient, Quotient rule
+      claim: equivalent expression
+      explanation: Each part contributes to the derivative, with the two products subtracted over the denominator squared
+      detail: For u over v the derivative is u' v minus u v', all over v squared. The subtraction comes from differentiating the reciprocal 1/v. The denominator must be nonzero.
+      domain restriction: x is not zero
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Multiply the derivative of sin(x) by x, subtract sin(x) times the derivative of x, then divide by x squared
+      before: d((sin(x) * (x^(-1))), x)
+      after: (((cos(x) * x) + (-(sin(x) * 1))) * (x^-2))
+      reversible: no
+      verification: rule-local invariant, passed, both the numerator and the denominator depend on the variable, so the quotient rule is the applicable one
+      verified: yes
+      1.1.1 transformation
+        phase: differentiate
+        goal: Differentiate sin(x)
+        rule: d.function, Trigonometric derivative
+        claim: equivalent expression
+        explanation: Use the known derivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the derivative of sin
+        before: d(sin(x), x)
+        after: cos(x)
+        reversible: no
+        verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+        verified: yes
+      1.1.2 transformation
+        phase: differentiate
+        goal: Differentiate x
+        rule: d.variable, Derivative of the variable
+        claim: equivalent expression
+        explanation: The variable changes at the same rate as itself
+        detail: Reach for this when the expression is the bare variable and nothing else. If x grows by some amount then x grows by exactly that amount, so the rate of change is one. It is the power rule with an exponent of one, written out separately because it comes up constantly as the last step of a longer derivative.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Replace the derivative of the variable with one
+        before: d(x, x)
+        after: 1
+        reversible: no
+        verification: rule-local invariant, passed, the expression is the variable itself
+        verified: yes

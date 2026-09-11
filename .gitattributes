@@ -1,0 +1,15 @@
+# Line endings are decided here rather than by whatever core.autocrlf each machine happens to set.
+# An input setting normalized 127 vendored files to LF, which left the repository disagreeing with
+# the upstream archives the provenance files name, and rewrote a preserved patch so that applying
+# it would no longer reproduce what it recorded. Anything below that is a byte-exact record gets no
+# end-of-line conversion at all. Sources we own stay LF in the repository.
+* text=auto
+
+/vendor/** -text
+/vendor-history/** -text
+/nps/third_party/** -text
+
+# The folder-hiding prototype recognizes factory files by size and CRC32, so its provenance copies
+# and the evidence beside them are byte-exact records too. Normalizing themes.csv took it from the
+# 191 bytes factory_manifest.h records to 188, which is a recognition failure in every clone.
+/research/** -text

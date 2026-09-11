@@ -1,0 +1,76 @@
+problem: 2x^2 + 8x + 6
+variable: factor
+outcome: rewritten
+result: (2 * ((x + 1) * (x + 3)))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.polynomial-rewrite.single-expression
+  envelope version: <not recorded>
+  normalized problem: (((2 * (x^2)) + (8 * x)) + 6)
+  requested method: factor
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Rewrite (((2 * (x^2)) + (8 * x)) + 6)
+    rule: alg.factor.common-then-quadratic, Take out what the terms share, then look for a pair
+    claim: no claim
+    explanation: Take out what the terms share, then look for a pair
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Take out what the terms share, then look for a pair
+    applicability: every number in the expression is exact
+    applicability: every move comes from a registered rewriting rule
+    fact: asked to factor (((2 * (x^2)) + (8 * x)) + 6)
+    rationale: what every term shares comes out first, because a quadratic is easier to read once its common factor is outside the bracket
+    verification: literal inspection, passed, no decimal literal appears in the expression
+    verification: registered rewriting rule dispatch, passed, every move came from a registered rewriting rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: rewrite
+      goal: factor the expression
+      rule: alg.factor.common-factor, Take out the common factor
+      claim: equivalent expression
+      explanation: A factor shared by every term goes outside the bracket
+      detail: Every term is divided by what they share and the shared part is written in front, which is the distributive law read backwards. Multiplying out again gives the terms back.
+      proof obligation: obl.alg.factor-multiplies-back, the factored form multiplies back out to the original
+      action: Take out 2
+      before: (((2 * (x^2)) + (8 * x)) + 6)
+      after: (2 * ((x^2) + (4 * x) + 3))
+      reversible: yes
+      verification: multiply the factors out and compare term by term, passed, the factored form expands to the same terms with the same coefficients
+      verified: yes
+    1.2 transformation
+      phase: rewrite
+      goal: factor the expression
+      rule: alg.factor.product-and-sum, Product and sum
+      claim: equivalent expression
+      explanation: Two numbers that multiply to the constant and add to the middle coefficient give the brackets
+      detail: Multiplying the brackets out gives the middle coefficient as the sum of the two numbers and the constant as their product, so finding that pair is the whole method.
+      proof obligation: obl.alg.factor-multiplies-back, the factored form multiplies back out to the original
+      action: Use 1 and 3, which multiply to 3 and add to 4
+      before: (2 * ((x^2) + (4 * x) + 3))
+      after: (2 * ((x + 1) * (x + 3)))
+      reversible: yes
+      verification: multiply the brackets out and compare term by term, passed, the brackets expand to the same terms with the same coefficients
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the rewritten expression
+      rule: alg.rewrite.check-by-evaluation, Check by working both forms out
+      claim: equivalent expression
+      explanation: Work the first form and the last one out at the same values
+      detail: Every rule used here keeps the value of the expression, so the two forms must agree wherever they are both defined. Working both out at several exact values can show that they do not, and a backend is asked for the symbolic answer when one is supplied.
+      proof obligation: obl.rewrite.same-value, the rewritten expression has the value the original had
+      target claim: (((2 * (x^2)) + (8 * x)) + 6) and (2 * ((x + 1) * (x + 3))) are the same expression
+      check method: work both forms out exactly at several assignments
+      expected: the two forms take the same value
+      observed: the forms agreed at all 6 assignments
+      verification: exact evaluation at 6 rational assignments, passed, both forms took the same value at all 6 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+      verified: yes

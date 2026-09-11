@@ -1,0 +1,8 @@
+# Positive control for lint-resident-exit.
+#
+# clang-query prints "0 matches." and exits 0 whether a file is clean or never parsed, so an empty
+# result is not evidence of anything on its own. Both offender matchers need a resolved call to
+# nl_lua_getstate before they can match, so asking for that call first separates a file that was
+# judged and found clean from one that could not be judged at all. A translation unit whose headers
+# do not resolve fails this and is reported rather than passed.
+match callExpr(callee(functionDecl(hasName("nl_lua_getstate"))), isExpansionInMainFile())

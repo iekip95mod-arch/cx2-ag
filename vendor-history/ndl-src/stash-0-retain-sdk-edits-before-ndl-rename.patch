@@ -1,0 +1,253 @@
+diff --git a/ndless-sdk/libndls/config.c b/ndless-sdk/libndls/config.c
+index 2a56255..b577f84 100644
+--- a/ndless-sdk/libndls/config.c
++++ b/ndless-sdk/libndls/config.c
+@@ -51,7 +51,8 @@ void cfg_open_file(const char *filepath) {
+ 	#define MAX_CFG_FILE_SIZE 10000
+ 	fseek(file, 0, SEEK_END);
+ 	file_size = ftell(file);
+-	if (!file_size) goto close_quit;
++	// The offsets below are 16 bit, so the cap is what keeps them meaning what they say.
++	if (!file_size || file_size > MAX_CFG_FILE_SIZE) goto close_quit;
+ 	file_content = malloc(file_size + 1); // +1 for the NULL char
+ 	if (!file_content) goto close_quit;
+ 	rewind(file);
+diff --git a/ndless-sdk/libndls/file_each.c b/ndless-sdk/libndls/file_each.c
+index b802024..95ee4f5 100644
+--- a/ndless-sdk/libndls/file_each.c
++++ b/ndless-sdk/libndls/file_each.c
+@@ -58,18 +58,26 @@ int file_each(const char *folder, int (*callback)(const char *path, void *contex
+ 			continue;
+ 		}
+ 		size_t dname_len = strlen(ep->d_name);
++		// The count has to move with the pointer, or a directory whose names total more than the
++		// buffer writes the overflow into the next heap block (seen as a reset from nrequire).
+ 		if (FILENAMES_BUF_SIZE - filenames_used_bytes < dname_len + 1)
+ 			break;
+ 		strcpy(ptr, ep->d_name);
+ 		filenames_ptrs[i] = ptr;
+ 		ptr += dname_len + 1;
++		filenames_used_bytes += dname_len + 1;
+ 	}
+ 	unsigned filenum = i;
+ 	qsort(filenames_ptrs, filenum, sizeof(char*), scmp);
+-	
++
++	size_t folder_len = strlen(folder);
++	int needs_slash = folder[folder_len - 1] != '/';
+ 	for (i = 0; i < filenum; i++) {
++		// A path that will not fit is skipped rather than written past the end of the buffer.
++		if (folder_len + needs_slash + strlen(filenames_ptrs[i]) + 1 > sizeof(subfolder_or_file))
++			continue;
+ 		strcpy(subfolder_or_file, folder);
+-		if (subfolder_or_file[strlen(subfolder_or_file) - 1] != '/')
++		if (needs_slash)
+ 			strcat(subfolder_or_file, "/");
+ 		strcat(subfolder_or_file, filenames_ptrs[i]);
+ 		if (nuc_stat(subfolder_or_file, &statbuf) == -1)
+diff --git a/ndless-sdk/toolchain/build_toolchain.sh b/ndless-sdk/toolchain/build_toolchain.sh
+index 3cadd68..376548a 100755
+--- a/ndless-sdk/toolchain/build_toolchain.sh
++++ b/ndless-sdk/toolchain/build_toolchain.sh
+@@ -88,7 +88,7 @@ if [ "$(cat .built_binutils 2>/dev/null)" != "${BINUTILS}" ]; then
+ 		make $PARALLEL all
+ 		make install
+ 	cd ..
+-	echo -n "${BINUTILS}" > .built_binutils
++	printf %s "${BINUTILS}" > .built_binutils
+ fi
+ 
+ # Section 2: GCC, step 1.
+@@ -119,7 +119,7 @@ if [ "$(cat .built_gcc_step1 2>/dev/null)" != "${GCC}" ]; then
+ 	# build yet so it's just dummy content.
+ 	rm "${PREFIX}/arm-none-eabi/sys-include/newlib.h"
+ 	rm "${PREFIX}/arm-none-eabi/sys-include/_newlib_version.h"
+-	echo -n "${GCC}" > .built_gcc_step1
++	printf %s "${GCC}" > .built_gcc_step1
+ fi
+ 
+ # Section 3: Newlib.
+@@ -137,7 +137,7 @@ if [ "$(cat .built_newlib 2>/dev/null)" != "${NEWLIB}" ]; then
+ 		make $PARALLEL
+ 		make install
+ 	cd ..
+-	echo -n "${NEWLIB}" > .built_newlib
++	printf %s "${NEWLIB}" > .built_newlib
+ fi
+ 
+ # Section 4: GCC, step 2. Yes, this is necessary.
+@@ -155,7 +155,7 @@ if [ "$(cat .built_gcc_step2 2>/dev/null)" != "${GCC}" ]; then
+ 		make $PARALLEL
+ 		make install
+ 	cd ..
+-	echo -n "${GCC}" > .built_gcc_step2
++	printf %s "${GCC}" > .built_gcc_step2
+ fi
+ 
+ # Section 5: GDB.
+@@ -173,7 +173,7 @@ if [ "$(cat .built_gdb 2>/dev/null)" != "${GDB}" ]; then
+ 		make $PARALLEL
+ 		make install
+ 	cd ..
+-	echo -n "${GDB}" > .built_gdb
++	printf %s "${GDB}" > .built_gdb
+ fi
+ 
+ echo "Cleaning up..."
+diff --git a/ndless/src/resources/install.c b/ndless/src/resources/install.c
+index 1d9be80..c6369bd 100644
+--- a/ndless/src/resources/install.c
++++ b/ndless/src/resources/install.c
+@@ -283,8 +283,6 @@ void ins_install_successmsg_hook(void) {
+ 
+ // chained after the startup programs execution
+ HOOK_DEFINE(ins_successsuccessmsg_hook) {
+-	unsigned short msg[] = u"Ndless successfully installed!";
+-
+ 	static bool closed = false;
+ 	if (!closed && close_document_addrs[ut_os_version_index] && !ins_loaded_by_3rd_party_loader()) {
+ 		// To not close more than necessary and prevent recursion
+@@ -294,13 +292,9 @@ HOOK_DEFINE(ins_successsuccessmsg_hook) {
+ 
+ 	// OS-specific: reg number
+ 	if (HOOK_SAVED_REGS(ins_successsuccessmsg_hook)[2] == ins_successmsg_icon[ut_os_version_index]) {
+-		Gc gc = (Gc)HOOK_SAVED_REGS(ins_successsuccessmsg_hook)[0];
+-		gui_gc_setColor(gc, has_colors ? 0x32cd32 : 0x505050);
+-		gui_gc_setFont(gc, Bold9);
+-		
+-		int str_width = gui_gc_getStringWidth(gc, Bold9, (char*)msg, 0, 0xFFFFFFFF);
+-		gui_gc_drawString(gc, (char*)msg, (320 - str_width) / 2, 212, GC_SM_TOP);
+-
++		// The banner this used to draw is gone. Everything else in this hook stays: it closes the
++		// resources document, and it counts frames so it can uninstall itself and clear the cache.
++		// Not installing the hook at all would lose those.
+ 		static int i = 6;
+ 		if (!i--) {
+ 			HOOK_UNINSTALL(ins_successmsg_hook_addrs[ut_os_version_index], ins_successsuccessmsg_hook);
+diff --git a/ndless/src/resources/luaext.c b/ndless/src/resources/luaext.c
+index 110ee75..33e540f 100644
+--- a/ndless/src/resources/luaext.c
++++ b/ndless/src/resources/luaext.c
+@@ -29,13 +29,22 @@
+ static void *loaded[LUAEXT_MAX_MODULES];
+ static unsigned loaded_next_index = 0;
+ 
++// The callback returns 0 both for a file that is not the one wanted and for the one that is and
++// would not load, and file_each cannot tell those apart, so the failure has to come back separately.
++struct require_state {
++	const char *filename;
++	int load_failed;
++};
++
+ static int require_file_each_cb(const char *path, void *context) {
+-	if (strcmp(strrchr(path, '/') + 1, (char*)context))
++	struct require_state *state = (struct require_state *)context;
++	if (strcmp(strrchr(path, '/') + 1, state->filename))
+ 		return 0;
+ 	loaded[loaded_next_index] = NULL;
+ 	if (ld_exec(path, &loaded[loaded_next_index]) != 0) {
+ 		// Loading failed or module returned failure
+ 		ld_free(loaded[loaded_next_index]);
++		state->load_failed = 1;
+ 		return 0;
+ 	}
+  	loaded_next_index++; // found and loaded
+@@ -44,6 +53,7 @@ static int require_file_each_cb(const char *path, void *context) {
+ 
+ static int require(lua_State *L) {
+ 	char modulepath[FILENAME_MAX];
++	struct require_state state = { modulepath, 0 };
+ 	const char *name = luaL_checkstring(L, 1);
+ 	if (strlen(name) >= 30) goto require_not_found;
+ 	if (loaded_next_index >= LUAEXT_MAX_MODULES) {
+@@ -51,7 +61,11 @@ static int require(lua_State *L) {
+ 		return 1;
+ 	}
+ 	sprintf(modulepath, "%s.luax.tns", name);
+-	if (!file_each(get_documents_dir(), require_file_each_cb, modulepath)) {
++	if (!file_each(get_documents_dir(), require_file_each_cb, &state)) {
++		if (state.load_failed) {
++			luaL_error(L, "module " LUA_QS " was found but would not load", name);
++			return 1;
++		}
+ require_not_found:
+ 		luaL_error(L, "module " LUA_QS " not found", name);
+ 		return 1;
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.2.0.333.idc b/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.2.0.333.idc
+index 0292837..84534a7 100644
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.2.0.333.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.2.0.333.idc
+@@ -752,7 +752,7 @@ static main(void)
+     MakeName(0X108BD4DC, "luaS_newudata");
+     MakeName(0X108BD554, "luaS_resize");
+     MakeName(0X108BD74C, "l_setbit");
+-    MakeName(0X108BE5AC, "lua_toboolean");
++    MakeName(0X108B0AF0, "lua_toboolean");
+     MakeName(0X108C0DAC, "sethvalue");
+     MakeName(0X109195D0, "luaopen_table");
+     MakeName(0X108C2D74, "luaV_lessthan");
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.4.0.74.idc b/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.4.0.74.idc
+index 9d354da..e075b9c 100644
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.4.0.74.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_cascx2-6.4.0.74.idc
+@@ -762,7 +762,7 @@ static main(void)
+ 	MakeName	(0x108bdaa4,    "luaS_newudata");
+ 	MakeName	(0x108bdb1c,    "luaS_resize");
+ 	MakeName	(0x108bdd14,    "l_setbit");
+-	MakeName	(0x108beb74,    "lua_toboolean");
++	MakeName	(0x108b10b8,    "lua_toboolean");
+ 	MakeName	(0x108c1374,    "sethvalue");
+ 	MakeName	(0x108c333c,    "luaV_lessthan");
+ 	MakeName	(0x108c346c,    "luaV_equalval");
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.2.0.333.idc b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.2.0.333.idc
+index cee02c6..69e7770 100755
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.2.0.333.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.2.0.333.idc
+@@ -775,7 +775,7 @@ static main(void)
+ 	MakeName	(0x108bc094,    "luaS_newudata");
+ 	MakeName	(0x108bc10c,    "luaS_resize");
+ 	MakeName	(0x108bc304,    "l_setbit");
+-	MakeName	(0x108bd164,    "lua_toboolean");
++	MakeName	(0x108af6a8,    "lua_toboolean");
+ 	MakeName	(0x108bf964,    "sethvalue");
+ 	MakeName	(0x108c192c,    "luaV_lessthan");
+ 	MakeName	(0x108c1a5c,    "luaV_equalval");
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.4.0.74.idc b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.4.0.74.idc
+index 9aba3f0..196c78b 100644
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.4.0.74.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2-6.4.0.74.idc
+@@ -762,7 +762,7 @@ static main(void)
+ 	MakeName	(0x108bc5f8,    "luaS_newudata");
+ 	MakeName	(0x108bc670,    "luaS_resize");
+ 	MakeName	(0x108bc868,    "l_setbit");
+-	MakeName	(0x108bd6c8,    "lua_toboolean");
++	MakeName	(0x108afc0c,    "lua_toboolean");
+ 	MakeName	(0x108bfec8,    "sethvalue");
+ 	MakeName	(0x108c1e90,    "luaV_lessthan");
+ 	MakeName	(0x108c1fc0,    "luaV_equalval");
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.2.0.333.idc b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.2.0.333.idc
+index 600ebc1..270fa37 100644
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.2.0.333.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.2.0.333.idc
+@@ -774,7 +774,7 @@ static main(void)
+ 	MakeName	(0x108bc84c,    "luaS_newudata");
+ 	MakeName	(0x108bc8c4,    "luaS_resize");
+ 	MakeName	(0x108bcabc,    "l_setbit");
+-	MakeName	(0x108bd91c,    "lua_toboolean");
++	MakeName	(0x108afe60,    "lua_toboolean");
+ 	MakeName	(0x108c011c,    "sethvalue");
+ 	MakeName	(0x109b5c10,    "luaopen_table");
+ 	MakeName	(0x108c20e4,    "luaV_lessthan");
+diff --git a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.4.0.74.idc b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.4.0.74.idc
+index 1450e72..e38319d 100644
+--- a/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.4.0.74.idc
++++ b/ndless/src/tools/MakeSyscalls/idc/OS_ncascx2t-6.4.0.74.idc
+@@ -761,7 +761,7 @@ static main(void)
+ 	MakeName	(0x108bcda4,    "luaS_newudata");
+ 	MakeName	(0x108bce1c,    "luaS_resize");
+ 	MakeName	(0x108bd014,    "l_setbit");
+-	MakeName	(0x108bde74,    "lua_toboolean");
++	MakeName	(0x108b03b8,    "lua_toboolean");
+ 	MakeName	(0x108c0674,    "sethvalue");
+ 	MakeName	(0x108c263c,    "luaV_lessthan");
+ 	MakeName	(0x108c276c,    "luaV_equalval");

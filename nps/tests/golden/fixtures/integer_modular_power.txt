@@ -1,0 +1,145 @@
+problem: powmod(7,13,11)
+outcome: evaluated
+result: 2
+detail: The exponent is now zero. Each checked square and multiply preserved accumulated residue * base^remaining exponent modulo 11, so the least nonnegative residue is 2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: powmod(7, 13, 11)
+  requested method: powmod
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: powmod(7, 13, 11)
+    rule: plan.integer-method, Square and multiply while reducing every product modulo m
+    claim: no claim
+    explanation: Square and multiply while reducing every product modulo m
+    detail: powmod(7, 13, 11): Square and multiply while reducing every product modulo m
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Square and multiply while reducing every product modulo m
+    applicability: nonnegative integer literals fit the method's stated bounds
+    fact: powmod(7, 13, 11)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, powmod(7, 13, 11)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Reduce the base: 7 mod 11 = 7
+      detail: Reduce the base: 7 mod 11 = 7. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Reduce the base: 7 mod 11 = 7
+      before: powmod(7, 13, 11)
+      after: powmod(7, 13, 11)
+      reversible: yes
+      verification: binary modular recurrence, passed, 7 * 1 = 11 * 0 + 7, with 0 <= remainder < divisor
+      verified: yes
+    1.2 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Exponent 13 is odd. Multiply the accumulated residue: 1 * 7 mod 11 = 7
+      detail: Exponent 13 is odd. Multiply the accumulated residue: 1 * 7 mod 11 = 7. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Exponent 13 is odd. Multiply the accumulated residue: 1 * 7 mod 11 = 7
+      before: irem((1 * 7), 11)
+      after: 7
+      reversible: yes
+      verification: binary modular recurrence, passed, 1 * 7 = 11 * 0 + 7, with 0 <= remainder < divisor
+      verified: yes
+    1.3 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Halve the remaining exponent to 6 and square the base: 7^2 mod 11 = 5
+      detail: Halve the remaining exponent to 6 and square the base: 7^2 mod 11 = 5. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Halve the remaining exponent to 6 and square the base: 7^2 mod 11 = 5
+      before: irem((7 * 7), 11)
+      after: 5
+      reversible: yes
+      verification: binary modular recurrence, passed, 7 * 7 = 11 * 4 + 5, with 0 <= remainder < divisor
+      verified: yes
+    1.4 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Halve the remaining exponent to 3 and square the base: 5^2 mod 11 = 3
+      detail: Halve the remaining exponent to 3 and square the base: 5^2 mod 11 = 3. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Halve the remaining exponent to 3 and square the base: 5^2 mod 11 = 3
+      before: irem((5 * 5), 11)
+      after: 3
+      reversible: yes
+      verification: binary modular recurrence, passed, 5 * 5 = 11 * 2 + 3, with 0 <= remainder < divisor
+      verified: yes
+    1.5 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Exponent 3 is odd. Multiply the accumulated residue: 7 * 3 mod 11 = 10
+      detail: Exponent 3 is odd. Multiply the accumulated residue: 7 * 3 mod 11 = 10. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Exponent 3 is odd. Multiply the accumulated residue: 7 * 3 mod 11 = 10
+      before: irem((7 * 3), 11)
+      after: 10
+      reversible: yes
+      verification: binary modular recurrence, passed, 7 * 3 = 11 * 1 + 10, with 0 <= remainder < divisor
+      verified: yes
+    1.6 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Halve the remaining exponent to 1 and square the base: 3^2 mod 11 = 9
+      detail: Halve the remaining exponent to 1 and square the base: 3^2 mod 11 = 9. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Halve the remaining exponent to 1 and square the base: 3^2 mod 11 = 9
+      before: irem((3 * 3), 11)
+      after: 9
+      reversible: yes
+      verification: binary modular recurrence, passed, 3 * 3 = 11 * 0 + 9, with 0 <= remainder < divisor
+      verified: yes
+    1.7 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: Exponent 1 is odd. Multiply the accumulated residue: 10 * 9 mod 11 = 2
+      detail: Exponent 1 is odd. Multiply the accumulated residue: 10 * 9 mod 11 = 2. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: Exponent 1 is odd. Multiply the accumulated residue: 10 * 9 mod 11 = 2
+      before: irem((10 * 9), 11)
+      after: 2
+      reversible: yes
+      verification: binary modular recurrence, passed, 10 * 9 = 11 * 8 + 2, with 0 <= remainder < divisor
+      verified: yes
+    1.8 transformation
+      phase: integer
+      goal: powmod(7, 13, 11)
+      rule: int.modular-power, Square and multiply while reducing every product modulo m
+      claim: equivalent expression
+      explanation: The exponent is now zero. Each checked square and multiply preserved accumulated residue * base^remaining exponent modulo 11, so the least nonnegative residue is 2
+      detail: The exponent is now zero. Each checked square and multiply preserved accumulated residue * base^remaining exponent modulo 11, so the least nonnegative residue is 2. The exponent is positive and the modulus is at least 2. Replacing either factor by its residue preserves a product modulo m. For an even exponent, b^(2j) = (b*b)^j. An odd exponent contributes one extra b to the accumulated residue before halving
+      proof obligation: obl.int.modular-power, Square and multiply while reducing every product modulo m
+      action: The exponent is now zero. Each checked square and multiply preserved accumulated residue * base^remaining exponent modulo 11, so the least nonnegative residue is 2
+      before: powmod(7, 13, 11)
+      after: 2
+      reversible: yes
+      verification: binary modular recurrence, passed, The exponent is now zero. Each checked square and multiply preserved accumulated residue * base^remaining exponent modulo 11, so the least nonnegative residue is 2
+      verified: yes

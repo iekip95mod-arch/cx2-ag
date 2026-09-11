@@ -1,0 +1,1537 @@
+diff --git a/core/armsnippets.h b/core/armsnippets.h
+index c75d427..dc72707 100644
+--- a/core/armsnippets.h
++++ b/core/armsnippets.h
+@@ -27,6 +27,19 @@ struct armloader_load_params {
+ void armloader_cb(void);
+ bool armloader_load_snippet(enum SNIPPETS snippet, struct armloader_load_params params[], unsigned params_num, void (*callback)(struct arm_state *));
+ 
++/* True when the guest is on the task Ndl runs programs on, so a snippet ending in an swi can be
++ * run here. See armsnippets_loader.c for what the test is and why. */
++bool armloader_ndl_context(void);
++/* Run a path under Ndl the next time armloader_ndl_context() holds. */
++void armloader_defer_exec(const char *path);
++/* Run an ARM code blob on that task instead, entered at its first byte and returning through lr.
++ * Replaces anything already queued. */
++bool armloader_defer_blob(const uint8_t *blob, uint32_t size);
++void armloader_cancel_deferred(void);
++bool armloader_deferred_pending(void);
++/* Called from the emulation loop between instructions. */
++void armloader_poll_deferred(void);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/core/armsnippets_loader.c b/core/armsnippets_loader.c
+index 4e469cd..978f671 100644
+--- a/core/armsnippets_loader.c
++++ b/core/armsnippets_loader.c
+@@ -11,6 +11,7 @@
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdint.h>
++#include <stdlib.h>
+ 
+ #include "armcode_bin.h"
+ 
+@@ -30,6 +31,44 @@ void armloader_cb(void) {
+         armloader_cb_ptr(&after_snippet_exec_arm_state);
+ }
+ 
++/* Push code onto the guest stack and enter it at entry_offset, with lr set to the interrupted pc.
++ * Fails with the state untouched if the caller is in Thumb state or the stack has no room. */
++static bool armloader_push_code(const uint8_t *code, uint32_t code_size, uint32_t entry_offset) {
++    // The code is ARM and only cpu_arm_loop honours RF_ARMLOADER_CB, so a Thumb caller can
++    // neither be entered correctly nor returned from. Entering one decodes the code as Thumb and
++    // runs off into the stack.
++    if(arm.cpsr_low28 & 0x20) {
++        emuprintf("snippet not loaded: the caller is in Thumb state at pc %08x\n", arm.reg[15]);
++        return false;
++    }
++
++    memcpy(&armloader_orig_arm_state, &arm, sizeof(arm));
++
++    if(!virt_mem_ptr(arm.reg[13] /* sp */, 4)) {
++        emuprintf("sp points to an invalid address\n");
++        armloader_restore_state();
++        return false;
++    }
++    arm.reg[13] -= code_size;
++    if(!virt_mem_write(arm.reg[13], code, code_size)) {
++        emuprintf("not enough stack space to run snippet\n");
++        armloader_restore_state();
++        return false;
++    }
++
++    arm.reg[14] = arm.reg[15]; // return address
++    arm.reg[15] = arm.reg[13] + entry_offset;
++    return true;
++}
++
++/* Have callback run, and the saved state come back, when the guest returns to the interrupted pc. */
++static void armloader_arm_return(void (*callback)(struct arm_state*)) {
++    armloader_cb_ptr = callback;
++    uint32_t *flags = &RAM_FLAGS(virt_mem_ptr(armloader_orig_arm_state.reg[15], 4));
++    if (*flags & RF_CODE_TRANSLATED) flush_translations();
++    *flags |= RF_ARMLOADER_CB;
++}
++
+ /* Load the snippet and jump to it.
+  * snippets are defined in armsnippets.S.
+  * params can be null if not required.
+@@ -42,56 +81,33 @@ void armloader_cb(void) {
+ bool armloader_load_snippet(enum SNIPPETS snippet, struct armloader_load_params params[],  uint32_t params_num, void (*callback)(struct arm_state*)) {
+     uint32_t i;
+     uint32_t code_size = snippets_bin_len;
+-    void *code_ptr;
+-    uint32_t orig_pc;
++    uint32_t entry_offset;
+ 
+     if(code_size % 4)
+         code_size += 4 - (code_size % 4); // word-aligned
+ 
+-    memcpy(&armloader_orig_arm_state, &arm, sizeof(arm));
+-
+-    if(!virt_mem_ptr(arm.reg[13] /* sp */, 4)) {
+-        emuprintf("sp points to an invalid address\n");
+-        armloader_restore_state();
+-        return false;
+-    }
+-    arm.reg[13] -= code_size;
+-    code_ptr = virt_mem_ptr(arm.reg[13], code_size);
+-    if(!code_ptr) {
+-        emuprintf("not enough stack space to run snippet\n");
+-        armloader_restore_state();
++    memcpy(&entry_offset, snippets_bin, sizeof(entry_offset)); // load_snippet
++    if(!armloader_push_code(snippets_bin, code_size, entry_offset))
+         return false;
+-    }
+-    memcpy(code_ptr, snippets_bin, code_size);
+-
+-    orig_pc = arm.reg[15];
+-    arm.reg[14] = arm.reg[15]; // return address
+-    arm.reg[15] = arm.reg[13] + *(uint32_t *)code_ptr; // load_snippet
+     arm.reg[12] = snippet;
+ 
+     for(i = 0; i < params_num; i++) {
+         if(params[i].t == ARMLOADER_PARAM_VAL)
+             arm.reg[i] = params[i].v;
+         else {
+-            void *param_ptr;
+             uint32_t size = params[i].p.size;
+             if (size % 4)
+                 size += 4 - size % 4; // word-aligned
+             arm.reg[13] -= size;
+             arm.reg[i] = arm.reg[13];
+-            param_ptr = virt_mem_ptr(arm.reg[13], 4);
+-            if (!param_ptr) {
++            if (!virt_mem_write(arm.reg[13], params[i].p.ptr, params[i].p.size)) {
+                 emuprintf("not enough stack space for snippet parameters\n");
+                 armloader_restore_state();
+                 return false;
+             }
+-            memcpy(param_ptr, params[i].p.ptr, params[i].p.size);
+         }
+     }
+-    armloader_cb_ptr = callback;
+-    uint32_t *flags = &RAM_FLAGS(virt_mem_ptr(orig_pc, 4));
+-    if (*flags & RF_CODE_TRANSLATED) flush_translations();
+-    *flags |= RF_ARMLOADER_CB;
++    armloader_arm_return(callback);
+ 
+     // for debugging
+     /*flags = &RAM_FLAGS(virt_mem_ptr(arm.reg[15], 4));
+@@ -100,3 +116,117 @@ bool armloader_load_snippet(enum SNIPPETS snippet, struct armloader_load_params
+ 
+     return true;
+ }
++
++/* Ndl's exec syscall runs on the caller's own stack. ints_swi_handler restores the caller's spsr
++ * into cpsr before jumping to the syscall (ndl/src/resources/ints.c), so ld_exec_with_args gets
++ * whatever sp the run point had. That makes the point where the snippet runs the whole problem.
++ *
++ * Two contexts fail. The debugger nearly always breaks into the Nucleus idle loop, where sp is in
++ * SRAM and the OS has no current task at all, so the first file open dereferences a null task
++ * pointer and the calculator resets. A service task is no better: CN_READ, for instance, has a 4K
++ * stack, and ld_exec_with_args puts three FILENAME_MAX buffers on it before doing anything.
++ *
++ * The context that works is the one Ndl prepared for itself. expand_stack() runs once, at boot,
++ * from the startup hook, and maps a 128K coarse page table at 0x17F00000 for the task it is running
++ * on (ndl/src/resources/ploaderhook.c:213). That task's stack sits in the same 1MB section, so an
++ * sp in this window means the task Ndl expects to load programs from. */
++#define NDLS_STACK_LOW  0x17F00000u
++#define NDLS_STACK_HIGH 0x18010000u
++
++static char deferred_path[512];
++static bool deferred_armed;
++
++bool armloader_ndl_context(void) {
++    if((arm.cpsr_low28 & 0x1F) != MODE_SVC)
++        return false;
++    // The idle loop and the exception handlers run with interrupts masked; a task does not.
++    if(arm.cpsr_low28 & 0x80)
++        return false;
++    // A Thumb caller cannot run the snippet, so wait for an ARM moment on the same task.
++    if(arm.cpsr_low28 & 0x20)
++        return false;
++    return arm.reg[13] >= NDLS_STACK_LOW && arm.reg[13] < NDLS_STACK_HIGH;
++}
++
++static void armloader_exec_now(const char *path) {
++    struct armloader_load_params params[3];
++    params[0].t = ARMLOADER_PARAM_PTR;
++    params[0].p.ptr = (void *)path;
++    params[0].p.size = strlen(path) + 1;
++    params[1].t = ARMLOADER_PARAM_VAL;
++    params[1].v = 0;
++    params[2] = params[1];
++    emuprintf("exec: loading at pc %08x sp %08x cpsr %08x, running %s\n", arm.reg[15], arm.reg[13],
++              arm.cpsr_low28, path);
++    armloader_load_snippet(SNIPPET_ndls_exec, params, 3, NULL);
++}
++
++/* An ARM code blob runs the same way, entered at its first byte and returning through lr. Ndl's own
++ * stage0 is one: position independent, it loads ndl_resources.tns through the OS's file calls
++ * and returns, so Ndl can be installed here without a document ever being opened. One thing is
++ * queued at a time, a blob or an exec, so a poll can never push twice onto the same task. */
++static uint8_t *deferred_blob;
++static uint32_t deferred_blob_size;
++
++static void armloader_blob_done(struct arm_state *after) {
++    emuprintf("blob: returned with r0 %08x, resuming at pc %08x\n", after->reg[0], arm.reg[15]);
++}
++
++static void armloader_blob_now(void) {
++    emuprintf("blob: loading %u bytes at pc %08x sp %08x cpsr %08x\n", deferred_blob_size,
++              arm.reg[15], arm.reg[13], arm.cpsr_low28);
++    if(armloader_push_code(deferred_blob, deferred_blob_size, 0))
++        armloader_arm_return(armloader_blob_done);
++    free(deferred_blob);
++    deferred_blob = NULL;
++}
++
++void armloader_defer_exec(const char *path) {
++    free(deferred_blob);
++    deferred_blob = NULL;
++    deferred_armed = false;
++    if(armloader_ndl_context()) {
++        armloader_exec_now(path);
++        return;
++    }
++    snprintf(deferred_path, sizeof(deferred_path), "%s", path);
++    deferred_armed = true;
++}
++
++bool armloader_defer_blob(const uint8_t *blob, uint32_t size) {
++    uint32_t padded = (size + 3) & ~3u; // virt_mem_write wants whole words
++    uint8_t *copy = calloc(padded, 1);
++    if(!copy)
++        return false;
++    memcpy(copy, blob, size);
++    deferred_armed = false;
++    free(deferred_blob);
++    deferred_blob = copy;
++    deferred_blob_size = padded;
++    if(armloader_ndl_context())
++        armloader_blob_now();
++    return true;
++}
++
++void armloader_cancel_deferred(void) {
++    deferred_armed = false;
++    free(deferred_blob);
++    deferred_blob = NULL;
++}
++
++bool armloader_deferred_pending(void) {
++    return deferred_armed || deferred_blob;
++}
++
++void armloader_poll_deferred(void) {
++    if(!armloader_ndl_context())
++        return;
++    if(deferred_blob) {
++        armloader_blob_now();
++        return;
++    }
++    if(!deferred_armed)
++        return;
++    deferred_armed = false;
++    armloader_exec_now(deferred_path);
++}
+diff --git a/core/cx2.cpp b/core/cx2.cpp
+index 73ac4af..a4c3e7a 100644
+--- a/core/cx2.cpp
++++ b/core/cx2.cpp
+@@ -59,6 +59,9 @@ uint32_t aladdin_pmu_read(uint32_t addr)
+ 		return 0x11 | ((keypad.key_map[0] & 1<<9) ? 0 : 0x100);
+ 	else if(offset >= 0x800 && offset < 0x900)
+ 		return aladdin_pmu.noidea[(offset & 0xFF) >> 2];
++	else if(offset < 0x200)
++		// Per domain status bytes the OS snapshots when idle (0x64, 0xA0, 0xE0, 0x160 and +4).
++		return aladdin_pmu.low[offset >> 2];
+ 
+ 	return bad_read_word(addr);
+ }
+@@ -106,6 +109,11 @@ void aladdin_pmu_write(uint32_t addr, uint32_t value)
+ 		aladdin_pmu.noidea[(offset & 0xFF) >> 2] = value;
+ 		return;
+ 	}
++	else if(offset < 0x200)
++	{
++		aladdin_pmu.low[offset >> 2] = value;
++		return;
++	}
+ 
+ 	bad_write_word(addr, value);
+ }
+diff --git a/core/cx2.h b/core/cx2.h
+index ffaafdb..ee1aab8 100644
+--- a/core/cx2.h
++++ b/core/cx2.h
+@@ -14,6 +14,7 @@ typedef struct aladdin_pmu_state {
+ 	uint32_t disable[3];
+ 	uint32_t int_state; // Actual bit assignments not known
+ 	uint32_t noidea[0x100 / sizeof(uint32_t)];
++	uint32_t low[0x200 / sizeof(uint32_t)];
+ } aladdin_pmu_state;
+ 
+ void aladdin_pmu_write(uint32_t addr, uint32_t value);
+diff --git a/core/debug.cpp b/core/debug.cpp
+index aef9788..5b228e3 100644
+--- a/core/debug.cpp
++++ b/core/debug.cpp
+@@ -17,6 +17,7 @@
+ #endif
+ 
+ #include <condition_variable>
++#include <vector>
+ 
+ #include "armsnippets.h"
+ #include "debug.h"
+@@ -29,15 +30,104 @@
+ #include "translate.h"
+ #include "usblink_queue.h"
+ #include "gdbstub.h"
++#include "lcd.h"
++#include "keypad.h"
++#include "keymap.h"
+ #include "os/os.h"
+ 
+ std::string ln_target_folder;
+ 
++// Names for the keymap ids, so the debugger can say "esc" rather than a row and a column. The ids
++// come from keymap.h, which is what the Qt keypad bridge uses, so the two cannot drift apart.
++struct key_name { const char *name; int id; };
++static const key_name key_names[] = {
++    {"ret", keymap::ret}, {"enter", keymap::enter}, {"neg", keymap::neg}, {"space", keymap::space},
++    {"punct", keymap::punct}, {"on", keymap::on}, {"pi", keymap::pi}, {"trig", keymap::trig},
++    {"pow10", keymap::pow10}, {"ee", keymap::ee}, {"squ", keymap::squ}, {"div", keymap::div},
++    {"exp", keymap::exp}, {"equ", keymap::equ}, {"mult", keymap::mult}, {"pow", keymap::pow},
++    {"var", keymap::var}, {"minus", keymap::minus}, {"pright", keymap::pright}, {"dot", keymap::dot},
++    {"pleft", keymap::pleft}, {"cat", keymap::cat}, {"metrix", keymap::metrix}, {"del", keymap::del},
++    {"pad", keymap::pad}, {"flag", keymap::flag}, {"plus", keymap::plus}, {"doc", keymap::doc},
++    {"menu", keymap::menu}, {"esc", keymap::esc}, {"tab", keymap::tab}, {"shift", keymap::shift},
++    {"ctrl", keymap::ctrl}, {"comma", keymap::comma},
++    {"0", keymap::n0}, {"1", keymap::n1}, {"2", keymap::n2}, {"3", keymap::n3}, {"4", keymap::n4},
++    {"5", keymap::n5}, {"6", keymap::n6}, {"7", keymap::n7}, {"8", keymap::n8}, {"9", keymap::n9},
++    {"a", keymap::aa}, {"b", keymap::ab}, {"c", keymap::ac}, {"d", keymap::ad}, {"e", keymap::ae},
++    {"f", keymap::af}, {"g", keymap::ag}, {"h", keymap::ah}, {"i", keymap::ai}, {"j", keymap::aj},
++    {"k", keymap::ak}, {"l", keymap::al}, {"m", keymap::am}, {"n", keymap::an}, {"o", keymap::ao},
++    {"p", keymap::ap}, {"q", keymap::aq}, {"r", keymap::ar}, {"s", keymap::as}, {"t", keymap::at},
++    {"u", keymap::au}, {"v", keymap::av}, {"w", keymap::aw}, {"x", keymap::ax}, {"y", keymap::ay},
++    {"z", keymap::az},
++};
++
+ // Used for debugger input
+ static std::mutex debug_input_m;
+ static std::condition_variable debug_input_cv;
+ static const char * debug_input_cur = nullptr;
+ 
++// usblink reports a transfer only through its progress callback, and it uses -1 for failure. Passing
++// nullptr, as this file used to, makes a queued transfer that never connects look exactly like one
++// that succeeded.
++static void ln_progress(int progress, void *)
++{
++    if (progress < 0)
++        gui_debug_printf("Link transfer failed.\n");
++    else if (progress == 100)
++        gui_debug_printf("Link transfer complete.\n");
++}
++
++static void ln_svc_reply(const uint8_t *data, uint32_t size, bool is_error, void *)
++{
++    if (is_error) {
++        gui_debug_printf("Link svc failed: the calculator refused the service or never answered.\n");
++        return;
++    }
++    gui_debug_printf("Link svc reply (%u bytes):", size);
++    for (uint32_t i = 0; i < size; i++)
++        gui_debug_printf(" %02x", data[i]);
++    gui_debug_printf("\nLink svc complete.\n");
++}
++
++static int hex_digit(char c)
++{
++    if (c >= '0' && c <= '9')
++        return c - '0';
++    if (c >= 'a' && c <= 'f')
++        return c - 'a' + 10;
++    if (c >= 'A' && c <= 'F')
++        return c - 'A' + 10;
++    return -1;
++}
++
++// Optional surrounding quotes off a path argument. A lone quote used to index one before the string.
++static char *strip_quotes(char *file)
++{
++    if (*file == '"')
++        file++;
++    size_t len = strlen(file);
++    if (len && file[len - 1] == '"')
++        file[len - 1] = '\0';
++    return file;
++}
++
++// Pairs of hex digits, spaces optional between them. Returns false on anything else.
++static bool parse_hex_bytes(const char *text, std::vector<uint8_t> &out)
++{
++    while (*text) {
++        if (*text == ' ' || *text == '\t') {
++            text++;
++            continue;
++        }
++        int hi = hex_digit(text[0]);
++        int lo = text[0] ? hex_digit(text[1]) : -1;
++        if (hi < 0 || lo < 0)
++            return false;
++        out.push_back((uint8_t)(hi << 4 | lo));
++        text += 2;
++    }
++    return true;
++}
++
+ static void debug_input_callback(const char *input)
+ {
+     std::unique_lock<std::mutex> lk(debug_input_m);
+@@ -52,6 +142,32 @@ void *virt_mem_ptr(uint32_t addr, uint32_t size) {
+     return (void *)(intptr_t)phys_mem_ptr(mmu_translate(addr, false, NULL, NULL), size);
+ }
+ 
++// virt_mem_ptr translates the first page only, so anything longer than a few bytes has to walk the
++// pages itself or it writes past the end of the first one. Checks the whole range before copying so
++// a refusal leaves guest memory untouched.
++bool virt_mem_write(uint32_t addr, const void *src, uint32_t size) {
++    const uint8_t *from = (const uint8_t *)src;
++
++    for(uint32_t done = 0; done < size; ) {
++        uint32_t chunk = 0x1000 - ((addr + done) & 0xFFF);
++        if(chunk > size - done)
++            chunk = size - done;
++        if(!virt_mem_ptr(addr + done, chunk))
++            return false;
++        done += chunk;
++    }
++
++    for(uint32_t done = 0; done < size; ) {
++        uint32_t chunk = 0x1000 - ((addr + done) & 0xFFF);
++        if(chunk > size - done)
++            chunk = size - done;
++        memcpy(virt_mem_ptr(addr + done, chunk), from + done, chunk);
++        done += chunk;
++    }
++
++    return true;
++}
++
+ void backtrace(uint32_t fp) {
+     uint32_t *frame;
+     gui_debug_printf("Frame     PrvFrame Self     Return   Start\n");
+@@ -196,7 +312,11 @@ int process_debug_cmd(char *cmdline) {
+                     "d <address> - dump memory\n"
+                     "k <address> <+r|+w|+x|-r|-w|-x> - add/remove breakpoint\n"
+                     "k - show breakpoints\n"
++                    "flashsave - write modified flash blocks back to the image\n"
+                     "ln c - connect\n"
++                    "ln g <calc path> <host path> - fetch a file off the calculator\n"
++                    "ln md <dir> - create a directory\n"
++                    "ln os <file> - send an OS image\n"
+                     "ln s <file> - send a file\n"
+                     "ln st <dir> - set target directory\n"
+                     "mmu - dump memory mappings\n"
+@@ -212,8 +332,14 @@ int process_debug_cmd(char *cmdline) {
+                     "u[a|t] [address] - disassemble memory\n"
+                     "wm <file> <start> <size> - write memory to file\n"
+                     "wf <file> <start> [size] - write file to memory\n"
++                    "key <name> [scans] - tap a key, released after scans keypad sweeps (default 120, ~100ms)\n"
++                    "key <name> <+|-> - hold or release a key\n"
++                    "key ? - list key names\n"
++                    "screenshot <file.ppm> - write the current screen\n"
+                     "stop - stop the emulation\n"
+-                    "exec <path> - exec file with ndless\n");
++                    "exec <path> - run a file with ndl, queued until the guest reaches the loader task\n"
++                    "exec - - cancel a queued exec or blob\n"
++                    "blob <file> - run an ARM code blob on the gui task, queued like exec (Ndl's stage0 installs Ndl this way)\n");
+     } else if (!strcasecmp(cmd, "b")) {
+         char *fp = strtok(NULL, " \n\r");
+         backtrace(fp ? parse_expr(fp) : arm.reg[11]);
+@@ -343,6 +469,12 @@ int process_debug_cmd(char *cmdline) {
+     } else if (!strcasecmp(cmd, "ln")) {
+         char *ln_cmd = strtok(NULL, " \n\r");
+         if (!ln_cmd) return 0;
++        // The queue discards work while the link is down and says nothing, so a transfer issued
++        // then is indistinguishable from one that ran and produced no output. Warn once here.
++        if (!usblink_connected && strcasecmp(ln_cmd, "c") && strcasecmp(ln_cmd, "st")
++            && strcasecmp(ln_cmd, "?"))
++            gui_debug_printf("Warning: the link is not up, so this will be dropped rather than "
++                             "sent. Use ln c while the OS is still booting.\n");
+         if (!strcasecmp(ln_cmd, "c")) {
+             usblink_connect();
+             return 1; // and continue, ARM code needs to be run
+@@ -351,11 +483,7 @@ int process_debug_cmd(char *cmdline) {
+             if (!file) {
+                 gui_debug_printf("Missing file parameter.\n");
+             } else {
+-                // remove optional surrounding quotes
+-                if (*file == '"') file++;
+-                size_t len = strlen(file);
+-                if (*(file + len - 1) == '"')
+-                    *(file + len - 1) = '\0';
++                file = strip_quotes(file);
+                 usblink_connect();
+ 
+                 const char *file_name = file;
+@@ -366,15 +494,108 @@ int process_debug_cmd(char *cmdline) {
+                 if (ln_target_folder.length() < 1 || *ln_target_folder.rbegin() != '/')
+                     ln_target_folder += '/';
+ 
+-                usblink_queue_put_file(std::string(file), ln_target_folder + std::string(file_name), nullptr, nullptr);
++                usblink_queue_put_file(std::string(file), ln_target_folder + std::string(file_name), ln_progress, nullptr);
++            }
++        } else if (!strcasecmp(ln_cmd, "os")) {
++            char *file = strtok(NULL, "\n");
++            if (!file) {
++                gui_debug_printf("Missing file parameter.\n");
++            } else {
++                file = strip_quotes(file);
++                usblink_connect();
++                usblink_queue_send_os(std::string(file), ln_progress, nullptr);
++            }
++            return 1; // the transfer only progresses while ARM code runs
++        } else if (!strcasecmp(ln_cmd, "g")) {
++            char *remote = strtok(NULL, " \n\r");
++            char *local = strtok(NULL, "\n");
++            if (!remote || !local) {
++                gui_debug_printf("Usage: ln g <calculator path> <host path>\n");
++            } else {
++                usblink_connect();
++                usblink_queue_download(std::string(remote), std::string(local), ln_progress, nullptr);
++            }
++            return 1; // the transfer only progresses while ARM code runs
++        } else if (!strcasecmp(ln_cmd, "rm")) {
++            char *file = strtok(NULL, "\n");
++            if (!file) {
++                gui_debug_printf("Usage: ln rm <calculator path>\n");
++            } else {
++                usblink_connect();
++                usblink_queue_delete(std::string(file), false, ln_progress, nullptr);
++            }
++            return 1; // the transfer only progresses while ARM code runs
++        } else if (!strcasecmp(ln_cmd, "mv")) {
++            // The OS refuses an upload whose name is not .tns, so a file it will not accept
++            // directly has to arrive as .tns and be renamed afterwards.
++            char *from = strtok(NULL, " \n\r");
++            char *to = strtok(NULL, "\n");
++            if (!from || !to) {
++                gui_debug_printf("Usage: ln mv <old path> <new path>\n");
++            } else {
++                usblink_connect();
++                usblink_queue_move(std::string(from), std::string(to), ln_progress, nullptr);
++            }
++            return 1; // the transfer only progresses while ARM code runs
++        } else if (!strcasecmp(ln_cmd, "md")) {
++            char *dir = strtok(NULL, "\n");
++            if (!dir) {
++                gui_debug_printf("Missing directory parameter.\n");
++            } else {
++                usblink_connect();
++                usblink_queue_new_dir(std::string(dir), ln_progress, nullptr);
++            }
++            return 1; // the transfer only progresses while ARM code runs
++        } else if (!strcasecmp(ln_cmd, "svc")) {
++            // One packet to a calculator service by number, reply printed as hex. This is how a
++            // service that a program registered on the calculator is exercised from here.
++            char *sid_arg = strtok(NULL, " \n\r");
++            char *hex = strtok(NULL, "\n\r");
++            std::vector<uint8_t> payload;
++            if (!sid_arg || !hex || !parse_hex_bytes(hex, payload) || payload.empty()) {
++                gui_debug_printf("Usage: ln svc <service id> <hex bytes>\n");
++            } else {
++                usblink_connect();
++                usblink_queue_raw(parse_expr(sid_arg), payload, ln_svc_reply, nullptr);
+             }
++            return 1; // the exchange only progresses while ARM code runs
+         } else if (!strcasecmp(ln_cmd, "st")) {
+             char *dir = strtok(NULL, " \n\r");
+             if (dir)
+                 ln_target_folder = dir;
+             else
+                 gui_debug_printf("Missing directory parameter.\n");
++        } else if (!strcasecmp(ln_cmd, "?")) {
++            // usblink_queue_do drops everything queued while this is false, silently, so every
++            // failure mode looks the same from outside. Report it instead of inferring it.
++            gui_debug_printf("usblink %s, target folder %s\n",
++                             usblink_connected ? "connected" : "not connected",
++                             ln_target_folder.c_str());
+         }
++    } else if (!strcasecmp(cmd, "touch")) {
++        // A separate peripheral from the keypad, so it is worth trying when keys sent this way are
++        // reaching the data register but the OS is not acting on them. x and y are 0..1 over the
++        // pad, and no argument means a click in the middle, which activates the focused control.
++        char *xs = strtok(NULL, " \n\r");
++        char *ys = strtok(NULL, " \n\r");
++        char *state = strtok(NULL, " \n\r");
++        float x = xs ? atof(xs) : 0.5f, y = ys ? atof(ys) : 0.5f;
++        bool down = !state || *state == '+';
++        touchpad_set_state(x, y, true, down);
++    } else if (!strcasecmp(cmd, "savestate")) {
++        // flashsave keeps the filesystem but not the running OS, and some state only exists in RAM:
++        // Ndl is loaded by a one-shot persistence trigger the OS consumes at boot, so a flash
++        // image alone cannot carry it. A snapshot can, and --snapshot loads one back.
++        char *file = strtok(NULL, "\n");
++        if (!file)
++            gui_debug_printf("Usage: savestate <file>\n");
++        else
++            gui_debug_printf(emu_suspend(file) ? "State saved to %s\n"
++                                              : "Could not save state to %s\n", file);
++    } else if (!strcasecmp(cmd, "flashsave")) {
++        // Only the Qt front end calls this on exit, so without it a headless OS install is
++        // discarded when the process ends.
++        flash_save_changes();
+     } else if (!strcasecmp(cmd, "taskinfo")) {
+         uint32_t task = parse_expr(strtok(NULL, " \n\r"));
+         uint8_t *p = (uint8_t*) virt_mem_ptr(task, 52);
+@@ -542,6 +763,61 @@ int process_debug_cmd(char *cmdline) {
+         uint32_t addr = parse_expr(strtok(NULL, " \n\r"));
+         uint32_t value = parse_expr(strtok(NULL, " \n\r"));
+         mmio_write_word(addr, value);
++    } else if (!strcasecmp(cmd, "key")) {
++        char *name = strtok(NULL, " \n\r");
++        char *arg = strtok(NULL, " \n\r");
++        if (!name) {
++            gui_debug_printf("Which key? Try 'key ?'.\n");
++            return 0;
++        }
++        if (!strcmp(name, "?")) {
++            for (size_t i = 0; i < sizeof key_names / sizeof *key_names; i++)
++                gui_debug_printf("%-7s%c", key_names[i].name, (i % 8 == 7) ? '\n' : ' ');
++            gui_debug_printf("\n");
++            return 0;
++        }
++        const key_name *k = NULL;
++        for (size_t i = 0; i < sizeof key_names / sizeof *key_names; i++)
++            if (!strcasecmp(name, key_names[i].name))
++                k = &key_names[i];
++        if (!k) {
++            gui_debug_printf("No key called '%s'. Try 'key ?'.\n", name);
++            return 0;
++        }
++        int row = k->id / KEYPAD_COLS, col = k->id % KEYPAD_COLS;
++        if (arg && (!strcmp(arg, "+") || !strcmp(arg, "-")))
++            keypad_set_key(row, col, *arg == '+');
++        else {
++            // A sweep is about 0.9ms at the rate the OS programs, so 120 is a ~100ms press. Shorter
++            // taps reach the data register but get debounced away before the OS acts on them.
++            int scans = arg ? atoi(arg) : 120;
++            keypad_tap_key(row, col, scans > 0 ? scans : 1);
++        }
++    } else if (!strcasecmp(cmd, "screenshot")) {
++        // Same RGB565 buffer the Qt front end paints, written as a binary PPM so a headless run
++        // can be looked at rather than guessed at.
++        char *filename = strtok(NULL, " \n\r");
++        if (!filename) {
++            gui_debug_printf("Where to?\n");
++            return 0;
++        }
++        static uint16_t framebuffer[320 * 240];
++        lcd_cx_draw_frame(framebuffer);
++        FILE *f = fopen_utf8(filename, "wb");
++        if (!f) {
++            gui_perror(filename);
++            return 0;
++        }
++        fprintf(f, "P6\n320 240\n255\n");
++        for (unsigned i = 0; i < 320 * 240; ++i) {
++            uint16_t p = framebuffer[i];
++            uint8_t rgb[3] = { uint8_t((p >> 11 & 0x1F) * 255 / 31),
++                               uint8_t((p >> 5 & 0x3F) * 255 / 63),
++                               uint8_t((p & 0x1F) * 255 / 31) };
++            fwrite(rgb, 1, 3, f);
++        }
++        fclose(f);
++        gui_debug_printf("screenshot -> %s\n", filename);
+     } else if(!strcasecmp(cmd, "stop")) {
+ 	exiting = true;
+         return 0;
+@@ -553,14 +829,62 @@ int process_debug_cmd(char *cmdline) {
+             return 0;
+         }
+ 
+-        struct armloader_load_params arg_zero, arg_path;
+-        arg_zero.t = ARMLOADER_PARAM_VAL;
+-        arg_zero.v = 0;
++        if(!strcmp(path, "-"))
++        {
++            gui_debug_printf(armloader_deferred_pending() ? "exec: queued run cancelled\n"
++                                                          : "exec: nothing was queued\n");
++            armloader_cancel_deferred();
++            return 0;
++        }
+ 
+-        arg_path.t = ARMLOADER_PARAM_PTR;
+-        arg_path.p = {.ptr = path, .size = (uint32_t) strlen(path) + 1};
+-        struct armloader_load_params params[3] = {arg_path, arg_zero, arg_zero};
+-        armloader_load_snippet(SNIPPET_ndls_exec, params, 3, NULL);
++        // The snippet ends up running on whatever stack the debugger broke into, which is the idle
++        // loop's SRAM stack nearly every time and has no OS task behind it at all. Hand it to the
++        // loader, which waits for the task Ndl runs programs on instead of running here.
++        bool now = armloader_ndl_context();
++        armloader_defer_exec(path);
++        if(!now)
++            gui_debug_printf("exec: this is not the task Ndl loads programs from (sp %08x), so "
++                             "%s is queued until the guest reaches it. Continue the guest, and press "
++                             "a key on the calculator if it stays idle. Cancel with `exec -`.\n",
++                             arm.reg[13], path);
++        return 1;
++    } else if(!strcasecmp(cmd, "blob")) {
++        char *filename = strtok(NULL, " \n\r");
++        if(!filename) {
++            gui_debug_printf("Usage: blob <file>\n");
++            return 0;
++        }
++        FILE *f = fopen_utf8(filename, "rb");
++        if(!f) {
++            gui_perror(filename);
++            return 0;
++        }
++        fseek(f, 0, SEEK_END);
++        long size = ftell(f);
++        rewind(f);
++        // The blob runs on the gui task's stack, which is 64K, so leave the task most of it.
++        if(size <= 0 || size > 32768) {
++            fclose(f);
++            gui_debug_printf("blob: %s is %ld bytes, want 1 to 32768\n", filename, size);
++            return 0;
++        }
++        std::vector<uint8_t> blob(size);
++        bool read = fread(blob.data(), size, 1, f) == 1;
++        fclose(f);
++        if(!read) {
++            gui_debug_printf("blob: could not read %s\n", filename);
++            return 0;
++        }
++
++        bool now = armloader_ndl_context();
++        if(!armloader_defer_blob(blob.data(), blob.size())) {
++            gui_debug_printf("blob: out of memory\n");
++            return 0;
++        }
++        if(!now)
++            gui_debug_printf("blob: this is not the gui task (sp %08x), so %s is queued until the "
++                             "guest reaches it. Continue the guest. Cancel with `exec -`.\n",
++                             arm.reg[13], filename);
+         return 1;
+     } else {
+         gui_debug_printf("Unknown command %s\n", cmd);
+diff --git a/core/debug.h b/core/debug.h
+index dce0613..a3de6ad 100644
+--- a/core/debug.h
++++ b/core/debug.h
+@@ -28,6 +28,7 @@ enum DBG_REASON {
+ };
+ 
+ void *virt_mem_ptr(uint32_t addr, uint32_t size);
++bool virt_mem_write(uint32_t addr, const void *src, uint32_t size);
+ void backtrace(uint32_t fp);
+ int process_debug_cmd(char *cmdline);
+ void debugger(enum DBG_REASON reason, uint32_t addr);
+diff --git a/core/emu.cpp b/core/emu.cpp
+index 2ab6456..4c0110e 100644
+--- a/core/emu.cpp
++++ b/core/emu.cpp
+@@ -10,6 +10,7 @@
+ #include <zlib.h>
+ 
+ #include "emu.h"
++#include "armsnippets.h"
+ #include "translate.h"
+ #include "debug.h"
+ #include "mmu.h"
+@@ -347,6 +348,7 @@ void emu_loop(bool reset)
+ 
+     while (!exiting) {
+         sched_process_pending_events();
++        armloader_poll_deferred();
+         while (!exiting && cycle_count_delta < 0) {
+             if (cpu_events & EVENT_RESET) {
+                 gui_status_printf("Reset");
+diff --git a/core/gdbstub.c b/core/gdbstub.c
+index be49a37..3cfa50e 100644
+--- a/core/gdbstub.c
++++ b/core/gdbstub.c
+@@ -41,7 +41,7 @@ static void gdbstub_disconnect(void);
+ bool ndls_is_installed(void) {
+     uint32_t *vectors = virt_mem_ptr(0x20, 0x20);
+     if (vectors) {
+-        // The Ndless marker is 8 bytes before the SWI handler
++        // The Ndl marker is 8 bytes before the SWI handler
+         uint32_t *sig = virt_mem_ptr(vectors[EX_SWI] - 8, 4);
+         if (sig) return *sig == 0x4E455854 /* 'NEXT' */;
+     }
+@@ -238,7 +238,7 @@ bool gdbstub_init(unsigned int port) {
+     return true;
+ }
+ 
+-// program block pre-allocated by Ndless, used for vOffsets queries
++// program block pre-allocated by Ndl, used for vOffsets queries
+ static uint32_t ndls_debug_alloc_block = 0;
+ static bool ndls_debug_received = false;
+ 
+@@ -246,7 +246,7 @@ static void gdb_connect_ndls_cb(struct arm_state *state) {
+     ndls_debug_alloc_block = state->reg[0]; // can be 0
+     ndls_debug_received = true;
+     if (!ndls_debug_alloc_block)
+-        gui_debug_printf("Ndless failed to allocate the memory block for application debugging.\n");
++        gui_debug_printf("Ndl failed to allocate the memory block for application debugging.\n");
+ }
+ 
+ /* BUFMAX defines the maximum number of characters in inbound/outbound buffers */
+@@ -773,7 +773,7 @@ void gdbstub_recv(void) {
+         if (ret == -1)
+             log_socket_error("setsockopt(TCP_NODELAY) failed for GDB stub socket");
+ 
+-        /* Interface with Ndless */
++        /* Interface with Ndl */
+         if (ndls_is_installed())
+         {
+             armloader_load_snippet(SNIPPET_ndls_debug_alloc, NULL, 0, gdb_connect_ndls_cb);
+@@ -781,7 +781,7 @@ void gdbstub_recv(void) {
+         }
+         else
+         {
+-            emuprintf("Ndless not detected or too old. Debugging of applications not available!\n");
++            emuprintf("Ndl not detected or too old. Debugging of applications not available!\n");
+             ndls_debug_received = true;
+         }
+ 
+diff --git a/core/keypad.cpp b/core/keypad.cpp
+index f0d14be..14e4d8b 100644
+--- a/core/keypad.cpp
++++ b/core/keypad.cpp
+@@ -15,6 +15,11 @@ keypad_state keypad;
+ 
+ static std::recursive_mutex keypad_mut;
+ 
++// Auto-release state for keypad_tap_key. Kept out of keypad_state so the snapshot layout is
++// unchanged.
++static int tap_row = -1, tap_col;
++static unsigned tap_scans_left;
++
+ void keypad_int_check() {
+     std::lock_guard<std::recursive_mutex> lg(keypad_mut);
+     if(keypad.touchpad_contact != keypad.touchpad_last_contact)
+@@ -117,6 +122,10 @@ static void keypad_scan_event(int index) {
+     } else {
+         keypad.kpc.current_row = 0;
+         keypad.kpc.int_active |= 1;
++        if (tap_row >= 0 && --tap_scans_left == 0) {
++            keypad_set_key(tap_row, tap_col, false);
++            tap_row = -1;
++        }
+         if (keypad.kpc.control & 1) {
+             event_repeat(index, (keypad.kpc.control >> 16) + (keypad.kpc.control >> 2 & 0x3FFF));
+         } else {
+@@ -433,6 +442,19 @@ void keypad_set_key(int row, int col, bool state)
+         keypad_on_pressed();
+ }
+ 
++// Press a key and release it after the OS has had scans full keypad sweeps to see it. Riding the
++// existing scan event avoids adding a scheduler slot, and means a tap costs nothing while the OS
++// has scanning switched off.
++void keypad_tap_key(int row, int col, unsigned scans)
++{
++    std::lock_guard<std::recursive_mutex> lg(keypad_mut);
++
++    keypad_set_key(row, col, true);
++    tap_row = row;
++    tap_col = col;
++    tap_scans_left = scans ? scans : 1;
++}
++
+ void touchpad_set_state(float x, float y, bool contact, bool down)
+ {
+     std::lock_guard<std::recursive_mutex> lg(keypad_mut);
+diff --git a/core/keypad.h b/core/keypad.h
+index 5fd2337..2993f9b 100644
+--- a/core/keypad.h
++++ b/core/keypad.h
+@@ -63,6 +63,7 @@ bool keypad_resume(const emu_snapshot *snapshot);
+ #define KEYPAD_ROWS 8
+ #define KEYPAD_COLS 11
+ void keypad_set_key(int row, int col, bool state);
++void keypad_tap_key(int row, int col, unsigned scans);
+ void keypad_int_check();
+ void keypad_on_pressed();
+ uint32_t keypad_read(uint32_t addr);
+diff --git a/core/usblink.c b/core/usblink.c
+index f4b8957..da55a6c 100644
+--- a/core/usblink.c
++++ b/core/usblink.c
+@@ -37,7 +37,8 @@ struct packet {
+ 
+ enum SID {
+     SID_File = 0x8001,
+-    SID_Dirlist
++    SID_Dirlist,
++    SID_Raw
+ };
+ 
+ enum File_Action {
+@@ -63,7 +64,8 @@ enum USB_Mode {
+     Rename,
+     Delete,
+     File_Receive,
+-    Dir_Create
++    Dir_Create,
++    Raw
+ } mode;
+ 
+ static uint8_t *packet_dataptr(struct packet *p) {
+@@ -153,9 +155,12 @@ uint8_t next_seqno() {
+ 
+ static usblink_dirlist_cb current_dirlist_callback;
+ static usblink_progress_cb current_file_callback;
++static usblink_raw_cb current_raw_callback;
+ static void *current_user_data = NULL;
+ 
+ FILE *put_file = NULL;
++// Where a get is writing, so a refused one can take its empty file back with it.
++static char get_file_dest[FILENAME_MAX];
+ uint32_t put_file_size, put_file_size_orig;
+ uint16_t put_file_port;
+ enum {
+@@ -355,9 +360,84 @@ void get_file_next(struct packet *in)
+             if(current_file_callback)
+                 current_file_callback(put_file_size == put_file_size_orig ? 100 : -1, current_user_data);
+         }
++        break;
++
++    case 0xFF:
++        // The calculator refuses a get it cannot serve, a missing path being the usual reason. This
++        // used to fall through unhandled, so the transfer sat there until the queue's own deadline
++        // gave up 20 seconds later with nothing to say about why. A 0xFF arriving after put_file is
++        // closed is the trailing status of a transfer that already finished, so ignore that one.
++        if(!put_file)
++            break;
++
++        fclose(put_file);
++        put_file = NULL;
++        // Without this the host is left holding an empty file, which reads as a fetch that worked.
++        if(get_file_dest[0])
++            remove(get_file_dest);
++        emuprintf("File receive error: the calculator refused the path, status %02x\n",
++                  size >= 2 ? data[1] : 0);
++        if(current_file_callback)
++            current_file_callback(-1, current_user_data);
++        break;
+     }
+ }
+ 
++void usblink_raw(uint16_t sid, const uint8_t *data, uint32_t size, usblink_raw_cb callback, void *user_data)
++{
++    mode = Raw;
++    current_raw_callback = callback;
++    current_user_data = user_data;
++
++    struct packet *out = &usblink_send_buffer;
++    uint8_t *dest = packet_prepare(out, size);
++    if (!dest) {
++        current_raw_callback = NULL;
++        callback(NULL, 0, true, user_data);
++        return;
++    }
++    out->src.service = BSWAP16(SID_Raw);
++    out->dst.service = BSWAP16(sid);
++    out->ack = 0;
++    out->seqno = next_seqno();
++    memcpy(dest, data, size);
++    usblink_send_packet();
++}
++
++static void raw_next(struct packet *in)
++{
++    // Acks arrive as NULL and carry nothing for us.
++    if (!in)
++        return;
++
++    usblink_raw_cb callback = current_raw_callback;
++    if (in->src.service == BSWAP16(0x00D3)) {
++        // The calculator's nACK: nothing is listening on that service number.
++        current_raw_callback = NULL;
++        if (callback)
++            callback(NULL, 0, true, current_user_data);
++        return;
++    }
++    if (in->dst.service != BSWAP16(SID_Raw))
++        return;
++
++    current_raw_callback = NULL;
++    if (callback)
++        callback(packet_dataptr(in), packet_datasize(in), false, current_user_data);
++
++    // Close the conversation the way libnspire's service_disconnect does, or the service's read
++    // on the calculator sits until its own timeout.
++    struct packet *out = &usblink_send_buffer;
++    out->src.service = BSWAP16(0x40DE);
++    out->dst.service = BSWAP16(0x40DE);
++    out->ack = 0;
++    out->seqno = next_seqno();
++    out->data_size = 2;
++    out->data[0] = SID_Raw >> 8;
++    out->data[1] = SID_Raw & 0xFF;
++    usblink_send_packet();
++}
++
+ enum Success_Action {
+     Success_Done,
+     Success_Next
+@@ -522,6 +602,9 @@ void usblink_received_packet(const uint8_t *data, uint32_t size) {
+     case File_Receive:
+         get_file_next(in);
+         break;
++    case Raw:
++        raw_next(in);
++        break;
+     }
+ }
+ 
+@@ -684,6 +767,7 @@ bool usblink_get_file(const char *path, const char *dest, usblink_progress_cb ca
+     put_file = fopen_utf8(dest, "wb");
+     if(!put_file)
+         return false;
++    snprintf(get_file_dest, sizeof(get_file_dest), "%s", dest);
+ 
+     /* Send the first packet */
+     struct packet *out = &usblink_send_buffer;
+@@ -753,6 +837,21 @@ extern void usb_bus_reset_off(void);
+ extern void usb_receive_setup_packet(int endpoint, void *packet);
+ extern void usb_receive_packet(int endpoint, void *packet, uint32_t size);
+ 
++// Drop whatever transfer is in flight but keep the link. The full reset below clears
++// usblink_connected too, and on the CX II that cannot be undone without another boot, because the
++// OS masks the device interrupts once it has finished starting up.
++void usblink_abandon_transfer() {
++    put_file_state = 0;
++    if (put_file) {
++        fclose(put_file);
++        put_file = NULL;
++    }
++    current_file_callback = NULL;
++    current_raw_callback = NULL;
++    current_user_data = NULL;
++    usblink_sending = false;
++}
++
+ void usblink_reset() {
+     if (put_file_state) {
+         put_file_state = 0;
+diff --git a/core/usblink.h b/core/usblink.h
+index 6b998fd..6155b60 100644
+--- a/core/usblink.h
++++ b/core/usblink.h
+@@ -23,6 +23,9 @@ typedef void (*usblink_dirlist_cb)(struct usblink_file *f, bool is_error, void *
+ /* progress is 0-100 if successful or negative if an error occured.
+    A value of 100 means complete and successful. */
+ typedef void (*usblink_progress_cb)(int progress, void *user_data);
++/* One packet to any calculator service, answered with that service's first reply. is_error is
++   set when the calculator refuses the service or the reply never comes. */
++typedef void (*usblink_raw_cb)(const uint8_t *data, uint32_t size, bool is_error, void *user_data);
+ 
+ void usblink_delete(const char *path, bool is_dir, usblink_progress_cb callback, void *user_data);
+ void usblink_dirlist(const char *path, usblink_dirlist_cb callback, void *user_data);
+@@ -32,10 +35,12 @@ bool usblink_put_file(const char *local, const char *remote, usblink_progress_cb
+ void usblink_new_dir(const char *path, usblink_progress_cb callback, void *user_data);
+ void usblink_move(const char *old_path, const char *new_path, usblink_progress_cb callback, void *user_data);
+ bool usblink_send_os(const char *filepath, usblink_progress_cb callback, void *user_data);
++void usblink_raw(uint16_t sid, const uint8_t *data, uint32_t size, usblink_raw_cb callback, void *user_data);
+ 
+ void usblink_received_packet(const uint8_t *data, uint32_t size);
+ 
+ void usblink_reset();
++void usblink_abandon_transfer();
+ void usblink_connect();
+ 
+ #ifdef __cplusplus
+diff --git a/core/usblink_queue.cpp b/core/usblink_queue.cpp
+index fab9928..392606b 100644
+--- a/core/usblink_queue.cpp
++++ b/core/usblink_queue.cpp
+@@ -15,20 +15,37 @@ struct usblink_queue_action {
+         DEL_FILE,
+         NEW_DIR,
+         DEL_DIR,
+-        GET_FILE
++        GET_FILE,
++        RAW
+     } action;
+ 
+     //Members only used if the appropriate action is set
+     std::string local;
+     std::string remote;
++    uint16_t sid = 0;
++    std::vector<uint8_t> payload;
+     usblink_progress_cb progress_callback = nullptr;
+     usblink_dirlist_cb dirlist_callback = nullptr;
++    usblink_raw_cb raw_callback = nullptr;
+     void *user_data;
+ };
+ 
+ static std::atomic_bool busy;
+ static std::queue<usblink_queue_action> usblink_queue;
+ 
++// Nothing bounds how long an in-flight action may take, and the calculator answers a request it
++// cannot serve, a GET for a file that does not exist being the easy one, by saying nothing at all.
++// busy then stays set for the life of the session and every later transfer is dropped behind it,
++// which reads from outside exactly like the link having gone down. Give the front of the queue a
++// deadline instead, refreshed whenever it makes progress.
++static std::chrono::steady_clock::time_point action_deadline;
++static const std::chrono::seconds action_timeout{20};
++
++static void action_started()
++{
++    action_deadline = std::chrono::steady_clock::now() + action_timeout;
++}
++
+ static void dirlist_callback(struct usblink_file *f, bool is_error, void *user_data)
+ {
+     assert(!usblink_queue.empty());
+@@ -45,6 +62,19 @@ static void dirlist_callback(struct usblink_file *f, bool is_error, void *user_d
+     }
+ }
+ 
++static void raw_callback(const uint8_t *data, uint32_t size, bool is_error, void *user_data)
++{
++    assert(!usblink_queue.empty());
++    assert(usblink_queue.front().user_data == user_data);
++    assert(usblink_queue.front().action == usblink_queue_action::RAW);
++
++    if(usblink_queue.front().raw_callback != nullptr)
++        usblink_queue.front().raw_callback(data, size, is_error, user_data);
++
++    usblink_queue.pop();
++    busy = false;
++}
++
+ static void progress_callback(int progress, void *user_data)
+ {
+     assert(!usblink_queue.empty());
+@@ -69,14 +99,37 @@ static void progress_callback(int progress, void *user_data)
+         usblink_queue.pop();
+         busy = false;
+     }
++    else
++        action_started(); // it is still moving, so give it another window
+ }
+ 
+ void usblink_queue_do()
+ {
+     bool b = false;
+-    if(!usblink_connected || usblink_queue.empty() || !busy.compare_exchange_strong(b, true))
++    if(!usblink_connected || usblink_queue.empty())
++        return;
++
++    if(!busy.compare_exchange_strong(b, true))
++    {
++        if(std::chrono::steady_clock::now() < action_deadline)
++            return;
++
++        // Clear the half-finished transfer first, or a late reply lands on an action that has
++        // already been popped and the callback asserts on the mismatched user_data.
++        usblink_abandon_transfer();
++
++        // Fail it the way a refusal would, so the caller waiting on the callback hears back.
++        usblink_queue_action stuck = usblink_queue.front();
++        if(stuck.dirlist_callback)
++            dirlist_callback(nullptr, true, stuck.user_data);
++        else if(stuck.action == usblink_queue_action::RAW)
++            raw_callback(nullptr, 0, true, stuck.user_data);
++        else
++            progress_callback(-1, stuck.user_data);
+         return;
++    }
+ 
++    action_started();
+     usblink_queue_action action = usblink_queue.front();
+     switch(action.action)
+     {
+@@ -115,6 +168,10 @@ void usblink_queue_do()
+             progress_callback(-1, action.user_data);
+             busy = false;
+         }
++        break;
++    case usblink_queue_action::RAW:
++        usblink_raw(action.sid, action.payload.data(), action.payload.size(), raw_callback, action.user_data);
++        break;
+     }
+ }
+ 
+@@ -225,6 +282,18 @@ void usblink_queue_move(std::string old_path, std::string new_path, usblink_prog
+     usblink_queue_add(action);
+ }
+ 
++void usblink_queue_raw(uint16_t sid, std::vector<uint8_t> payload, usblink_raw_cb callback, void *user_data)
++{
++    usblink_queue_action action;
++    action.action = usblink_queue_action::RAW;
++    action.user_data = user_data;
++    action.sid = sid;
++    action.payload = std::move(payload);
++    action.raw_callback = callback;
++
++    usblink_queue_add(action);
++}
++
+ unsigned int usblink_queue_size()
+ {
+     return usblink_queue.size();
+diff --git a/core/usblink_queue.h b/core/usblink_queue.h
+index cf8df3e..3d81231 100644
+--- a/core/usblink_queue.h
++++ b/core/usblink_queue.h
+@@ -5,7 +5,9 @@
+ #error C++ only header
+ #endif
+ 
++#include <cstdint>
+ #include <string>
++#include <vector>
+ 
+ #include "usblink.h"
+ 
+@@ -17,6 +19,7 @@ void usblink_queue_put_file(std::string local, std::string remote, usblink_progr
+ void usblink_queue_move(std::string old_path, std::string new_path, usblink_progress_cb callback, void *user_data);
+ void usblink_queue_new_dir(std::string path, usblink_progress_cb callback, void *user_data);
+ void usblink_queue_send_os(std::string filepath, usblink_progress_cb callback, void *user_data);
++void usblink_queue_raw(uint16_t sid, std::vector<uint8_t> payload, usblink_raw_cb callback, void *user_data);
+ 
+ // Do one task from the queue
+ extern "C" void usblink_queue_do();
+diff --git a/headless/Makefile b/headless/Makefile
+index 28833d8..ff35558 100644
+--- a/headless/Makefile
++++ b/headless/Makefile
+@@ -16,14 +16,15 @@ ifeq "$(TRANSLATION_ENABLED)" "TRUE"
+     else ifeq "$(TOOLCHAIN_ARCH)" "x86_64"
+         ASMSOURCES += ../core/asmcode_x86_64.S
+         CSOURCES += ../core/asmcode.c ../core/translate_x86_64.c
++    else ifneq "$(filter aarch64 arm64,$(TOOLCHAIN_ARCH))" ""
++        # Before the arm% case below, which otherwise claims arm64 and builds the 32-bit backend.
++        ASMSOURCES += ../core/asmcode_aarch64.S
++        CSOURCES += ../core/asmcode.c
++        CPPSOURCES += ../core/translate_aarch64.cpp
+     else ifneq "$(filter arm%,$(TOOLCHAIN_ARCH))" ""
+         ASMSOURCES += ../core/asmcode_arm.S
+         CSOURCES += ../core/asmcode.c
+         CPPSOURCES += ../core/translate_arm.cpp
+-    else ifeq "$(TOOLCHAIN_ARCH)" "aarch64"
+-        ASMSOURCES += ../core/asmcode_aarch64.S
+-        CSOURCES += ../core/asmcode.c
+-        CPPSOURCES += ../core/translate_aarch64.cpp
+     else
+         $(error Unknown architecture $(TOOLCHAIN_ARCH))
+     endif
+diff --git a/headless/main.cpp b/headless/main.cpp
+index ec1d7d6..e2ccb36 100644
+--- a/headless/main.cpp
++++ b/headless/main.cpp
+@@ -1,13 +1,25 @@
+ #include <errno.h>
+ 
++#include <atomic>
++#include <condition_variable>
++#include <mutex>
++#include <string>
++#include <thread>
++
+ #include "core/debug.h"
+ #include "core/emu.h"
+ #include "core/mem.h"
+ #include "core/mmu.h"
+ #include "core/usblink_queue.h"
+ 
++// Set by the stdin reader when a line turns up while the emulator is running. Core polls gui_do_stuff
++// from the emulation thread, which is the only thread that may enter the debugger.
++static std::atomic<bool> break_requested{false};
++
+ void gui_do_stuff(bool wait)
+ {
++    if(break_requested.exchange(false) && !in_debugger)
++        debugger(DBG_USER, 0);
+ }
+ 
+ void do_stuff(int i)
+@@ -48,12 +60,127 @@ void gui_perror(const char *msg)
+ 
+ void gui_debugger_entered_or_left(bool entered) {}
+ 
++// The caller holds the debugger's input mutex and the callback takes that same mutex, so reading the
++// line here and invoking the callback before returning deadlocks the one thread on a non-recursive
++// std::mutex. Qt's front end returns immediately and calls back from the GUI thread; this does the
++// same with a reader thread that owns stdin for the life of the process.
++static std::mutex input_m;
++static std::condition_variable input_cv;
++static debug_input_cb input_wanted = nullptr;
++static std::string input_spare;
++static bool input_have_spare = false;
++static bool input_reader_started = false;
++// The callback only stores the pointer, and the debugger copies it after waking, so the text has to
++// outlive the call. It stays valid until the next line is delivered, which cannot happen until the
++// debugger has asked again.
++static std::string input_delivered;
++
++// The two markers that frame a command. READY says the debugger is waiting for one; ECHO says which
++// one it is about to run. Together they let a driver read exactly one command's output instead of
++// guessing from a gap in the stream.
++const char DEBUGGER_READY[] = "<<fb-ready>>";
++const char DEBUGGER_ECHO[] = "<<fb-cmd>> ";
++
++static void input_reader()
++{
++    while(true)
++    {
++        std::string line;
++
++        {
++            std::unique_lock<std::mutex> lk(input_m);
++            if(input_have_spare)
++            {
++                line = input_spare;
++                input_have_spare = false;
++            }
++        }
++
++        if(line.empty())
++        {
++            // Read whether or not the debugger has asked yet. Reading only on demand would leave a
++            // command typed during a run sitting in the pipe, and nothing would notice it until the
++            // emulator stopped for some other reason.
++            // Whole lines only: a path or a hex payload longer than one buffer used to arrive as
++            // two commands, the second one nonsense.
++            char buffer[256];
++            while(fgets(buffer, sizeof(buffer), stdin))
++            {
++                line += buffer;
++                if(!line.empty() && line.back() == '\n')
++                    break;
++            }
++            if(line.empty())
++            {
++                exiting = true;
++                return;
++            }
++        }
++
++        std::unique_lock<std::mutex> lk(input_m);
++        if(!input_wanted)
++        {
++            // Nothing is waiting, so the emulator is running. Hold the line and ask it to stop, which
++            // is what makes a command typed mid-run take effect rather than wait for a breakpoint.
++            input_spare = line;
++            input_have_spare = true;
++            break_requested = true;
++            input_cv.wait(lk, []{ return input_wanted != nullptr; });
++            continue;
++        }
++
++        debug_input_cb callback = input_wanted;
++        input_wanted = nullptr;
++        input_delivered = line;
++        lk.unlock();
++
++        // Echo what is about to run. A command written while the emulator is running has to break it
++        // out first, and entering the debugger prints its own ready marker before the command is
++        // delivered, so "read until ready" would stop on that one and return nothing. The echo is
++        // the only unambiguous start of a command's output.
++        fputs(DEBUGGER_ECHO, stdout);
++        fputs(input_delivered.c_str(), stdout);
++        if(input_delivered.empty() || input_delivered.back() != '\n')
++            putc('\n', stdout);
++        fflush(stdout);
++
++        callback(input_delivered.c_str());
++    }
++}
++
++// Starting the reader lazily on the first debugger request means a session without
++// --debug-on-start never reads stdin at all, because nothing enters the debugger to ask. Commands
++// then sit unread in the pipe for the life of the process and the caller sees silence.
++static void input_reader_start()
++{
++    std::unique_lock<std::mutex> lk(input_m);
++    if(input_reader_started)
++        return;
++
++    input_reader_started = true;
++    std::thread(input_reader).detach();
++}
++
++// Printed whenever the debugger is about to wait for a command, so a driver can tell "finished and
++// printed nothing" from "still working" or "output lost". Without it the only end-of-command signal
++// is a gap in the output, which is a guess: it cuts a slow command short and it cannot distinguish
++// silence from a command that never ran.
++
+ void gui_debugger_request_input(debug_input_cb callback)
+ {
+-    if(!callback) return;
+-    static char debug_in[40];
+-    fgets(debug_in, sizeof(debug_in), stdin);
+-    callback(debug_in);
++    std::unique_lock<std::mutex> lk(input_m);
++
++    input_wanted = callback;
++    input_cv.notify_all();
++
++    // Stdout is block buffered when it is a pipe, so without this a caller waiting to see the
++    // debugger's reply before writing the next command waits forever.
++    if(callback)
++    {
++        fputs(DEBUGGER_READY, stdout);
++        putc('\n', stdout);
++        fflush(stdout);
++    }
+ }
+ 
+ void gui_putchar(char c) { putc(c, stdout); }
+@@ -75,6 +202,8 @@ static const char OPT_DEBUG_ON_WARN[]      = "--debug-on-warn";
+ static const char OPT_PRINT_ON_WARN[]      = "--print-on-warn";
+ static const char OPT_DIAGS[]              = "--diags";
+ static const char OPT_HELP[]               = "--help";
++static const char OPT_GDB[]                = "--gdb";
++static const char OPT_REALTIME[]           = "--realtime";
+ static const uint32_t default_rampayload_base = 0x10000000;
+ 
+ void show_help_menu(void)
+@@ -91,31 +220,56 @@ void show_help_menu(void)
+ 	fprintf(stderr, "  %-24s Enter debugger on warnings\n", OPT_DEBUG_ON_WARN);
+ 	fprintf(stderr, "  %-24s Print warnings to console\n", OPT_PRINT_ON_WARN);
+ 	fprintf(stderr, "  %-24s Use diagnostics boot order\n", OPT_DIAGS);
++	fprintf(stderr, "  %-24s Listen for GDB on this TCP port\n", OPT_GDB);
++	fprintf(stderr, "  %-24s Run at real speed instead of turbo\n", OPT_REALTIME);
+ }
+ 
+ int main(int argc, char *argv[])
+ {
++	// Stdout is block buffered on a pipe, and the only flush is the one in
++	// gui_debugger_request_input. Anything printed by a command that then resumes execution sits in
++	// the buffer instead, so the command reads as having produced nothing at all.
++	setvbuf(stdout, nullptr, _IOLBF, BUFSIZ);
++
+ 	const char *boot1 = nullptr, *flash = nullptr, *snapshot = nullptr, *rampayload = nullptr;
++	unsigned int port_gdb = 0;
++	bool realtime = false;
+ 	uint32_t rampayload_base = default_rampayload_base;
+ 
++	// An option's value, or a usage error: a trailing option used to read one past argv.
++	auto value = [&](int &argi) -> const char *
++	{
++		if(argi + 1 >= argc)
++		{
++			fprintf(stderr, "'%s' needs a value.\n", argv[argi]);
++			show_help_menu();
++			exit(1);
++		}
++		return argv[++argi];
++	};
++
+ 	for(int argi = 1; argi < argc; ++argi)
+ 	{
+ 		if(strcmp(argv[argi], OPT_BOOT1) == 0)
+-			boot1 = argv[++argi];
++			boot1 = value(argi);
+ 		else if(strcmp(argv[argi], OPT_FLASH) == 0)
+-			flash = argv[++argi];
++			flash = value(argi);
+ 		else if(strcmp(argv[argi], OPT_SNAPSHOT) == 0)
+-			snapshot = argv[++argi];
++			snapshot = value(argi);
+ 		else if(strcmp(argv[argi], OPT_RAMPAYLOAD) == 0)
+-			rampayload = argv[++argi];
++			rampayload = value(argi);
+ 		else if(strcmp(argv[argi], OPT_RAMPAYLOAD_ADDR) == 0)
+-			rampayload_base = strtol(argv[++argi], nullptr, 0);
++			rampayload_base = strtol(value(argi), nullptr, 0);
+ 		else if(strcmp(argv[argi], OPT_DEBUG_ON_START) == 0)
+ 			debug_on_start = true;
+ 		else if(strcmp(argv[argi], OPT_DEBUG_ON_WARN) == 0)
+ 			debug_on_warn = true;
+ 		else if(strcmp(argv[argi], OPT_PRINT_ON_WARN) == 0)
+ 			print_on_warn = true;
++		else if(strcmp(argv[argi], OPT_GDB) == 0)
++			port_gdb = strtoul(value(argi), nullptr, 0);
++		else if(strcmp(argv[argi], OPT_REALTIME) == 0)
++			realtime = true;
+ 		else if(strcmp(argv[argi], OPT_DIAGS) == 0)
+ 			boot_order = ORDER_DIAGS;
+ 		else if (strcmp(argv[argi], OPT_HELP) == 0)
+@@ -141,7 +295,7 @@ int main(int argc, char *argv[])
+ 	path_boot1 = boot1;
+ 	path_flash = flash;
+ 
+-	if(!emu_start(0, 0, snapshot))
++	if(!emu_start(port_gdb, 0, snapshot))
+ 		return 1;
+ 
+ 	if(rampayload)
+@@ -176,7 +330,10 @@ int main(int argc, char *argv[])
+ 		arm.reg[15] = rampayload_base;
+ 	}
+ 
+-	turbo_mode = true;
++	// Turbo runs the guest as fast as the host allows, which is what a corpus run wants. --realtime
++	// was added to test whether the rate is why the OS ignores keys sent this way. It is not, measured.
++	turbo_mode = !realtime;
++	input_reader_start();
+ 	emu_loop(false);
+ 
+ 	return 0;
+diff --git a/main.cpp b/main.cpp
+index 53a2b31..a914e3a 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -103,8 +103,11 @@ int main(int argc, char **argv)
+     QCoreApplication::setOrganizationName(QStringLiteral("Firebird Emus"));
+     QCoreApplication::setApplicationName(QStringLiteral("firebird-emu"));
+ 
+-    // Needed for settings migration
++    // Needed for settings migration. Qt 6 removed qRegisterMetaTypeStreamOperators because
++    // qRegisterMetaType picks up a type's stream operators on its own.
++#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+     qRegisterMetaTypeStreamOperators<KitModel>();
++#endif
+     qRegisterMetaType<KitModel>();
+ 
+     migrateSettings();
+diff --git a/mainwindow.cpp b/mainwindow.cpp
+index 1a8a577..b2c1869 100644
+--- a/mainwindow.cpp
++++ b/mainwindow.cpp
+@@ -124,7 +124,8 @@ MainWindow::MainWindow(QWidget *parent) :
+         languageCode.chop(3); // Chop off file extension
+         QLocale locale(languageCode);
+         QAction *action = new QAction(locale.nativeLanguageName(), ui->menuLanguage);
+-        connect(action, &QAction::triggered, this, [this,languageCode] { this->switchTranslator(languageCode); });
++        // Qt 6 made QLocale's QString constructor explicit, so spell it out as line 166 does.
++        connect(action, &QAction::triggered, this, [this,languageCode] { this->switchTranslator(QLocale(languageCode)); });
+         ui->menuLanguage->addAction(action);
+     }
+ 

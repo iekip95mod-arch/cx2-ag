@@ -1,0 +1,6 @@
+Upstream: https://github.com/lvgl/lvgl
+Version: 9.5.0
+Revision: 85aa60d18b3d5e5588d7b247abf90198f07c8a63
+Source archive SHA-256: b32747cf6568d86a5cb9d30f53970bec1c7a322cb624c4158d4b0e348324146b
+License: MIT. See LICENCE.txt. Bundled font notices are under scripts/built_in_font/font_license.
+Integration: Unmodified sources. NPS_QUALIFY_RETAINED_UI builds the retained RGB565 surface and isolated host and device probes. Software rendering uses no assembly acceleration. Product controls and allocation-failure policy remain under qualification.

@@ -1,0 +1,273 @@
+diff --git a/ndl-src/ndl-sdk/include/ndl_paths.h b/ndl-src/ndl-sdk/include/ndl_paths.h
+new file mode 100644
+--- /dev/null
++++ b/ndl-src/ndl-sdk/include/ndl_paths.h
+@@ -0,0 +1,23 @@
++#ifndef NDL_PATHS_H
++#define NDL_PATHS_H
++
++#define NDL_DOCUMENTS_ROOT "/documents/ndl"
++#define NDL_DOCUMENTS_BOOT_RESOURCES "A:\\documents\\ndl\\ndl_resources.tns"
++
++#ifdef NDL_RELOCATED
++#define NDL_ROOT "/appdata/ndl"
++#define NDL_BOOT_RESOURCES "A:\\appdata\\ndl\\ndl_resources.tns"
++#ifndef GNU_AS
++#include <sys/stat.h>
++static inline const char *ndl_root(void) {
++	struct stat statbuf;
++	return stat(NDL_ROOT "/ndl_resources.tns", &statbuf) == 0
++		? NDL_ROOT : NDL_DOCUMENTS_ROOT;
++}
++#endif
++#else
++#define NDL_ROOT NDL_DOCUMENTS_ROOT
++#define NDL_BOOT_RESOURCES NDL_DOCUMENTS_BOOT_RESOURCES
++#endif
++
++#endif
+diff --git a/ndl-src/ndl-sdk/libndls/config.c b/ndl-src/ndl-sdk/libndls/config.c
+--- a/ndl-src/ndl-sdk/libndls/config.c
++++ b/ndl-src/ndl-sdk/libndls/config.c
+@@ -22,6 +22,7 @@
+  ****************************************************************************/
+ 
+ #include <os.h>
++#include <ndl_paths.h>
+ 
+ /* The config file is open whenever needed with cfg_open, and must be closed.
+  * Each line of the file contains a key/value pair (key=value).
+@@ -121,13 +122,23 @@
+ }
+ 
+ static int cfg_locate_cfg_file(char *dst_path, size_t dst_path_size) {
++	#ifdef NDL_RELOCATED
++	struct stat statbuf;
++	int len = snprintf(dst_path, dst_path_size, "%s/ndl.cfg.tns", ndl_root());
++	if (len < 0 || (size_t)len >= dst_path_size)
++		return 1;
++	return stat(dst_path, &statbuf) != 0;
++	#else
+ 	return locate("ndl.cfg.tns", dst_path, dst_path_size);
++	#endif
+ }
+ 
+ void cfg_open(void) {
+ 	static char path[300] = "";
++	#ifndef NDL_RELOCATED
+ 	struct stat statbuf;
+ 	if (path[0] == '\0' || stat(path, &statbuf) != 0)
++	#endif
+ 		if (cfg_locate_cfg_file(path, sizeof(path)))
+ 			return;
+ 
+@@ -174,6 +185,10 @@
+ void cfg_register_fileext(const char *ext, const char *prgm) {
+ 	char path[300];
+ 	if (cfg_locate_cfg_file(path, sizeof(path)))
++		#ifdef NDL_RELOCATED
++		snprintf(path, sizeof(path), "%s/ndl.cfg.tns", ndl_root());
++		#else
+ 		snprintf(path, sizeof(path), "%s%s", get_documents_dir(), "ndl/ndl.cfg.tns");
++		#endif
+ 	cfg_register_fileext_file(path, ext, prgm);
+ }
+diff --git a/ndl-src/ndl/src/installer-6.2/stage0.S b/ndl-src/ndl/src/installer-6.2/stage0.S
+--- a/ndl-src/ndl/src/installer-6.2/stage0.S
++++ b/ndl-src/ndl/src/installer-6.2/stage0.S
+@@ -1,3 +1,5 @@
++#include <ndl_paths.h>
++
+ .text
+ _start: .global _start
+ .org 0 @ Actually not, but this is PIC
+@@ -29,12 +31,29 @@
+ mov r0, #2
+ str r0, result
+ 
++#ifdef NDL_RELOCATED
++adr	r7, respath
++mov	r0, r7
++#else
+ adr	r0, respath
++#endif
+ mov	r1, sp
+ mov	lr, pc
+ ldr	pc, [r10, #(os_stat-osdata)] @ call stat
+ cmp	r0, #0
++#ifdef NDL_RELOCATED
++beq	resources_found
++adr	r7, documents_respath
++mov	r0, r7
++mov	r1, sp
++mov	lr, pc
++ldr	pc, [r10, #(os_stat-osdata)]
++cmp	r0, #0
++#endif
+ bne	return
++#ifdef NDL_RELOCATED
++resources_found:
++#endif
+ ldr	r4, [sp, #0x14] @ r4 = stat.st_size
+ mov	r0, r4
+ mov	lr, pc
+@@ -42,7 +61,11 @@
+ movs	r5, r0 @ r5 = pointer to alloc'd area
+ beq	return
+ @ TODO: Align?
++#ifdef NDL_RELOCATED
++mov	r0, r7
++#else
+ adr	r0, respath
++#endif
+ adr	r1, oflags
+ mov	lr, pc
+ ldr	pc, [r10, #(os_fopen-osdata)] @ call fopen
+@@ -150,7 +173,12 @@
+ .word 0x0
+ 
+ respath:
+-.asciz "A:\\documents\\ndl\\ndl_resources.tns"
++.asciz NDL_BOOT_RESOURCES
++#ifdef NDL_RELOCATED
++.align 2
++documents_respath:
++.asciz NDL_DOCUMENTS_BOOT_RESOURCES
++#endif
+ 
+ .align 2
+ oflags:
+diff --git a/ndl-src/ndl/src/persistent-6.4/stage0.S b/ndl-src/ndl/src/persistent-6.4/stage0.S
+--- a/ndl-src/ndl/src/persistent-6.4/stage0.S
++++ b/ndl-src/ndl/src/persistent-6.4/stage0.S
+@@ -1,3 +1,5 @@
++#include <ndl_paths.h>
++
+ .text
+ _start: .global _start
+ .org 0 @ Actually not, but this is PIC
+@@ -29,12 +31,29 @@
+ mov r0, #2
+ str r0, result
+ 
++#ifdef NDL_RELOCATED
++adr	r7, respath
++mov	r0, r7
++#else
+ adr	r0, respath
++#endif
+ mov	r1, sp
+ mov	lr, pc
+ ldr	pc, [r10, #(os_stat-osdata)] @ call stat
+ cmp	r0, #0
++#ifdef NDL_RELOCATED
++beq	resources_found
++adr	r7, documents_respath
++mov	r0, r7
++mov	r1, sp
++mov	lr, pc
++ldr	pc, [r10, #(os_stat-osdata)]
++cmp	r0, #0
++#endif
+ bne	return
++#ifdef NDL_RELOCATED
++resources_found:
++#endif
+ ldr	r4, [sp, #0x14] @ r4 = stat.st_size
+ mov	r0, r4
+ mov	lr, pc
+@@ -42,7 +61,11 @@
+ movs	r5, r0 @ r5 = pointer to alloc'd area
+ beq	return
+ @ TODO: Align?
++#ifdef NDL_RELOCATED
++mov	r0, r7
++#else
+ adr	r0, respath
++#endif
+ adr	r1, oflags
+ mov	lr, pc
+ ldr	pc, [r10, #(os_fopen-osdata)] @ call fopen
+@@ -148,7 +171,12 @@
+ .asciz "PER" @ for alignment, only P is checked for
+ 
+ respath:
+-.asciz "A:\\documents\\ndl\\ndl_resources.tns"
++.asciz NDL_BOOT_RESOURCES
++#ifdef NDL_RELOCATED
++.align 2
++documents_respath:
++.asciz NDL_DOCUMENTS_BOOT_RESOURCES
++#endif
+ 
+ .align 2
+ oflags:
+diff --git a/ndl-src/ndl/src/resources/ndl.h b/ndl-src/ndl/src/resources/ndl.h
+--- a/ndl-src/ndl/src/resources/ndl.h
++++ b/ndl-src/ndl/src/resources/ndl.h
+@@ -26,6 +26,7 @@
+ #define _NDL_H_
+ 
+ #include "ndl_version.h"
++#include <ndl_paths.h>
+ 
+ // Marker at the beginning of a plain-old ndl program. Deprecated, only used for ndl itself, Zehn is now used for programs.
+ #define PRGMSIG "PRG"
+diff --git a/ndl-src/ndl/src/resources/persistency.c b/ndl-src/ndl/src/resources/persistency.c
+--- a/ndl-src/ndl/src/resources/persistency.c
++++ b/ndl-src/ndl/src/resources/persistency.c
+@@ -162,10 +162,21 @@
+     }
+     
+     // Try to copy the file (check persistent.tns first, fallback to currentdoc.tns)
+-    int c = copy_file("/documents/ndl/persistent.tns", "/phoenix/syst/poweroff/currentdoc.tns");
++    #ifdef NDL_RELOCATED
++    const char *root = ndl_root();
++    char source_path[FILENAME_MAX];
++    snprintf(source_path, sizeof(source_path), "%s/persistent.tns", root);
++    int c = copy_file(source_path, "/phoenix/syst/poweroff/currentdoc.tns");
++    if (c != 0) {
++        snprintf(source_path, sizeof(source_path), "%s/currentdoc.tns", root);
++        c = copy_file(source_path, "/phoenix/syst/poweroff/currentdoc.tns");
++    }
++    #else
++    int c = copy_file(NDL_ROOT "/persistent.tns", "/phoenix/syst/poweroff/currentdoc.tns");
+     if (c != 0) c = copy_file("/documents/persistent.tns", "/phoenix/syst/poweroff/currentdoc.tns");
+-    if (c != 0) c = copy_file("/documents/ndl/currentdoc.tns", "/phoenix/syst/poweroff/currentdoc.tns");
++    if (c != 0) c = copy_file(NDL_ROOT "/currentdoc.tns", "/phoenix/syst/poweroff/currentdoc.tns");
+     if (c != 0) c = copy_file("/documents/currentdoc.tns", "/phoenix/syst/poweroff/currentdoc.tns");
++    #endif
+ 
+     if (c != 0) {
+         // TODO: better error logging
+diff --git a/ndl-src/ndl/src/resources/ploaderhook.c b/ndl-src/ndl/src/resources/ploaderhook.c
+--- a/ndl-src/ndl/src/resources/ploaderhook.c
++++ b/ndl-src/ndl/src/resources/ploaderhook.c
+@@ -481,7 +481,13 @@
+ 	if (!isKeyPressed(KEY_NSPIRE_ESC)) {
+ 		NU_Set_Current_Dir(get_documents_dir());
+ 		plh_isstartup = TRUE;
++		#ifdef NDL_RELOCATED
++		char startup_path[FILENAME_MAX];
++		snprintf(startup_path, sizeof(startup_path), "%s/startup", ndl_root());
++		file_each(startup_path, startup_file_each_cb, NULL);
++		#else
+ 		file_each("./ndl/startup", startup_file_each_cb, NULL);
++		#endif
+ 		plh_isstartup = FALSE;
+ 	}
+ 
+diff --git a/ndl-src/ndl/src/resources/luaext.c b/ndl-src/ndl/src/resources/luaext.c
+--- a/ndl-src/ndl/src/resources/luaext.c
++++ b/ndl-src/ndl/src/resources/luaext.c
+@@ -51,6 +51,10 @@
+ 		return 1;
+ 	}
+ 	sprintf(modulepath, "%s.luax.tns", name);
++	#ifdef NDL_RELOCATED
++	if (file_each(NDL_ROOT, require_file_each_cb, modulepath))
++		return 1;
++	#endif
+ 	if (!file_each(get_documents_dir(), require_file_each_cb, modulepath)) {
+ require_not_found:
+ 		luaL_error(L, "module " LUA_QS " not found", name);

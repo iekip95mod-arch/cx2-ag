@@ -1,0 +1,1340 @@
+# Invalid, unsupported, resource-limit and adversarial inputs, PRD section 22.1 row 5.
+#
+# The required result is a correct non-success outcome with no fabricated continuation, which is MVP
+# criterion 11. The audit enforces that on every case in this family and on no other: the outcome
+# must not be a complete verified solution, and the engine must not hand back an answer. A case that
+# also names a detail pins the words it was refused with, which is criterion 8's "fails clearly".
+#
+# A case names a mode because the input alone does not say which engine should have refused it.
+
+# A truly empty input cannot be written here, because a corpus line is a field and a value. The
+# empty string is covered by tests/unit/run_tests.cc instead.
+case invalid.parse.bare-relation-sign
+  family invalid
+  mode derivative
+  input =
+  variable x
+  expect not parsed
+
+case invalid.parse.trailing-operator
+  family invalid
+  mode derivative
+  input 1 +
+  variable x
+  expect not parsed
+  detail the expression ends where a value was expected
+
+case invalid.parse.unclosed-parenthesis
+  family invalid
+  mode derivative
+  input (1
+  variable x
+  expect not parsed
+  detail expected a closing parenthesis
+
+case invalid.parse.stray-closing-parenthesis
+  family invalid
+  mode derivative
+  input 1)
+  variable x
+  expect not parsed
+  detail unexpected input after the expression
+
+case invalid.parse.two-names
+  family invalid
+  mode derivative
+  input x y
+  variable x
+  expect not parsed
+
+case invalid.parse.two-numbers
+  family invalid
+  mode derivative
+  input 2 3
+  variable x
+  expect not parsed
+
+case invalid.parse.split-decimal
+  family invalid
+  mode derivative
+  input 1.2.3
+  variable x
+  expect not parsed
+
+case invalid.parse.chained-relation
+  family invalid
+  mode linear
+  input 1 = 2 = 3
+  unknown x
+  expect not parsed
+
+case invalid.parse.unfinished-call
+  family invalid
+  mode derivative
+  input sin(
+  variable x
+  expect not parsed
+
+case invalid.parse.unknown-character
+  family invalid
+  mode derivative
+  input 1 $ 2
+  variable x
+  expect not parsed
+
+case invalid.parse.misplaced-operator
+  family invalid
+  mode derivative
+  input 2 + * 3
+  variable x
+  expect not parsed
+  detail expected a number, a name or a parenthesis
+
+# Two numbers side by side are an error whether or not the first one carries a minus. The parser
+# once accepted this one as a product, while refusing the plain 2 3 above, so the pair is kept
+# together.
+case invalid.parse.negated-number-beside-a-number
+  family invalid
+  mode derivative
+  input -2 3
+  variable x
+  expect not parsed
+
+case invalid.derivative.variable-exponent
+  family invalid
+  mode derivative
+  input x^x
+  variable x
+  expect unsupported form
+
+case invalid.derivative.unknown-function
+  family invalid
+  mode derivative
+  input f(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.inverse-trigonometric
+  family invalid
+  mode derivative
+  input arcsin(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.inside-a-sum
+  family invalid
+  mode derivative
+  input x^2 + x^x
+  variable x
+  expect unsupported form
+
+case invalid.derivative.power-with-a-symbolic-exponent
+  family invalid
+  mode derivative
+  input x^n
+  variable x
+  expect unsupported form
+
+# The NotAVariable outcome needs a variable that is not a symbol node, and this format spells a
+# variable as a name, so nothing here can reach it. tests/unit/differentiate_tests.cc covers it.
+
+case invalid.integral.by-parts
+  family invalid
+  mode integral
+  input x*sin(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.tangent
+  family invalid
+  mode integral
+  input tan(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.logarithm
+  family invalid
+  mode integral
+  input ln(x)
+  variable x
+  expect refused
+
+case invalid.integral.square-root
+  family invalid
+  mode integral
+  input sqrt(x)
+  variable x
+  expect refused
+
+case invalid.integral.non-linear-substitution
+  family invalid
+  mode integral
+  input sin(x^2)
+  variable x
+  expect unsupported form
+
+case invalid.integral.rational-function
+  family invalid
+  mode integral
+  input 1/(x^2 + 1)
+  variable x
+  expect unsupported form
+
+case invalid.integral.variable-exponent
+  family invalid
+  mode integral
+  input x^x
+  variable x
+  expect unsupported form
+
+case invalid.integral.product-of-two-varying-factors
+  family invalid
+  mode integral
+  input sin(x)*cos(x)
+  variable x
+  expect unsupported form
+
+case invalid.linear.quadratic
+  family invalid
+  mode linear
+  input x^2 = 4
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.cubic
+  family invalid
+  mode linear
+  input x^3 + x = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.trigonometric
+  family invalid
+  mode linear
+  input sin(x) = 0
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.reciprocal
+  family invalid
+  mode linear
+  input 1/x = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.symbolic-coefficient
+  family invalid
+  mode linear
+  input a*x + b = c
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.product-of-unknowns
+  family invalid
+  mode linear
+  input x*x = 4
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.exponential
+  family invalid
+  mode linear
+  input exp(x) = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.inequality
+  family invalid
+  mode linear
+  input 2x + 5 < 13
+  unknown x
+  expect not an equation
+
+case invalid.linear.weak-inequality
+  family invalid
+  mode linear
+  input 3 <= x
+  unknown x
+  expect not an equation
+
+case invalid.linear.bare-expression
+  family invalid
+  mode linear
+  input 2x + 5
+  unknown x
+  expect not an equation
+
+case invalid.linear.unknown-absent
+  family invalid
+  mode linear
+  input 2y + 5 = 13
+  unknown x
+  expect not linear in the unknown
+
+case invalid.kinematics.unreachable-unknown
+  family invalid
+  mode kinematics
+  input find v; v0 = 5 m/s
+  expect no applicable equation
+
+case invalid.kinematics.no-knowns
+  family invalid
+  mode kinematics
+  input find v
+  expect no applicable equation
+
+case invalid.kinematics.unreadable-unit
+  family invalid
+  mode kinematics
+  input find v; v0 = 5 furlongs; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case invalid.kinematics.no-unknown
+  family invalid
+  mode kinematics
+  input v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case invalid.kinematics.unknown-symbol
+  family invalid
+  mode kinematics
+  input find q; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect invalid input
+
+case invalid.resource.linear-one-rewrite
+  family invalid
+  mode linear
+  input 2x + 5 = 13
+  unknown x
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.resource.linear-no-steps
+  family invalid
+  mode linear
+  input 2x + 5 = 13
+  unknown x
+  max_steps 1
+  expect resource exceeded
+
+case invalid.resource.derivative-one-rewrite
+  family invalid
+  mode derivative
+  input x^2*sin(x)
+  variable x
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.resource.derivative-no-steps
+  family invalid
+  mode derivative
+  input x^2*sin(x)
+  variable x
+  max_steps 1
+  expect resource exceeded
+
+case invalid.resource.integral-one-rewrite
+  family invalid
+  mode integral
+  input x^2
+  variable x
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.resource.kinematics-one-rewrite
+  family invalid
+  mode kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.adversarial.deep-parentheses
+  family invalid
+  mode derivative
+  input ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((x))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+  variable x
+  expect not parsed
+
+case invalid.adversarial.integer-beyond-the-representation
+  family invalid
+  mode linear
+  input x + 99999999999999999999999999 = 0
+  unknown x
+  expect not linear in the unknown
+
+case invalid.adversarial.exponent-below-the-representation
+  family invalid
+  mode derivative
+  input x^-9223372036854775808
+  variable x
+  expect unsupported form
+
+case invalid.integral.root-of-linear
+  family invalid
+  mode integral
+  input sqrt(2*x + 1)
+  variable x
+  expect refused
+
+case invalid.integral.exponential-times-cosine
+  family invalid
+  mode integral
+  input exp(x)*cos(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.square-times-sine
+  family invalid
+  mode integral
+  input x^2*sin(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.reciprocal-of-sine
+  family invalid
+  mode integral
+  input 1/sin(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.tangent-of-linear
+  family invalid
+  mode integral
+  input tan(2*x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.logarithm-of-linear
+  family invalid
+  mode integral
+  input ln(2*x)
+  variable x
+  expect refused
+
+case invalid.integral.quotient-of-two-varying-factors
+  family invalid
+  mode integral
+  input sin(x)/x
+  variable x
+  expect unsupported form
+
+case invalid.integral.exponential-of-a-square
+  family invalid
+  mode integral
+  input exp(x^2)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.unknown-two-argument-function
+  family invalid
+  mode derivative
+  input max(x, 1)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.function-of-a-function-with-no-rule
+  family invalid
+  mode derivative
+  input arctan(x^2)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.exponential-with-a-variable-base
+  family invalid
+  mode derivative
+  input 2^x
+  variable x
+  expect unsupported form
+
+case invalid.derivative.inside-a-product
+  family invalid
+  mode derivative
+  input x*arcsin(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.inside-a-quotient
+  family invalid
+  mode derivative
+  input arcsin(x)/x
+  variable x
+  expect unsupported form
+
+case invalid.derivative.inside-a-chain
+  family invalid
+  mode derivative
+  input sin(arcsin(x))
+  variable x
+  expect unsupported form
+
+case invalid.linear.squared-both-sides
+  family invalid
+  mode linear
+  input x^2 + 1 = x^2 + 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-in-a-denominator
+  family invalid
+  mode linear
+  input 2/x + 1 = 3
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-under-a-root
+  family invalid
+  mode linear
+  input sqrt(x) = 4
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-in-an-exponent
+  family invalid
+  mode linear
+  input 2^x = 8
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.logarithmic
+  family invalid
+  mode linear
+  input ln(x) = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.strict-greater
+  family invalid
+  mode linear
+  input x > 3
+  unknown x
+  expect not an equation
+
+case invalid.linear.weak-greater
+  family invalid
+  mode linear
+  input x >= 3
+  unknown x
+  expect not an equation
+
+case invalid.linear.bare-symbol
+  family invalid
+  mode linear
+  input x
+  unknown x
+  expect not an equation
+
+case invalid.resource.integral-no-steps
+  family invalid
+  mode integral
+  input sin(2*x)
+  variable x
+  max_steps 1
+  expect resource exceeded
+
+case invalid.resource.kinematics-no-steps
+  family invalid
+  mode kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  max_steps 1
+  expect resource exceeded
+
+case invalid.resource.two-hop-kinematics
+  family invalid
+  mode kinematics
+  input find v; x = 20 m; t = 4 s; a = 3 m/s^2
+  max_rewrites 1
+  expect resource exceeded
+
+# The answer is the signed minimum, which is representable, but reaching it takes the solver past
+# what its exact integer arithmetic will do. The outcome stays NotLinear on purpose, so a caller
+# probing several equations skips this candidate rather than halting the whole search, and the
+# detail carries which of the two refusals it was.
+case invalid.linear.arithmetic-limit-at-the-boundary
+  family invalid
+  mode linear
+  input x + 1 = -9223372036854775807
+  unknown x
+  expect not linear in the unknown
+  detail the coefficients grew past what exact integer arithmetic here can hold
+
+# A second symbol is a parametric coefficient, which the catalog names as an unsupported near
+# neighbour of this family. It stays unsupported even where the parameter cancels.
+case invalid.linear.second-symbol-cancels
+  family invalid
+  mode linear
+  input x + y = y + 3
+  unknown x
+  expect not linear in the unknown
+  detail this equation is not linear in x
+
+case invalid.linear.second-symbol-with-a-coefficient
+  family invalid
+  mode linear
+  input 2x + y = y + 8
+  unknown x
+  expect not linear in the unknown
+  detail this equation is not linear in x
+
+# The same input written with a decimal coefficient used to be refused here. It is not invalid any
+# more: both modes read the typed 0.5 as the half it names and answer, so the case moved to
+# numeric_mode.txt where the two modes are compared on it.
+
+# A divisor that is only zero once its like terms are gathered. Every one of these used to be
+# answered rather than refused, and the integral ones came back as complete verified derivations
+# carrying the condition "(y + (-y)) is not zero", which no value of y can meet. One case per engine
+# the corpus can reach, because the guard that was missing was missing from four of the five.
+
+case invalid.integral.divisor-cancelling-to-zero
+  family invalid
+  mode integral
+  input 1/(y-y)
+  variable x
+  expect unsupported form
+  detail the integrand is undefined here, so there is nothing to integrate
+
+case invalid.integral.divisor-cancelling-under-a-coefficient
+  family invalid
+  mode integral
+  input x/(2*y - y - y)
+  variable x
+  expect unsupported form
+  detail the integrand is undefined here, so there is nothing to integrate
+
+case invalid.derivative.divisor-cancelling-a-call
+  family invalid
+  mode derivative
+  input x/(sin(y) - sin(y))
+  variable x
+  expect unsupported form
+  detail the expression is undefined here, so there is nothing to differentiate
+
+case invalid.linear.divisor-cancelling-to-zero
+  family invalid
+  mode linear
+  input x/(y-y) = 1
+  unknown x
+  expect refused
+  detail the equation is undefined here, so there is nothing to solve
+
+# A denominator that is not zero on arrival and is zero once the rules have run. The entry guard
+# cannot catch this one, because at entry the sum is unexpanded and looks like any other; it is the
+# re-check after the rules that does. Kept beside the cancelling divisors above because a reader
+# meeting one wants to see the other.
+case invalid.integral.divisor-zero-only-after-expansion
+  family invalid
+  mode integral
+  input 1/((x+1)*(x-1) - x^2 + 1)
+  variable x
+  expect unsupported form
+
+case invalid.parse.lone-closing-parenthesis
+  family invalid
+  mode derivative
+  input )
+  variable x
+  expect not parsed
+
+case invalid.parse.lone-opening-parenthesis
+  family invalid
+  mode derivative
+  input (
+  variable x
+  expect not parsed
+
+case invalid.parse.extra-closing-after-a-call
+  family invalid
+  mode derivative
+  input sin(x))
+  variable x
+  expect not parsed
+
+case invalid.parse.trailing-comma-in-a-call
+  family invalid
+  mode derivative
+  input sin(x,)
+  variable x
+  expect not parsed
+
+case invalid.parse.leading-comma-in-a-call
+  family invalid
+  mode derivative
+  input max(,1)
+  variable x
+  expect not parsed
+
+case invalid.parse.doubled-star
+  family invalid
+  mode derivative
+  input 1 ** 2
+  variable x
+  expect not parsed
+
+case invalid.parse.doubled-slash
+  family invalid
+  mode derivative
+  input 1 // 2
+  variable x
+  expect not parsed
+
+case invalid.parse.leading-caret
+  family invalid
+  mode derivative
+  input ^2
+  variable x
+  expect not parsed
+
+case invalid.parse.trailing-equals
+  family invalid
+  mode linear
+  input x =
+  unknown x
+  expect not parsed
+
+case invalid.parse.doubled-opening-parenthesis
+  family invalid
+  mode derivative
+  input ((1)
+  variable x
+  expect not parsed
+
+case invalid.parse.two-stray-closings
+  family invalid
+  mode derivative
+  input 1))
+  variable x
+  expect not parsed
+
+case invalid.parse.at-sign
+  family invalid
+  mode derivative
+  input 1 @ 2
+  variable x
+  expect not parsed
+
+case invalid.parse.hash
+  family invalid
+  mode derivative
+  input 1 # 2
+  variable x
+  expect not parsed
+
+case invalid.parse.exclamation
+  family invalid
+  mode derivative
+  input x!
+  variable x
+  expect not parsed
+
+case invalid.parse.two-minuses-with-nothing
+  family invalid
+  mode derivative
+  input --
+  variable x
+  expect not parsed
+
+case invalid.derivative.absolute-value
+  family invalid
+  mode derivative
+  input abs(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.hyperbolic-sine
+  family invalid
+  mode derivative
+  input sinh(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.hyperbolic-cosine
+  family invalid
+  mode derivative
+  input cosh(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.base-ten-logarithm
+  family invalid
+  mode derivative
+  input log10(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.floor
+  family invalid
+  mode derivative
+  input floor(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.sign
+  family invalid
+  mode derivative
+  input sign(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.arctangent
+  family invalid
+  mode derivative
+  input atan(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.arccosine
+  family invalid
+  mode derivative
+  input arccos(x)
+  variable x
+  expect unsupported form
+
+# Not a case yet, and deliberately so. sin() parses, because the parser knows no arities, and the
+# constant rule then differentiates it to 0 because it does not contain x. A success on nonsense is
+# a different kind of problem from a refusal on something supported, so it is reported rather than
+# pinned here: pinning it in this family would make the audit permanently red, and pinning it as a
+# derivative case would claim sin() as coverage.
+
+case invalid.derivative.rational-exponent
+  family invalid
+  mode derivative
+  input x^(1/2)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.decimal-exponent
+  family invalid
+  mode derivative
+  input x^0.5
+  variable x
+  expect unsupported form
+
+case invalid.derivative.variable-in-an-exponent-of-a-constant
+  family invalid
+  mode derivative
+  input 2^(x + 1)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.function-in-an-exponent
+  family invalid
+  mode derivative
+  input x^sin(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.variable-times-a-logarithm
+  family invalid
+  mode integral
+  input x*ln(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.variable-over-a-root
+  family invalid
+  mode integral
+  input x/sqrt(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.square-of-a-sine
+  family invalid
+  mode integral
+  input sin(x)^2
+  variable x
+  expect unsupported form
+
+case invalid.integral.exponential-over-the-variable
+  family invalid
+  mode integral
+  input exp(x)/x
+  variable x
+  expect unsupported form
+
+case invalid.integral.cotangent-written-out
+  family invalid
+  mode integral
+  input cos(x)/sin(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.rational-exponent
+  family invalid
+  mode integral
+  input x^(1/2)
+  variable x
+  expect unsupported form
+
+case invalid.integral.root-of-a-quadratic
+  family invalid
+  mode integral
+  input sqrt(x^2 + 1)
+  variable x
+  expect unsupported form
+
+case invalid.integral.reciprocal-of-a-quadratic-difference
+  family invalid
+  mode integral
+  input 1/(x^2 - 1)
+  variable x
+  expect unsupported form
+
+case invalid.integral.variable-times-an-exponential-chain
+  family invalid
+  mode integral
+  input x*exp(x^2)
+  variable x
+  expect unsupported form
+
+case invalid.integral.arctangent
+  family invalid
+  mode integral
+  input atan(x)
+  variable x
+  expect unsupported form
+
+case invalid.linear.product-with-a-function
+  family invalid
+  mode linear
+  input x*sin(x) = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-in-both-parts-of-a-quotient
+  family invalid
+  mode linear
+  input x/(x + 1) = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.quadratic-against-the-unknown
+  family invalid
+  mode linear
+  input x^2 = x
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.exponential-of-a-multiple
+  family invalid
+  mode linear
+  input exp(2*x) = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.root-of-a-shift
+  family invalid
+  mode linear
+  input sqrt(x + 1) = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.cubed-by-repetition
+  family invalid
+  mode linear
+  input x*x*x = 8
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.reciprocal-of-a-shift
+  family invalid
+  mode linear
+  input 1/(x + 1) = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.negative-power
+  family invalid
+  mode linear
+  input x^-1 = 2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.resource.integral-sum-one-rewrite
+  family invalid
+  mode integral
+  input x + x^2 + x^3
+  variable x
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.resource.derivative-chain-one-rewrite
+  family invalid
+  mode derivative
+  input sin(exp(x^2))
+  variable x
+  max_rewrites 1
+  expect resource exceeded
+
+case invalid.resource.derivative-quotient-two-steps
+  family invalid
+  mode derivative
+  input x/sin(x)
+  variable x
+  max_steps 2
+  expect resource exceeded
+
+case invalid.resource.linear-two-rewrites
+  family invalid
+  mode linear
+  input 2x + 5 = 3x + 1
+  unknown x
+  max_rewrites 2
+  expect resource exceeded
+
+case invalid.parse.lone-comma
+  family invalid
+  mode derivative
+  input ,
+  variable x
+  expect not parsed
+
+case invalid.parse.plus-then-star
+  family invalid
+  mode derivative
+  input 2 +* 3
+  variable x
+  expect not parsed
+
+case invalid.parse.percent
+  family invalid
+  mode derivative
+  input 1 % 2
+  variable x
+  expect not parsed
+
+case invalid.parse.dollar
+  family invalid
+  mode derivative
+  input 1 $ 2
+  variable x
+  expect not parsed
+
+case invalid.parse.ampersand
+  family invalid
+  mode derivative
+  input 1 & 2
+  variable x
+  expect not parsed
+
+case invalid.parse.question-mark
+  family invalid
+  mode derivative
+  input 1 ? 2
+  variable x
+  expect not parsed
+
+case invalid.parse.semicolon
+  family invalid
+  mode derivative
+  input 1 ; 2
+  variable x
+  expect not parsed
+
+case invalid.parse.doubled-equals
+  family invalid
+  mode linear
+  input x = = 2
+  unknown x
+  expect not parsed
+
+case invalid.parse.doubled-caret
+  family invalid
+  mode derivative
+  input 2 ^^ 3
+  variable x
+  expect not parsed
+
+case invalid.parse.lone-less-than
+  family invalid
+  mode linear
+  input <
+  unknown x
+  expect not parsed
+
+case invalid.parse.trailing-less-than
+  family invalid
+  mode linear
+  input x <
+  unknown x
+  expect not parsed
+
+case invalid.parse.empty-parentheses
+  family invalid
+  mode derivative
+  input ( )
+  variable x
+  expect not parsed
+
+case invalid.parse.doubled-decimal-point
+  family invalid
+  mode derivative
+  input 1..2
+  variable x
+  expect not parsed
+
+case invalid.parse.lone-decimal-point
+  family invalid
+  mode derivative
+  input .
+  variable x
+  expect not parsed
+
+case invalid.parse.trailing-caret
+  family invalid
+  mode derivative
+  input x^
+  variable x
+  expect not parsed
+
+case invalid.parse.leading-slash
+  family invalid
+  mode derivative
+  input /x
+  variable x
+  expect not parsed
+
+case invalid.parse.leading-star
+  family invalid
+  mode derivative
+  input *x
+  variable x
+  expect not parsed
+
+case invalid.derivative.list-operand
+  family invalid
+  mode derivative
+  input [x]
+  variable x
+  expect unsupported form
+
+case invalid.parse.braces
+  family invalid
+  mode derivative
+  input {x}
+  variable x
+  expect not parsed
+
+case invalid.derivative.arcsine
+  family invalid
+  mode derivative
+  input asin(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.hyperbolic-tangent
+  family invalid
+  mode derivative
+  input tanh(x)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.ceiling
+  family invalid
+  mode derivative
+  input ceil(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.sine-times-cosine
+  family invalid
+  mode integral
+  input sin(x)*cos(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.variable-to-the-variable
+  family invalid
+  mode integral
+  input x^x
+  variable x
+  expect unsupported form
+
+case invalid.integral.reciprocal-of-a-quadratic-sum
+  family invalid
+  mode integral
+  input 1/(x^2 + 1)
+  variable x
+  expect unsupported form
+
+case invalid.integral.sine-of-a-sine
+  family invalid
+  mode integral
+  input sin(sin(x))
+  variable x
+  expect unsupported form
+
+case invalid.integral.sine-of-a-square
+  family invalid
+  mode integral
+  input sin(x^2)
+  variable x
+  expect unsupported form
+
+case invalid.integral.cosine-over-the-variable
+  family invalid
+  mode integral
+  input cos(x)/x
+  variable x
+  expect unsupported form
+
+case invalid.integral.reciprocal-of-cosine
+  family invalid
+  mode integral
+  input 1/cos(x)
+  variable x
+  expect unsupported form
+
+case invalid.integral.exponential-of-an-exponential
+  family invalid
+  mode integral
+  input exp(exp(x))
+  variable x
+  expect unsupported form
+
+case invalid.linear.quadratic-with-a-linear-term
+  family invalid
+  mode linear
+  input x^2 + x = 0
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.fourth-power
+  family invalid
+  mode linear
+  input x^4 = 16
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-against-its-own-square
+  family invalid
+  mode linear
+  input x = x^2
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.cosine-plus-the-unknown
+  family invalid
+  mode linear
+  input cos(x) + x = 0
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.exponential-plus-the-unknown
+  family invalid
+  mode linear
+  input exp(x) + x = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.two-reciprocals-of-the-unknown
+  family invalid
+  mode linear
+  input 1/x + 1/(x + 1) = 1
+  unknown x
+  expect not linear in the unknown
+
+case invalid.linear.unknown-over-a-shift
+  family invalid
+  mode linear
+  input x/(x - 1) = 2
+  unknown x
+  expect not linear in the unknown
+
+# These three were derivative cases while the engine differentiated a zero denominator and handed
+# back 0^-1 as if it were a value. It now refuses, which is right: x/0 has no derivative. Sixty
+# other quotient and reciprocal cases still differentiate, so only the literal zero changed.
+case invalid.derivative.divided-by-zero
+  family invalid
+  mode derivative
+  input x/0
+  variable x
+  expect unsupported form
+
+case invalid.derivative.reciprocal-of-zero
+  family invalid
+  mode derivative
+  input 0^-1
+  variable x
+  expect unsupported form
+
+case invalid.derivative.logarithm-over-zero
+  family invalid
+  mode derivative
+  input ln(x)/0
+  variable x
+  expect unsupported form
+
+# The power rule folds its exponent so x^(1+1) reaches the rule, and this is the boundary of that:
+# 1.0 + 1.0 is two but it is a measured two, and an exact power rule may not have it. Criterion 6
+# would be the casualty if folding treated a decimal as an integer.
+case invalid.integral.decimal-exponent-that-folds-to-an-integer
+  family invalid
+  mode integral
+  input x^(1.0+1.0)
+  variable x
+  expect unsupported form
+
+case invalid.derivative.decimal-exponent-that-folds-to-an-integer
+  family invalid
+  mode derivative
+  input x^(1.0+1.0)
+  variable x
+  expect unsupported form
+
+# The square-root rule's refusals. Its envelope is rational perfect squares over the reals, so the
+# two ways out of it are a square with no exact root and an equation with a term of degree one, and
+# both have to leave nothing behind rather than reporting the nearest thing they can reach. A decimal
+# root is the fabricated continuation criterion 11 is about: 5 has a square root and this rule may
+# not name it.
+case invalid.quadratic.square-with-no-exact-root
+  family invalid
+  mode quadratic
+  input x^2 = 5
+  unknown x
+  expect outside the declared envelope
+  detail the square of x is 5, whose square root is not exact, and this rule reports no decimals
+
+case invalid.quadratic.square-with-no-exact-root-after-scaling
+  family invalid
+  mode quadratic
+  input 2x^2 = 3
+  unknown x
+  expect outside the declared envelope
+
+# A negative square has no case here on purpose. Its solution set is empty and its derivation is
+# complete and verified, so this family would judge it as a refusal claiming a solution, which it is
+# not. It lives in the golden fixtures, where an empty solution set can be a settled answer.
+case invalid.quadratic.term-of-degree-one
+  family invalid
+  mode quadratic
+  input x^2 + x = 6
+  unknown x
+  expect not a pure quadratic in the unknown
+
+case invalid.quadratic.unknown-in-a-denominator
+  family invalid
+  mode quadratic
+  input x^(-2) = 4
+  unknown x
+  expect not a pure quadratic in the unknown
+
+case invalid.quadratic.fourth-power
+  family invalid
+  mode quadratic
+  input x^4 = 16
+  unknown x
+  expect not a pure quadratic in the unknown
+
+case invalid.quadratic.not-an-equation
+  family invalid
+  mode quadratic
+  input x^2 + 4
+  unknown x
+  expect not an equation
+
+case invalid.quadratic.branch-budget-inside-a-split
+  family invalid
+  mode quadratic
+  input x^2 = 4
+  unknown x
+  max_branches 1
+  expect resource exceeded

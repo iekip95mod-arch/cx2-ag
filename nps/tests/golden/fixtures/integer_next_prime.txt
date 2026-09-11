@@ -1,0 +1,257 @@
+problem: nextprime(24)
+outcome: evaluated
+result: 29
+detail: 29 is prime. Every integer from 25 through 28 was excluded, and integers below 2 are not prime
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: nextprime(24)
+  requested method: nextprime
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: nextprime(24)
+    rule: plan.integer-method, Test consecutive larger integers until the first prime
+    claim: no claim
+    explanation: Test consecutive larger integers until the first prime
+    detail: nextprime(24): Test consecutive larger integers until the first prime
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Test consecutive larger integers until the first prime
+    applicability: nonnegative integer literals fit the method's stated bounds
+    fact: nextprime(24)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, nextprime(24)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 25 = 2 * 12 + 1, so this is not a divisor
+      detail: 25 = 2 * 12 + 1, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 25
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 25 = 2 * 12 + 1
+      verification: exact integer division identity, passed, 25 * 1 = 2 * 12 + 1, with 0 <= remainder < divisor
+      verified: yes
+    1.2 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 25 = 3 * 8 + 1, so this is not a divisor
+      detail: 25 = 3 * 8 + 1, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 3 divides 25
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 25 = 3 * 8 + 1
+      verification: exact integer division identity, passed, 25 * 1 = 3 * 8 + 1, with 0 <= remainder < divisor
+      verified: yes
+    1.3 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 25 = 5 * 5 + 0, so the divisor fits exactly
+      detail: 25 = 5 * 5 + 0, so the divisor fits exactly. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 5 divides 25
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 25 = 5 * 5 + 0
+      verification: exact integer division identity, passed, 25 * 1 = 5 * 5 + 0, with 0 <= remainder < divisor
+      verified: yes
+    1.4 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: 5 is a proper divisor of 25, so it is composite (result 0)
+      detail: 5 is a proper divisor of 25, so it is composite (result 0). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: 5 is a proper divisor of 25, so it is composite (result 0)
+      before: is_prime(25)
+      after: 0
+      reversible: yes
+      verification: complete trial division, passed, 5 is a proper divisor of 25, so it is composite (result 0)
+      verified: yes
+    1.5 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 26 = 2 * 13 + 0, so the divisor fits exactly
+      detail: 26 = 2 * 13 + 0, so the divisor fits exactly. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 26
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 26 = 2 * 13 + 0
+      verification: exact integer division identity, passed, 26 * 1 = 2 * 13 + 0, with 0 <= remainder < divisor
+      verified: yes
+    1.6 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: 2 is a proper divisor of 26, so it is composite (result 0)
+      detail: 2 is a proper divisor of 26, so it is composite (result 0). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: 2 is a proper divisor of 26, so it is composite (result 0)
+      before: is_prime(26)
+      after: 0
+      reversible: yes
+      verification: complete trial division, passed, 2 is a proper divisor of 26, so it is composite (result 0)
+      verified: yes
+    1.7 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 27 = 2 * 13 + 1, so this is not a divisor
+      detail: 27 = 2 * 13 + 1, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 27
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 27 = 2 * 13 + 1
+      verification: exact integer division identity, passed, 27 * 1 = 2 * 13 + 1, with 0 <= remainder < divisor
+      verified: yes
+    1.8 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 27 = 3 * 9 + 0, so the divisor fits exactly
+      detail: 27 = 3 * 9 + 0, so the divisor fits exactly. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 3 divides 27
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 27 = 3 * 9 + 0
+      verification: exact integer division identity, passed, 27 * 1 = 3 * 9 + 0, with 0 <= remainder < divisor
+      verified: yes
+    1.9 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: 3 is a proper divisor of 27, so it is composite (result 0)
+      detail: 3 is a proper divisor of 27, so it is composite (result 0). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: 3 is a proper divisor of 27, so it is composite (result 0)
+      before: is_prime(27)
+      after: 0
+      reversible: yes
+      verification: complete trial division, passed, 3 is a proper divisor of 27, so it is composite (result 0)
+      verified: yes
+    1.10 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 28 = 2 * 14 + 0, so the divisor fits exactly
+      detail: 28 = 2 * 14 + 0, so the divisor fits exactly. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 28
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 28 = 2 * 14 + 0
+      verification: exact integer division identity, passed, 28 * 1 = 2 * 14 + 0, with 0 <= remainder < divisor
+      verified: yes
+    1.11 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: 2 is a proper divisor of 28, so it is composite (result 0)
+      detail: 2 is a proper divisor of 28, so it is composite (result 0). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: 2 is a proper divisor of 28, so it is composite (result 0)
+      before: is_prime(28)
+      after: 0
+      reversible: yes
+      verification: complete trial division, passed, 2 is a proper divisor of 28, so it is composite (result 0)
+      verified: yes
+    1.12 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 29 = 2 * 14 + 1, so this is not a divisor
+      detail: 29 = 2 * 14 + 1, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 29
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 29 = 2 * 14 + 1
+      verification: exact integer division identity, passed, 29 * 1 = 2 * 14 + 1, with 0 <= remainder < divisor
+      verified: yes
+    1.13 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 29 = 3 * 9 + 2, so this is not a divisor
+      detail: 29 = 3 * 9 + 2, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 3 divides 29
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 29 = 3 * 9 + 2
+      verification: exact integer division identity, passed, 29 * 1 = 3 * 9 + 2, with 0 <= remainder < divisor
+      verified: yes
+    1.14 check
+      phase: integer
+      goal: nextprime(24)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 29 = 5 * 5 + 4, so this is not a divisor
+      detail: 29 = 5 * 5 + 4, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 5 divides 29
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 29 = 5 * 5 + 4
+      verification: exact integer division identity, passed, 29 * 1 = 5 * 5 + 4, with 0 <= remainder < divisor
+      verified: yes
+    1.15 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: No divisor among 2 and the odd integers through sqrt(29) fits. A composite has a factor at most its square root, so 29 is prime (result 2)
+      detail: No divisor among 2 and the odd integers through sqrt(29) fits. A composite has a factor at most its square root, so 29 is prime (result 2). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: No divisor among 2 and the odd integers through sqrt(29) fits. A composite has a factor at most its square root, so 29 is prime (result 2)
+      before: is_prime(29)
+      after: 2
+      reversible: yes
+      verification: complete trial division, passed, No divisor among 2 and the odd integers through sqrt(29) fits. A composite has a factor at most its square root, so 29 is prime (result 2)
+      verified: yes
+    1.16 transformation
+      phase: integer
+      goal: nextprime(24)
+      rule: int.next-prime, Test consecutive larger integers until the first prime
+      claim: equivalent expression
+      explanation: 29 is prime. Every integer from 25 through 28 was excluded, and integers below 2 are not prime
+      detail: 29 is prime. Every integer from 25 through 28 was excluded, and integers below 2 are not prime. The requested prime must be strictly greater than 24. Testing candidates in increasing order both proves the selected candidate prime and rules out every earlier candidate
+      proof obligation: obl.int.next-prime, Test consecutive larger integers until the first prime
+      action: 29 is prime. Every integer from 25 through 28 was excluded, and integers below 2 are not prime
+      before: nextprime(24)
+      after: 29
+      reversible: yes
+      verification: consecutive candidate exclusion, passed, 29 is prime. Every integer from 25 through 28 was excluded, and integers below 2 are not prime
+      verified: yes

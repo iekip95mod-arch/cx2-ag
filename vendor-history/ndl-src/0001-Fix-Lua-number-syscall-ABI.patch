@@ -1,0 +1,146 @@
+From 22dac0eb5ea0870a51063418d6d41c8d02bdc858 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Sat, 5 Sep 2026 05:09:10 -0400
+Subject: [PATCH 1/7] Fix Lua number syscall ABI
+
+---
+ ndless-sdk/libsyscalls/mkStubs.php |  3 +-
+ ndless-sdk/libsyscalls/stubs.cpp   | 88 +++++++++++++++++++++++++++---
+ 2 files changed, 82 insertions(+), 9 deletions(-)
+
+diff --git a/ndless-sdk/libsyscalls/mkStubs.php b/ndless-sdk/libsyscalls/mkStubs.php
+index f6c46c1..74d4db5 100644
+--- a/ndless-sdk/libsyscalls/mkStubs.php
++++ b/ndless-sdk/libsyscalls/mkStubs.php
+@@ -88,8 +88,9 @@ while(true)
+ 
+ 	$rettype = $matches[3] == "" ? $matches[4] : $matches[3];
+ 	$param_count = $matches[6] == "" ? 0 : substr_count($matches[6], ", ") + 1;
++	$needs_direct_abi = $rettype == "lua_Number" || strpos($matches[6], "lua_Number") !== FALSE;
+ 
+-	if($param_count <= 4 && strpos($matches[6], "...") === FALSE)
++	if(!$needs_direct_abi && $param_count <= 4 && strpos($matches[6], "...") === FALSE)
+ 	{
+ 			$param_list = array();
+ 			for($p = 1; $p <= $param_count; $p++)
+diff --git a/ndless-sdk/libsyscalls/stubs.cpp b/ndless-sdk/libsyscalls/stubs.cpp
+index aa83b2f..ed22a6b 100644
+--- a/ndless-sdk/libsyscalls/stubs.cpp
++++ b/ndless-sdk/libsyscalls/stubs.cpp
+@@ -209,13 +209,49 @@ const char* luaL_optlstring(lua_State *p1, int p2, const char *p3, size_t *p4)
+ {
+ 	return syscall<e_luaL_optlstring, const char*>(p1,p2,p3,p4);
+ }
+-lua_Number luaL_checknumber(lua_State *p1, int p2)
++__attribute__((naked)) lua_Number luaL_checknumber(lua_State *p1, int p2)
+ {
+-	return syscall<e_luaL_checknumber, lua_Number>(p1,p2);
++	asm volatile("push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"add r6, r6, #1\n"
++				"str lr, [r4, r6, lsl #2]\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"swi %[nr]\n"
++				"push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"ldr lr, [r4, r6, lsl #2]\n"
++				"sub r6, r6, #1\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"bx lr\n"
++				".ltorg" :: [nr] "i" (e_luaL_checknumber));
+ }
+-lua_Number luaL_optnumber(lua_State *p1, int p2, lua_Number p3)
++__attribute__((naked)) lua_Number luaL_optnumber(lua_State *p1, int p2, lua_Number p3)
+ {
+-	return syscall<e_luaL_optnumber, lua_Number>(p1,p2,p3);
++	asm volatile("push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"add r6, r6, #1\n"
++				"str lr, [r4, r6, lsl #2]\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"swi %[nr]\n"
++				"push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"ldr lr, [r4, r6, lsl #2]\n"
++				"sub r6, r6, #1\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"bx lr\n"
++				".ltorg" :: [nr] "i" (e_luaL_optnumber));
+ }
+ lua_Integer luaL_checkinteger(lua_State *p1, int p2)
+ {
+@@ -393,9 +429,27 @@ int lua_lessthan(lua_State *p1, int p2, int p3)
+ {
+ 	return syscall<e_lua_lessthan, int>(p1,p2,p3);
+ }
+-lua_Number lua_tonumber(lua_State *p1, int p2)
++__attribute__((naked)) lua_Number lua_tonumber(lua_State *p1, int p2)
+ {
+-	return syscall<e_lua_tonumber, lua_Number>(p1,p2);
++	asm volatile("push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"add r6, r6, #1\n"
++				"str lr, [r4, r6, lsl #2]\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"swi %[nr]\n"
++				"push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"ldr lr, [r4, r6, lsl #2]\n"
++				"sub r6, r6, #1\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"bx lr\n"
++				".ltorg" :: [nr] "i" (e_lua_tonumber));
+ }
+ lua_Integer lua_tointeger(lua_State *p1, int p2)
+ {
+@@ -433,9 +487,27 @@ void lua_pushnil(lua_State *p1)
+ {
+ 	return syscall<e_lua_pushnil, void>(p1);
+ }
+-void lua_pushnumber(lua_State *p1, lua_Number p2)
++__attribute__((naked)) void lua_pushnumber(lua_State *p1, lua_Number p2)
+ {
+-	return syscall<e_lua_pushnumber, void>(p1,p2);
++	asm volatile("push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"add r6, r6, #1\n"
++				"str lr, [r4, r6, lsl #2]\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"swi %[nr]\n"
++				"push {r4-r6}\n"
++				"ldr r4, =savedlr_stack\n"
++				"ldr r5, =savedlr_stack_nr\n"
++				"ldr r6, [r5]\n"
++				"ldr lr, [r4, r6, lsl #2]\n"
++				"sub r6, r6, #1\n"
++				"str r6, [r5]\n"
++				"pop {r4-r6}\n"
++				"bx lr\n"
++				".ltorg" :: [nr] "i" (e_lua_pushnumber));
+ }
+ void lua_pushinteger(lua_State *p1, lua_Integer p2)
+ {
+-- 
+2.55.0
+

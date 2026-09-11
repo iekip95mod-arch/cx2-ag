@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "source_package": {
+    "name": "TI-NspireCXII-6.4.0.74.tco2",
+    "size": 14283403,
+    "crc32": "f6c3b0ca",
+    "sha256": "4ea892106c884a5dc2e4f6ab8f4cfdfe9477a275c64088570edec6e77d141b9e"
+  },
+  "source_archives": {
+    "resources.zip": {
+      "size": 457291,
+      "crc32": "fd32a174",
+      "sha256": "3a04a010c83ec2100e978f9b882299a870207a702ee1e962548289f1c21ba1ed"
+    },
+    "samples.zip": {
+      "size": 1883680,
+      "crc32": "d60bc374",
+      "sha256": "77fed505ec347dcaa8767aa4f17388b405ecb1eaee8817acb91193879f4e0bc0"
+    }
+  },
+  "path_semantics": {
+    "resources": "Paths are relative to /documents.",
+    "samples": "Basenames come from copysamples. Examples/ is a candidate installation folder requiring device verification, because the archive does not specify it.",
+    "scope": "Only individual listed files are factory bytes. Parent directories may contain user files."
+  },
+  "files": [
+    {
+      "path": "MyLib/linalg.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/MyLib/linalg.tns",
+      "extracted_path": "documents/MyLib/linalg.tns",
+      "size": 8532,
+      "crc32": "67f38430",
+      "sha256": "c354985624347c4be01467ded6e2eb55a47711f55ec34384a52b30dbc8e0c22e"
+    },
+    {
+      "path": "MyLib/numtheory.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/MyLib/numtheory.tns",
+      "extracted_path": "documents/MyLib/numtheory.tns",
+      "size": 26343,
+      "crc32": "33dbb66e",
+      "sha256": "bf3ec9b3105ff95911108656b7883792befbca9a29c424d7fd1c9f4c50603377"
+    },
+    {
+      "path": "MyWidgets/stopwatch.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/MyWidgets/stopwatch.tns",
+      "extracted_path": "documents/MyWidgets/stopwatch.tns",
+      "size": 16798,
+      "crc32": "4ccee25d",
+      "sha256": "6a6fc7711ccfe6ffc86ac2d7e69075d0ce693fbd1f8a056ea6912abcc09cf75a"
+    },
+    {
+      "path": "PyLib/ti_hub.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/PyLib/ti_hub.tns",
+      "extracted_path": "documents/PyLib/ti_hub.tns",
+      "size": 13845,
+      "crc32": "6922ea4a",
+      "sha256": "e1200c343ffd03f45695637b9d8239f85c70c8e3b27625603e900d3a085243e0"
+    },
+    {
+      "path": "PyLib/ti_image.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/PyLib/ti_image.tns",
+      "extracted_path": "documents/PyLib/ti_image.tns",
+      "size": 2925,
+      "crc32": "efa4d9cf",
+      "sha256": "144823f745f689fa33753619d9510216e6bf1af4237e1ba5c051975122053e8d"
+    },
+    {
+      "path": "PyLib/ti_plotlib.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/PyLib/ti_plotlib.tns",
+      "extracted_path": "documents/PyLib/ti_plotlib.tns",
+      "size": 6331,
+      "crc32": "75a8fd7b",
+      "sha256": "4dcc9b53857412652d973273df0056778198e80474df5fee939ccbe094163857"
+    },
+    {
+      "path": "PyLib/ti_rover.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/PyLib/ti_rover.tns",
+      "extracted_path": "documents/PyLib/ti_rover.tns",
+      "size": 8159,
+      "crc32": "ce9a8940",
+      "sha256": "66eb56db36212805f4d4a40ab5ff31b119999989b1ce7599dac008c52e3b1fe8"
+    },
+    {
+      "path": "PyLib/ti_system.tns",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/PyLib/ti_system.tns",
+      "extracted_path": "documents/PyLib/ti_system.tns",
+      "size": 2416,
+      "crc32": "73b5d229",
+      "sha256": "ef5345b8073d94e4566688141e3630da68cbf8cccd135b100168fdab9a71a1e4"
+    },
+    {
+      "path": "themes.csv",
+      "locale": "",
+      "source_archive": "resources.zip",
+      "source_member": "documents/themes.csv",
+      "extracted_path": "documents/themes.csv",
+      "size": 191,
+      "crc32": "93079871",
+      "sha256": "7805140f8a457ff008d52f41cd27e1042d3019f665c0850daceb6e922c2ec6f2"
+    },
+    {
+      "path": "Examples/Kom godt i gang.tns",
+      "locale": "da",
+      "source_archive": "samples.zip",
+      "source_member": "locales/da/sample000000.tns",
+      "extracted_path": "samples/da/Kom godt i gang.tns",
+      "size": 103394,
+      "crc32": "8c76c80e",
+      "sha256": "0cec27b4927f3c84eb53da89f8d683306ef074c80493a0a6ad86e6ad8da40256"
+    },
+    {
+      "path": "Examples/Erste Schritte.tns",
+      "locale": "de",
+      "source_archive": "samples.zip",
+      "source_member": "locales/de/sample000001.tns",
+      "extracted_path": "samples/de/Erste Schritte.tns",
+      "size": 103829,
+      "crc32": "4faf7140",
+      "sha256": "0956b246f5f9afc955686ba51c7872ee71616c5672cce2990d7a7166c56551d8"
+    },
+    {
+      "path": "Examples/Getting Started Python.tns",
+      "locale": "en",
+      "source_archive": "samples.zip",
+      "source_member": "locales/en/sample000002.tns",
+      "extracted_path": "samples/en/Getting Started Python.tns",
+      "size": 329262,
+      "crc32": "c88e7464",
+      "sha256": "7b5d6fad867ca85e9c8a7d0bf8a8fbfe30d0d0555f48ea9f7e9d056a82d723f4"
+    },
+    {
+      "path": "Examples/Getting Started.tns",
+      "locale": "en",
+      "source_archive": "samples.zip",
+      "source_member": "locales/en/sample000003.tns",
+      "extracted_path": "samples/en/Getting Started.tns",
+      "size": 105543,
+      "crc32": "528eb457",
+      "sha256": "16dfc6af59ac40e364b037aa2c87dad15141468d584876acf6b8a976cbda35d2"
+    },
+    {
+      "path": "Examples/Getting Started.tns",
+      "locale": "en_GB",
+      "source_archive": "samples.zip",
+      "source_member": "locales/en_GB/sample000004.tns",
+      "extracted_path": "samples/en_GB/Getting Started.tns",
+      "size": 104322,
+      "crc32": "c9984edd",
+      "sha256": "c0de8d589b7479a059d53aa06ff7659615d738ef3274c96ec66d3d8769b87028"
+    },
+    {
+      "path": "Examples/Primeros pasos.tns",
+      "locale": "es",
+      "source_archive": "samples.zip",
+      "source_member": "locales/es/sample000005.tns",
+      "extracted_path": "samples/es/Primeros pasos.tns",
+      "size": 103739,
+      "crc32": "0f15c24e",
+      "sha256": "061e242044243478cd37d6bbc9059b58c13ef7caa6211106c8ed3486ab6f310d"
+    },
+    {
+      "path": "Examples/Aloitusohjeita.tns",
+      "locale": "fi",
+      "source_archive": "samples.zip",
+      "source_member": "locales/fi/sample000006.tns",
+      "extracted_path": "samples/fi/Aloitusohjeita.tns",
+      "size": 102827,
+      "crc32": "f174b777",
+      "sha256": "51484a7fbbb5b424fcf4fb4db49c5743088e3697dbfbf330c95a118f51ba28d2"
+    },
+    {
+      "path": "Examples/Guide d'introduction.tns",
+      "locale": "fr",
+      "source_archive": "samples.zip",
+      "source_member": "locales/fr/sample000007.tns",
+      "extracted_path": "samples/fr/Guide d'introduction.tns",
+      "size": 104666,
+      "crc32": "aff9d00a",
+      "sha256": "38713e77bed51c6820fcea5a61bad83361cad931d510dca8de32944c5b717539"
+    },
+    {
+      "path": "Examples/Guida introduttiva.tns",
+      "locale": "it",
+      "source_archive": "samples.zip",
+      "source_member": "locales/it/sample000008.tns",
+      "extracted_path": "samples/it/Guida introduttiva.tns",
+      "size": 103576,
+      "crc32": "967e4d87",
+      "sha256": "54ad1588fe20e8da1026ac0d918a2eeeb1c4c7bb80c4f01f6770a002117539d2"
+    },
+    {
+      "path": "Examples/Aan de slag.tns",
+      "locale": "nl",
+      "source_archive": "samples.zip",
+      "source_member": "locales/nl/sample000009.tns",
+      "extracted_path": "samples/nl/Aan de slag.tns",
+      "size": 103713,
+      "crc32": "34fca800",
+      "sha256": "e2705f1fb1a84b65b06b60d14993d18bf7d44a9006a94bb43b1372face9d50ac"
+    },
+    {
+      "path": "Examples/Aan slag.tns",
+      "locale": "nl_BE",
+      "source_archive": "samples.zip",
+      "source_member": "locales/nl_BE/sample000010.tns",
+      "extracted_path": "samples/nl_BE/Aan slag.tns",
+      "size": 103586,
+      "crc32": "43b075d7",
+      "sha256": "fe8df9ce06ddc8a0b1e7734b1fe45ca018079a55095225fa95a85126b7183ea4"
+    },
+    {
+      "path": "Examples/Kom i gang.tns",
+      "locale": "no",
+      "source_archive": "samples.zip",
+      "source_member": "locales/no/sample000011.tns",
+      "extracted_path": "samples/no/Kom i gang.tns",
+      "size": 103251,
+      "crc32": "f36f6d04",
+      "sha256": "b9d749d860ad4c9b296ed7453768a1e2e18a5dc31fc07a9d1478e83e71e5cc10"
+    },
+    {
+      "path": "Examples/Iniciar a Utilizar.tns",
+      "locale": "pt",
+      "source_archive": "samples.zip",
+      "source_member": "locales/pt/sample000012.tns",
+      "extracted_path": "samples/pt/Iniciar a Utilizar.tns",
+      "size": 103565,
+      "crc32": "1d54e8f8",
+      "sha256": "b23ee467d6a4ef7aa3269a9f86e0f7b14ba114da10a8b554c9140a9f76437951"
+    },
+    {
+      "path": "Examples/Kom igang.tns",
+      "locale": "sv",
+      "source_archive": "samples.zip",
+      "source_member": "locales/sv/sample000013.tns",
+      "extracted_path": "samples/sv/Kom igang.tns",
+      "size": 103803,
+      "crc32": "961f3f1b",
+      "sha256": "ed76382581aca371c93e3154b034752d255a025719c72184f6d73fd10d659fc6"
+    },
+    {
+      "path": "Examples/Getting_Started_ZH_CN.tns",
+      "locale": "zh_CN",
+      "source_archive": "samples.zip",
+      "source_member": "locales/zh_CN/sample000014.tns",
+      "extracted_path": "samples/zh_CN/Getting_Started_ZH_CN.tns",
+      "size": 99895,
+      "crc32": "14cef41f",
+      "sha256": "d5db6825c42bb2825944ffbd198408bb3c466af57e469254d096ecc387cb02aa"
+    },
+    {
+      "path": "Examples/Getting_Started_ZH_TW.tns",
+      "locale": "zh_TW",
+      "source_archive": "samples.zip",
+      "source_member": "locales/zh_TW/sample000015.tns",
+      "extracted_path": "samples/zh_TW/Getting_Started_ZH_TW.tns",
+      "size": 99785,
+      "crc32": "cbdfb3be",
+      "sha256": "d449b5b5728de34b138032d5b9e2c7907055ddfb18b5e85b82a658563b5e3870"
+    }
+  ]
+}

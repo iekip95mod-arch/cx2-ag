@@ -1,0 +1,19 @@
+problem: 2 + 3*4
+variable: simplify
+outcome: resource exceeded
+detail: step limit
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.polynomial-rewrite.single-expression
+  envelope version: <not recorded>
+  normalized problem: (2 + (3 * 4))
+  requested method: simplify
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=1 branches<=64 backend<=32
+  derivation status: resource limit reached
+steps
+  none

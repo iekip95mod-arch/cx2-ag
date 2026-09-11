@@ -1,0 +1,155 @@
+==========================================
+= nRGBlib pour Ndless v3.1 sur TI-Nspire =
+==========================================
+
+nRGBlib v0.3
+
+Qu'est-ce que c'est ?
+=====================
+
+nRGBlib est une bibliothèque de fonctions d'affichage pour TI-Nspire. Elle nécéssite,
+pour fonctionner, Ndless 3.1. Elle permet de dessiner plusieurs formes en couleur
+et très simplement permettant ainsi à l'utilisateur de ne pas perdre de temps sur
+la création de ces fonctions basiques.
+
+nRGBlib peut-être utilisée sur Nspire 4 bpp (ClickPad, TouchPad) et sur Nspire 16 bpp (CX, CM).
+Les exécutables créés avec nRGBlib peuvent être utilisés sur n'importe quelle Nspire sans
+recompilation. nRGBlib laisse à l'utilisateur le choix d'utiliser l'écran exclusivement en 4 bpp.
+
+Le dépot Mercurial officiel est disponible à cette adresse :
+https://bitbucket.org/totorigolo/nrgblib
+
+Quelles sont les fonctionnalités de nRGBlib ?
+=============================================
+
+nRGBlib est organisée en plusieurs modules. En plus de la compilation statique, cela permet de
+n'utiliser que les modules utiles au projet à développer, et de ne pas alourdir inutilement l'exécutable.
+
+Pour le moment, nRGBlib s'organise ainsi :
+
+nCOMMON:
+    - Couleur, conversion RGB <-> BW, couleurs prédifinies.
+    - Buffer écran, création, affichage, capture d'écran, vidage.
+    - setPixel(), clearScreen().
+nGEO:
+    - Formes: Disque, Cercle, Ligne, Rectangle, Carré, Triangle.
+    - Fonctions d'affichage de ces formes.
+nTILE:
+    - Tile 8x8 en une couleurs ou plusieurs couleurs.
+    - Fonctions d'affichage des tiles.
+    -> Les tiles sont compilées AVEC le programme.
+nIMAGE:
+    - Image, création, chargement, affichage, getPixel().
+    - Sous-image, création, chargement, affichage, getPixel().
+    -> Les images sont enregistrées EN-DEHORS du programme.
+nGUI:
+    - Structures : Lettre, Texte.
+    - Fonctions d'affichage de ces structures.
+nMATHS:
+    - Fonctions rand() + randMinMax().
+
+Pour être tenu au courant de l'avancement et des mises à jour, voici le topic officiel :
+    - FR : http://tiplanet.org/forum/viewtopic.php?t=8597
+    - EN : http://www.omnimaga.org/index.php?topic=12134
+
+De quoi ai-je besoin afin d'utiliser nRGBlib ?
+==============================================
+
+- Une TI-Nspire CAS ou non-CAS ClickPad, TouchPad ou CX.
+- L'OS v3.1.0 installé.
+- Ndless 3.1 d'installé (la dernière version).
+- Un programme d'envoi de fichier à la calculette comme TI-Nspire Student Software.
+
+Comment utiliser nRGBlib ?
+==========================
+
+Méthode simple:
+1. Copier les en-têtes de nRGBlib dans "C:/Users/<Votre nom>/.ndless/include" et les
+   fichiers .a dans "C:/Users/<Votre nom>/.ndless/lib".
+2. Inclure dans le programme qui doit utiliser nRGBlib le fichier <nRGBlib.h> pour avoir accès
+   à toute la bibliothèque, ou inclure les entêtes dont vous avez besoin.
+3. Indiquer à GCC où se trouvent les .a et .h.
+4. Lier "libRGB.a" à votre projet en utilisant l'option "-lRGB" à nspire-gcc.
+
+Méthode compliquée:
+1. Copier les en-têtes et les fichiers .a dans le dossier de votre choix.
+2. Inclure dans le programme qui doit utiliser nRGBlib le fichier <nRGBlib.h> pour avoir accès
+   à toute la bibliothèque, ou inclure les entêtes dont vous avez besoin.
+3. Indiquer à GCC où se trouvent les .a et .h
+4. Lier "libRGB.a" à votre projet en utilisant l'option "-lRGB" à nspire-gcc.
+
+Pour 3 et 4, voici un Makefile d'exemple:
+#-- Uniquement pour la méthode compliquée: --
+GCCFLAGS = -O3 -nostdlib -I"chemin/vers/sdk/include/de/nRGBlib"
+LDFLAGS = -L "chemin/vers/sdk/lib/de/nRGBlib"
+#---------------
+GCC = nspire-gcc
+LD = nspire-ld
+OBJCOPY := "$(shell (which arm-elf-objcopy arm-none-eabi-objcopy arm-linux-gnueabi-objcopy | head -1) 2>/dev/null)"
+ifeq (${OBJCOPY},"")
+	OBJCOPY := arm-none-eabi-objcopy
+endif
+OBJS = main.o truc.o -> Un fichier .o par fichier .c
+DISTDIR = repertoire/de/destination/du/fichier/tns
+vpath %.tns $(DISTDIR)
+
+all: <nom_du_fichier_tns>.tns
+
+%.o: %.c
+	$(GCC) $(GCCFLAGS) -c $<
+
+%.o: %.S
+	$(GCC) $(GCCFLAGS) -c $<
+
+<nom_du_fichier_tns>.tns: $(OBJS)
+	$(LD) $(LDFLAGS) $^ -o $(@:.tns=.elf) -lRGB
+	@mkdir -p $(DISTDIR)
+	$(OBJCOPY) -O binary $(@:.tns=.elf) $(DISTDIR)/$@
+
+clean:
+	rm -f *.o *.elf
+	rm -f $(DISTDIR)/<nom_du_fichier_tns>.tns
+#---------------
+
+Qu'en est-il de la compatibilité entre les Nspires ?
+====================================================
+
+- Vous pouvez librement envoyer les fichiers .tns créés avec nRGBlib entre
+  n'importes quelles Nspires, c'est compatible à condition que Ndless 3.1 soit installé :)
+
+Problèmes connus et dépanages :
+========================
+
+- Rien pour le moment
+
+Le bug tracker officiel est disponible à cette adresse :
+https://bitbucket.org/totorigolo/nrgblib/issues
+
+Support et suggestions
+=======================
+
+ - FR : http://tiplanet.org/forum/viewtopic.php?t=8597
+ - EN : http://www.omnimaga.org/index.php?topic=12134
+
+Remerciements :
+===============
+
+ExtendeD (Ndless, grande aide), Lionel Debroux (aide et bons conseils permanents),
+Goplat (son TI-Nspire Emulator qui m'a permis de tester beaucoup plus efficacement),
+TI-Planet (data hosting, communauté active pour l'aide), et ceux que j'ai oublié :)
+
+Créateur et développeur principal :
+===================================
+
+  Thomas Lacroix aka totorigolo  -  toto.rigolo@free.fr
+
+Licence:
+========
+
+La plupart de ce travail est couvert par la Mozilla Public License, version 2.0 (MPL).
+Lisez attentivement le fichier "Mozilla-Public-License-v2.0.html" avant
+de distribuer n'importe quelle partie de nRGBlib, avec ou sans modification.
+
+Quelques parties peuvent être couvertes par d'autres licences. Le reste est dans le
+domaine public. Ces parties sont identifiables avec les fichiers LICENSE.txt ou LICENSE.html
+dans les sous-répertoires.

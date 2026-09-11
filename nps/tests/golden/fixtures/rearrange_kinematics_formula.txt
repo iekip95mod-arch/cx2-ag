@@ -1,0 +1,92 @@
+problem: v = u + a*t
+variable: t
+outcome: isolated
+result: (t = ((v + (-u)) * (a^(-1))))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.formula-rearrangement.single-occurrence
+  envelope version: <not recorded>
+  normalized problem: (v = (u + (a * t)))
+  requested method: inverse operations
+  active assumption: a is not zero
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: conditionally solved
+steps
+  1 plan
+    phase: plan
+    goal: Rearrange for t
+    rule: alg.rearrange.inverse-operations, Undo the operations around the variable
+    claim: no claim
+    explanation: Peel the operations off t one at a time
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Undo the operations around the variable
+    applicability: t appears exactly once
+    applicability: every operation around t has an inverse rule
+    fact: t appears once in the formula
+    rationale: each operation wrapped around t is undone on both sides in turn, innermost last, and every move is reversible, so the rearranged formula says the same thing as the one it came from
+    verification: occurrence count, passed, one occurrence was found in the formula
+    verification: registered inverse-operation dispatch, passed, every operation met a registered inverse rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: rearrange
+      goal: Put t on the left
+      rule: alg.rearrange.swap-sides, Symmetry of equality
+      claim: solution set preserved
+      explanation: An equation reads the same either way round
+      detail: Equality is symmetric, so the side holding t can be written first without changing what the formula says.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Write the side holding t first
+      before: (v = (u + (a * t)))
+      after: ((u + (a * t)) = v)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the two sides were exchanged unchanged
+      verified: yes
+    1.2 transformation
+      phase: rearrange
+      goal: Isolate t
+      rule: alg.rearrange.subtract-both-sides, Subtraction property of equality
+      claim: solution set preserved
+      explanation: Taking the same terms from both sides keeps them equal
+      detail: Every term on the left that does not contain t is subtracted from both sides, which leaves the term holding t on its own. The move is reversible, so nothing about the formula changes.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Subtract u from both sides
+      before: ((u + (a * t)) = v)
+      after: ((a * t) = (v + (-u)))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same expression was subtracted from both sides
+      verified: yes
+    1.3 transformation
+      phase: rearrange
+      goal: Isolate t
+      rule: alg.rearrange.divide-both-sides, Division property of equality
+      claim: solution set preserved
+      explanation: Dividing both sides by the same non-zero expression keeps them equal
+      detail: The factors beside t are divided out of both sides. Division needs a non-zero divisor, so a divisor that is not a number is carried as a stated restriction rather than assumed.
+      domain restriction: a is not zero
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Divide both sides by a
+      before: ((a * t) = (v + (-u)))
+      after: (t = ((v + (-u)) * (a^(-1))))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the divisor is recorded as non-zero and contains no t
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check the rearrangement
+      rule: alg.rearrange.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the rearranged right side back where t was
+      detail: The rearranged formula is right when putting its right side back where t stood leaves the two sides of the original equal. Both sides are worked out at several exact values, which can show the two differ but cannot on its own prove they agree everywhere, so a backend is asked as well when one is supplied.
+      proof obligation: obl.rearrange.substitution-identity, the original formula holds once t is replaced by the rearranged right side
+      target claim: v = (u + (a * t)) holds with t replaced by ((v + (-u)) * (a^(-1)))
+      check method: substitute the rearranged side back and evaluate both sides exactly at several assignments
+      expected: the two sides of the original formula stay equal
+      observed: the sides agreed at all 6 assignments
+      verification: exact evaluation at 6 rational assignments, passed, the two sides took the same value at all 6 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+      verified: yes

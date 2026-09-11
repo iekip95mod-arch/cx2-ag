@@ -1,0 +1,60 @@
+L'utilisation de KhiCAS en mode examen n'est pas compatible avec l'OS 5.3. Si
+votre calculatrice est en OS 5.3, vous devez commencer par la downgrader
+en OS 5.2 en utilisant le programme backSpire.
+https://tiplanet.org/forum/viewtopic.php?f=43&t=25952
+
+=============
+! Attention !
+=============
+Il appartient a l'utilisateur de verifier que le CAS est bien autorise
+avant de lancer KhiCAS en mode examen.
+
+=====================
+Lancer le mode examen
+=====================
+Le mode examen compatible KhiCAS doit etre lance *depuis le shell de KhiCAS*.
+Si vous utilisez l'interface Lua de KhiCAS, tapez * puis entree pour lancer le shell de
+KhiCAS.
+
+Tapez les touches scratchpad (entre esc et tab) puis e^x et confirmez avec enter.
+
+KhiCAS va alors effectuer un test des fichiers presents dans le repertoire ndless et
+recopier les ressources necessaires au lancement de KhiCAS dans le repertoire special
+du mode examen. La copie de ces ressources prend du temps, pour accelerer cette etape,
+il est conseille de supprimer l'interface de KhiCAS que vous n'utilisez pas
+(luagiac.luax.tns ou khicas.tns) ainsi que les fichiers ndless_installer qui
+ne correspondent pas a votre version d'OS.
+
+Une fois la copie effectuee, la calculatrice reboote en mode examen, comme si vous
+l'aviez lance avec esc-on. Si la calculatrice s'eteint et ne reboote pas, pressez
+le bouton Reset a l'arriere.
+Vous devrez activer ndless lorsque la calculatrice a fini de booter, ensuite vous pourrez
+lancer KhiCAS comme d'habitude. Il faut environ 2 minutes pour effectuer tout le processus.
+N.B.: il arrive de temps en temps que la calculatrice reboote a l'activation de ndless.
+Ne paniquez pas, il suffit d'attendre le reboot et de relancer l'activation.
+
+Si on vous demande de reactiver le mode examen: depuis le shell KhiCAS, touches
+scratchpad e^x et confirmer. KhiCAS efface alors tous les fichiers du repertoire
+specifique au mode examen, sauf les ressources necessaires, et eteint la LED du
+mode examen (ce qui prend environ 30 secondes).
+Pour relancer le mode examen, il suffit alors de quitter KhiCAS
+(taper sur doc 2 fois). Pensez a reactiver ndless a la fin du reboot.
+N.B.: Si le temps d'activation du mode examen ci-dessus est trop long, vous pouvez
+activer le mode examen de KhiCAS puis lancer la 1ere etape de la reactivation
+du mode examen hors salle d'examen et ne faire que le reboot en salle d'examen.
+
+Pour quitter le mode examen, connectez la calculatrice a un ordinateur et envoyez
+un repertoire de nom Press-To-Test a la calculatrice (le repertoire doit etre vide)
+ou connectez la Nspire a une autre Nspire puis tapez ON 2 enter doc 9 1
+
+===========
+Attention :
+===========
+L'utilisation de OFF puis Esc-ON puis Reinitialisation du mode examen ne conserve pas
+les ressources necessaires au lancement de KhiCAS. Les institutions qui interdisent
+le calcul formel en examen peuvent demander a leurs etudiants de reinitialiser le mode
+examen de TI de cette facon. N.B.: Le calcul formel est autorise au bac en France!
+
+Pour les examens/concours qui ne veulent pas autoriser KhiCAS en mode examen:
+Demander systematiquement de faire un reset de la calculatrice, puis OFF esc-ON
+puis reinitialiser le mode examen. Ceci effacera ndless et KhiCAS.

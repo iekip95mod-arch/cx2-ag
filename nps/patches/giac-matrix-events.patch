@@ -1,0 +1,49 @@
+--- a/src/dispatch.h
++++ b/src/dispatch.h
+@@ -684,6 +684,7 @@
+     step_extrema8=32,
+     step_integrate_header=33,
+     step_derive_header=34,
++    step_rrefscale=35,
+   };
+ 
+ 
+--- a/src/ti89.cc
++++ b/src/ti89.cc
+@@ -2064,7 +2064,7 @@
+     if (keep_pivot)
+       return res;
+     bool reducelast = a.size()!=a.front()._VECTptr->size()-1;
+-    mdividebypivot(res,reducelast?-1:-2);
++    mdividebypivot(res,reducelast?-1:-2,contextptr);
+     return res;
+   }
+   static const char _ref_s[]="ref";
+--- a/src/vecteur.cc
++++ b/src/vecteur.cc
+@@ -10853,13 +10853,23 @@
+       lastcol=int(a.front()._VECTptr->size())-1;
+     if (lastcol<0)
+       lastcol=0;
++    const bool step_rref=step_infolevel(contextptr) && a.size()<5 && a.front()._VECTptr->size()<7;
++    bool scaled=false;
+     vecteur::const_iterator ita=a.begin(),itaend=a.end();
+     gen pivot;
+-    for (;ita!=itaend;++ita){
++    int row=1;
++    for (;ita!=itaend;++ita,++row){
+       pivot=first_non_zero(*(ita->_VECTptr),lastcol,contextptr);
+-      if (!is_exactly_zero(pivot))
++      if (!is_exactly_zero(pivot)){
++        if (step_rref && pivot!=1){
++          gprintf(step_rrefscale,gettext("Multiply row %gen by %gen on %gen"),makevecteur(row,inv(pivot,contextptr),makefreematrice(a)),contextptr);
++          scaled=true;
++        }
+ 	divvecteur(*(ita->_VECTptr),pivot,*(ita->_VECTptr));
++      }
+     }
++    if (scaled)
++      gprintf(step_rrefend,gettext("End reduction %gen"),makevecteur(makefreematrice(a)),contextptr);
+   }
+ 
+   void mdividebypivot(matrice & a,int lastcol){

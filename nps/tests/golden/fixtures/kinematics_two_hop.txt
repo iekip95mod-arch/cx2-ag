@@ -1,0 +1,220 @@
+problem: find v; x = 20 m; t = 4 s; a = 3 m/s^2
+variable: v
+outcome: solved
+result: 11 m/s
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.kinematics.constant-acceleration.one-dimension
+  envelope version: <not recorded>
+  normalized problem: (v = (v0 + (a * t)))
+  requested method: select an equation, substitute in SI, solve as a linear equation
+  active assumption: acceleration is constant
+  active assumption: motion is along one axis, positive in the chosen direction
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, every quantity converted to SI before the equation is used; the answer is reported to the fewest significant figures among the measured givens, and nothing is rounded before then
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find v, the final velocity
+    rule: physics.kinematics.constant-acceleration, Constant acceleration in one dimension
+    claim: no claim
+    explanation: Use x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v, each with the values in SI
+    assumption before: acceleration is constant
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Constant acceleration in one dimension
+    applicability: acceleration is constant over the interval
+    applicability: motion is along one axis with one positive direction
+    applicability: every selected equation contains its target and only quantities known by that hop
+    fact: x = 20 m, the displacement
+    fact: t = 4 s, the time
+    fact: a = 3 m/s^2, the acceleration
+    fact: find v, the final velocity
+    alternative: for v0: v = v0 + a*t: already used earlier on this route
+    alternative: for v0: v^2 = v0^2 + 2*a*x: needs v, which is not given
+    alternative: for v0: x = (1/2)*(v0 + v)*t: needs v, which is not given
+    alternative: for v: x = v0*t + (1/2)*a*t^2: already used earlier on this route
+    alternative: for v: v^2 = v0^2 + 2*a*x: this equation is not linear in v
+    alternative: for v: x = (1/2)*(v0 + v)*t: also applicable, not needed
+    rationale: no single constant-acceleration equation reaches v from what is given, so v0 is found first and then used: x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v; no symbolic engine is attached, so the rearrangement is shown with the values already in
+    verification: problem-family model validation, passed, the selected equation table is the constant-acceleration family
+    verification: problem-family model validation, passed, the typed problem uses the one-dimensional kinematics family
+    verification: exact route search through the linear solver, passed, x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the dimensions
+      rule: physics.kinematics.check-dimensions, Dimensional analysis
+      claim: solution set preserved
+      explanation: Both sides of the equation must have the same dimension
+      detail: Each symbol carries a dimension. Multiplying adds exponents, dividing subtracts them, and a sum only makes sense between equal dimensions. An equation whose sides disagree is being misused, however the arithmetic comes out.
+      proof obligation: obl.kinematics.dimensions-agree, dimension of the left side equals dimension of the right side
+      target claim: x = v0*t + (1/2)*a*t^2 is dimensionally consistent
+      check method: dimensional analysis of both sides
+      expected: equal dimensions
+      observed: L on both sides
+      verification: dimensional analysis, passed, L on both sides
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Substitute the known values
+      rule: kin.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its value in SI units
+      detail: What remains is an equation in v0 alone, with numbers everywhere else, which the linear solver takes from here.
+      proof obligation: obl.kinematics.substitution-preserves-solutions, putting a known quantity in place of its symbol leaves the equation's solutions alone
+      action: Substitute x = 20 m, t = 4 s, a = 3 m/s^2
+      before: (x = ((v0 * t) + (((1 * (2^(-1))) * a) * (t^2))))
+      after: (20 = ((v0 * 4) + (((1 * (2^(-1))) * 3) * (4^2))))
+      reversible: yes
+      verification: rule-local invariant, passed, every symbol but v0 has a known value
+      verified: yes
+    1.3 plan
+      phase: plan
+      goal: Isolate v0
+      rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+      claim: no claim
+      explanation: Solve by undoing what was done to v0
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Inverse operations on a linear equation
+      applicability: the equation is degree one in v0
+      applicability: every other quantity is a rational constant
+      fact: one unknown, v0
+      rationale: collect the terms, remove the constant and isolate v0 using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+      verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+      verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      1.3.1 transformation
+        phase: solve
+        goal: Collect the terms in v0
+        rule: eq.collect-like-terms, Collect like terms
+        claim: solution set preserved
+        explanation: Moving every term to one side keeps both sides equal
+        detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+        proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+        action: Move every term to the left side
+        before: (20 = ((v0 * 4) + (((1 * (2^(-1))) * 3) * (4^2))))
+        after: (((-4 * v0) + -4) = 0)
+        reversible: yes
+        verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+        verified: yes
+      1.3.2 transformation
+        phase: solve
+        goal: Isolate v0
+        rule: eq.divide-both-sides, Isolate the unknown
+        claim: solution set preserved
+        explanation: Applying the same operation to both sides preserves the solutions
+        detail: Remove the constant term by applying its opposite to both sides. The coefficient of v0 is -4, which is non-zero, so dividing by it is reversible.
+        proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+        action: Add 4 to both sides, then divide both sides by -4
+        before: (((-4 * v0) + -4) = 0)
+        after: (v0 = -1)
+        reversible: yes
+        verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient -4 was checked to be non-zero
+        verified: yes
+      1.3.3 check
+        phase: check
+        goal: Check the answer
+        rule: eq.linear.check-by-substitution, Check by substitution
+        claim: solution set preserved
+        explanation: Put the answer back into the original equation
+        detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+        proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+        target claim: v0 = -1 satisfies the equation
+        check method: substitute the solution into the equation as it was typed
+        expected: both sides equal
+        observed: both sides are equal
+        verification: substitution, passed, both sides came out equal
+        verified: yes
+    1.4 check
+      phase: check
+      goal: Check the dimensions
+      rule: physics.kinematics.check-dimensions, Dimensional analysis
+      claim: solution set preserved
+      explanation: Both sides of the equation must have the same dimension
+      detail: Each symbol carries a dimension. Multiplying adds exponents, dividing subtracts them, and a sum only makes sense between equal dimensions. An equation whose sides disagree is being misused, however the arithmetic comes out.
+      proof obligation: obl.kinematics.dimensions-agree, dimension of the left side equals dimension of the right side
+      target claim: v = v0 + a*t is dimensionally consistent
+      check method: dimensional analysis of both sides
+      expected: equal dimensions
+      observed: L T^-1 on both sides
+      verification: dimensional analysis, passed, L T^-1 on both sides
+      verified: yes
+    1.5 transformation
+      phase: solve
+      goal: Substitute the known values
+      rule: kin.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its value in SI units
+      detail: What remains is an equation in v alone, with numbers everywhere else, which the linear solver takes from here.
+      proof obligation: obl.kinematics.substitution-preserves-solutions, putting a known quantity in place of its symbol leaves the equation's solutions alone
+      action: Substitute x = 20 m, t = 4 s, a = 3 m/s^2, v0 = -1 m/s
+      before: (v = (v0 + (a * t)))
+      after: (v = (-1 + (3 * 4)))
+      reversible: yes
+      verification: rule-local invariant, passed, every symbol but v has a known value
+      verified: yes
+    1.6 plan
+      phase: plan
+      goal: Isolate v
+      rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+      claim: no claim
+      explanation: Solve by undoing what was done to v
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Inverse operations on a linear equation
+      applicability: the equation is degree one in v
+      applicability: every other quantity is a rational constant
+      fact: one unknown, v
+      rationale: collect the terms, remove the constant and isolate v using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+      verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+      verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      1.6.1 transformation
+        phase: solve
+        goal: Collect the terms in v
+        rule: eq.collect-like-terms, Collect like terms
+        claim: solution set preserved
+        explanation: Moving every term to one side keeps both sides equal
+        detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+        proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+        action: Move every term to the left side
+        before: (v = (-1 + (3 * 4)))
+        after: (((1 * v) + -11) = 0)
+        reversible: yes
+        verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+        verified: yes
+      1.6.2 transformation
+        phase: solve
+        goal: Isolate v
+        rule: eq.divide-both-sides, Isolate the unknown
+        claim: solution set preserved
+        explanation: Applying the same operation to both sides preserves the solutions
+        detail: Remove the constant term by applying its opposite to both sides. The coefficient of v is 1, so no division is needed.
+        proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+        action: Add 11 to both sides
+        before: (((1 * v) + -11) = 0)
+        after: (v = 11)
+        reversible: yes
+        verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient 1 was checked to be non-zero
+        verified: yes
+      1.6.3 check
+        phase: check
+        goal: Check the answer
+        rule: eq.linear.check-by-substitution, Check by substitution
+        claim: solution set preserved
+        explanation: Put the answer back into the original equation
+        detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+        proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+        target claim: v = 11 satisfies the equation
+        check method: substitute the solution into the equation as it was typed
+        expected: both sides equal
+        observed: both sides are equal
+        verification: substitution, passed, both sides came out equal
+        verified: yes

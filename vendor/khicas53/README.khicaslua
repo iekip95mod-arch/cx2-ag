@@ -1,0 +1,51 @@
+ENGLISH (FRANCAIS voir plus bas)
+KhiCAS, free (GPL3) computer algebra system for TI nspire CX (II) calculators, OS version 4.5.3/5.2, with support for multi-precision floats and interval arithmetic.
+For black and white nspire, please try
+http://www-fourier.ujf-grenoble.fr/public_html/calc/khicasbw.zip
+
+You must install ndless to run KhiCAS, either the version provided here or see
+instructions on ndless.me or tiplanet.org 
+Then send luagiac.luax.tns and khicaslua.tns to your calculator. 
+Then from Home, My Documents, select khicaslua and press Enter.
+You can run all Xcas commands from here, for example
+a:=partfrac(1/(x^4-1))
+normal(a)
+factor(a)
+ifactor(2^128+1)
+evalf(pi,30)
+For help on a command, type ? then the commandname (from menu or keyboard)
+
+Important note: if the luagiac module fails to load, make sure
+ndless is active, run ndless_installer if it is not and try again.
+
+Giac (c) 2020 B. Parisse and R. De Graeve, GPL 3 license (see COPYING file)
+Linked with GMP/MPFR/MPFI
+khicaslua UI based on SuperSpire from Xavier "critor" Andréani's ,
+modified by Jim Bauwens and Adrien "Adriweb" Bertrand
+Thanks to Vogtinator, Excale, Extended for help to compile.
+==========================
+FRANCAIS
+KhiCAS, logiciel libre (GPL3) de calcul formel pour calculatrices TI nspire CX (II), OS version 4.5.2/5.2, avec support flottants multi-precision et arithmetique d'intervalles
+Pour les nspire noir et blanc, vous pouvez installer
+http://www-fourier.ujf-grenoble.fr/public_html/calc/khicasbw.zip
+
+Vous devez installer ndless pour utiliser KhiCAS, utilisez la version fournie
+dans le repertoire ndless ou suivre le tutoriel sur tiplanet.org ou allez sur ndless.me.
+Copiez luagiac.luax.tns et khicaslua.tns sur votre calculatrice 
+Ensuite Home, Mes Documents selectionnez khicaslua et pressez Enter.
+On peut taper toutes les commandes Xcas, par exemple
+f(x):=1/(x^2+2x-3)
+factor(f'(x))
+ifactor(2^128+1)
+evalf(pi,30);
+Pour avoir de l'aide sur une commande tapez ? puis le nom de la commande
+(avec ou sans l'aide du menu)
+
+Note importante: si le module luagiac ne se charge pas, verifier
+que ndless est active, si ce n'est pas le cas relancez ndless_installer
+
+Giac (c) 2020 B. Parisse and R. De Graeve, GPL 3 license (cf. fichier COPYING)
+Utilise GMP/MPFR/MPFI
+khicaslua UI base sur SuperSpire de Xavier "critor" Andréani ,
+modifie par Jim Bauwens et Adrien "Adriweb" Bertrand
+Remerciements a Vogtinator, Excale, Extended pour l'aide apportee pour compiler.

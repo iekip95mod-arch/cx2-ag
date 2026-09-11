@@ -1,0 +1,674 @@
+From 2ab7fd69f58d77e13b2a753276e8bb51e7c51fb7 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 20:04:46 -0400
+Subject: [PATCH 04/11] Trace file transfer failure phases
+
+---
+ src/cx2.cpp                    |  55 ++++++++++---
+ src/service.h                  |   3 +
+ src/services/dir.c             |   6 ++
+ src/services/file.c            |  27 ++++++-
+ src/trace.h                    |  28 +++++++
+ tests/diagnostics_test.c       | 144 +++++++++++++++++++++++++++++++++
+ tests/run_diagnostics_tests.py |  30 +++++++
+ tests/transport.cpp            |  93 ++++++++++++++++++++-
+ 8 files changed, 374 insertions(+), 12 deletions(-)
+ create mode 100644 src/trace.h
+ create mode 100644 tests/diagnostics_test.c
+ create mode 100644 tests/run_diagnostics_tests.py
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index 893e341..e7b66f7 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -33,6 +33,7 @@
+ #include "cx2.h"
+ #include "error.h"
+ #include "packet.h"
++#include "trace.h"
+ 
+ enum Address {
+ 	AddrAll		= 0xFF,
+@@ -147,6 +148,20 @@ static unsigned int remainingTimeout(PacketDeadline deadline, unsigned int limit
+ 	return remaining > 0 ? static_cast<unsigned int>(std::min(remaining, static_cast<decltype(remaining)>(limit))) : 0;
+ }
+ 
++static int tracedTransfer(usb_device_t *handle, unsigned char endpoint, unsigned char *bytes,
++		int length, int *transferred, unsigned int timeout, PacketDeadline deadline, const char *phase)
++{
++	if(!nspire_trace_enabled())
++		return libusb_bulk_transfer(handle->dev, endpoint, bytes, length, transferred, timeout);
++	auto started = std::chrono::steady_clock::now();
++	int status = libusb_bulk_transfer(handle->dev, endpoint, bytes, length, transferred, timeout);
++	auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
++	nspire_trace("usb phase=%s direction=%s usb_status=%d requested=%d transferred=%d timeout_ms=%u elapsed_ms=%lld remaining_ms=%u",
++		phase, endpoint & LIBUSB_ENDPOINT_IN ? "in" : "out", status, length, *transferred, timeout,
++		static_cast<long long>(elapsed), remainingTimeout(deadline, UINT32_MAX));
++	return status;
++}
++
+ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, PacketDeadline deadline)
+ {
+ 	if(maxlen < sizeof(NNSEMessage))
+@@ -155,9 +170,11 @@ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, Pa
+ 	int transferred = 0;
+ 	memset(message, 0, sizeof(NNSEMessage));
+ 	auto timeout = remainingTimeout(deadline, 5000);
+-	if(!timeout)
++	if(!timeout) {
++		nspire_trace("usb phase=read direction=in reason=deadline remaining_ms=0");
+ 		return -NSPIRE_ERR_TIMEOUT;
+-	int r = libusb_bulk_transfer(handle->dev, handle->ep_in, reinterpret_cast<unsigned char*>(message), maxlen, &transferred, timeout);
++	}
++	int r = tracedTransfer(handle, handle->ep_in, reinterpret_cast<unsigned char*>(message), maxlen, &transferred, timeout, deadline, "read");
+ #ifdef DEBUG
+ 	std::cerr << "NNSE read: status=" << r << " transferred=" << transferred
+ 		<< " capacity=" << maxlen << " length=" << ntohs(message->length) << '\n';
+@@ -183,9 +200,11 @@ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, Pa
+ 	while(remainingLength > 0)
+ 	{
+ 		timeout = remainingTimeout(deadline, 1000);
+-		if(!timeout)
++		if(!timeout) {
++			nspire_trace("usb phase=continuation direction=in reason=deadline remaining_ms=0");
+ 			return -NSPIRE_ERR_TIMEOUT;
+-		r = libusb_bulk_transfer(handle->dev, handle->ep_in, data, remainingLength, &transferred, timeout);
++		}
++		r = tracedTransfer(handle, handle->ep_in, data, remainingLength, &transferred, timeout, deadline, "continuation");
+ #ifdef DEBUG
+ 		std::cerr << "NNSE continuation: status=" << r << " transferred=" << transferred
+ 			<< " remaining=" << remainingLength << '\n';
+@@ -230,8 +249,10 @@ static int writePacket(usb_device_t *handle, NNSEMessage *message, PacketDeadlin
+ 
+ 	int transferred = 0;
+ 	auto timeout = remainingTimeout(deadline, 1000);
+-	if(!timeout)
++	if(!timeout) {
++		nspire_trace("usb phase=write direction=out reason=deadline remaining_ms=0");
+ 		return -NSPIRE_ERR_TIMEOUT;
++	}
+ 	unsigned char padded[sizeof(NNSEMessage) + 1472 + 1];
+ 	auto *bytes = reinterpret_cast<unsigned char*>(message);
+ 	int transferLength = length;
+@@ -241,7 +262,7 @@ static int writePacket(usb_device_t *handle, NNSEMessage *message, PacketDeadlin
+ 		bytes = padded;
+ 		++transferLength;
+ 	}
+-	int r = libusb_bulk_transfer(handle->dev, handle->ep_out, bytes, transferLength, &transferred, timeout);
++	int r = tracedTransfer(handle, handle->ep_out, bytes, transferLength, &transferred, timeout, deadline, "write");
+ 	if(r < 0)
+ 		return usb_error(r);
+ 	if(transferLength != transferred)
+@@ -443,7 +464,10 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 	}
+ 	free(message);
+ 
+-	return ret ? ret : nsp_handle->cx2_handshake_complete ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_TIMEOUT;
++	int status = ret ? ret : nsp_handle->cx2_handshake_complete ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_TIMEOUT;
++	nspire_trace("transport phase=handshake status=%d reason=%s remaining_ms=%u", status,
++		ret ? "packet" : nsp_handle->cx2_handshake_complete ? "complete" : "packet-limit", remainingTimeout(deadline, UINT32_MAX));
++	return status;
+ }
+ 
+ int packet_send_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+@@ -471,6 +495,7 @@ int packet_send_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ 	memcpy(msg->data, data, size);
+ 
+ 	auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++	nspire_trace("transport phase=send expected_seq=%u requested=%d", ntohs(msg->seqno), size);
+ 	ret = writePacket(handle, msg, deadline);
+ 	if(!ret)
+ 	{
+@@ -485,21 +510,29 @@ int packet_send_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ 		for(int i = 10; i-- && !ret && !acked;)
+ 		{
+ 			ret = readPacket(handle, message, maxlen, deadline);
+-			if(ret)
++			if(ret) {
++				nspire_trace("transport phase=ack reason=read expected_seq=%u status=%d remaining_ms=%u", ntohs(msg->seqno), ret, remainingTimeout(deadline, UINT32_MAX));
+ 				break;
++			}
+ 			
+ 			ret = handlePacket(nsp_handle, message, deadline);
+-			if(ret)
++			if(ret) {
++				nspire_trace("transport phase=ack reason=handle expected_seq=%u received_seq=%u status=%d remaining_ms=%u", ntohs(msg->seqno), ntohs(message->seqno), ret, remainingTimeout(deadline, UINT32_MAX));
+ 				break;
++			}
+ 			
+ 			if(message->dest == AddrMe
+ 				&& message->service == (StreamService | AckFlag)
+ 				&& message->seqno == msg->seqno)
+ 				acked = true;
++			nspire_trace("transport phase=ack expected_seq=%u received_seq=%u service=%u destination=%u matched=%d",
++				ntohs(msg->seqno), ntohs(message->seqno), message->service, message->dest, acked);
+ 		}
+ 
+-		if(!ret && !acked)
++		if(!ret && !acked) {
++			nspire_trace("transport phase=ack reason=packet-limit expected_seq=%u remaining_ms=%u", ntohs(msg->seqno), remainingTimeout(deadline, UINT32_MAX));
+ 			ret = -NSPIRE_ERR_TIMEOUT;
++		}
+ 
+ 		free(message);
+ 	}
+@@ -532,6 +565,8 @@ int packet_recv_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ 			if(ret)
+ 				break;
+ 		}
++		if(!ret && !nsp_handle->cx2_pending_count)
++			nspire_trace("transport phase=receive reason=packet-limit remaining_ms=%u", remainingTimeout(deadline, UINT32_MAX));
+ 		free(message);
+ 		if(ret)
+ 			return ret;
+diff --git a/src/service.h b/src/service.h
+index fed5a3e..75f9829 100644
+--- a/src/service.h
++++ b/src/service.h
+@@ -20,12 +20,15 @@
+ 
+ #include <inttypes.h>
+ #include "handle.h"
++#include "trace.h"
+ 
+ int service_connect(nspire_handle_t *handle, uint16_t sid);
+ int service_disconnect(nspire_handle_t *handle);
+ 
+ static inline int service_finish(nspire_handle_t *handle, int status) {
++	nspire_trace("service phase=close event=begin primary_status=%d", status);
+ 	int close_status = service_disconnect(handle);
++	nspire_trace("service phase=close event=end primary_status=%d close_status=%d", status, close_status);
+ 	return status ? status : close_status;
+ }
+ 
+diff --git a/src/services/dir.c b/src/services/dir.c
+index 5460788..edd8b0d 100644
+--- a/src/services/dir.c
++++ b/src/services/dir.c
+@@ -216,6 +216,7 @@ end:
+ int nspire_attr(nspire_handle_t *handle, const char *path,
+ 		struct nspire_dir_item *info) {
+ 	int ret;
++	const char *phase = "build";
+ 	size_t len;
+ 	uint8_t is_dir, buffer[254];
+ 	uint32_t size, date;
+@@ -227,9 +228,13 @@ int nspire_attr(nspire_handle_t *handle, const char *path,
+ 			0x2001, path)) )
+ 		goto end;
+ 
++	phase = "request";
++	nspire_trace("file operation=stat phase=%s offset=0 requested=%zu", phase, len);
+ 	if ( (ret = data_write(handle, buffer, len)) )
+ 		goto end;
+ 
++	phase = "response";
++	nspire_trace("file operation=stat phase=%s offset=0", phase);
+ 	if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+ 		goto end;
+ 
+@@ -254,5 +259,6 @@ int nspire_attr(nspire_handle_t *handle, const char *path,
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+ end:
++	nspire_trace("file operation=stat phase=%s event=end offset=0 status=%d", phase, ret);
+ 	return service_finish(handle, ret);
+ }
+diff --git a/src/services/file.c b/src/services/file.c
+index 0a8f2b3..7dba655 100644
+--- a/src/services/file.c
++++ b/src/services/file.c
+@@ -28,6 +28,8 @@ int nspire_file_write(nspire_handle_t *handle, const char *path,
+ 	size_t len;
+ 	uint8_t buffer[sizeof(struct packet)], *ptr = data;
+ 	uint16_t result;
++	const size_t total = size;
++	const char *phase = "build";
+ 	if (size > UINT32_MAX)
+ 		return -NSPIRE_ERR_INVALID;
+ 
+@@ -38,9 +40,13 @@ int nspire_file_write(nspire_handle_t *handle, const char *path,
+ 			0x0301, path, (uint32_t)size)) )
+ 		goto end;
+ 
++	phase = "request";
++	nspire_trace("file operation=write phase=%s offset=0 total=%zu requested=%zu", phase, total, len);
+ 	if ( (ret = data_write(handle, buffer, len)) )
+ 		goto end;
+ 
++	phase = "ready";
++	nspire_trace("file operation=write phase=%s offset=0 total=%zu", phase, total);
+ 	if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+ 		goto end;
+ 
+@@ -55,6 +61,8 @@ int nspire_file_write(nspire_handle_t *handle, const char *path,
+ 	while (size) {
+ 		len = (datasize < size) ? datasize : size;
+ 
++		phase = "chunk";
++		nspire_trace("file operation=write phase=%s offset=%zu total=%zu requested=%zu", phase, total-size, total, len);
+ 		memcpy(buffer + 1, ptr, len);
+ 		if ( (ret = data_write(handle, buffer, len+1)) )
+ 			goto end;
+@@ -63,14 +71,18 @@ int nspire_file_write(nspire_handle_t *handle, const char *path,
+ 		ptr += len;
+ 	}
+ 
++	phase = "final-status";
++	nspire_trace("file operation=write phase=%s offset=%zu total=%zu", phase, total-size, total);
+ 	if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+ 		goto end;
+ 
+ 	if ( (ret = data_scan("h", buffer, len, &result)) )
+ 		goto end;
+ 
++	nspire_trace("file operation=write phase=%s remote_status=%u", phase, (unsigned)result);
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_NONEXIST;
+ end:
++	nspire_trace("file operation=write phase=%s event=end offset=%zu total=%zu status=%d", phase, total-size, total, ret);
+ 	return service_finish(handle, ret);
+ }
+ 
+@@ -81,6 +93,8 @@ int nspire_file_read(nspire_handle_t *handle, const char *path,
+ 	uint8_t buffer[packet_max_datasize(handle)], *ptr = data;
+ 	uint16_t result;
+ 	uint32_t data_len;
++	size_t offset = 0;
++	const char *phase = "build";
+ 	if (total_bytes) *total_bytes = 0;
+ 
+ 	if ( (ret = service_connect(handle, 0x4060)) )
+@@ -90,9 +104,13 @@ int nspire_file_read(nspire_handle_t *handle, const char *path,
+ 			0x0701, path)) )
+ 		goto end;
+ 
++	phase = "request";
++	nspire_trace("file operation=read phase=%s offset=%zu requested=%zu", phase, offset, len);
+ 	if ( (ret = data_write(handle, buffer, len)) )
+ 		goto end;
+ 
++	phase = "header";
++	nspire_trace("file operation=read phase=%s offset=%zu", phase, offset);
+ 	if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+ 		goto end;
+ 
+@@ -106,10 +124,14 @@ int nspire_file_read(nspire_handle_t *handle, const char *path,
+ 	if ( (ret = data_scan("h000000000w", buffer, len, NULL, &data_len)) )
+ 		goto end;
+ 
++	phase = "ready";
++	nspire_trace("file operation=read phase=%s offset=%zu total=%u", phase, offset, data_len);
+ 	if ( (ret = data_write8(handle, 0x04)) )
+ 		goto end;
+ 
+ 	while (data_len) {
++		phase = "chunk";
++		nspire_trace("file operation=read phase=%s offset=%zu remaining=%u", phase, offset, data_len);
+ 		if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+ 			goto end;
+ 
+@@ -129,14 +151,18 @@ int nspire_file_read(nspire_handle_t *handle, const char *path,
+ 		}
+ 
+ 		if (total_bytes) *total_bytes += len;
++		offset += len;
+ 		data_len -= len;
+ 	}
+ 
++	phase = "final-status";
++	nspire_trace("file operation=read phase=%s offset=%zu", phase, offset);
+ 	if ( (ret = data_write16(handle, 0xFF00)) )
+ 		goto end;
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+ end:
++	nspire_trace("file operation=read phase=%s event=end offset=%zu status=%d", phase, offset, ret);
+ 	return service_finish(handle, ret);
+ }
+ 
+@@ -225,4 +251,3 @@ int nspire_file_delete(nspire_handle_t *handle, const char *path) {
+ end:
+ 	return service_finish(handle, ret);
+ }
+-
+diff --git a/src/trace.h b/src/trace.h
+new file mode 100644
+index 0000000..a827864
+--- /dev/null
++++ b/src/trace.h
+@@ -0,0 +1,28 @@
++#ifndef NSPIRE_TRACE_H
++#define NSPIRE_TRACE_H
++
++#include <errno.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++static inline int nspire_trace_enabled(void) {
++	const char *enabled = getenv("NSPIRE_TRACE");
++	return enabled && !strcmp(enabled, "1");
++}
++
++static inline void nspire_trace(const char *format, ...) {
++	int saved_errno = errno;
++	if (nspire_trace_enabled()) {
++		va_list args;
++		va_start(args, format);
++		fputs("nspire-trace ", stderr);
++		vfprintf(stderr, format, args);
++		fputc('\n', stderr);
++		va_end(args);
++	}
++	errno = saved_errno;
++}
++
++#endif
+diff --git a/tests/diagnostics_test.c b/tests/diagnostics_test.c
+new file mode 100644
+index 0000000..9b0bda8
+--- /dev/null
++++ b/tests/diagnostics_test.c
+@@ -0,0 +1,144 @@
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++#include "src/data.h"
++#include "src/service.h"
++#include "src/api/dir.h"
++#include "src/api/error.h"
++
++static unsigned calls, fail_at, closes, writes, failures;
++static int closing, stat_request;
++
++uint32_t packet_max_datasize(nspire_handle_t *handle) {
++	(void)handle;
++	return 1440;
++}
++
++int data_write_special(nspire_handle_t *handle, void *bytes, size_t length,
++		void (*callback)(struct packet *)) {
++	struct packet packet = { 0 };
++	(void)handle;
++	(void)bytes;
++	assert(length == 2 && callback);
++	callback(&packet);
++	assert(packet.src_sid == 0x40DE);
++	closes++;
++	return closing;
++}
++
++int data_write(nspire_handle_t *handle, void *bytes, size_t length) {
++	(void)bytes;
++	assert(handle->connected && length);
++	writes++;
++	return ++calls == fail_at ? -NSPIRE_ERR_TIMEOUT : 0;
++}
++
++int data_read(nspire_handle_t *handle, void *bytes, size_t capacity, size_t *actual) {
++	assert(handle->connected);
++	if (++calls == fail_at) return -NSPIRE_ERR_TIMEOUT;
++	if (stat_request == 1)
++		return data_build("bwwb0", bytes, capacity, actual, 0x20, UINT32_C(8461), UINT32_C(9), 0);
++	if (stat_request == 2) {
++		if (calls == 2)
++			return data_build("h000000000w", bytes, capacity, actual, 0x0301, UINT32_C(1500));
++		*actual = calls == 4 ? 1440 : 62;
++		assert(*actual <= capacity);
++		memset(bytes, 'Q', *actual);
++		((unsigned char *)bytes)[0] = 5;
++		return 0;
++	}
++	if (calls == 2) {
++		assert(capacity);
++		((unsigned char *)bytes)[0] = 4;
++		*actual = 1;
++		return 0;
++	}
++	return data_build("h", bytes, capacity, actual, 0xFF00);
++}
++
++static void check(int condition, const char *name, const char *field) {
++	if (!condition) {
++		fprintf(stderr, "%s: missing or incorrect %s\n", name, field);
++		failures++;
++	}
++}
++
++static void run(unsigned fault, int close_error, int is_stat, const char *phase,
++		unsigned expected_writes, const char *offset, int trace) {
++	calls = closes = writes = 0;
++	fail_at = fault;
++	closing = close_error;
++	stat_request = is_stat;
++	nspire_handle_t handle = { 0 };
++	handle.host_sid = 0x8000;
++	unsigned char document[8461];
++	memset(document, 'Q', sizeof document);
++	memcpy(document, "PRIVATE-DOCUMENT-CONTENT", 24);
++	struct nspire_dir_item info;
++	FILE *capture = tmpfile();
++	assert(capture);
++	fflush(stderr);
++	int saved = dup(STDERR_FILENO);
++	assert(saved >= 0 && dup2(fileno(capture), STDERR_FILENO) >= 0);
++	if (trace) setenv("NSPIRE_TRACE", "1", 1);
++	else unsetenv("NSPIRE_TRACE");
++	size_t count = 0;
++	int status = is_stat == 1 ? nspire_attr(&handle, "/PRIVATE-PATH", &info)
++		: is_stat == 2 ? nspire_file_read(&handle, "/PRIVATE-PATH", document, sizeof document, &count)
++		: nspire_file_write(&handle, "/PRIVATE-PATH", document, sizeof document);
++	fflush(stderr);
++	assert(dup2(saved, STDERR_FILENO) >= 0);
++	close(saved);
++	rewind(capture);
++	char log[32768];
++	size_t length = fread(log, 1, sizeof log - 1, capture);
++	assert(!ferror(capture) && feof(capture));
++	log[length] = 0;
++	fclose(capture);
++	int expected = fault ? -NSPIRE_ERR_TIMEOUT : close_error;
++	check(status == expected, phase, "primary error preservation");
++	check(closes == 1 && writes == expected_writes, phase, "single close and no replay");
++	check(handle.connected == !!close_error, phase, "connection state");
++	check(handle.host_sid == (close_error ? 0x8000 : 0x8001), phase, "service ID");
++	check(!strstr(log, "PRIVATE") && !strstr(log, "51 51 51"), phase, "metadata-only output");
++	if (!trace) {
++		check(length == 0, phase, "disabled trace silence");
++		return;
++	}
++	check(strstr(log, phase) != NULL, phase, "file phase");
++	check(strstr(log, offset) != NULL, phase, "confirmed offset");
++	const char *operation = is_stat == 1 ? "stat" : is_stat == 2 ? "read" : "write";
++	char ending[160];
++	snprintf(ending, sizeof ending, "file operation=%s %s event=end %s", operation, phase, offset);
++	if (strcmp(phase, "phase=close")) check(strstr(log, ending) != NULL, phase, "exact ending phase and offset");
++	check(strstr(log, operation) != NULL, phase, "operation");
++	char completion[96];
++	snprintf(completion, sizeof completion, "primary_status=%d close_status=%d", fault ? -NSPIRE_ERR_TIMEOUT : 0, close_error);
++	check(strstr(log, completion) != NULL, phase, "separate primary and close status");
++}
++
++int main(void) {
++	run(1, 0, 0, "phase=request", 1, "offset=0", 1);
++	run(2, 0, 0, "phase=ready", 1, "offset=0", 1);
++	run(4, 0, 0, "phase=chunk", 3, "offset=1439", 1);
++	run(9, 0, 0, "phase=final-status", 7, "offset=8461", 1);
++	run(0, -NSPIRE_ERR_TIMEOUT, 0, "phase=close", 7, "offset=8461", 1);
++	run(1, -NSPIRE_ERR_DISCONNECTED, 0, "phase=request", 1, "offset=0", 1);
++	run(1, 0, 1, "phase=request", 1, "offset=0", 1);
++	run(2, 0, 1, "phase=response", 1, "offset=0", 1);
++	run(0, -NSPIRE_ERR_TIMEOUT, 1, "phase=close", 1, "offset=0", 1);
++	run(0, 0, 0, "phase=final-status", 7, "offset=8461", 1);
++	run(1, 0, 0, "phase=request", 1, "offset=0", 0);
++	run(1, 0, 2, "phase=request", 1, "offset=0", 1);
++	run(2, 0, 2, "phase=header", 1, "offset=0", 1);
++	run(3, 0, 2, "phase=ready", 2, "offset=0", 1);
++	run(5, 0, 2, "phase=chunk", 2, "offset=1439", 1);
++	run(6, 0, 2, "phase=final-status", 3, "offset=1500", 1);
++	run(0, -NSPIRE_ERR_TIMEOUT, 2, "phase=close", 3, "offset=1500", 1);
++	run(0, 0, 2, "phase=final-status", 3, "offset=1500", 1);
++	printf("18 file/stat diagnostic cases: %u failures\n", failures);
++	return failures ? 1 : 0;
++}
+diff --git a/tests/run_diagnostics_tests.py b/tests/run_diagnostics_tests.py
+new file mode 100644
+index 0000000..8ed5539
+--- /dev/null
++++ b/tests/run_diagnostics_tests.py
+@@ -0,0 +1,30 @@
++import argparse
++from pathlib import Path
++import shlex
++import subprocess
++import sys
++import tempfile
++
++parser = argparse.ArgumentParser()
++parser.add_argument("--cc", default="clang")
++parser.add_argument("--sanitize", action="store_true")
++args = parser.parse_args()
++root = Path(__file__).resolve().parents[1]
++build = Path(tempfile.mkdtemp(prefix="libnspire-diagnostics-"))
++print(f"Test artifacts: {build}", flush=True)
++includes = [f"-I{root}", f"-I{root / 'src'}", f"-I{root / 'src/services'}", f"-I{root / 'src/api'}"]
++includes += shlex.split(subprocess.check_output(["pkg-config", "--cflags", "libusb-1.0"], text=True))
++flags = ["-std=gnu11", "-g", "-O1", "-ffunction-sections", "-fdata-sections"]
++if args.sanitize:
++    flags += ["-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer"]
++decoder = build / "data.o"
++subprocess.run([args.cc, *flags, *includes, "-Ddata_read=unused_data_read", "-Ddata_write=unused_data_write",
++                "-Ddata_write_special=unused_data_write_special", "-c", str(root / "src/data.c"), "-o", str(decoder)], check=True)
++binary = build / "diagnostics-tests"
++strip = "-Wl,-dead_strip" if sys.platform == "darwin" else "-Wl,--gc-sections"
++sources = [str(root / source) for source in ("src/service.c", "src/services/file.c", "src/services/dir.c", "tests/diagnostics_test.c")]
++subprocess.run([args.cc, *flags, *includes, *sources, str(decoder), strip, "-o", str(binary)], check=True)
++run = subprocess.run([str(binary)], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=15)
++(build / "output.txt").write_text(run.stdout)
++print(run.stdout, end="")
++raise SystemExit(run.returncode)
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 1b9bbe0..44dfaff 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -5,6 +5,7 @@
+ #include <stdexcept>
+ #include <string>
+ #include <vector>
++#include <unistd.h>
+ 
+ extern "C" {
+ #include "../src/api/nspire.h"
+@@ -903,6 +904,96 @@ static void alternate_endpoint_traffic() {
+ 	}
+ }
+ 
++template <typename F> static std::string capture_trace(F run) {
++	FILE *capture = tmpfile();
++	CHECK(capture);
++	fflush(stderr);
++	int saved = dup(STDERR_FILENO);
++	CHECK(saved >= 0 && dup2(fileno(capture), STDERR_FILENO) >= 0);
++	try {
++		run();
++	} catch(...) {
++		fflush(stderr);
++		dup2(saved, STDERR_FILENO);
++		close(saved);
++		fclose(capture);
++		throw;
++	}
++	fflush(stderr);
++	CHECK(dup2(saved, STDERR_FILENO) >= 0);
++	close(saved);
++	rewind(capture);
++	char bytes[32768];
++	size_t size = fread(bytes, 1, sizeof bytes, capture);
++	CHECK(!ferror(capture) && feof(capture));
++	fclose(capture);
++	return {bytes, size};
++}
++
++static void diagnostic_metadata() {
++	setenv("NSPIRE_TRACE", "1", 1);
++	unsigned missing = 0;
++	for(unsigned scenario = 0; scenario < 6; ++scenario) {
++		reset();
++		auto handle = ready();
++		char request[] = "PRIVATE-DOCUMENT-CONTENT";
++		std::string log = capture_trace([&] {
++			if(scenario == 0) {
++				usb.writes.push_back({LIBUSB_ERROR_TIMEOUT, {}, 7});
++				CHECK(packet_send_cx2(&handle, request, sizeof request) == -NSPIRE_ERR_TIMEOUT);
++				CHECK(usb.bulk_calls == 1);
++			} else if(scenario == 1) {
++				CHECK(packet_send_cx2(&handle, request, sizeof request) == -NSPIRE_ERR_TIMEOUT);
++				CHECK(usb.bulk_calls == 2);
++			} else if(scenario == 2) {
++				for(int i = 0; i < 10; ++i) usb.reads.push_back({0, frame(EchoService | AckFlag)});
++				CHECK(packet_recv_cx2(&handle, request, sizeof request) == -NSPIRE_ERR_TIMEOUT);
++				CHECK(usb.bulk_calls == 10);
++			} else if(scenario == 3) {
++				NNSEMessage message{};
++				message.length = htons(sizeof message);
++				CHECK(writePacket(&handle.device, &message, std::chrono::steady_clock::now()) == -NSPIRE_ERR_TIMEOUT);
++				CHECK(usb.bulk_calls == 0);
++			} else if(scenario == 4) {
++				auto packet = frame(StreamService, {1, 2});
++				packet.resize(sizeof(NNSEMessage));
++				usb.reads.push_back({0, packet});
++				CHECK(packet_recv_cx2(&handle, request, sizeof request) == -NSPIRE_ERR_TIMEOUT);
++				CHECK(usb.bulk_calls == 2);
++			} else {
++				usb.auto_ack = true;
++				usb.reads.push_back({0, frame(EchoService | AckFlag)});
++				CHECK(packet_send_cx2(&handle, request, sizeof request) == 0);
++				CHECK(usb.bulk_calls == 3);
++			}
++		});
++		const char *fields[][3] = {
++			{"direction=out", "usb_status=-7", "transferred=7"},
++			{"phase=ack", "reason=read", "expected_seq="},
++			{"phase=receive", "reason=packet-limit", "remaining_ms="},
++			{"direction=out", "reason=deadline", "remaining_ms=0"},
++			{"direction=in", "phase=continuation", "requested=2"},
++			{"expected_seq=", "received_seq=", "matched=1"}
++		};
++		for(auto field : fields[scenario]) {
++			if(log.find(field) == std::string::npos) {
++				std::cerr << "diagnostic scenario " << scenario << ": missing " << field << '\n';
++				++missing;
++			}
++		}
++		CHECK(log.find("PRIVATE") == std::string::npos);
++		CHECK(log.find("50 52 49 56") == std::string::npos);
++	}
++	unsetenv("NSPIRE_TRACE");
++	reset();
++	auto handle = ready();
++	CHECK(capture_trace([&] {
++		char request = 1;
++		CHECK(packet_send_cx2(&handle, &request, 1) == -NSPIRE_ERR_TIMEOUT);
++	}).empty());
++	CHECK(missing == 0);
++}
++
+ static void error_strings() {
+ 	for(int i = 0; i < NSPIRE_ERR_MAX; i++)
+ 		CHECK(nspire_strerror(-i) != nullptr);
+@@ -921,7 +1012,7 @@ int main() {
+ 		ack_and_handshake_failures, send_errors_and_deadlines, packet_length_validation,
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+-		alternate_endpoint_traffic, oversized_stream_recovery, error_strings};
++		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

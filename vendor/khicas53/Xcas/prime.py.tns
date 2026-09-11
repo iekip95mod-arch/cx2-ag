@@ -1,0 +1,10 @@
+def isprimep(x):
+  if x==2 or x==3 or x==5:
+    return True
+  if x%2==0 or x%3==0 or x%5==0:
+    return False
+  for k in range(6,x,6):
+    if k*k>x:
+      return True
+    if x % (k+1) ==0 or x % (k+5)==0:
+      return False

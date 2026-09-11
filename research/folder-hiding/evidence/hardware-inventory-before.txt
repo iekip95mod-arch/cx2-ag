@@ -1,0 +1,31 @@
+conceal	ArmBoot.tns
+preserve	Examples
+preserve	Examples/Getting Started Python.tns
+preserve	Examples/Getting Started.tns
+conceal	HideAll.tns
+conceal	Inventory.tns
+conceal	InventoryReport.tns
+preserve	MyLib
+conceal	MyLib/khicas.tns
+preserve	MyLib/linalg.tns
+preserve	MyLib/numtheory.tns
+preserve	MyWidgets
+preserve	MyWidgets/stopwatch.tns
+conceal	NspireLogs.zip
+preserve	PyLib
+preserve	PyLib/ti_hub.tns
+preserve	PyLib/ti_image.tns
+preserve	PyLib/ti_plotlib.tns
+preserve	PyLib/ti_rover.tns
+preserve	PyLib/ti_system.tns
+conceal	Relocate.tns
+conceal	Xcas
+conceal	calc_helpers.luax.tns
+conceal	documents
+conceal	ndless
+conceal	ndless_resources_custom.tns
+conceal	nps_v4.tns
+conceal	persistent_custom.tns
+preserve	test_app.tns
+preserve	themes.csv
+action=0 rc=0 message=

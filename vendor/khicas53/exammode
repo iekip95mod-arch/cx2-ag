@@ -1,0 +1,38 @@
+Running KhiCAS in exam mode works only with OS 5.2. If you have OS 5.3, you must
+first downgrade your OS version with backSpire
+https://tiplanet.org/forum/viewtopic.php?f=43&t=25952
+
+==========
+! Beware !
+==========
+It is the user responsability to ensure that CAS is allowed during exam.
+
+====================
+Entering exam mode
+====================
+Open KhiCAS shell, either run khicas.tns or from khicaslua.tns type * enter.
+Type the calculator key (between esc and tab) then the e^x key.
+KhiCAS will check all files in the ndless directory and copy the required ressources
+in the exam directory mode. This take some time, you can accelerate it by keeping
+only one khicas.tns or luagiac.luax.tns and by deleting ressource files that do not
+correspond to your OS. Once the copy is finished, the calculator reboots in exam mode.
+If the calculator is off and does not reboot, press the Reset button.
+Once reboot is finished, you will have to activate ndless, then you can run KhiCAS.
+The whole process takes up to 2 minutes.
+Note that the calculator reboots from time to time at the ndless activation step.
+Don't panic, leave the calc reboot and activate ndless again.
+
+If you need to reactivate exam mode: from KhiCAS shell, press the calculator key then e^x key
+and confirm. KhiCAS will clear all files in the exam mode directory except the ressources
+required to run KhiCAS. Then LEDs are set to off. You are left in restricted mode, no
+save, no load. Leaving KhiCAS will reboot the calculator and restart the LEDs.
+
+========
+Warning:
+========
+If you run OFF then Esc-ON then Reinit exam mode, this will not keep the ressources
+required to run KhiCAS. Educational institutions that forbid CAS in exam might ask
+their students to reinitialize pure TI exam mode that way.
+
+Institutions that do not want to allow KhiCAS in exam mode can ask students to
+reset the calculator, then OFF esc-ON then restart exam mode.

@@ -1,0 +1,21 @@
+problem: find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+variable: v
+outcome: resource exceeded
+detail: step limit
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.kinematics.constant-acceleration.one-dimension
+  envelope version: <not recorded>
+  normalized problem: v
+  requested method: select an equation, substitute in SI, solve as a linear equation
+  active assumption: acceleration is constant
+  active assumption: motion is along one axis, positive in the chosen direction
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, every quantity converted to SI before the equation is used; the answer is reported to the fewest significant figures among the measured givens, and nothing is rounded before then
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=1 branches<=64 backend<=32
+  derivation status: resource limit reached
+steps
+  none

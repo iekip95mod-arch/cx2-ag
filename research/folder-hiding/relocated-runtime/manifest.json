@@ -1,0 +1,30 @@
+{
+  "compile_definition": "NDLESS_RELOCATED",
+  "preferred_root": "/appdata/ndless",
+  "fallback_root": "/documents/ndless",
+  "root_selection": "Use appdata when its ndless_resources.tns passes stat, otherwise documents",
+  "startup_config_persistence": "Use the selected root",
+  "lua_module_search": ["/appdata/ndless", "OS documents directory"],
+  "patch_sha256": "32e9a98047013168d9af1bb13a4b6afe3d1e89c073845f0731971ba995f38d9f",
+  "build_script_sha256": "bb54f860af498ebcb83aab9974903a75900cf508d56b54abd0e82bf28cc4ca6b",
+  "artifacts": {
+    "ndless_resources.tns": {
+      "bytes": 196680,
+      "sha256": "c665ea6d61cca466cdd3db62224806c898ca533bf487e363fc3389fd2805a91a"
+    },
+    "persistent.tns": {
+      "bytes": 4229,
+      "sha256": "c6b20c007cc0d81217acada1deb06591b13496261b934ebcb4ed8b9c3783a0e6"
+    },
+    "ndless_installer_4.5.5-6.2.0-6.4.0.tns": {
+      "bytes": 8490,
+      "sha256": "1c92098d2e112e6f20d6be78d0c77b9c7d2bda8a4eaf3d52aaeb461f6ff788af"
+    }
+  },
+  "validation": {
+    "clean_rebuild_identical": true,
+    "stock_persistent_loader_identical": true,
+    "configuration_asan_ubsan": "passed for stock and dual-location modes",
+    "device_and_emulator": "not tested by the build lane"
+  }
+}

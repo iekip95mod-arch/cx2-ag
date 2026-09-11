@@ -1,0 +1,200 @@
+From 3c8114edb13be676952c8d687e6c40ebc8589e40 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 23:39:38 -0400
+Subject: [PATCH 08/11] Suppress duplicate stream delivery
+
+---
+ src/cx2.cpp         |  16 ++++++-
+ src/handle.h        |   4 ++
+ tests/transport.cpp | 105 +++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 123 insertions(+), 2 deletions(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index abbf1dd..2da664c 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -330,7 +330,11 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 		return NSPIRE_ERR_SUCCESS;
+ 	}
+ 
+-	if(message->service == StreamService && nsp_handle->cx2_pending_count == NSPIRE_CX2_PENDING_CAPACITY)
++	auto &accepted = nsp_handle->cx2_accepted_stream[message->src][message->dest == AddrAll];
++	bool duplicate = message->service == StreamService && (message->reqAck & 8)
++		&& accepted.valid && accepted.sequence == ntohs(message->seqno);
++	if(message->service == StreamService && !duplicate
++		&& nsp_handle->cx2_pending_count == NSPIRE_CX2_PENDING_CAPACITY)
+ 		return -NSPIRE_ERR_NOMEM;
+ 
+ 	if(message->reqAck & 1)
+@@ -351,6 +355,13 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 			return ret;
+ 	}
+ 
++	if(duplicate) {
++		nspire_trace("transport phase=receive reason=accepted-retry source=0x%02x destination=0x%02x seq=%u",
++			static_cast<unsigned>(message->src), static_cast<unsigned>(message->dest),
++			static_cast<unsigned>(ntohs(message->seqno)));
++		return NSPIRE_ERR_SUCCESS;
++	}
++
+ 	switch(message->service & ~AckFlag)
+ 	{
+ 		case AddrReqService:
+@@ -441,6 +452,8 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 			pending.size = payload_size;
+ 			memcpy(pending.bytes, message->data, pending.size);
+ 			nsp_handle->cx2_pending_count++;
++			accepted.sequence = ntohs(message->seqno);
++			accepted.valid = true;
+ 			break;
+ 		}
+ 		default:
+@@ -460,6 +473,7 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 
+ 	nsp_handle->cx2_pending_head = 0;
+ 	nsp_handle->cx2_pending_count = 0;
++	memset(nsp_handle->cx2_accepted_stream, 0, sizeof nsp_handle->cx2_accepted_stream);
+ 	auto *handle = &nsp_handle->device;
+ 
+ 	const int maxlen = sizeof(NNSEMessage) + NSPIRE_CX2_MAX_PAYLOAD;
+diff --git a/src/handle.h b/src/handle.h
+index 6945daa..ad85b2c 100644
+--- a/src/handle.h
++++ b/src/handle.h
+@@ -40,6 +40,10 @@ struct nspire_handle {
+ 		uint8_t bytes[NSPIRE_CX2_MAX_PAYLOAD];
+ 	} cx2_pending[NSPIRE_CX2_PENDING_CAPACITY];
+ 	uint8_t cx2_pending_head, cx2_pending_count;
++	struct {
++		uint16_t sequence;
++		bool valid;
++	} cx2_accepted_stream[256][2];
+ };
+ 
+ #endif
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 6348cba..b237458 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -1094,6 +1094,109 @@ static void navnet_header_metadata() {
+ 	CHECK(missing == 0);
+ }
+ 
++static int receive_stream(nspire_handle &handle, uint8_t source, uint8_t destination,
++		uint16_t sequence, uint8_t flags) {
++	auto incoming = frame(StreamService, std::vector<unsigned char>(18, 0x71), flags);
++	auto *message = reinterpret_cast<NNSEMessage*>(incoming.data());
++	message->src = source;
++	message->dest = destination;
++	message->seqno = htons(sequence);
++	message->csum = 0;
++	message->csum = htons(compute_checksum(incoming.data(), incoming.size()) ^ 0xffff);
++	usb.reads.push_back({0, incoming});
++	unsigned char received[30];
++	message = reinterpret_cast<NNSEMessage*>(received);
++	auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++	int status = readPacket(&handle.device, message, sizeof received, deadline);
++	return status ? status : handlePacket(&handle, message, deadline);
++}
++
++static void accepted_stream_retransmissions() {
++	unsigned failed = 0;
++	auto expect = [&](bool condition, const char *label) {
++		if(!condition) {
++			std::cerr << "stream retry: " << label << '\n';
++			++failed;
++		}
++	};
++	for(bool dequeued : {false, true}) {
++		reset();
++		auto handle = ready();
++		CHECK(receive_stream(handle, 0xff, 0xfe, 1900, 1) == 0);
++		if(dequeued) {
++			char received[18];
++			CHECK(packet_recv_cx2(&handle, received, sizeof received) == 0);
++			CHECK(received[0] == 0x71 && handle.cx2_pending_count == 0);
++		}
++		for(unsigned i = 0; i < 9; ++i)
++			CHECK(receive_stream(handle, 0xff, 0xfe, 1900, 9) == 0);
++		expect(handle.cx2_pending_count == (dequeued ? 0 : 1),
++			dequeued ? "accepted retry must not be delivered again after dequeue" :
++			"accepted retries must occupy only one queue slot");
++		CHECK(usb.bulk_calls == 20 && usb.write_services.size() == 10);
++		auto *ack = reinterpret_cast<const NNSEMessage*>(usb.last_write.data());
++		CHECK(ack->src == 0xfe && ack->dest == 0xff && ntohs(ack->seqno) == 1900 && ack->reqAck == 8);
++	}
++	reset();
++	auto handle = ready();
++	CHECK(receive_stream(handle, 0xff, 0xfe, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == 1, "first observed retry must be delivered");
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 1) == 0);
++	CHECK(receive_stream(handle, 0xff, 0xff, 1900, 1) == 0);
++	CHECK(receive_stream(handle, 0xff, 0xfe, 1900, 9) == 0);
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 9) == 0);
++	CHECK(receive_stream(handle, 0xff, 0xff, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == 3, "source and destination histories must remain independent");
++	reset();
++	handle = ready();
++	CHECK(receive_stream(handle, 1, 0xfe, 65535, 1) == 0);
++	CHECK(receive_stream(handle, 1, 0xfe, 0, 9) == 0);
++	CHECK(receive_stream(handle, 1, 0xfe, 0, 9) == 0);
++	expect(handle.cx2_pending_count == 2, "sequence wrap must accept the new retry once");
++	auto queued = handle.cx2_pending_count;
++	CHECK(receive_stream(handle, 1, 0xfe, 0, 1) == 0);
++	expect(handle.cx2_pending_count == queued + 1, "an unflagged packet is not a retry");
++	reset();
++	handle = ready();
++	usb.writes.push_back({LIBUSB_ERROR_TIMEOUT, {}});
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 1) == -NSPIRE_ERR_TIMEOUT);
++	CHECK(handle.cx2_pending_count == 0);
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == 1, "failed ACK must not mark a packet accepted");
++	usb.writes.push_back({LIBUSB_ERROR_TIMEOUT, {}});
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 9) == -NSPIRE_ERR_TIMEOUT);
++	expect(handle.cx2_pending_count == 1, "failed duplicate ACK must retain the accepted packet");
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == 1, "retry after duplicate ACK failure must not redeliver");
++	reset();
++	handle = ready();
++	for(unsigned i = 0; i < NSPIRE_CX2_PENDING_CAPACITY; ++i)
++		CHECK(receive_stream(handle, static_cast<uint8_t>(i), 0xfe, 1900, 1) == 0);
++	int calls = usb.bulk_calls;
++	expect(receive_stream(handle, 0, 0xfe, 1900, 9) == 0,
++		"accepted duplicate must be ACKed even with a full queue");
++	expect(usb.bulk_calls == calls + 2 && handle.cx2_pending_count == NSPIRE_CX2_PENDING_CAPACITY,
++		"full queue duplicate must not add an entry or skip its ACK");
++	CHECK(receive_stream(handle, 20, 0xfe, 1900, 9) == -NSPIRE_ERR_NOMEM);
++	char received[18];
++	CHECK(packet_recv_cx2(&handle, received, sizeof received) == 0);
++	CHECK(receive_stream(handle, 20, 0xfe, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == NSPIRE_CX2_PENDING_CAPACITY,
++		"queue refusal must not mark an unseen retry accepted");
++	reset();
++	handle = ready();
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 1) == 0);
++	auto other = ready();
++	CHECK(receive_stream(other, 1, 0xfe, 1900, 9) == 0);
++	expect(other.cx2_pending_count == 1, "accepted state must belong to one handle");
++	handle.cx2_handshake_complete = false;
++	usb.reads.push_back({0, frame(TimeService, {0})});
++	CHECK(assureReady(&handle) == 0);
++	CHECK(receive_stream(handle, 1, 0xfe, 1900, 9) == 0);
++	expect(handle.cx2_pending_count == 1, "new handshake must clear prior accepted state");
++	CHECK(failed == 0);
++}
++
+ static void error_strings() {
+ 	for(int i = 0; i < NSPIRE_ERR_MAX; i++)
+ 		CHECK(nspire_strerror(-i) != nullptr);
+@@ -1113,7 +1216,7 @@ int main() {
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+ 		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata,
+-		handshake_frame_metadata, navnet_header_metadata};
++		handshake_frame_metadata, navnet_header_metadata, accepted_stream_retransmissions};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

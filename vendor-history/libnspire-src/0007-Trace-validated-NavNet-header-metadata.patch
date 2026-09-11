@@ -1,0 +1,87 @@
+From 879f1052ed96e9f347f6348b0c9571ed40bc8d56 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 23:15:08 -0400
+Subject: [PATCH 07/11] Trace validated NavNet header metadata
+
+---
+ src/cx2.cpp         | 11 +++++++++++
+ tests/transport.cpp | 34 +++++++++++++++++++++++++++++++++-
+ 2 files changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index 692d0ec..abbf1dd 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -233,6 +233,17 @@ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, Pa
+ 		static_cast<unsigned>(message->service), static_cast<unsigned>(message->src),
+ 		static_cast<unsigned>(message->dest), static_cast<unsigned>(ntohs(message->seqno)),
+ 		static_cast<unsigned>(completeLength), static_cast<unsigned>(message->reqAck));
++	if(nspire_trace_enabled() && message->service == StreamService
++		&& completeLength >= sizeof(NNSEMessage) + 16
++		&& message->data[0] == 0x54 && message->data[1] == 0xfd) {
++		const uint8_t *header = message->data;
++		auto word = [header](size_t offset) {
++			return (static_cast<unsigned>(header[offset]) << 8) | header[offset + 1];
++		};
++		nspire_trace("transport phase=navnet-header magic=0x%04x source=0x%04x source_service=0x%04x destination=0x%04x destination_service=0x%04x data_size=%u ack=0x%02x seq=%u",
++			word(0), word(2), word(4), word(6), word(8), static_cast<unsigned>(header[12]),
++			static_cast<unsigned>(header[13]), static_cast<unsigned>(header[14]));
++	}
+ 	return NSPIRE_ERR_SUCCESS;
+ }
+ 
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 5402d0e..6348cba 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -1062,6 +1062,38 @@ static void handshake_frame_metadata() {
+ 	CHECK(missing == 0);
+ }
+ 
++static void navnet_header_metadata() {
++	setenv("NSPIRE_TRACE", "1", 1);
++	const std::vector<unsigned char> header{0x54, 0xfd, 0x64, 0x01, 0x40, 0x03,
++		0x64, 0x00, 0x80, 0x12, 0xab, 0xcd, 2, 0x0a, 0x47, 0x38};
++	unsigned missing = 0;
++	for(unsigned scenario = 0; scenario < 3; ++scenario) {
++		bool complete = scenario != 0;
++		reset();
++		auto handle = ready();
++		auto incoming = header;
++		if(complete) incoming.insert(incoming.end(), {0x58, 0x59});
++		else incoming.pop_back();
++		if(scenario == 2) incoming[0] = 0;
++		usb.reads.push_back({0, frame(StreamService, incoming, 1)});
++		std::string log = capture_trace([&] {
++			char received[18]{};
++			CHECK(packet_recv_cx2(&handle, received, sizeof received) == sizeof received - incoming.size());
++			CHECK(memcmp(received, incoming.data(), incoming.size()) == 0);
++			CHECK(usb.bulk_calls == 2);
++		});
++		const char *expected = "transport phase=navnet-header magic=0x54fd source=0x6401 source_service=0x4003 destination=0x6400 destination_service=0x8012 data_size=2 ack=0x0a seq=71";
++		if(scenario == 1 && log.find(expected) == std::string::npos) {
++			std::cerr << "NavNet diagnostic missing " << expected << '\n';
++			++missing;
++		}
++		if(scenario != 1) CHECK(log.find("phase=navnet-header") == std::string::npos);
++		CHECK(log.find("XY") == std::string::npos && log.find("58 59") == std::string::npos);
++	}
++	unsetenv("NSPIRE_TRACE");
++	CHECK(missing == 0);
++}
++
+ static void error_strings() {
+ 	for(int i = 0; i < NSPIRE_ERR_MAX; i++)
+ 		CHECK(nspire_strerror(-i) != nullptr);
+@@ -1081,7 +1113,7 @@ int main() {
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+ 		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata,
+-		handshake_frame_metadata};
++		handshake_frame_metadata, navnet_header_metadata};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

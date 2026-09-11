@@ -1,0 +1,3 @@
+bridge backup /appdata/ndless/calc_helpers.backup0001.luax.tns
+bridge installed /appdata/ndless/calc_helpers.luax.tns
+runtime probe mode=0 rc=0

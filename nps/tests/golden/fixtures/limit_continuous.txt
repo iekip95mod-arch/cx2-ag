@@ -1,0 +1,30 @@
+problem: limit(x^2,x,2)
+result: 4
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.limit.single-variable
+  envelope version: 1
+  normalized problem: limit((x^2), x, 2)
+  requested method: limit
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Substitute at a continuous point
+    rule: limit.continuity, Substitute at a continuous point
+    claim: equivalent expression
+    explanation: Every supported operation is continuous at the approach point
+    detail: Direct substitution determines a limit only when the expression is continuous at the approach point. Check denominators and real function domains before substituting.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Replace x with 2
+    before: limit((x^2), x, 2)
+    after: 4
+    reversible: no
+    verification: rule-local invariant, passed, Every supported operation is continuous at the approach point
+    verified: yes

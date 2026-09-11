@@ -1,0 +1,16 @@
+{
+  "device": {"model": "TI-Nspire CX II non-CAS", "hardware": "0x1d", "os": "6.40.74", "boot1": "5.0.42", "boot2": "6.20.7"},
+  "inventory": "hardware-inventory-before.txt",
+  "inventory_rc": 0,
+  "migration_started": false,
+  "files": [
+    {"device_path": "/nps_v4.tns", "backup": "hardware-before-nps_v4.tns", "bytes": 22786, "sha256": "972883547dc5e9e6b21cfbff75d11932c780a2a260d39c3e221645938222d5ab"},
+    {"device_path": "/ndless/nps_nspire.luax.tns", "backup": "hardware-before-nps_nspire.luax.tns", "bytes": 3963194, "sha256": "bf6d1563b1e32d9c681630b437b71b055636086ab14f4b17b018cb6d3f2db734"},
+    {"device_path": "/MyLib/khicas.tns", "backup": "hardware-before-khicas.tns", "bytes": 4138955, "sha256": "1d6f9dd8a543c136da99b8307d3540cd25f66838df8c72b9fcb65ec2c1b1f880"},
+    {"device_path": "/Xcas/session.xw.tns", "backup": "hardware-before-session.xw.tns", "bytes": 264, "sha256": "efde97ebde383f57698e2ba4ced7b439fc7c45e72620b276a661c8a81cfdb365"},
+    {"device_path": "/ndless/startup/keysvc.tns", "backup": "hardware-before-keysvc.tns", "bytes": 61896, "sha256": "d965f83e4fd999e3e9668946ca03fd56e30b991e160b68bd0a5c3c5616f15b6f"},
+    {"device_path": "/ndless/ndless.cfg.tns", "backup": "hardware-before-ndless.cfg.tns", "bytes": 28, "sha256": "6230b22ad7502ea509714eb0e8d2bb665d2f81bd8b60a921814aa02f250afc7f"},
+    {"device_path": "/MyLib/linalg.tns", "backup": "hardware-before-linalg.tns", "bytes": 8532, "sha256": "c354985624347c4be01467ded6e2eb55a47711f55ec34384a52b30dbc8e0c22e"},
+    {"device_path": "/test_app.tns", "backup": "hardware-before-test_app.tns", "bytes": 2078, "sha256": "37f072d50b665eeeff4a0602ee0b66d16c11e638020669aa4aa59f8a969599e4"}
+  ]
+}

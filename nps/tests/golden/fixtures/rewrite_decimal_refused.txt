@@ -1,0 +1,19 @@
+problem: 1.5 + 2
+variable: simplify
+outcome: unsupported form
+detail: this rule works on exact numbers, and a decimal would have to become a fraction or stay a decimal, which is a choice it does not make
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.polynomial-rewrite.single-expression
+  envelope version: <not recorded>
+  normalized problem: (1.5 + 2)
+  requested method: simplify
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

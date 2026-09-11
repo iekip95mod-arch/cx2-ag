@@ -1,0 +1,13 @@
+diff --git a/../core/armsnippets.h b/armsnippets.h
+index dc72707..dbb2d3e 100644
+--- a/../core/armsnippets.h
++++ b/armsnippets.h
+@@ -24,7 +24,7 @@ struct armloader_load_params {
+         uint32_t v; // simple value
+     };
+ };
+-void armloader_cb(void);
++bool armloader_cb(void);
+ bool armloader_load_snippet(enum SNIPPETS snippet, struct armloader_load_params params[], unsigned params_num, void (*callback)(struct arm_state *));
+ 
+ /* True when the guest is on the task Ndl runs programs on, so a snippet ending in an swi can be

@@ -1,0 +1,4 @@
+snippet: matched return pc 10001000 sp 1000ffc0 after 0 foreign hits
+FAIL CPU preserves reentrant same-site successor flag
+FAIL CPU dispatch invokes successor
+7 CPU checks, 2 failures

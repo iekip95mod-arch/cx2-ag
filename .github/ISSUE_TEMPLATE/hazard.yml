@@ -1,0 +1,38 @@
+name: Hazard
+description: Not yet a failure, but a way one becomes reachable
+labels: [hazard]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A hazard is a reading, not a run. Say plainly that nothing failed yet, and say what would
+        have to change for it to start failing.
+  - type: input
+    id: location
+    attributes:
+      label: File and line
+      placeholder: nps/src/platform/nspire/lua_module.cc:88
+    validations:
+      required: true
+  - type: textarea
+    id: mechanism
+    attributes:
+      label: How a failure becomes reachable
+      description: The path from the current code to a real failure. Name what currently prevents it.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What you checked
+      description: What you read or ran to conclude this. If you ran nothing, write that.
+    validations:
+      required: true
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

@@ -1,0 +1,7 @@
+Embedded Template Library
+Upstream: https://github.com/ETLCPP/etl
+Version: 20.49.0
+Revision: 7d604f2e4f7fa79ff49bf675c089656943f9171b
+Source archive SHA-256: 41c8fd4ba45f414614efa6513f3b46fba5beddf3f2e9733f61e9350f08a5527e
+License: MIT. See LICENSE.
+Integration: Unmodified upstream headers. The parent build supplies the no-profile configuration.

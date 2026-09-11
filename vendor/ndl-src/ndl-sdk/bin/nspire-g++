@@ -1,0 +1,8 @@
+#!/bin/sh
+# Caution, must be kept compatible with dash used by some Linux distros.
+
+NDL="$(nspire-tools path)"
+export PATH="$(nspire-tools _toolchainpath):$PATH"
+
+home="${USERPROFILE:-$HOME}"
+exec arm-none-eabi-g++ -mcpu=arm926ej-s -D _TINSPIRE -fuse-ld=gold "$@" -I "$home/.ndl/include" -I "${NDL}/include" -I "${NDL}/include/freetype2"

@@ -1,0 +1,2168 @@
+[
+  {
+    "title": "Start here",
+    "subtitle": "What this manual covers and how to use it",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "This is a practical guide to StepCAS, the nps application presented through Ki V4 on the TI-Nspire CX II. It starts with the keys and follows the ordinary tasks of entering mathematics, reading explanations and saving work. You do not need to know Lua, C++ or how the calculator was built."
+      },
+      {
+        "kind": "p",
+        "text": "Read Your first session if the app is already installed. Use Opening StepCAS if you are at the Home screen. The command reference near the end is for looking things up after you have tried the tutorials."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Name you may see",
+          "What it means"
+        ],
+        "rows": [
+          [
+            "TI-Nspire CX II",
+            "The physical calculator and its built-in operating system."
+          ],
+          [
+            "nps / StepCAS",
+            "Our application and its mathematical walkthrough engine."
+          ],
+          [
+            "Ki V4 / nps_v4",
+            "The document that displays the entry line, history and walkthroughs."
+          ],
+          [
+            "Giac / KhiCAS",
+            "The algebra engine used for ordinary calculations and some checks."
+          ],
+          [
+            "ndl / older ndless labels",
+            "The runtime that allows the native module to run."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Edition and evidence",
+        "text": "Prepared 9 September 2026 from the current working source. This is an unreleased development build, not a promise that every feature is on your installed package. The pictures use retained emulator captures and TI product photographs. Annotated plates are teaching illustrations. They are not new photos of your handheld or proof of a fresh device test."
+      },
+      {
+        "kind": "p",
+        "text": "Expected answers in the lessons are mathematical targets. Equivalent algebraic forms are acceptable. A screenshot can show older wording while the nearby instructions describe the current source. The manual covers everyday calculator use and the current StepCAS interface. Advanced TI applications and the much larger Giac command library have their own linked references."
+      }
+    ]
+  },
+  {
+    "title": "Your first session",
+    "subtitle": "Get one result, open its explanation and return to the entry line",
+    "blocks": [
+      {
+        "kind": "steps",
+        "items": [
+          "Turn on the calculator with Home / On. Choose Browse under Documents and open the installed StepCAS document, usually named nps_v4.",
+          "Wait for the application to finish loading. A Giac OK message identifies the algebra engine. Read any dependency or integrity error before proceeding.",
+          "Select the entry box at the bottom. Type !s 2*x+3=11 and press Enter. The exclamation mark is available from the punctuation palette.",
+          "Look for the answer x = 4. In the step list, use Up and Down to select a step. Press Enter to open its explanation.",
+          "Press Shift+Tab to switch between Standard and Beginner detail. Beginner gives more explanation. It does not change the answer.",
+          "Press Escape once to return to the list and again to return to the entry screen. Save the document with Ctrl+S."
+        ]
+      },
+      {
+        "kind": "code",
+        "text": "!s 2*x+3=11"
+      },
+      {
+        "kind": "note",
+        "title": "What you should understand",
+        "text": "Subtracting 3 from both sides gives 2*x = 8. Dividing both sides by 2 gives x = 4. Substituting 4 into the original left side gives 11."
+      },
+      {
+        "kind": "figure",
+        "name": "shell",
+        "caption": "Annotated retained emulator captures. The bottom box accepts input. The old “Type * to enter shell” message opens an additional native shell, which is not needed for this lesson.",
+        "height": 220
+      }
+    ]
+  },
+  {
+    "title": "Meet the calculator",
+    "subtitle": "Find the physical controls before learning shortcuts",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "keypad",
+        "caption": "Annotated TI product photo. The white calculator is the CX II. The darker model behind it is a CAS model. Their built-in symbolic capabilities differ.",
+        "height": 310
+      },
+      {
+        "kind": "p",
+        "text": "Press the outer edges of the touchpad for Up, Down, Left and Right. Sliding a finger moves the pointer. The center click selects an item. For a first lesson, the directional edges and Enter are easier to control than pointer movement."
+      },
+      {
+        "kind": "p",
+        "text": "Ctrl is blue. Hold it while pressing another key to use that key’s blue function. Shift changes the next character or activates a shifted shortcut. A shortcut written Ctrl+S means hold Ctrl, press S, then release."
+      },
+      {
+        "kind": "note",
+        "title": "You are using two layers",
+        "text": "Home and Doc belong to the calculator system. StepCAS supplies its own entry screen, menu and walkthrough controls. A key can do different things in those places. The screen’s footer is the best immediate reminder."
+      },
+      {
+        "kind": "p",
+        "text": "Source: TI Handheld Keys and Keyboard Shortcuts [T1, T2]."
+      }
+    ]
+  },
+  {
+    "title": "The everyday keys",
+    "subtitle": "A small set is enough for most work",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Key",
+          "Use"
+        ],
+        "rows": [
+          [
+            "Home / On",
+            "Power on or return to the system Home screen."
+          ],
+          [
+            "Ctrl + Home / On",
+            "Power off. Save the current document first."
+          ],
+          [
+            "Doc",
+            "Open the system document menu."
+          ],
+          [
+            "Menu",
+            "Open commands for the current application."
+          ],
+          [
+            "Enter",
+            "Confirm a choice. In the StepCAS entry box, submit the expression."
+          ],
+          [
+            "Escape",
+            "Dismiss a menu or go back in the current view."
+          ],
+          [
+            "Tab",
+            "Move between fields. Inside a StepCAS hint walkthrough, reveal more work."
+          ],
+          [
+            "Shift + Tab",
+            "Move backward through fields. In a StepCAS walkthrough, change explanation detail."
+          ],
+          [
+            "Del",
+            "Delete the character before the cursor in an editable field."
+          ],
+          [
+            "Ctrl + Del",
+            "Clear the focused input. When history is focused, StepCAS can delete that entry."
+          ],
+          [
+            "Ctrl + S",
+            "Save the current document."
+          ],
+          [
+            "Ctrl + C / V",
+            "Copy or paste when an editable selection has focus."
+          ],
+          [
+            "Ctrl + Z",
+            "Request Undo in an editor that supports it. It does not undo a completed mathematical derivation."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Escape is not a reset button",
+        "text": "In step details, Escape returns to the list. From the step list it returns to the entry screen. Use Home to reach the calculator Home screen. Do not use Ctrl+Escape as a universal “back” shortcut. Its behavior is context dependent."
+      },
+      {
+        "kind": "p",
+        "text": "For punctuation such as !, quotes and a colon, open the punctuation palette. For square brackets, use the blue bracket function with Ctrl and the parenthesis key. Move the cursor out of a fraction or exponent before typing the next argument."
+      },
+      {
+        "kind": "p",
+        "text": "Sources: [T1, T2] and current StepCAS event handling."
+      }
+    ]
+  },
+  {
+    "title": "Opening StepCAS",
+    "subtitle": "Start from Home and choose the document",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "home",
+        "caption": "Annotated TI photograph showing Browse, Current and Home / On. This is the system Home screen, not the StepCAS menu.",
+        "height": 290
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Press Home. Under Documents, choose Browse. Use Up and Down to highlight a folder and Enter to open it.",
+          "Open the folder containing the installed StepCAS document. The current project layout uses an nps folder. Earlier installations used other folders.",
+          "Select nps_v4 and press Enter. The calculator may hide the .tns extension. Select the document, not the nps_nspire.luax module.",
+          "If StepCAS is already open, use Current from Home. Recent can also help you find the document."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "If the file is missing",
+        "text": "Do not rename an installer or module to make it look like the document. Use the installation checklist in this manual. The app needs a matching document, native module and integrity sidecars."
+      },
+      {
+        "kind": "p",
+        "text": "Sources: TI Home and document navigation [T3, T4]."
+      }
+    ]
+  },
+  {
+    "title": "Installation and version checks",
+    "subtitle": "Recognize the package before changing anything",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "This manual assumes a working runtime installation. Setting up or repairing ndl depends on the handheld model and operating-system version. A generic OS update or installer sequence is not safe to assume for this development setup."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Current project layout",
+          "Purpose"
+        ],
+        "rows": [
+          [
+            "/nps/nps_v4.tns",
+            "The document you open. Keep its accompanying sidecar."
+          ],
+          [
+            "/nps/runtime/nps_nspire.luax.tns",
+            "The unified native module. Keep its accompanying sidecar."
+          ],
+          [
+            "/ndl",
+            "Runtime resources and installation files. These are not ordinary worksheet files."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Older captures use ndless folder names. Those pictures help identify the browser, but they are not an installation manifest for the current package."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "On the calculator, find Settings and Handheld Status to record the model and OS version.",
+          "Open StepCAS and type !m on its own line. Record the displayed package and backend information.",
+          "If the app reports a missing export, incompatible module or failed integrity check, preserve the exact message. Replace the package only with a matching prepared set.",
+          "Keep a backup of your documents before transferring or replacing application files."
+        ]
+      },
+      {
+        "kind": "code",
+        "text": "!m"
+      },
+      {
+        "kind": "note",
+        "title": "Do not repair a mismatch by trial and error",
+        "text": "Do not delete runtime folders, reset storage, install arbitrary firmware or mix old and new sidecars. A desktop build does not establish that a package loaded correctly on the handheld. Installation and persistence across a reboot need a device check."
+      },
+      {
+        "kind": "p",
+        "text": "Project reference: nps/README.md. TI status and transfer references: [T5, T6]."
+      }
+    ]
+  },
+  {
+    "title": "The entry screen and its menu",
+    "subtitle": "Where commands go and how results are kept",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "tool-palette-boxes.png",
+        "caption": "Retained emulator screenshot of the StepCAS palette. The down marker means more categories are below the visible list.",
+        "height": 225
+      },
+      {
+        "kind": "p",
+        "text": "The bottom box is the editable entry line. Earlier inputs and outputs occupy the history above it. The title nps_v4 identifies the document. The top system bar can show page numbers, angle mode and battery status."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Return to the entry screen with Escape before inserting a new command from a menu.",
+          "Press Menu. Use Up and Down to select a category and Enter to open it. Use Escape to back out.",
+          "Choose the command by its name. Many entries insert only the beginning of a call, such as diff(. Complete the expression, variable and closing parenthesis.",
+          "Review the input box before pressing Enter. A menu label describes the arguments but is not always a complete runnable example."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "The menu you see matters",
+        "text": "TI’s built-in Calculator menu is different from the StepCAS menu. StepCAS includes Physics, Templates and Steps. The separate native KhiCAS shell can have another menu layout."
+      },
+      {
+        "kind": "p",
+        "text": "Templates insert a starting structure for a fraction, power, root, derivative, integral or equation. A template helps you type. It does not guarantee that a native walkthrough exists for the resulting problem."
+      }
+    ]
+  },
+  {
+    "title": "Typing mathematics correctly",
+    "subtitle": "Use grouping and explicit arguments",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Meaning",
+          "Type",
+          "Watch for"
+        ],
+        "rows": [
+          [
+            "Multiply",
+            "2*x",
+            "Use * when you want to avoid ambiguous adjacency."
+          ],
+          [
+            "Divide a sum",
+            "(x+1)/(x-2)",
+            "Group the entire numerator and denominator."
+          ],
+          [
+            "Power",
+            "x^3",
+            "Use Right to leave the superscript slot."
+          ],
+          [
+            "Square a negative",
+            "(-3)^2",
+            "This is 9. The expression -(3^2) is -9."
+          ],
+          [
+            "Function",
+            "sin(x)",
+            "A function has parentheses around its argument."
+          ],
+          [
+            "Several arguments",
+            "diff(x^3,x)",
+            "The comma separates the expression and variable."
+          ],
+          [
+            "Equation",
+            "2*x+3=11",
+            "= states equality. It does not store a value."
+          ],
+          [
+            "List",
+            "[2,4,6]",
+            "Square brackets contain the list elements."
+          ],
+          [
+            "Matrix",
+            "[[1,2],[3,4]]",
+            "Each inner list is one row."
+          ],
+          [
+            "Range in a Giac plot",
+            "x=-5..5",
+            "Two dots separate the lower and upper bounds."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "The examples show the intended expression, not a promise that each printed character corresponds to a separate keypress. The native editor turns powers and fractions into two-dimensional slots. Look at the cursor before typing a comma, plus sign or closing parenthesis."
+      },
+      {
+        "kind": "note",
+        "title": "A useful input check",
+        "text": "Before Enter, count the arguments and check the grouping. For diff((x+1)/(x-2),x), the first comma comes after the whole fraction. If it is still in an exponent or denominator slot, use the arrow keys to leave that slot."
+      },
+      {
+        "kind": "p",
+        "text": "Use the negative-number key for a leading negative if the editor distinguishes it from subtraction. Use plain x for the variable rather than the multiplication symbol. Letter case can matter for stored names."
+      }
+    ]
+  },
+  {
+    "title": "History, copying and clearing",
+    "subtitle": "Reuse work without accidentally deleting it",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "History contains inputs and displayed outputs. Use Tab and the arrow keys to move focus from the entry line into history. The focused editor or highlighted entry tells you which item will receive an action."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Select the old input or output you want to reuse.",
+          "Press Enter to copy it into the entry line. This gives you an opportunity to edit before evaluating again.",
+          "Change the numbers or expression, then press Enter from the entry line to calculate.",
+          "For more control on a focused history item, open its context menu and choose Copy to Entry Line or Delete Entry."
+        ]
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Action",
+          "Effect"
+        ],
+        "rows": [
+          [
+            "Del inside the entry field",
+            "Removes the character before the cursor."
+          ],
+          [
+            "Ctrl+Del inside the entry field",
+            "Clears the current input."
+          ],
+          [
+            "Delete a history entry",
+            "Removes the selected input/output pair."
+          ],
+          [
+            "Actions > Clear History",
+            "Asks for confirmation before clearing all history. The current unentered input is preserved."
+          ],
+          [
+            "Actions > Restart CAS",
+            "Resets the algebra session. This is separate from clearing visible history."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Focus first",
+        "text": "Ctrl+Del is not harmless everywhere. In history it is an entry-deletion action. Check that the cursor is in the bottom input field before using it to clear a line."
+      },
+      {
+        "kind": "p",
+        "text": "History is not an archive of all derivation trees. The last retained walkthrough can be reopened with !! during the session. Saving and reopening the document preserves history text, but a walkthrough must be computed again."
+      }
+    ]
+  },
+  {
+    "title": "Read a walkthrough",
+    "subtitle": "Follow the answer, the evidence and the individual steps",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "results",
+        "caption": "Annotated retained captures. These show older heading wording. Current builds can show more explicit result classifications and detail labels.",
+        "height": 275
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Part of the screen",
+          "What to read"
+        ],
+        "rows": [
+          [
+            "Input",
+            "The problem that was submitted. A shortened preview may omit its end."
+          ],
+          [
+            "Answer",
+            "The result, if one is available and hints permit it to be shown."
+          ],
+          [
+            "Trust / status",
+            "Whether a check ran, whether it agreed and whether work is complete."
+          ],
+          [
+            "Assumptions",
+            "Conditions under which the mathematics or physical model applies."
+          ],
+          [
+            "Meaning",
+            "The physical interpretation, when the solver supplies one."
+          ],
+          [
+            "Step list",
+            "The plan, transformations, checks and cases that make up the explanation."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Select a step and press Enter. Current transformation details use Do for the operation, Write for the resulting expression and Why for its justification. They also retain the starting expression and conditions. Plans and checks show different information because they are different kinds of records."
+      },
+      {
+        "kind": "note",
+        "title": "Read the status before copying",
+        "text": "An answer supplied by Giac can coexist with some native steps. A visible value does not mean StepCAS produced a complete verified explanation of that value."
+      }
+    ]
+  },
+  {
+    "title": "Move through the steps",
+    "subtitle": "Select, expand and open the explanation you need",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "walkthrough",
+        "caption": "Annotated older emulator captures. The integral shown assumes x > 0. The plus and minus markers identify a folded or expanded group.",
+        "height": 270
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Where you are",
+          "Controls"
+        ],
+        "rows": [
+          [
+            "Step list",
+            "Up/Down selects steps. Left folds a group. Right expands it. On a row without children, Left/Right moves between steps."
+          ],
+          [
+            "One step open",
+            "Up/Down scrolls its explanation. Left/Right moves to another visible step."
+          ],
+          [
+            "Open details or result view",
+            "Enter or Escape returns to the list."
+          ],
+          [
+            "Step list",
+            "Escape returns to the entry screen."
+          ],
+          [
+            "List with pointer",
+            "Click once to select a row. Click the selected row again to open it."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "A group contains smaller steps. Folding it reduces clutter without deleting any mathematics. This is especially helpful for the product rule, quotient rule or a physics solution that contains an algebra calculation."
+      },
+      {
+        "kind": "note",
+        "title": "Nothing is recalculated when browsing",
+        "text": "Opening a detail page, folding a branch or changing the explanation level reads the existing result. If you want to solve a changed problem, return to the entry screen and submit the new input."
+      }
+    ]
+  },
+  {
+    "title": "Beginner detail and hint mode",
+    "subtitle": "Control how much explanation you see",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "Beginner detail and hint progression are separate settings. Beginner detail makes explanations fuller. Hint progression controls when the next part of the work and the final answer become visible."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "For fuller explanations, open a walkthrough and press Shift+Tab. Check the header for BEGINNER. Press it again to return to STANDARD.",
+          "For hints, return to the entry screen and enter !h on. You can also choose Steps > Hint walkthrough (Tab next).",
+          "Submit a supported problem, such as !s 2*x+3=11. Try the next operation on paper before pressing Tab.",
+          "Press Tab to reveal more work. Repeat until the walkthrough is fully exposed.",
+          "To return to full walkthroughs for subsequent requests, enter !h off or choose Steps > Full walkthrough (all steps)."
+        ]
+      },
+      {
+        "kind": "code",
+        "text": "!h on\n!s 2*x+3=11"
+      },
+      {
+        "kind": "note",
+        "title": "Hints are not an answer checker",
+        "text": "You do not enter your proposed next line into the walkthrough. It reveals recorded work. A parent step’s completed expression can stay hidden until its child work has been revealed."
+      },
+      {
+        "kind": "note",
+        "title": "Commands without native steps behave differently",
+        "text": "A Giac answer with no walkthrough can appear immediately. Hint mode cannot create missing steps or turn a limits command into a limit lesson."
+      },
+      {
+        "kind": "p",
+        "text": "If TAB result is displayed after the answer becomes available, Tab may open the complete result instead of advancing hints. Follow the footer and return to the list with Escape."
+      }
+    ]
+  },
+  {
+    "title": "Read long expressions and explanations",
+    "subtitle": "Use the complete text when a preview is too small",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "A calculator screen has limited space. A shortened input, crowded formula or trailing dots mean you may be looking at a preview. Do not copy an incomplete denominator, unit or condition from it."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Your location",
+          "Open the full content"
+        ],
+        "rows": [
+          [
+            "Walkthrough or guided physics browser",
+            "Press T, or use Actions > Read Full Text."
+          ],
+          [
+            "Entry screen or focused history",
+            "Use Actions > Read Full Text. The Help action also opens the reader."
+          ],
+          [
+            "Answer preview says TAB result",
+            "Press Tab to open the complete answer view when hint progression permits it."
+          ]
+        ]
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Open the full-text reader. Use Up and Down to scroll one line at a time.",
+          "Use Tab to move forward by a larger amount. Shift+Tab moves back.",
+          "Press Escape or Enter to close the reader and return to the originating view."
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Full Text favors readable, wrapped text over two-dimensional notation. It retains the whole expression. The answer view and step details can still use native math boxes when the expression fits."
+      },
+      {
+        "kind": "note",
+        "title": "Help has a special meaning inside a walkthrough",
+        "text": "There, Help changes Standard/Beginner detail. Use T when you specifically want Full Text. The reader respects hint withholding and does not reveal future steps."
+      },
+      {
+        "kind": "p",
+        "text": "Actions > Increase Font Size and Decrease Font Size adjust the shell/history font. The walkthrough has its own fitting rules. If increasing the font makes a history expression too large, use the full reader rather than assuming the expression was lost."
+      }
+    ]
+  },
+  {
+    "title": "Automatic commands and explicit modes",
+    "subtitle": "Know what the next press of Enter will do",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "A fresh document starts with automatic walkthrough recognition. Commands such as solve(...), diff(...) and int(...) are checked for a native explanation. Other ordinary expressions go to Giac. Saved preferences can change this starting behavior."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Input",
+          "Meaning"
+        ],
+        "rows": [
+          [
+            "!d x^3",
+            "Differentiate this expression once using the selected variable."
+          ],
+          [
+            "!i x^2",
+            "Integrate this expression once."
+          ],
+          [
+            "!s 2*x+3=11",
+            "Solve this equation once."
+          ],
+          [
+            "!k find v, v0=5 m/s, a=3 m/s^2, t=4 s",
+            "Solve this structured kinematics problem once."
+          ],
+          [
+            "!d",
+            "Select differentiation as the persistent mode for following input."
+          ],
+          [
+            "!i / !s / !k",
+            "Select integration, solving or kinematics in the same way."
+          ],
+          [
+            "!v t",
+            "Use t as the selected variable for prefix commands."
+          ],
+          [
+            "!g",
+            "Clear the selected solver mode and switch to plain Giac."
+          ],
+          [
+            "!!",
+            "Reopen the most recent retained walkthrough."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Return to ordinary automatic operation",
+        "text": "Enter !g on its own line. Then enter !h off on another line. The first clears a persistent solver mode. The second re-enables automatic recognition with full walkthroughs."
+      },
+      {
+        "kind": "code",
+        "text": "!g\n!h off\n!v x"
+      },
+      {
+        "kind": "p",
+        "text": "The commands above are separate submissions. !g is a mode switch, not a prefix that evaluates text after it. In a persistent !d mode, type x^3 rather than diff(x^3,x), because the whole following input is treated as the expression to differentiate."
+      }
+    ]
+  },
+  {
+    "title": "Arithmetic, fractions and decimal answers",
+    "subtitle": "Understand the number before changing its appearance",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Try in ordinary mode",
+          "Mathematical target"
+        ],
+        "rows": [
+          [
+            "2+3*4",
+            "14, because multiplication is performed before addition."
+          ],
+          [
+            "(2+3)*4",
+            "20, because parentheses change the grouping."
+          ],
+          [
+            "1/3+1/6",
+            "1/2, an exact fraction."
+          ],
+          [
+            "evalf(1/3)",
+            "A decimal approximation to one third."
+          ],
+          [
+            "sqrt(2)",
+            "An exact radical in Giac when exact evaluation is active."
+          ],
+          [
+            "evalf(sqrt(2))",
+            "Approximately 1.414213562."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "An exact answer represents the value without rounding. A decimal is often more convenient for measurement or plotting, but the final digits can be rounded. A fraction and its decimal approximation are not different solutions."
+      },
+      {
+        "kind": "p",
+        "text": "Use Number > Convert to Decimal or type evalf(...). Complete the argument and closing parenthesis. For teaching steps, start with integer values and exact fractions so you stay inside the widest supported walkthrough coverage."
+      },
+      {
+        "kind": "note",
+        "title": "There are separate numeric settings",
+        "text": "TI document settings, Giac settings and the native StepCAS numeric mode are not one shared switch. The current Ki V4 walkthrough calls use the native default Exact mode. A TI status-bar setting does not establish that a native request used Decimal mode."
+      },
+      {
+        "kind": "p",
+        "text": "Physics precision is another distinction. A supplied measured value can carry significant figures even while the internal arithmetic uses exact fractions. Keep the units and the original decimal places when entering a measurement."
+      }
+    ]
+  },
+  {
+    "title": "Solve equations",
+    "subtitle": "Find the unknown and check it in the original equation",
+    "blocks": [
+      {
+        "kind": "steps",
+        "items": [
+          "Return to ordinary automatic operation, or use the explicit !s prefix.",
+          "Enter solve(2*x+3=11,x). Read the answer and open the steps.",
+          "Check that the explanation subtracts 3 and divides by 2.",
+          "Substitute the answer into the original equation yourself: 2*4+3 = 11."
+        ]
+      },
+      {
+        "kind": "code",
+        "text": "solve(2*x+3=11,x)\n!s 3*x-6=0"
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Case",
+          "Expected meaning"
+        ],
+        "rows": [
+          [
+            "2*x+3=11",
+            "One solution: x = 4."
+          ],
+          [
+            "x+1=x+2",
+            "No solution. Cancelling x leaves an impossible equality."
+          ],
+          [
+            "2*x=2*x",
+            "Every value is a solution within the stated domain."
+          ],
+          [
+            "x^2=9",
+            "The pure-square family can return x = -3 and x = 3."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Current native coverage",
+        "text": "Linear equations in one unknown are supported. The separate quadratic family handles pure squares with exact rational roots, such as x^2=9. It does not establish a general quadratic-formula walkthrough for x^2+x-1=0 or a radical-root walkthrough for x^2=2."
+      },
+      {
+        "kind": "p",
+        "text": "Giac can solve more forms than the native teaching engine. When the app supplies a CAS answer, read that label. For an equation outside the teaching coverage, you can deliberately switch to !g and run solve(...), but the result is then ordinary CAS output."
+      }
+    ]
+  },
+  {
+    "title": "Rearrange, simplify, expand and factor",
+    "subtitle": "Choose the operation that matches your goal",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Goal",
+          "Example",
+          "Expected form"
+        ],
+        "rows": [
+          [
+            "Isolate a formula variable",
+            "rearrange(V=I*R,I)",
+            "I = V/R, with R not zero."
+          ],
+          [
+            "Combine like terms",
+            "simplify(2*x+3*x)",
+            "5*x."
+          ],
+          [
+            "Multiply out brackets",
+            "expand((x+1)*(x+2))",
+            "x^2+3*x+2."
+          ],
+          [
+            "Write a product",
+            "factor(x^2+5*x+6)",
+            "(x+2)*(x+3)."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Simplifying changes the form of an expression. Solving finds values that make an equation true. Factoring is useful for seeing products and zeros, but factor(...) by itself does not ask for an equation’s solution set."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Choose Algebra > Simplify, Expand or Factor. Complete the call and press Enter.",
+          "Open a transformation and read Do, Write and Why.",
+          "For a factorization, multiply the result back out to check that it matches the original expression."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Where the native explanation stops",
+        "text": "Formula rearrangement supports a single occurrence of the target symbol through supported inverse operations. Polynomial rewrite steps cover exact arithmetic, common factors and supported monic quadratic factoring. General rational simplification, decimal inputs, radicals and higher-degree factoring can exceed that coverage."
+      },
+      {
+        "kind": "p",
+        "text": "An expression already in the requested form can finish without a transformation. This is a valid outcome. Extra steps should not be invented just to make the list longer. Read any conditions introduced by division or reciprocals."
+      }
+    ]
+  },
+  {
+    "title": "Differentiate a function",
+    "subtitle": "Find a rate of change with named rules",
+    "blocks": [
+      {
+        "kind": "code",
+        "text": "diff(x^3,x)\n!d sin(x)\ndiff((x+1)/(x-2),x)"
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Use Calculus > Derivative or type diff(x^3,x). The first argument is the function. The second is the variable.",
+          "For x^3, expect 3*x^2. Open the power-rule step to see how the exponent is used.",
+          "Try a product or quotient and expand its group. The smaller steps calculate the derivatives needed by the main rule.",
+          "Read any domain restrictions. A denominator must remain nonzero where the formula is used."
+        ]
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Function",
+          "Mathematical derivative"
+        ],
+        "rows": [
+          [
+            "x^3",
+            "3*x^2"
+          ],
+          [
+            "sin(x)",
+            "cos(x), using radians"
+          ],
+          [
+            "exp(2*x)",
+            "2*exp(2*x)"
+          ],
+          [
+            "(x+1)/(x-2)",
+            "-3/(x-2)^2, for x not equal to 2"
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Which rules have native steps",
+        "text": "The implementation covers constants, the variable, sums, constant multiples, products, quotients, integer powers, the chain rule and supported sin, cos, tan, exp, ln and sqrt forms. Particular domains and input shapes can still cause a refusal."
+      },
+      {
+        "kind": "p",
+        "text": "Implicit differentiation, partial-derivative lessons and higher derivatives in a single request are outside the native walkthrough family. A different letter works when explicitly supplied, for example diff(t^3,t). For prefix entry, select it with !v t and restore !v x when finished."
+      },
+      {
+        "kind": "note",
+        "title": "About the input appearance",
+        "text": "The current input may show diff(...) as a function call. A stacked editable d/dx template is not established as working in this build. The textbook-style input discussed earlier has not been implemented by this manual."
+      }
+    ]
+  },
+  {
+    "title": "Integrate a function",
+    "subtitle": "Find an antiderivative and remember the constant",
+    "blocks": [
+      {
+        "kind": "code",
+        "text": "int(x^2,x)\nint(sin(x),x)\nint(exp(2*x),x)"
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Integrand",
+          "Mathematical antiderivative"
+        ],
+        "rows": [
+          [
+            "x^2",
+            "x^3/3 + C"
+          ],
+          [
+            "sin(x)",
+            "-cos(x) + C"
+          ],
+          [
+            "exp(2*x)",
+            "exp(2*x)/2 + C"
+          ],
+          [
+            "1/x",
+            "ln(x) + C on the stated x > 0 branch"
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "An indefinite integral describes a family of functions. C is the constant of integration. Differentiating C gives zero, so every value of that constant has the same derivative."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Choose Calculus > Integral and complete int(x^2,x).",
+          "Read the antiderivative and open the rule steps. The native integrator checks its answer by differentiating it.",
+          "For a linear argument such as exp(2*x), look for the substitution or scale correction.",
+          "Read the assumptions for reciprocal and logarithmic cases before using the answer."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Do not silently discard a domain condition",
+        "text": "The positive branch ln(x) is not a claim about negative x. The general real antiderivative of 1/x on intervals avoiding zero is ln(abs(x)) + C. Use the branch and conditions actually reported by StepCAS."
+      },
+      {
+        "kind": "note",
+        "title": "Current native limits",
+        "text": "The supported lessons include sums, constant multiples, integer powers, reciprocals and sin, cos or exp with supported linear arguments. Integration by parts, nonlinear substitution and general integrals involving tan, ln, sqrt or rational exponents are outside this family."
+      },
+      {
+        "kind": "p",
+        "text": "For a definite integral such as int(x^2,x,0,1), the expected value is 1/3. Definite-integral walkthroughs are not supported. Use ordinary Giac deliberately when you need the calculation and read the result as CAS output."
+      }
+    ]
+  },
+  {
+    "title": "Limits, sums and products",
+    "subtitle": "Use Giac for the value and recognize the absence of native lessons",
+    "blocks": [
+      {
+        "kind": "steps",
+        "items": [
+          "Enter !g on its own line to select ordinary Giac.",
+          "Enter a complete limit, sum or product expression from the examples below.",
+          "Check the approach value, index and bounds carefully.",
+          "When finished, enter !h off to restore automatic full walkthrough recognition."
+        ]
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Type",
+          "Meaning",
+          "Mathematical target"
+        ],
+        "rows": [
+          [
+            "limit(sin(x)/x,x,0)",
+            "Approach zero from both sides, in radians.",
+            "1"
+          ],
+          [
+            "limit((x^2-1)/(x-1),x,1)",
+            "Approach the removable hole at x=1.",
+            "2"
+          ],
+          [
+            "limit(1/x,x,0,1)",
+            "Approach zero from the right.",
+            "Positive infinity"
+          ],
+          [
+            "limit(1/x,x,0,-1)",
+            "Approach zero from the left.",
+            "Negative infinity"
+          ],
+          [
+            "sum(2^(-n),n,1,10)",
+            "Add terms n=1 through n=10.",
+            "1023/1024"
+          ],
+          [
+            "product(n,n,1,4)",
+            "Multiply 1, 2, 3 and 4.",
+            "24"
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "A limit asks what values are approached. It does not necessarily ask for the value at the point itself. In the second example, the original fraction is undefined at x=1 even though the limit exists."
+      },
+      {
+        "kind": "note",
+        "title": "Native limit walkthroughs are not implemented",
+        "text": "The Calculus menu exposes limit(...) through Giac. It does not provide a limit-rule derivation, a continuity lesson or L’Hopital steps. The sum and product examples here are also ordinary CAS calculations."
+      },
+      {
+        "kind": "p",
+        "text": "Use the word infinity for an infinite bound in Giac syntax. An unevaluated expression is not a proof that a limit or sum does not exist. Check the command, domain and backend response. Source for Giac limit direction and sequence syntax: [G1, G2]."
+      }
+    ]
+  },
+  {
+    "title": "Guided physics",
+    "subtitle": "Start with a supplied problem before entering your own model",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "physics",
+        "caption": "Annotated retained emulator captures of the Physics menu and guided browser. Current labels are matched against the source.",
+        "height": 285
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Return to the entry screen. Choose Menu > Physics > Guided physics problems.",
+          "Use Up and Down to select an example. Read the description at the bottom. Press T if it is shortened.",
+          "Press Enter to run the selected example. It opens the usual walkthrough viewer.",
+          "Use Escape to return to the entry screen. Reopen the Physics browser from its menu when you want another example."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "These are supplied examples",
+        "text": "The browser is not a general editable physics worksheet. Its stored examples cover unit conversion, density, kinematics, vectors, work, components, an incompatible-unit refusal, catch-up and relative motion. The selected example runs with its prepared quantities."
+      },
+      {
+        "kind": "p",
+        "text": "For your own one-dimensional kinematics numbers, use the Physics menu templates or !k input described next. Other structured solver capabilities exist in the native interface but do not all have general input forms in the current document."
+      }
+    ]
+  },
+  {
+    "title": "Enter your own motion problem",
+    "subtitle": "Use constant acceleration along one axis",
+    "blocks": [
+      {
+        "kind": "code",
+        "text": "!k find v, v0 = 5 m/s, a = 3 m/s^2, t = 4 s"
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Symbol",
+          "Meaning",
+          "Typical unit"
+        ],
+        "rows": [
+          [
+            "v0",
+            "Initial velocity at the start of the interval",
+            "m/s"
+          ],
+          [
+            "v",
+            "Final velocity",
+            "m/s"
+          ],
+          [
+            "a",
+            "Constant acceleration",
+            "m/s^2"
+          ],
+          [
+            "t",
+            "Elapsed time",
+            "s"
+          ],
+          [
+            "x",
+            "Displacement along the chosen axis",
+            "m"
+          ]
+        ]
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Decide which direction is positive. Write the unknown after find.",
+          "Enter the known quantities with units. Separate quantities with commas or the supported semicolon syntax.",
+          "Press Enter. Read the assumptions and the chosen equation.",
+          "For the example, the model uses v = v0 + a*t. Substitution gives 5 + 3*4 = 17 m/s."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "The menu says speed and distance in places",
+        "text": "The signed one-axis model uses velocity and displacement. A negative result can mean motion in the negative direction. If an object reverses direction, total distance traveled and signed displacement are different quantities."
+      },
+      {
+        "kind": "p",
+        "text": "Try changing only v0 to 18 km/h. That is 5 m/s, so the same acceleration and time still give 17 m/s. The conversion should be part of the explanation."
+      },
+      {
+        "kind": "p",
+        "text": "The planner can use an intermediate quantity when one equation is not enough. It still has a limited collection of constant-acceleration equations and algebra routes. Missing information, an unsupported square-root step or an incompatible unit can stop it. The !k entry is not a solver for arbitrary word problems, projectile motion or variable acceleration."
+      }
+    ]
+  },
+  {
+    "title": "Units, volume and density",
+    "subtitle": "Keep the unit attached to the number",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Guided example",
+          "What the mathematics says"
+        ],
+        "rows": [
+          [
+            "Change units when the unit is cubed",
+            "2.50 cm^3 = 0.00000250 m^3. Each centimetre contributes a factor of 1/100, so volume has a factor of 1/1000000."
+          ],
+          [
+            "Find a mass from a density and a volume",
+            "2 g/cm^3 multiplied by 3 cm^3 gives 6 g, or 0.006 kg."
+          ],
+          [
+            "See what happens when units cannot match",
+            "3 m cannot be converted to seconds without a physical relationship. A refusal is the correct result."
+          ]
+        ]
+      },
+      {
+        "kind": "figure",
+        "name": "steps-answer-mathbox.png",
+        "caption": "Retained emulator capture of the volume conversion. Current builds may present clearer Do, Write and Why labels inside details.",
+        "height": 220
+      },
+      {
+        "kind": "p",
+        "text": "Density means mass per volume: mass = density * volume. The units explain why cubic centimetres cancel in the example. A bare number such as 3 does not communicate whether you mean cubic centimetres, metres or kilograms."
+      },
+      {
+        "kind": "note",
+        "title": "Exact scale is different from measurement precision",
+        "text": "The centimetre-to-metre scale is exact. The written value 2.50 carries measured precision. StepCAS can preserve that distinction and round the displayed measurement at the end. Trailing zeros can carry information."
+      },
+      {
+        "kind": "p",
+        "text": "The native conversion family uses compatible dimensions and exact multiplicative scales. Temperature conversions requiring an offset are outside that family. The current browser runs the supplied density and conversion examples rather than exposing a general editable form."
+      }
+    ]
+  },
+  {
+    "title": "Vectors, components and work",
+    "subtitle": "Match directions, units and reference frames",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "A vector has components. In two dimensions, i names the horizontal basis direction and j the vertical one. A reference frame tells you what those directions mean. Adding components only makes sense when their units and frames agree."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Guided example",
+          "What to look for"
+        ],
+        "rows": [
+          [
+            "Add two movements pointing different ways",
+            "(0.00120, 0.0020) km becomes (1.20, 2.0) m. Add (5,5) m component by component. The mathematical sum is (6.20,7.0) m before final precision presentation."
+          ],
+          [
+            "Find the work done by a push at an angle",
+            "Force (2,-3) N dotted with displacement (-1,4) m gives 2*(-1)+(-3)*4 = -14 J."
+          ],
+          [
+            "Split a speed into sideways and up parts",
+            "At 10 m/s and 30 degrees above the horizontal, x = 10*cos(30 degrees) and y = 10*sin(30 degrees). The targets are 5*sqrt(3) and 5 m/s."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Negative work means the force component along the displacement opposes the motion. It is not a negative distance and it is not automatically an error."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Select a guided example and read its problem description.",
+          "Open the unit-conversion or component step first if the numbers seem surprising.",
+          "Check the stated frame and the angle unit.",
+          "Read the sign interpretation before copying the final value."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Where the current models stop",
+        "text": "These are selected Cartesian and constant-force cases. They do not establish arbitrary rotating frames, position-dependent force work, line integrals or general three-dimensional vector lessons. A pretty vector display is not evidence that all of those operations are implemented."
+      }
+    ]
+  },
+  {
+    "title": "Catch-up and relative motion",
+    "subtitle": "Distinguish elapsed time from clock time",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "In the catch-up example, Atlas starts at position zero at time zero and moves at 2 m/s. Boreal starts at the same position 5 seconds later and moves at 4 m/s. Both motions use constant velocity."
+      },
+      {
+        "kind": "code",
+        "text": "Atlas:   position = 2*t\nBoreal:  position = 4*(t-5), while t >= 5\nMeeting: 2*t = 4*(t-5)"
+      },
+      {
+        "kind": "p",
+        "text": "Solving gives t = 10 s measured from Atlas’s start. Boreal has run for 5 s. Both are at 20 m. Checking the active time interval matters. A meeting calculated before Boreal starts would not satisfy the prepared model."
+      },
+      {
+        "kind": "figure",
+        "name": "final-relative-result.png",
+        "caption": "Retained relative-motion capture. Its answer is a velocity relative to the moving reference, not a speed magnitude.",
+        "height": 210
+      },
+      {
+        "kind": "p",
+        "text": "For relative motion, the drone’s ground velocity (36,-18) km/h is (10,-5) m/s. Subtract the wind velocity (3,1) m/s to obtain (7,-6) m/s relative to the wind. Positive horizontal and negative vertical components explain the southeast interpretation in the declared east-north axes."
+      },
+      {
+        "kind": "note",
+        "title": "Current access and scope",
+        "text": "Both examples are available through the guided browser. They use compatible declared frames. They do not infer a coordinate transformation, solve arbitrary accelerating catch-up problems or accept a paragraph of prose as input."
+      }
+    ]
+  },
+  {
+    "title": "Matrices and row operations",
+    "subtitle": "Read rows as lists and follow every change",
+    "blocks": [
+      {
+        "kind": "code",
+        "text": "rref([[1,2,5],[3,4,11]])\nref([[1,2],[3,4]])\ndet([[1,2],[3,4]])"
+      },
+      {
+        "kind": "p",
+        "text": "A matrix is a list of row lists. In the first example, the final column holds the right-hand sides of x+2*y=5 and 3*x+4*y=11. Reduced row echelon form should be [[1,0,1],[0,1,2]], so x=1 and y=2."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Command",
+          "Meaning"
+        ],
+        "rows": [
+          [
+            "ref(M)",
+            "Row echelon form. Pivots move right as you go down. Entries below each pivot are zero. Pivots need not be 1."
+          ],
+          [
+            "rref(M)",
+            "Reduced row echelon form. Pivots are 1 and are the only nonzero entries in their columns."
+          ],
+          [
+            "det(M)",
+            "The determinant of a square matrix. The example above has determinant -2."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Native matrix walkthroughs record actual backend row operations and check their effect. A determinant explanation must also track how swaps and scaling affect the determinant. Row addition has a different effect from multiplying a row."
+      },
+      {
+        "kind": "note",
+        "title": "Current teaching envelope",
+        "text": "ref and rref accept exact rational matrices with up to 4 rows and 6 columns. det accepts square matrices of orders 1 through 4. Decimal, symbolic and complex entries are outside these walkthrough families. Intermediate arithmetic can also exceed checked bounds."
+      },
+      {
+        "kind": "note",
+        "title": "Installed-build qualification",
+        "text": "The current source includes these native command handlers, but the family catalog still marks physical keypad qualification pending. If your package lacks the required matrix backend support, record the refusal. Do not infer a successful trace from a menu entry alone."
+      },
+      {
+        "kind": "p",
+        "text": "The Matrix & Vector menu also exposes inverse, eigenvalues, decompositions and other Giac operations. Their presence does not imply native step coverage."
+      }
+    ]
+  },
+  {
+    "title": "Integers and counting",
+    "subtitle": "Use exact whole-number inputs for these walkthroughs",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Command",
+          "Example",
+          "Mathematical target"
+        ],
+        "rows": [
+          [
+            "Integer quotient",
+            "iquo(17,5)",
+            "3"
+          ],
+          [
+            "Integer remainder",
+            "irem(17,5)",
+            "2"
+          ],
+          [
+            "Greatest common divisor",
+            "gcd(84,30)",
+            "6"
+          ],
+          [
+            "Factorial",
+            "factorial(5)",
+            "120"
+          ],
+          [
+            "Ordered selections",
+            "perm(5,2)",
+            "20"
+          ],
+          [
+            "Unordered selections",
+            "comb(5,2)",
+            "10"
+          ],
+          [
+            "Prime test",
+            "is_prime(29)",
+            "2 means proven prime in this interface."
+          ],
+          [
+            "Next prime",
+            "nextprime(29)",
+            "31"
+          ],
+          [
+            "Prime factors",
+            "ifactor(84)",
+            "2^2*3*7"
+          ],
+          [
+            "Modular power",
+            "powmod(2,10,17)",
+            "4"
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "A factorial multiplies the positive integers up to n. A permutation counts ordered selections. A combination counts selections where order does not matter. The distinction changes the answer even when the two input numbers are the same."
+      },
+      {
+        "kind": "p",
+        "text": "Native integer methods expect literal integer arguments. Use gcd(84,30), not gcd(7*12,30), if you want to stay inside the declared literal-input family. A mathematically equivalent compound argument can be outside that family."
+      },
+      {
+        "kind": "note",
+        "title": "Bounds are deliberate",
+        "text": "The native family allows factorial through 100 and permutations/combinations with 0 <= k <= n <= 100. Trial-division prime and factorization lessons are bounded around one million. Division and gcd inputs are bounded around one billion. Negative inputs are supported for gcd but generally refused by the other listed methods. Resource limits still apply."
+      },
+      {
+        "kind": "p",
+        "text": "The prime-test result is a status code. Do not read 2 as “two factors.” Other probability and number commands can remain ordinary Giac operations. Device qualification for the newer integer walkthroughs remains pending in the catalog."
+      }
+    ]
+  },
+  {
+    "title": "Ordinary Giac calculations",
+    "subtitle": "Use the broader algebra engine deliberately",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "Enter !g to switch to ordinary Giac. In this mode, StepCAS does not request a native walkthrough for every recognized command. The engine can handle many more algebra, list, statistics and plotting operations than the teaching core."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Example",
+          "Purpose or mathematical target"
+        ],
+        "rows": [
+          [
+            "a:=5",
+            "Store 5 under the name a in the Giac session."
+          ],
+          [
+            "a+2",
+            "Use that stored value. The target is 7."
+          ],
+          [
+            "purge(a)",
+            "Remove the assignment when you want a to be symbolic again."
+          ],
+          [
+            "subst(x^2+1,x,3)",
+            "Substitute 3 for x. The target is 10."
+          ],
+          [
+            "sort([5,1,3])",
+            "Sort a list into ascending order."
+          ],
+          [
+            "mean([2,4,6])",
+            "Arithmetic mean. The target is 4."
+          ],
+          [
+            "median([2,4,9])",
+            "Middle value. The target is 4."
+          ],
+          [
+            "conj(2+3*i)",
+            "Complex conjugate, normally 2-3*i when i is the imaginary unit."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Stored variables can surprise you",
+        "text": "If x was assigned a number, a later symbolic expression can evaluate using that number. Check assignments before blaming the algebra. Use purge(x) when appropriate. Restart CAS is broader and can discard session definitions."
+      },
+      {
+        "kind": "p",
+        "text": "The Statistics menu includes list manipulation, plots and regression. The Probability menu includes distributions and tests. A probability density, a cumulative probability and an inverse cumulative probability answer different questions. Look up the exact signature before using one."
+      },
+      {
+        "kind": "p",
+        "text": "TI’s document variables and Giac’s stored values are separate contexts. Saving the document’s visible history is not a guarantee that every Giac assignment has been exported. Use the save guidance later in this manual. Source: Giac reference [G0, G3]."
+      }
+    ]
+  },
+  {
+    "title": "Angles and trigonometry",
+    "subtitle": "Check the interpretation before trusting a sine or cosine",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "Degrees describe a full turn as 360. Radians describe it as 2*pi. The standard calculus identities d(sin(x))/dx = cos(x) and the limit sin(x)/x = 1 at zero assume radians."
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Purpose",
+          "Expression to use"
+        ],
+        "rows": [
+          [
+            "A 30-degree angle in a radian expression",
+            "sin(pi/6)"
+          ],
+          [
+            "Convert 30 degrees to radians",
+            "30*pi/180"
+          ],
+          [
+            "Convert pi/3 radians to degrees",
+            "(pi/3)*180/pi"
+          ],
+          [
+            "Check a familiar value",
+            "In radian operation, sin(pi/2) should be 1."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "The RAD or DEG indicator in the system bar describes a TI setting. StepCAS also uses Giac and native mathematical routines. Do not assume every layer follows that indicator. Use a known-value check in the mode where you are actually calculating."
+      },
+      {
+        "kind": "note",
+        "title": "For the manual’s calculus examples",
+        "text": "Use radian conventions. For the guided 30-degree vector example, the request explicitly supplies degrees. That is why its component calculation uses a 30-degree angle rather than 30 radians."
+      },
+      {
+        "kind": "p",
+        "text": "TI document settings are available through Home > Settings > Document Settings. Changing them affects TI applications as described by TI. This manual does not prescribe an unverified Giac angle-setting shortcut for the installed build."
+      },
+      {
+        "kind": "p",
+        "text": "If a numerical trigonometric result seems wrong, check three things in order: the input expression, the angle convention and any stored variable assignments. Changing the number of displayed decimal places cannot fix a degree/radian mistake."
+      },
+      {
+        "kind": "p",
+        "text": "TI setting reference: [T7]."
+      }
+    ]
+  },
+  {
+    "title": "Graphs and the separate native shell",
+    "subtitle": "Recognize the screen you have entered",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "final-graph3d.png",
+        "caption": "Retained native Giac 3D graph capture. Its own menu and Escape hints appear at the top. This is not the StepCAS step viewer.",
+        "height": 215
+      },
+      {
+        "kind": "p",
+        "text": "StepCAS exposes Giac plots in its Plots menu. A plotting command can open a separate native graphics view. Use that view’s on-screen controls rather than the walkthrough’s fold and hint keys."
+      },
+      {
+        "kind": "code",
+        "text": "plot(x^2,x=-5..5)"
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Use ordinary Giac mode for this introductory plot. Type the command above and press Enter.",
+          "If the graph opens, look at the visible x and y range. A blank view can mean the curve is outside the window.",
+          "Open the graph’s Menu for the available view controls. Use its displayed Escape behavior to return.",
+          "Return to the StepCAS entry line before choosing a walkthrough or guided problem."
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "The Plots menu also lists area, parametric, polar, slope-field, differential-equation, density, contour and implicit plotting commands. Their arguments differ. Use the Giac reference for the command you choose."
+      },
+      {
+        "kind": "note",
+        "title": "Open Shell is an advanced action",
+        "text": "Actions > Open Shell inserts *. Submitting it enters the additional native KhiCAS shell. It is not required for ordinary StepCAS input. Actions > Open Script Editor is also a separate environment with its own controls."
+      },
+      {
+        "kind": "p",
+        "text": "Graphs can illustrate behavior but a picture is not a symbolic proof, and a screenshot of a 3D surface does not establish every plotting command works in the current package. Giac graph reference: [G4]."
+      }
+    ]
+  },
+  {
+    "title": "The calculator outside StepCAS",
+    "subtitle": "Use the built-in applications without confusing their results",
+    "blocks": [
+      {
+        "kind": "figure",
+        "name": "03-calc-history.png",
+        "caption": "Retained emulator capture of TI’s built-in Scratchpad Calculate. Its layout and available commands differ from StepCAS.",
+        "height": 210
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "TI application",
+          "Use it for"
+        ],
+        "rows": [
+          [
+            "Scratchpad Calculate / Graph",
+            "Quick calculations or graphs without first creating a worksheet document."
+          ],
+          [
+            "Calculator",
+            "Calculations inside a saved TI document."
+          ],
+          [
+            "Graphs / Geometry",
+            "Graphing functions and working with geometric objects."
+          ],
+          [
+            "Lists & Spreadsheet",
+            "Organizing columns of values and formulas."
+          ],
+          [
+            "Data & Statistics",
+            "Visualizing and analyzing data."
+          ],
+          [
+            "Notes",
+            "Writing explanations and mathematical notes."
+          ],
+          [
+            "Vernier DataQuest",
+            "Supported sensor and data-collection activities."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "Use Home to choose a built-in app. A TI document can contain problems and pages. Ctrl+Left/Right moves between document pages. Doc provides file and page commands. These are system document operations, not steps in a mathematical derivation."
+      },
+      {
+        "kind": "note",
+        "title": "CX II versus CX II CAS",
+        "text": "The non-CAS CX II’s built-in Calculator has different symbolic capabilities from the CAS model. StepCAS uses its own Giac engine, so a working StepCAS limit or integral does not mean the same syntax is available in TI Scratchpad."
+      },
+      {
+        "kind": "p",
+        "text": "Sources: TI Scratchpad and document guide [T4, T8]."
+      }
+    ]
+  },
+  {
+    "title": "Save, reopen and back up",
+    "subtitle": "Preserve your input and understand what is not saved",
+    "blocks": [
+      {
+        "kind": "steps",
+        "items": [
+          "Return to the StepCAS entry screen when convenient. Press Ctrl+S, or use Doc > File > Save.",
+          "Complete the system save dialog if one appears. Use a clear name for an ordinary study document.",
+          "Before modifying the application package or moving it to another folder, preserve the installed copy and its matching sidecars.",
+          "Use Browse or Recent to reopen the document. Check that your history and pending input are present."
+        ]
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Item",
+          "Current StepCAS document behavior"
+        ],
+        "rows": [
+          [
+            "History text",
+            "Saved and restored."
+          ],
+          [
+            "Unentered input",
+            "Saved and restored."
+          ],
+          [
+            "Selected variable and solver mode",
+            "Saved and restored."
+          ],
+          [
+            "Standard/Beginner and hint preferences",
+            "Saved and restored."
+          ],
+          [
+            "Complete last derivation tree",
+            "Not serialized. Recompute the problem after reopening."
+          ],
+          [
+            "All Giac variables and definitions",
+            "Not established by the document save routine. Export separately if needed."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "The Actions menu exposes Save Variables and Read Variables commands. They are Giac file operations, separate from Ctrl+S. The Save Variables item inserts an unfinished call. Do not press Enter on that fragment or assume a successful document save exported all variables."
+      },
+      {
+        "kind": "note",
+        "title": "Back up the working package as a set",
+        "text": "The document, native module and their matching sidecars belong together. Keep runtime files separate from ordinary personal worksheet backups. A renamed or moved application copy has not automatically passed the package integrity and loading checks."
+      },
+      {
+        "kind": "p",
+        "text": "Transfer with a compatible TI desktop tool or CX II Connect as supported by your setup. Verify the destination and open a copied ordinary document before relying on the backup. A saved file and a working runtime after reboot are separate checks. Sources: [T6, T9]."
+      }
+    ]
+  },
+  {
+    "title": "Battery, display and routine care",
+    "subtitle": "Keep the calculator ready without disturbing the app installation",
+    "blocks": [
+      {
+        "kind": "p",
+        "text": "Charge the handheld through the supported USB connection or charger. If it has been stored for a long time, allow it to charge before concluding it is broken. The battery indicator and Handheld Status provide more information than the color of a cable or the presence of a screen alone."
+      },
+      {
+        "kind": "steps",
+        "items": [
+          "Save your document before powering off or disconnecting a transfer.",
+          "Use Ctrl+Home / On to power off. Use Home / On to turn it on again.",
+          "Use Ctrl+Plus or Ctrl+Minus for the display brightness/contrast adjustment supported by the handheld.",
+          "For text that is hard to read inside StepCAS, first try the Actions font controls or the Full Text reader."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Operating-system updates affect this setup",
+        "text": "StepCAS depends on a compatible native runtime. Do not treat a generic recommendation to install the latest TI OS as an application maintenance step. Confirm runtime compatibility and retain backups before any OS change."
+      },
+      {
+        "kind": "p",
+        "text": "Do not use Reset Storage, delete the runtime folder or remove recovery files as routine troubleshooting. Those actions are different from clearing a mistyped expression. If the calculator stops responding, record the state and start with the recovery guidance on the next pages."
+      },
+      {
+        "kind": "p",
+        "text": "Do not connect or disconnect a cable while an active transfer is being written. For battery replacement, charging faults or physical damage, use the official handheld instructions for the exact model."
+      },
+      {
+        "kind": "p",
+        "text": "Sources: TI power, charging and handheld setup [T10, T11]."
+      }
+    ]
+  },
+  {
+    "title": "When the answer surprises you",
+    "subtitle": "Check meaning and input before trying a larger problem",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Symptom",
+          "First check",
+          "What to do"
+        ],
+        "rows": [
+          [
+            "The value is a fraction",
+            "Exact evaluation may be active.",
+            "Use evalf(...) for a decimal approximation."
+          ],
+          [
+            "A trig answer seems wrong",
+            "Degrees, radians or a stored variable.",
+            "Test a familiar angle in the same calculator mode."
+          ],
+          [
+            "There are two answers",
+            "A square equation may have two roots.",
+            "Check both in the original equation."
+          ],
+          [
+            "No solution",
+            "The reduced equation may be inconsistent.",
+            "Read the check rather than treating this as a crash."
+          ],
+          [
+            "Every value",
+            "Both sides may be identical.",
+            "This is different from one particular solution."
+          ],
+          [
+            "CAS answer",
+            "The value came from the backend.",
+            "Do not infer a complete native walkthrough."
+          ],
+          [
+            "Not cross-checked",
+            "The extra backend check did not establish agreement.",
+            "Read the available native checks and conditions."
+          ],
+          [
+            "DISAGREES / verification failed",
+            "A check did not support the result.",
+            "Keep the exact input and message. Do not copy the disputed result as verified."
+          ],
+          [
+            "Unsupported form",
+            "The lesson family does not cover the input.",
+            "Use a supported example or ordinary Giac intentionally."
+          ],
+          [
+            "Resource limit reached",
+            "An arithmetic, memory or work budget stopped the request.",
+            "Reduce the problem or expression. A prefix of steps is not completion."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "A partial derivation can contain valid earlier steps even when the whole problem did not finish. Read the final status. A green agreement message is useful evidence, but it does not make all displayed methods independent or all possible inputs supported."
+      },
+      {
+        "kind": "note",
+        "title": "When asking for help",
+        "text": "Record the exact expression, selected variable, persistent mode, hint setting, package identity from !m and the full error text. A photo of the complete screen is much more useful than “it did not work.”"
+      }
+    ]
+  },
+  {
+    "title": "When navigation or loading goes wrong",
+    "subtitle": "Recover from the smallest problem first",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Symptom",
+          "Recovery"
+        ],
+        "rows": [
+          [
+            "I cannot type",
+            "You may be in a step, reader or guided browser. Press Escape to return to the entry screen, then select the bottom field."
+          ],
+          [
+            "The menu inserts nothing",
+            "Close the walkthrough or reader before using an input template. The hidden entry is protected while another view is open."
+          ],
+          [
+            "The answer is hidden",
+            "Check for hint mode. Press Tab to reveal the remaining work."
+          ],
+          [
+            "A formula is clipped",
+            "Use T in a walkthrough or Actions > Read Full Text from the shell."
+          ],
+          [
+            "Enter keeps differentiating",
+            "A bare !d selected persistent mode. Enter !g, then !h off on the next line to restore ordinary automatic operation."
+          ],
+          [
+            "!! says no steps yet",
+            "No retained walkthrough exists in this session. Submit the problem again."
+          ],
+          [
+            "The app says incompatible or integrity failed",
+            "Stop mixing files. Restore a matching document/module/sidecar package."
+          ],
+          [
+            "The title shows the wrong application",
+            "Use Home > Current or Browse to open the intended StepCAS document."
+          ],
+          [
+            "A calculation appears stuck",
+            "Try the current view’s cancellation control and allow time for the backend to respond. Cancellation is cooperative and may not be immediate."
+          ]
+        ]
+      },
+      {
+        "kind": "p",
+        "text": "If you can still reach Home, save what you can and record the problem before reopening the app. If the whole handheld is unresponsive, follow TI’s model-specific recovery instructions. A forced restart can lose unsaved work and the runtime may need to be checked afterward."
+      },
+      {
+        "kind": "note",
+        "title": "Do not make a loading problem harder to diagnose",
+        "text": "Do not repeatedly replay file transfers after an uncertain failure. Check what arrived first. Do not erase storage or update the OS just because one StepCAS command failed."
+      }
+    ]
+  },
+  {
+    "title": "What currently has a native walkthrough",
+    "subtitle": "Use this as a coverage guide, not a device acceptance certificate",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Family",
+          "Current scope"
+        ],
+        "rows": [
+          [
+            "Linear equations",
+            "One unknown, supported linear grammar and exact arithmetic."
+          ],
+          [
+            "Pure-square quadratics",
+            "No linear term, real cases and exact rational roots."
+          ],
+          [
+            "Formula rearrangement",
+            "One occurrence of the requested symbol with supported inverses."
+          ],
+          [
+            "Polynomial rewrites",
+            "Simplify, expand and supported factoring with exact coefficients."
+          ],
+          [
+            "Derivatives",
+            "First derivatives by supported elementary rules."
+          ],
+          [
+            "Indefinite integrals",
+            "Supported elementary forms and linear-argument substitution."
+          ],
+          [
+            "Integer methods",
+            "Bounded literal inputs for the listed division, gcd, counting and prime methods."
+          ],
+          [
+            "Matrices",
+            "Small exact rational ref, rref and determinant cases."
+          ],
+          [
+            "One-axis kinematics",
+            "Constant acceleration with structured known quantities."
+          ],
+          [
+            "Unit conversion and density",
+            "Compatible multiplicative units and mass-volume-density relations."
+          ],
+          [
+            "Vectors and work",
+            "Selected component, magnitude/direction and constant-force cases."
+          ],
+          [
+            "Catch-up and relative motion",
+            "Declared constant-velocity / compatible-frame examples."
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Available in the engine is not the same as editable in the UI",
+        "text": "The general !k input supports your own kinematics quantities. Several other physics families are exposed through supplied browser examples or structured native calls, not a complete beginner input form."
+      },
+      {
+        "kind": "p",
+        "text": "Limits, definite-integral lessons, general quadratic methods, implicit or partial differentiation lessons and broad multiple/contour-integral walkthroughs are not established native features. Giac may calculate an answer for some of them. Newer families remain marked unreleased with physical qualification pending in the catalog."
+      },
+      {
+        "kind": "p",
+        "text": "Source of truth: nps/catalog/families.md and the current command/UI implementation."
+      }
+    ]
+  },
+  {
+    "title": "Practice with the controls",
+    "subtitle": "Learn one navigation habit at a time",
+    "blocks": [
+      {
+        "kind": "steps",
+        "items": [
+          "Open StepCAS, type !s 2*x+3=11 and press Enter. Find the answer before opening any detail.",
+          "Select the division step. Open it with Enter. Read the operation and the resulting line.",
+          "Switch to Beginner detail with Shift+Tab. Identify what explanation was added.",
+          "Return to the entry screen. Enter !h on, then solve another equation with !s 3*x-6=0.",
+          "Before each Tab, write what you think comes next. Continue until the answer appears.",
+          "Return to the entry screen. Enter !h off. Reopen the retained walkthrough with !!.",
+          "Open Guided physics and select the incompatible-unit example. Find the reason for its refusal.",
+          "Save the document. Write down which things the Save routine preserves and which must be recomputed."
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "You have the navigation basics when…",
+        "text": "You can find the entry field, open a step, return to the list, return to the entry screen and read a long expression without losing your place. Speed is less important than recognizing which view has focus."
+      },
+      {
+        "kind": "p",
+        "text": "If an exercise behaves differently from this description, check the installed package and persistent mode. Do not practice around a mismatch until it becomes a habit."
+      }
+    ]
+  },
+  {
+    "title": "Practice problems and answer checks",
+    "subtitle": "Try these on paper before looking at the final column",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "Task",
+          "Input",
+          "Answer check"
+        ],
+        "rows": [
+          [
+            "Linear equation",
+            "!s 5*x+4=19",
+            "x=3, because 5*3+4=19."
+          ],
+          [
+            "Pure square",
+            "solve(x^2=16,x)",
+            "x=-4 or x=4."
+          ],
+          [
+            "Expand",
+            "expand((x+3)*(x+2))",
+            "x^2+5*x+6."
+          ],
+          [
+            "Factor",
+            "factor(x^2+5*x+6)",
+            "(x+2)*(x+3)."
+          ],
+          [
+            "Differentiate",
+            "diff(4*x^3,x)",
+            "12*x^2."
+          ],
+          [
+            "Integrate",
+            "int(3*x^2,x)",
+            "x^3+C."
+          ],
+          [
+            "Greatest common divisor",
+            "gcd(48,18)",
+            "6."
+          ],
+          [
+            "Combination",
+            "comb(6,2)",
+            "15."
+          ],
+          [
+            "Determinant",
+            "det([[2,1],[1,3]])",
+            "5."
+          ],
+          [
+            "Limit in ordinary Giac",
+            "limit((x^2-4)/(x-2),x,2)",
+            "4, although the fraction is undefined at x=2."
+          ]
+        ]
+      },
+      {
+        "kind": "h",
+        "text": "Explain the difference"
+      },
+      {
+        "kind": "p",
+        "text": "Why can x^2=16 have two roots? Why does an indefinite integral include C? Why does an input containing centimetres cubed require three factors of the length conversion? Why does “CAS answer” tell you less about teaching steps than “solved and verified”?"
+      },
+      {
+        "kind": "h",
+        "text": "Physics check"
+      },
+      {
+        "kind": "p",
+        "text": "For constant acceleration with v0=2 m/s, a=4 m/s^2 and t=3 s, the target final velocity is 14 m/s. Choose a positive direction and keep it consistent. For density 2 g/cm^3 and volume 3 cm^3, the target mass is 6 g."
+      },
+      {
+        "kind": "note",
+        "title": "Expected values, not new device receipts",
+        "text": "These answers have been checked mathematically for this manual. They are not claims that every lesson was freshly entered and rendered on the handheld during preparation."
+      }
+    ]
+  },
+  {
+    "title": "Keep this page beside the calculator",
+    "subtitle": "A compact navigation and command card",
+    "blocks": [
+      {
+        "kind": "table",
+        "headers": [
+          "I want to…",
+          "Do this"
+        ],
+        "rows": [
+          [
+            "Open StepCAS",
+            "Home > Browse > installed nps_v4 document."
+          ],
+          [
+            "Calculate",
+            "Select the entry line, type a complete expression and press Enter."
+          ],
+          [
+            "Open a step",
+            "Select it with Up/Down and press Enter."
+          ],
+          [
+            "Go back",
+            "Escape: detail to list, list to entry screen."
+          ],
+          [
+            "Expand / fold a group",
+            "Right / Left in the step list."
+          ],
+          [
+            "Read more explanation",
+            "Shift+Tab in the walkthrough."
+          ],
+          [
+            "Read the complete text",
+            "T in a walkthrough/browser, or Actions > Read Full Text."
+          ],
+          [
+            "Enable hints",
+            "!h on, then submit the problem."
+          ],
+          [
+            "Reveal another hint",
+            "Tab, while the hint walkthrough is open."
+          ],
+          [
+            "Reopen the last steps",
+            "!!"
+          ],
+          [
+            "Differentiate once",
+            "!d expression"
+          ],
+          [
+            "Integrate once",
+            "!i expression"
+          ],
+          [
+            "Solve once",
+            "!s equation"
+          ],
+          [
+            "Set the prefix variable",
+            "!v x"
+          ],
+          [
+            "Use plain Giac",
+            "!g on its own line."
+          ],
+          [
+            "Reset normal entry behavior",
+            "!g, then !h off on a separate line."
+          ],
+          [
+            "Save",
+            "Ctrl+S."
+          ],
+          [
+            "Identify the build",
+            "!m"
+          ]
+        ]
+      },
+      {
+        "kind": "note",
+        "title": "Before you copy an answer",
+        "text": "Read the whole expression, its unit, its conditions and its status. A preview can be incomplete. A CAS answer can lack native steps. A partial derivation is not a completed solution."
+      }
+    ]
+  }
+]

@@ -1,0 +1,126 @@
+From 12d91cdc3083196c8f95c90ab6ec46d827a42414 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 22:55:10 -0400
+Subject: [PATCH 06/11] Trace handshake frame progress
+
+---
+ src/cx2.cpp         |  6 ++++
+ tests/transport.cpp | 71 ++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 76 insertions(+), 1 deletion(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index e7b66f7..692d0ec 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -229,6 +229,10 @@ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, Pa
+ 	if(compute_checksum(reinterpret_cast<uint8_t*>(message), completeLength) != 0xFFFF)
+ 		return -NSPIRE_ERR_INVALPKT;
+ 
++	nspire_trace("transport phase=frame service=0x%02x source=0x%02x destination=0x%02x seq=%u length=%u req_ack=0x%02x",
++		static_cast<unsigned>(message->service), static_cast<unsigned>(message->src),
++		static_cast<unsigned>(message->dest), static_cast<unsigned>(ntohs(message->seqno)),
++		static_cast<unsigned>(completeLength), static_cast<unsigned>(message->reqAck));
+ 	return NSPIRE_ERR_SUCCESS;
+ }
+ 
+@@ -459,6 +463,8 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 		if(ret)
+ 			break;
+ 		ret = handlePacket(nsp_handle, message, deadline);
++		nspire_trace("transport phase=handshake event=frame index=%d status=%d complete=%d pending=%u",
++			10 - i, ret, nsp_handle->cx2_handshake_complete, nsp_handle->cx2_pending_count);
+ 		if(ret)
+ 			break;
+ 	}
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 44dfaff..5402d0e 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -994,6 +994,74 @@ static void diagnostic_metadata() {
+ 	CHECK(missing == 0);
+ }
+ 
++static void handshake_frame_metadata() {
++	unsigned missing = 0;
++	for(bool enabled : {true, false}) {
++		if(enabled) setenv("NSPIRE_TRACE", "1", 1);
++		else unsetenv("NSPIRE_TRACE");
++		reset();
++		auto handle = ready();
++		handle.cx2_handshake_complete = false;
++		std::string secret = "PRIVATE-NNSE-BYTES";
++		for(unsigned i = 0; i < 10; ++i) {
++			auto incoming = frame(StreamService, {secret.begin(), secret.end()}, 9);
++			auto *message = reinterpret_cast<NNSEMessage*>(incoming.data());
++			message->seqno = htons(static_cast<uint16_t>(0x1234 + i));
++			message->csum = 0;
++			message->csum = htons(compute_checksum(incoming.data(), incoming.size()) ^ 0xFFFF);
++			CHECK(incoming.size() == 30);
++			usb.reads.push_back({0, incoming});
++		}
++		std::string log = capture_trace([&] {
++			CHECK(assureReady(&handle) == -NSPIRE_ERR_TIMEOUT);
++			CHECK(!handle.cx2_handshake_complete && handle.cx2_pending_count == 10);
++			CHECK(usb.bulk_calls == 20 && usb.reads.empty());
++			CHECK(usb.write_services == std::vector<uint8_t>(10, StreamService | AckFlag));
++		});
++		if(!enabled) {
++			CHECK(log.empty());
++			continue;
++		}
++		for(unsigned i = 0; i < 10; ++i) {
++			const std::string fields[] = {
++				"transport phase=frame service=0x04 source=0x01 destination=0xfe seq=" +
++					std::to_string(0x1234 + i) + " length=30 req_ack=0x09",
++				"transport phase=handshake event=frame index=" + std::to_string(i + 1) +
++					" status=0 complete=0 pending=" + std::to_string(i + 1)
++			};
++			for(const auto &field : fields) {
++				if(log.find(field) == std::string::npos) {
++					std::cerr << "handshake diagnostic missing " << field << '\n';
++					++missing;
++				}
++			}
++		}
++		CHECK(log.find("reason=packet-limit") != std::string::npos);
++		CHECK(log.find(secret) == std::string::npos);
++		CHECK(log.find("50 52 49 56") == std::string::npos);
++	}
++	setenv("NSPIRE_TRACE", "1", 1);
++	reset();
++	auto handle = ready();
++	handle.cx2_handshake_complete = false;
++	usb.reads.push_back({0, frame(TimeService, {0}, 1)});
++	std::string log = capture_trace([&] {
++		CHECK(assureReady(&handle) == 0);
++		CHECK(handle.cx2_handshake_complete && handle.cx2_pending_count == 0);
++		CHECK(usb.bulk_calls == 3 && usb.reads.empty());
++	});
++	for(const char *field : {
++		"transport phase=frame service=0x02 source=0x01 destination=0xfe seq=0 length=13 req_ack=0x01",
++		"transport phase=handshake event=frame index=1 status=0 complete=1 pending=0"}) {
++		if(log.find(field) == std::string::npos) {
++			std::cerr << "handshake diagnostic missing " << field << '\n';
++			++missing;
++		}
++	}
++	unsetenv("NSPIRE_TRACE");
++	CHECK(missing == 0);
++}
++
+ static void error_strings() {
+ 	for(int i = 0; i < NSPIRE_ERR_MAX; i++)
+ 		CHECK(nspire_strerror(-i) != nullptr);
+@@ -1012,7 +1080,8 @@ int main() {
+ 		ack_and_handshake_failures, send_errors_and_deadlines, packet_length_validation,
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+-		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata};
++		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata,
++		handshake_frame_metadata};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

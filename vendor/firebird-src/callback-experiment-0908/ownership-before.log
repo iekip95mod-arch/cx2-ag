@@ -1,0 +1,8 @@
+FAIL reject overlapping owner B
+FAIL overlap leaves CPU unchanged
+FAIL overlap does not write guest memory
+FAIL running owner rejects blob overlap
+FAIL owned return accepted
+FAIL null callback retires owned flag
+FAIL completed owner cannot return twice
+20 ownership checks, 7 failures

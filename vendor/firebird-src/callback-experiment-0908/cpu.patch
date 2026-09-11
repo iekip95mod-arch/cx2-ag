@@ -1,0 +1,15 @@
+diff --git a/../core/cpu.cpp b/cpu.cpp
+index e1c56c1..fe28064 100644
+--- a/../core/cpu.cpp
++++ b/cpu.cpp
+@@ -68,8 +68,8 @@ void cpu_arm_loop()
+         {
+             if(*flags_ptr & RF_ARMLOADER_CB)
+             {
+-                *flags_ptr &= ~RF_ARMLOADER_CB;
+-                armloader_cb();
++                if(armloader_cb())
++                    *flags_ptr &= ~RF_ARMLOADER_CB;
+             }
+             else
+             {

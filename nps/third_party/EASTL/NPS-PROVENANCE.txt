@@ -1,0 +1,7 @@
+EASTL
+Upstream: https://github.com/electronicarts/EASTL
+Version: 3.27.01
+Revision: e323f67e5d93fdadcd44f7998069d804697b1945
+Source archive SHA-256: 49df4469962fb9f8cc025da6c066d00893b733e8ca4258cb5f5ab01bf95b7bbc
+License: BSD 3-Clause. See LICENSE and 3RDPARTYLICENSES.TXT.
+Integration: Unmodified upstream headers. This tag's headers report version 3.27.00. Fixed containers disable overflow allocation.

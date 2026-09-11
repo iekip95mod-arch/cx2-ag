@@ -1,0 +1,543 @@
+From eb222131f1b661233f5e07d9a03ebf805e27bbdb Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 13:04:08 -0400
+Subject: [PATCH 3/7] Honor file creation and descriptor contracts
+
+---
+ ndless-sdk/libsyscalls/stdlib.cpp   |  86 ++++---
+ ndless-sdk/libsyscalls/test_open.py | 364 ++++++++++++++++++++++++++++
+ 2 files changed, 413 insertions(+), 37 deletions(-)
+ create mode 100644 ndless-sdk/libsyscalls/test_open.py
+
+diff --git a/ndless-sdk/libsyscalls/stdlib.cpp b/ndless-sdk/libsyscalls/stdlib.cpp
+index 43fc3fa..34711d1 100644
+--- a/ndless-sdk/libsyscalls/stdlib.cpp
++++ b/ndless-sdk/libsyscalls/stdlib.cpp
+@@ -33,17 +33,16 @@ extern "C" {
+ 
+ // The only macro, I swear
+ #define GETFD(f) \
+-	do { if(file >= MAX_OPEN_FILES) \
+-		return errno_set(EBADF); \
++	do { if(!validfd(file)) \
++		return -1; \
+ 	f = openfiles[file]; \
+-	if(f == 0) \
+-		return errno_set(EBADF); \
+ } while(0);
+   
+ constexpr int MAX_OPEN_FILES = 20;
+ 
+ // Used to map newlib FILE* to our NUCFILE*
+ static NUC_FILE* openfiles[MAX_OPEN_FILES];
++static int open_access[MAX_OPEN_FILES] = {O_RDONLY, O_WRONLY, O_WRONLY};
+ static void* saved_screen_buffer; //In case the program changes the buffer
+ 
+ static bool is_clean_exit = false; // Whether returned from main or exit called
+@@ -89,6 +88,16 @@ static int errno_set(int error)
+ 	return -1;
+ }
+ 
++static bool validfd(int file)
++{
++	if(file < 0 || file >= MAX_OPEN_FILES || openfiles[file] == nullptr)
++	{
++		errno_set(EBADF);
++		return false;
++	}
++	return true;
++}
++
+ static int errno_update(int result)
+ {
+ 	errno = *syscall<e_errno_addr, int*>();
+@@ -342,6 +351,8 @@ int _read(int file, char *ptr, int len)
+ #endif
+ 	NUC_FILE *f;
+ 	GETFD(f);
++	if(open_access[file] == O_WRONLY)
++		return errno_set(EBADF);
+ 
+ 	int ret = syscall<e_fread, int>(ptr, 1, len, f);
+ 	if(ret == 0)
+@@ -373,6 +384,8 @@ int _write(int file, char *ptr, int len)
+ 
+ 	NUC_FILE *f;
+ 	GETFD(f);
++	if(open_access[file] == O_RDONLY)
++		return errno_set(EBADF);
+ 
+ 	int ret = syscall<e_fwrite, int>(ptr, 1, len, f);
+   
+@@ -400,39 +413,33 @@ int _open(const char *path, int flags)
+ 	int file = newslot();
+ 	if(file == -1)
+ 		return errno_set(EMFILE);
+-  
+-	if((flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL))
++	const int access = flags & O_ACCMODE;
++	if(access != O_RDONLY && access != O_WRONLY && access != O_RDWR)
++		return errno_set(EINVAL);
++	const bool writable = access != O_RDONLY;
++	if(!writable && (flags & O_TRUNC))
++		return errno_set(EINVAL);
++	struct stat st;
++	const bool exists = _stat(path, &st) == 0;
++	if(!exists && errno != ENOENT)
++		return -1;
++	if(exists && (flags & (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL))
++		return errno_set(EEXIST);
++	if(!exists && !(flags & O_CREAT))
++		return errno_set(ENOENT);
++	const bool append = writable && (flags & O_APPEND);
++	const bool reset = !exists || (flags & O_TRUNC);
++	if(reset && (!writable || append))
+ 	{
+-		struct stat st;
+-		if(_stat(path, &st))
+-			return errno_set(EEXIST);
+-	}
+-  
+-	if(flags & O_CREAT)
+-	{
+-		NUC_FILE *f = syscall<e_fopen, NUC_FILE*>(path, static_cast<const char*>("a"));
++		NUC_FILE *f = syscall<e_fopen, NUC_FILE*>(path, static_cast<const char*>("wb"));
+ 		if(f == 0)
+ 			return errno_update(-1);
+-    
+-		syscall<e_fclose, void>(f);
+-	}
+-  
+-	if(flags & O_APPEND)
+-	{
+-		mode[curmode++] = 'a';
+-
+-		if(flags & O_RDWR)
+-			mode[curmode++] = '+';
++		if(syscall<e_fclose, int>(f) != 0)
++			return errno_update(-1);
+ 	}
+-	else if(flags & O_WRONLY)
+-		mode[curmode++] = 'w';
+-	else if(flags & O_RDWR)
+-	{
+-		mode[curmode++] = 'r';
++	mode[curmode++] = append ? 'a' : reset && writable ? 'w' : 'r';
++	if(access == O_RDWR || (access == O_WRONLY && mode[0] == 'r'))
+ 		mode[curmode++] = '+';
+-	}
+-	else //if(flags & O_RDONLY)
+-		mode[curmode++] = 'r';
+ 
+ 	//newlib disables O_BINARY on arm by default
+ 	mode[curmode++] = 'b';
+@@ -442,18 +449,18 @@ int _open(const char *path, int flags)
+ 	openfiles[file] = syscall<e_fopen, NUC_FILE*>(path, mode);
+ 	if(openfiles[file] == 0)
+ 		return errno_update(-1);
+-  
++	open_access[file] = access;
+ 	return file;
+ }
+ 
+ int _close(int file)
+ {
++	NUC_FILE *f;
++	GETFD(f);
++
+ 	//NEVER close std*, that would make them unusuable!
+ 	if(file < 3)
+ 		return errno_set(EIO);
+-
+-	NUC_FILE *f;
+-	GETFD(f);
+   
+ 	openfiles[file] = 0;
+   
+@@ -462,7 +469,12 @@ int _close(int file)
+ 
+ int _isatty(int file)
+ {
+-	return file < 3;
++	if(!validfd(file))
++		return 0;
++	if(file < 3)
++		return 1;
++	errno_set(ENOTTY);
++	return 0;
+ }
+ 
+ int _unlink(const char *path)
+diff --git a/ndless-sdk/libsyscalls/test_open.py b/ndless-sdk/libsyscalls/test_open.py
+new file mode 100644
+index 0000000..1d9dbf7
+--- /dev/null
++++ b/ndless-sdk/libsyscalls/test_open.py
+@@ -0,0 +1,364 @@
++#!/usr/bin/env python3
++import os
++from pathlib import Path
++import re
++import subprocess
++import tempfile
++
++source = Path(__file__).with_name("stdlib.cpp").read_text()
++functions = []
++for name in ("newslot", "errno_set", "validfd", "errno_update", "errno_check", "_stat", "_open", "_read", "_write", "_close", "_isatty"):
++    match = re.search(r"^(?:static )?(?:int|bool) " + name + r"\([^\n]*\)\n\{.*?^\}", source, re.M | re.S)
++    if match is None:
++        raise SystemExit("cannot extract SDK function " + name)
++    functions.append(match.group())
++getfd = re.search(r"^#define GETFD\(f\).*?^\} while\(0\);", source, re.M | re.S)
++if getfd is None:
++    raise SystemExit("cannot extract SDK descriptor lookup")
++access = re.search(r"^static int open_access\[MAX_OPEN_FILES\][^;]*;", source, re.M)
++if access is None:
++    raise SystemExit("cannot extract SDK descriptor access modes")
++
++prefix = r'''
++#include <cerrno>
++#include <climits>
++#include <cstddef>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <fcntl.h>
++#include <iostream>
++#include <map>
++#include <string>
++#include <type_traits>
++
++struct stat {
++    int st_dev, st_ino, st_mode, st_nlink, st_uid, st_gid, st_rdev;
++    long st_size, st_atime, st_mtime, st_ctime;
++    struct { long tv_sec; } st_atim, st_mtim, st_ctim;
++};
++struct nuc_stat : stat {};
++struct NUC_FILE { std::string path; std::string mode; std::size_t position; };
++constexpr int MAX_OPEN_FILES = 8;
++NUC_FILE *openfiles[MAX_OPEN_FILES]{};
++NUC_FILE handles[16];
++std::map<std::string, std::string> files;
++int handle_count = 0;
++int native_errno = 0;
++int opens = 0;
++int closes = 0;
++int stat_failure = 0;
++bool fopen_failure = false;
++bool fclose_failure = false;
++enum { e_stat, e_fopen, e_fclose, e_errno_addr, e_fread, e_fwrite, e_fgetc, e_ungetc };
++#define __NEWLIB__ 4
++
++int native_stat(const char *path, nuc_stat *information) {
++    if (stat_failure != 0) {
++        native_errno = stat_failure;
++        return -1;
++    }
++    auto found = files.find(path);
++    if (found == files.end()) {
++        native_errno = ENOENT;
++        return -1;
++    }
++    *information = {};
++    information->st_size = static_cast<long>(found->second.size());
++    return 0;
++}
++
++NUC_FILE *native_fopen(const char *path, const char *mode) {
++    ++opens;
++    if (fopen_failure) {
++        native_errno = EACCES;
++        return nullptr;
++    }
++    if (mode[0] == 'r' && files.find(path) == files.end()) {
++        native_errno = ENOENT;
++        return nullptr;
++    }
++    if (mode[0] == 'w')
++        files[path].clear();
++    else if (mode[0] == 'a')
++        files.try_emplace(path, "");
++    handles[handle_count].path = path;
++    handles[handle_count].mode = mode;
++    handles[handle_count].position = 0;
++    return &handles[handle_count++];
++}
++
++int native_fread(char *destination, int, int length, NUC_FILE *file) {
++    if (file->mode[0] != 'r' && file->mode.find('+') == std::string::npos) {
++        native_errno = EBADF;
++        return 0;
++    }
++    auto &contents = files[file->path];
++    std::size_t available = contents.size() - file->position;
++    std::size_t count = static_cast<std::size_t>(length) < available ? length : available;
++    std::memcpy(destination, contents.data() + file->position, count);
++    file->position += count;
++    return static_cast<int>(count);
++}
++
++int native_fwrite(char *source, int, int length, NUC_FILE *file) {
++    if (file->mode[0] == 'r' && file->mode.find('+') == std::string::npos) {
++        native_errno = EBADF;
++        return 0;
++    }
++    auto &contents = files[file->path];
++    if (file->mode[0] == 'a')
++        file->position = contents.size();
++    if (file->position + length > contents.size())
++        contents.resize(file->position + length);
++    std::memcpy(contents.data() + file->position, source, length);
++    file->position += length;
++    return length;
++}
++
++template<int operation, class Return, class... Arguments>
++Return syscall(Arguments... arguments) {
++    if constexpr (operation == e_stat)
++        return native_stat(arguments...);
++    else if constexpr (operation == e_fopen)
++        return native_fopen(arguments...);
++    else if constexpr (operation == e_fclose) {
++        ++closes;
++        if constexpr (!std::is_void_v<Return>) {
++            if (fclose_failure) {
++                native_errno = EIO;
++                return -1;
++            }
++            return 0;
++        }
++    } else if constexpr (operation == e_fread)
++        return native_fread(arguments...);
++    else if constexpr (operation == e_fwrite)
++        return native_fwrite(arguments...);
++    else if constexpr (operation == e_fgetc || operation == e_ungetc)
++        return 0;
++    else
++        return &native_errno;
++}
++'''
++
++suffix = r'''
++int failures = 0;
++int checks = 0;
++void check(bool condition, const std::string &label) {
++    ++checks;
++    if (!condition) {
++        ++failures;
++        std::cout << "FAIL " << label << '\n';
++    }
++}
++void reset(bool existing) {
++    files.clear();
++    if (existing)
++        files["report.tns"] = "retained calculator report";
++    for (auto &handle : openfiles)
++        handle = nullptr;
++    for (auto &access : open_access)
++        access = O_RDONLY;
++    handle_count = 0;
++    native_errno = 0;
++    opens = 0;
++    closes = 0;
++    stat_failure = 0;
++    fopen_failure = false;
++    fclose_failure = false;
++    errno = 0;
++}
++
++int main(int argc, char **argv) {
++    check(open_access[0] == O_RDONLY && open_access[1] == O_WRONLY && open_access[2] == O_WRONLY,
++          "SDK standard descriptors initialize access modes");
++    if (argc == 2 && std::strcmp(argv[1], "isatty") == 0) {
++        for (int descriptor : {-1, INT_MIN, MAX_OPEN_FILES, MAX_OPEN_FILES + 1, 3, 0}) {
++            reset(false);
++            check(_isatty(descriptor) == 0 && errno == EBADF,
++                  "invalid isatty descriptor " + std::to_string(descriptor));
++        }
++        reset(true);
++        int descriptor = _open("report.tns", O_RDONLY);
++        check(descriptor == 3, "isatty opens ordinary file");
++        errno = 0;
++        check(_isatty(descriptor) == 0 && errno == ENOTTY, "ordinary file is not a terminal");
++        check(_close(descriptor) == 0, "isatty fixture closes ordinary file");
++        errno = 0;
++        check(_isatty(descriptor) == 0 && errno == EBADF, "closed file is not a terminal");
++        for (int standard = 0; standard < 3; ++standard) {
++            openfiles[standard] = &handles[standard];
++            errno = 0;
++            check(_isatty(standard) == 1 && errno == 0, "standard stream is a terminal");
++        }
++        std::cout << "checks=" << checks << " failures=" << failures << '\n';
++        return failures ? 1 : 0;
++    }
++    if (argc == 2) {
++        for (int descriptor : {-1, INT_MIN, MAX_OPEN_FILES, MAX_OPEN_FILES + 1}) {
++            reset(false);
++            char character[] = "x";
++            int returned = std::strcmp(argv[1], "read") == 0 ? _read(descriptor, character, 1) :
++                           std::strcmp(argv[1], "write") == 0 ? _write(descriptor, character, 1) :
++                           _close(descriptor);
++            check(returned == -1 && errno == EBADF, std::string("invalid descriptor ") + argv[1] +
++                  " fd=" + std::to_string(descriptor));
++        }
++        std::cout << "checks=" << checks << " failures=" << failures << '\n';
++        return failures ? 1 : 0;
++    }
++    stat information{};
++    reset(false);
++    check(_stat("report.tns", &information) == -1 && errno == ENOENT, "SDK stat missing is -1/ENOENT");
++    reset(true);
++    check(_stat("report.tns", &information) == 0 && information.st_size == 26, "SDK stat existing is zero");
++
++    for (int access : {O_RDONLY, O_WRONLY, O_RDWR, O_WRONLY | O_APPEND, O_WRONLY | O_TRUNC}) {
++        reset(false);
++        int descriptor = _open("report.tns", access | O_CREAT | O_EXCL);
++        std::string label = "exclusive flags=" + std::to_string(access);
++        check(descriptor == 3 && files.count("report.tns") == 1, label + " creates missing");
++        check(opens >= 1, label + " opens created file");
++        reset(true);
++        descriptor = _open("report.tns", access | O_CREAT | O_EXCL);
++        check(descriptor == -1 && errno == EEXIST, label + " rejects existing with EEXIST");
++        check(files["report.tns"] == "retained calculator report" && opens == 0,
++              label + " preserves bytes without opening");
++    }
++
++    for (int access : {O_RDONLY, O_WRONLY, O_RDWR}) {
++        for (int combination = 0; combination < 16; ++combination) {
++            bool create = (combination & 1) != 0;
++            bool exclusive = (combination & 2) != 0;
++            bool append = (combination & 4) != 0;
++            bool truncate = (combination & 8) != 0;
++            int flags = access | (create ? O_CREAT : 0) | (exclusive ? O_EXCL : 0) |
++                        (append ? O_APPEND : 0) | (truncate ? O_TRUNC : 0);
++            for (bool existing : {false, true}) {
++                reset(existing);
++                int descriptor = _open("report.tns", flags);
++                std::string label = "full flags=" + std::to_string(flags) +
++                                    " existing=" + std::to_string(existing);
++                int expected_error = access == O_RDONLY && truncate ? EINVAL :
++                                     existing && create && exclusive ? EEXIST :
++                                     !existing && !create ? ENOENT : 0;
++                check(expected_error == 0 ? descriptor == 3 : descriptor == -1,
++                      label + " descriptor");
++                if (expected_error != 0) {
++                    check(errno == expected_error, label + " errno");
++                    check(existing ? files["report.tns"] == "retained calculator report" : files.empty(),
++                          label + " refusal preserves files");
++                    continue;
++                }
++                std::string expected = existing && !truncate ? "retained calculator report" : "";
++                check(files["report.tns"] == expected, label + " initial contents");
++                char written[] = "new";
++                int count = _write(descriptor, written, 3);
++                if (access == O_RDONLY) {
++                    check(count == -1 && errno == EBADF && files["report.tns"] == expected,
++                          label + " readonly refuses writes");
++                } else {
++                    if (append)
++                        expected += "new";
++                    else
++                        expected.replace(0, expected.size() < 3 ? expected.size() : 3, "new");
++                    check(count == 3 && files["report.tns"] == expected,
++                          label + " write position and contents");
++                }
++                openfiles[descriptor]->position = 0;
++                char observed[4]{};
++                if (access == O_WRONLY)
++                    check(_read(descriptor, observed, 3) == -1 && errno == EBADF,
++                          label + " writeonly refuses reads");
++                else if (!expected.empty())
++                    check(_read(descriptor, observed, 3) == 3 && expected.substr(0, 3) == observed,
++                          label + " readable descriptor");
++            }
++        }
++    }
++
++    for (int create : {0, O_CREAT}) {
++        for (int exclusive : {0, O_EXCL}) {
++            for (bool existing : {false, true}) {
++                reset(existing);
++                int descriptor = _open("report.tns", O_RDWR | create | exclusive);
++                bool rejected_existing = existing && create && exclusive;
++                bool missing_no_create = !existing && !create;
++                bool success = !rejected_existing && !missing_no_create;
++                std::string label = "matrix create=" + std::to_string(create) + " exclusive=" +
++                                    std::to_string(exclusive) + " existing=" + std::to_string(existing);
++                check(success ? descriptor == 3 : descriptor == -1, label + " descriptor");
++                if (!success)
++                    check(errno == (rejected_existing ? EEXIST : ENOENT), label + " errno");
++                check(existing ? files["report.tns"] == "retained calculator report" :
++                      files.count("report.tns") == static_cast<std::size_t>(success), label + " bytes");
++            }
++        }
++    }
++
++    for (int failure : {EACCES, EIO}) {
++        reset(false);
++        stat_failure = failure;
++        check(_open("report.tns", O_WRONLY | O_CREAT | O_EXCL) == -1 && errno == failure,
++              "exclusive open preserves stat error " + std::to_string(failure));
++        check(opens == 0 && files.empty(), "stat failure does not create file");
++    }
++    reset(false);
++    fopen_failure = true;
++    check(_open("report.tns", O_WRONLY | O_CREAT | O_EXCL) == -1 && errno == EACCES,
++          "native create failure preserves errno");
++    check(files.empty(), "native create failure leaves no file");
++    reset(false);
++    fclose_failure = true;
++    check(_open("report.tns", O_RDONLY | O_CREAT) == -1 && errno == EIO,
++          "creation close failure preserves errno");
++    check(opens == 1 && openfiles[3] == nullptr, "creation close failure leaves no descriptor");
++    reset(true);
++    check(_open("report.tns", O_ACCMODE) == -1 && errno == EINVAL,
++          "invalid access mode is EINVAL");
++    check(opens == 0 && files["report.tns"] == "retained calculator report",
++          "invalid access mode preserves existing file");
++    reset(false);
++    for (int i = 3; i < MAX_OPEN_FILES; ++i)
++        openfiles[i] = &handles[0];
++    check(_open("report.tns", O_WRONLY | O_CREAT | O_EXCL) == -1 && errno == EMFILE,
++          "descriptor exhaustion remains EMFILE");
++    check(opens == 0 && files.empty(), "descriptor exhaustion does not create file");
++    reset(false);
++    files["stdin"] = "input";
++    files["stdout"] = "";
++    files["stderr"] = "";
++    handles[0] = {"stdin", "rb", 0};
++    handles[1] = {"stdout", "wb", 0};
++    handles[2] = {"stderr", "wb", 0};
++    for (int descriptor = 0; descriptor < 3; ++descriptor) {
++        openfiles[descriptor] = &handles[descriptor];
++        open_access[descriptor] = descriptor == 0 ? O_RDONLY : O_WRONLY;
++    }
++    char character[] = "x";
++    check(_read(0, character, 1) == 1 && character[0] == 'i', "stdin permits read");
++    check(_write(0, character, 1) == -1 && errno == EBADF, "stdin refuses write");
++    for (int descriptor : {1, 2}) {
++        check(_read(descriptor, character, 1) == -1 && errno == EBADF, "output refuses read");
++        check(_write(descriptor, character, 1) == 1, "output permits write");
++        check(_close(descriptor) == -1 && errno == EIO, "standard output remains open");
++    }
++    std::cout << "checks=" << checks << " failures=" << failures << '\n';
++    return failures ? 1 : 0;
++}
++'''
++
++scratch = Path(tempfile.mkdtemp(prefix="ndless-open-", dir=os.environ.get("NDLESS_OPEN_TEST_ROOT")))
++harness = scratch / "open_test.cpp"
++harness.write_text(prefix + access.group() + "\n" + getfd.group() + "\n" + "\n".join(functions) + suffix)
++compiler = os.environ.get("CXX", "c++")
++command = [compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror", "-fno-exceptions", "-fno-rtti",
++           "-fsanitize=address,undefined", "-fno-omit-frame-pointer", str(harness), "-o", str(scratch / "open_test")]
++print("retained_harness=" + str(scratch), flush=True)
++subprocess.run(command, check=True)
++failed = False
++for case in ([], ["read"], ["write"], ["close"], ["isatty"]):
++    print("case=" + (case[0] if case else "flags"), flush=True)
++    failed |= subprocess.run([str(scratch / "open_test"), *case]).returncode != 0
++raise SystemExit(1 if failed else 0)
+-- 
+2.55.0
+

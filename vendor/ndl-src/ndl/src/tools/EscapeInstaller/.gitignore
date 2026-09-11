@@ -1,0 +1,3 @@
+EscapeInst*
+# The glob above is meant for the built tool and was swallowing the source it compiles from.
+!EscapeInstaller.c

@@ -1,0 +1,28 @@
+# AST matcher for the resident-module teardown bug.
+#
+# An ndl .luax module stays loaded after its main returns, but crt0.S runs __cpp_fini and newlib
+# exit as soon as main returns. That destroys every static object in the image while the image is
+# still registered and callable, so the module's globals (and, in luagiac, all of giac's) are freed
+# under later calls. luagiac.c had this and reset the calculator on the first caseval. nucleus.h
+# lines 127 to 129 state the rule: a resident program must end main with _exit, not return.
+#
+# A main that reaches nl_lua_getstate is a Lua module entry point. Two matchers judge it, because
+# either alone has a hole the other closes.
+#
+# The first flags a main with no _exit or _Exit anywhere, which is the whole-function omission.
+match functionDecl(
+  isMain(),
+  isExpansionInMainFile(),
+  hasDescendant(callExpr(callee(functionDecl(hasName("nl_lua_getstate"))))),
+  unless(hasDescendant(callExpr(callee(functionDecl(hasAnyName("_exit", "_Exit"))))))
+)
+# The second flags a return that is a direct statement of main's body. One _exit on a refusal branch
+# used to satisfy the first matcher for the whole function, which is how lua_module.cc left its own
+# coverage the moment its integrity refusal gained an _exit. A conditional early return before the
+# module is registered is correct and stays nested, so only the unconditional fall-out is flagged.
+match returnStmt(
+  hasParent(compoundStmt(hasParent(functionDecl(
+    isMain(),
+    isExpansionInMainFile(),
+    hasDescendant(callExpr(callee(functionDecl(hasName("nl_lua_getstate")))))))))
+)

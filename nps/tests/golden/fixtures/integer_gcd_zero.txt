@@ -1,0 +1,61 @@
+problem: gcd(0,0)
+outcome: evaluated
+result: 0
+detail: Both inputs are zero, so gcd(0,0) = 0 by convention
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: gcd(0, 0)
+  requested method: gcd
+  angle convention: not applicable
+  branch convention: signed integers with nonnegative gcd, gcd(0,0)=0
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: gcd(0, 0)
+    rule: plan.integer-method, Reduce by Euclidean division and certify the greatest common divisor
+    claim: no claim
+    explanation: Reduce by Euclidean division and certify the greatest common divisor
+    detail: gcd(0, 0): Reduce by Euclidean division and certify the greatest common divisor
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce by Euclidean division and certify the greatest common divisor
+    applicability: signed integer literals fit the method's stated bounds
+    fact: gcd(0, 0)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, gcd(0, 0)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integer
+      goal: gcd(0, 0)
+      rule: int.gcd-sign, Replace signed integers by their magnitudes
+      claim: equivalent expression
+      explanation: Signs do not change common divisors: gcd(0, 0) = gcd(0, 0)
+      detail: Signs do not change common divisors: gcd(0, 0) = gcd(0, 0). Changing an integer's sign does not change its positive divisors. The gcd is therefore unchanged by taking both magnitudes
+      proof obligation: obl.int.gcd-sign, Replace signed integers by their magnitudes
+      action: Signs do not change common divisors: gcd(0, 0) = gcd(0, 0)
+      before: gcd(0, 0)
+      after: gcd(0, 0)
+      reversible: yes
+      verification: integer magnitude normalization, passed, Signs do not change common divisors: gcd(0, 0) = gcd(0, 0)
+      verified: yes
+    1.2 transformation
+      phase: integer
+      goal: gcd(0, 0)
+      rule: int.gcd-conclusion, Reduce by Euclidean division and certify the greatest common divisor
+      claim: equivalent expression
+      explanation: Both inputs are zero, so gcd(0,0) = 0 by convention
+      detail: Both inputs are zero, so gcd(0,0) = 0 by convention. A positive common divisor g is greatest if a*u+b*v=g: every common divisor divides this integer combination and therefore divides g. When both inputs are zero, gcd(0,0) is defined as zero
+      proof obligation: obl.int.gcd-certificate, Reduce by Euclidean division and certify the greatest common divisor
+      action: Both inputs are zero, so gcd(0,0) = 0 by convention
+      before: gcd(0, 0)
+      after: 0
+      reversible: yes
+      verification: common divisibility and Bezout identity, passed, 0 * 0 + 0 * 0 = 0, with a nonnegative common divisor
+      verified: yes

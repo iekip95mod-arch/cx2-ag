@@ -1,0 +1,247 @@
+From 4dc3d3e4c7f51030017435b86d2cb14a997b50a7 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 00:08:15 -0400
+Subject: [PATCH 09/11] Preserve partial USB reads on timeout
+
+---
+ src/cx2.cpp         |  66 ++++++++++-----------------
+ tests/transport.cpp | 109 +++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 131 insertions(+), 44 deletions(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index 2da664c..43a7a3a 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -167,57 +167,39 @@ static int readPacket(usb_device_t *handle, NNSEMessage *message, int maxlen, Pa
+ 	if(maxlen < sizeof(NNSEMessage))
+ 		return -NSPIRE_ERR_INVALID;
+ 
+-	int transferred = 0;
+ 	memset(message, 0, sizeof(NNSEMessage));
+-	auto timeout = remainingTimeout(deadline, 5000);
+-	if(!timeout) {
+-		nspire_trace("usb phase=read direction=in reason=deadline remaining_ms=0");
+-		return -NSPIRE_ERR_TIMEOUT;
+-	}
+-	int r = tracedTransfer(handle, handle->ep_in, reinterpret_cast<unsigned char*>(message), maxlen, &transferred, timeout, deadline, "read");
+-#ifdef DEBUG
+-	std::cerr << "NNSE read: status=" << r << " transferred=" << transferred
+-		<< " capacity=" << maxlen << " length=" << ntohs(message->length) << '\n';
+-#endif
+-
+-	if(r < 0)
+-		return usb_error(r);
+-	if(!transferred)
+-		return -NSPIRE_ERR_TIMEOUT;
+-	if(transferred < sizeof(NNSEMessage))
+-		return -NSPIRE_ERR_INVALPKT;
+-
+-	const auto completeLength = ntohs(message->length);
+-	// Aligned frames carry one padding byte to terminate the USB transfer.
+-	const int transferLength = completeLength + (completeLength % 64 == 0);
+-
+-	if(completeLength < sizeof(NNSEMessage)
+-		|| transferLength > maxlen || transferred > transferLength)
+-		return -NSPIRE_ERR_INVALPKT;
+-
+-	uint8_t *data = reinterpret_cast<uint8_t*>(message) + transferred;
+-	auto remainingLength = transferLength - transferred;
+-	while(remainingLength > 0)
++	int received = 0;
++	int completeLength = 0;
++	int transferLength = maxlen;
++	while(received < transferLength)
+ 	{
+-		timeout = remainingTimeout(deadline, 1000);
++		const char *phase = received ? "continuation" : "read";
++		auto timeout = remainingTimeout(deadline, received ? 1000 : 5000);
+ 		if(!timeout) {
+-			nspire_trace("usb phase=continuation direction=in reason=deadline remaining_ms=0");
++			nspire_trace("usb phase=%s direction=in reason=deadline remaining_ms=0", phase);
+ 			return -NSPIRE_ERR_TIMEOUT;
+ 		}
+-		r = tracedTransfer(handle, handle->ep_in, data, remainingLength, &transferred, timeout, deadline, "continuation");
+-#ifdef DEBUG
+-		std::cerr << "NNSE continuation: status=" << r << " transferred=" << transferred
+-			<< " remaining=" << remainingLength << '\n';
+-#endif
+-		if(r < 0)
++		int transferred = 0;
++		int capacity = transferLength - received;
++		int r = tracedTransfer(handle, handle->ep_in,
++			reinterpret_cast<unsigned char*>(message) + received, capacity,
++			&transferred, timeout, deadline, phase);
++		if(r < 0 && r != LIBUSB_ERROR_TIMEOUT)
+ 			return usb_error(r);
++		if(transferred < 0 || transferred > capacity)
++			return -NSPIRE_ERR_INVALPKT;
+ 		if(!transferred)
+ 			return -NSPIRE_ERR_TIMEOUT;
+-		if(transferred < 0 || transferred > remainingLength)
++		received += transferred;
++		if(!completeLength && received >= sizeof(NNSEMessage)) {
++			completeLength = ntohs(message->length);
++			// Aligned frames carry one padding byte to terminate the USB transfer.
++			transferLength = completeLength + (completeLength % 64 == 0);
++			if(completeLength < sizeof(NNSEMessage) || transferLength > maxlen)
++				return -NSPIRE_ERR_INVALPKT;
++		}
++		if(received > transferLength)
+ 			return -NSPIRE_ERR_INVALPKT;
+-		
+-		data += transferred;
+-		remainingLength -= transferred;
+ 	}
+ 
+ #ifdef DEBUG
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index b237458..769e5a0 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -34,6 +34,7 @@ struct Transfer {
+ 	int status = 0;
+ 	std::vector<unsigned char> bytes;
+ 	int written = -1;
++	unsigned int delay_us = 0;
+ };
+ 
+ static struct {
+@@ -284,6 +285,8 @@ int LIBUSB_CALL libusb_bulk_transfer(libusb_device_handle *, unsigned char endpo
+ 	}
+ 	auto transfer = transfers.front();
+ 	transfers.pop_front();
++	if(transfer.delay_us)
++		usleep(transfer.delay_us);
+ 	if(reading) {
+ 		CHECK(transfer.bytes.size() <= static_cast<size_t>(length));
+ 		std::copy(transfer.bytes.begin(), transfer.bytes.end(), bytes);
+@@ -536,6 +539,107 @@ static void fragmented_receive() {
+ 	CHECK(bytes[0] == 1 && bytes[3] == 4 && usb.bulk_calls == 2);
+ }
+ 
++static void partial_timeout_receive() {
++	unsigned failures = 0;
++	auto expect = [&failures](bool passed, const char *label) {
++		if(!passed) { std::cerr << "partial timeout: " << label << '\n'; ++failures; }
++	};
++	auto wire = frame(StreamService, std::vector<unsigned char>(100, 0x5a));
++	for(auto cuts : {std::vector<size_t>{64, 112}, {5, 9, 12, 64, 112}, {12, 64, 100, 112}, {112}}) {
++		reset();
++		auto handle = ready();
++		size_t offset = 0;
++		for(size_t end : cuts) {
++			usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {wire.begin() + offset, wire.begin() + end}});
++			offset = end;
++		}
++		unsigned char received[100]{};
++		expect(packet_recv_cx2(&handle, reinterpret_cast<char*>(received), sizeof received) == 0,
++			"initial/header/body/complete timeout bytes must form one packet");
++		expect(std::all_of(std::begin(received), std::end(received), [](auto byte) { return byte == 0x5a; }),
++			"complete payload must reach caller exactly");
++		expect(usb.reads.empty() && usb.bulk_calls == static_cast<int>(cuts.size()),
++			"assembly must consume each fragment once without replay");
++	}
++	for(int status : std::vector<int>{0, LIBUSB_ERROR_TIMEOUT}) {
++		reset();
++		auto handle = ready();
++		usb.reads.push_back({status, {wire.begin(), wire.begin() + 5}});
++		usb.reads.push_back({0, {wire.begin() + 5, wire.end()}});
++		unsigned char received[100]{};
++		expect(packet_recv_cx2(&handle, reinterpret_cast<char*>(received), sizeof received) == 0,
++			"header fragmentation must not depend on USB status");
++	}
++	for(int status : std::vector<int>{0, LIBUSB_ERROR_TIMEOUT, LIBUSB_ERROR_NO_DEVICE, LIBUSB_ERROR_OVERFLOW}) {
++		reset();
++		auto handle = ready();
++		usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {wire.begin(), wire.begin() + 64}});
++		usb.reads.push_back({status, {}});
++		usb.reads.push_back({0, wire});
++		unsigned char received[100]{};
++		int expected = status == 0 || status == LIBUSB_ERROR_TIMEOUT ? -NSPIRE_ERR_TIMEOUT : usb_error(status);
++		expect(packet_recv_cx2(&handle, reinterpret_cast<char*>(received), sizeof received) == expected,
++			"zero progress and terminal USB errors must remain distinct");
++		expect(usb.bulk_calls == 2 && usb.reads.size() == 1 && received[0] == 0,
++			"terminal reads must stop without publishing incomplete bytes");
++	}
++	reset();
++	auto handle = ready();
++	unsigned char storage[200]{};
++	auto *message = reinterpret_cast<NNSEMessage*>(storage);
++	usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {wire.begin(), wire.begin() + 64}, -1, 20000});
++	usb.reads.push_back({0, {wire.begin() + 64, wire.end()}});
++	expect(readPacket(&handle.device, message, sizeof storage,
++		std::chrono::steady_clock::now() + std::chrono::milliseconds(5)) == -NSPIRE_ERR_TIMEOUT,
++		"partial progress must not extend the absolute deadline");
++	expect(usb.bulk_calls == 1 && usb.reads.size() == 1, "expired deadline must prevent continuation I/O");
++	reset();
++	usb.reads.push_back({0, wire});
++	expect(readPacket(&handle.device, message, sizeof storage, std::chrono::steady_clock::now()) == -NSPIRE_ERR_TIMEOUT,
++		"expired entry must fail");
++	expect(usb.bulk_calls == 0, "expired entry must not read");
++	for(int status : {LIBUSB_ERROR_NO_DEVICE, LIBUSB_ERROR_OVERFLOW}) {
++		reset();
++		usb.reads.push_back({status, wire});
++		expect(readPacket(&handle.device, message, sizeof storage,
++			std::chrono::steady_clock::now() + std::chrono::seconds(1)) == usb_error(status),
++			"non-timeout errors must not publish even a complete frame");
++	}
++	reset();
++	usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, wire, -1, 20000});
++	expect(readPacket(&handle.device, message, sizeof storage,
++		std::chrono::steady_clock::now() + std::chrono::milliseconds(5)) == 0,
++		"complete timeout frame needs validation, not another read after deadline");
++	expect(usb.bulk_calls == 1, "complete timeout frame must require one read");
++	reset();
++	for(unsigned char byte : wire)
++		usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {byte}});
++	expect(readPacket(&handle.device, message, sizeof storage,
++		std::chrono::steady_clock::now() + std::chrono::seconds(1)) == 0,
++		"single-byte progress must assemble a validated frame");
++	expect(usb.bulk_calls == static_cast<int>(wire.size()), "positive progress must remain bounded by frame bytes");
++	reset();
++	auto padded = frame(StreamService, std::vector<unsigned char>(52, 0x63));
++	usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, padded});
++	usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {0}});
++	expect(readPacket(&handle.device, message, sizeof storage,
++		std::chrono::steady_clock::now() + std::chrono::seconds(1)) == 0,
++		"aligned frame timeout must consume required USB padding");
++	expect(usb.bulk_calls == 2 && ntohs(message->length) == 64, "padding must not change the frame length");
++	for(bool bad_length : {false, true}) {
++		reset();
++		auto invalid = wire;
++		if(bad_length) reinterpret_cast<NNSEMessage*>(invalid.data())->length = htons(11);
++		else invalid.back() ^= 1;
++		usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {invalid.begin(), invalid.begin() + 5}});
++		usb.reads.push_back({LIBUSB_ERROR_TIMEOUT, {invalid.begin() + 5, invalid.end()}});
++		expect(readPacket(&handle.device, message, sizeof storage,
++			std::chrono::steady_clock::now() + std::chrono::seconds(1)) == -NSPIRE_ERR_INVALPKT,
++			"timeout bytes must still pass frame length and checksum validation");
++	}
++	CHECK(failures == 0);
++}
++
+ static void zero_progress_and_truncation() {
+ 	auto handle = ready();
+ 	char bytes[20]{};
+@@ -550,7 +654,8 @@ static void zero_progress_and_truncation() {
+ 	CHECK(packet_recv_cx2(&handle, bytes, sizeof(bytes)) == -NSPIRE_ERR_DISCONNECTED);
+ 	reset();
+ 	usb.reads.push_back({0, {1, 2, 3}});
+-	CHECK(packet_recv_cx2(&handle, bytes, sizeof(bytes)) == -NSPIRE_ERR_INVALPKT);
++	CHECK(packet_recv_cx2(&handle, bytes, sizeof(bytes)) == -NSPIRE_ERR_TIMEOUT);
++	CHECK(usb.bulk_calls == 2);
+ 	reset();
+ 	usb.reads.push_back({0, packet});
+ 	CHECK(packet_recv_cx2(&handle, bytes, 3) == -NSPIRE_ERR_INVALPKT);
+@@ -1211,7 +1316,7 @@ static void error_strings() {
+ int main() {
+ 	void (*tests[])() = {discovery_errors, setup_errors, reset_recovery, reset_recovery_bounded,
+ 		interface_startup, interface_startup_errors, descriptor_cleanup, receive_error_classes,
+-		fragmented_receive, zero_progress_and_truncation,
++		fragmented_receive, partial_timeout_receive, zero_progress_and_truncation,
+ 		ack_and_handshake_failures, send_errors_and_deadlines, packet_length_validation,
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+-- 
+2.55.0
+

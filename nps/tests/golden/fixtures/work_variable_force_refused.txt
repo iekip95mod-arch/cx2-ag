@@ -1,0 +1,60 @@
+problem: force = (3, 4) N; displacement = (2, 1) m; force profile = variable; frame = lab
+variable: W
+outcome: law not applicable
+detail: a variable force requires a path integral, not one component-vector dot product
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.work.constant-force-dot-product
+  envelope version: <not recorded>
+  normalized problem: work_problem(framed_vector(vector(3, 4), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(2, 1), 1, lab, dimension(1, 0, 0), 2), variable)
+  requested method: validate constant-force applicability, convert component vectors to SI, evaluate the existing exact dot product, and report once
+  active assumption: force profile is variable
+  active assumption: force frame is lab
+  active assumption: displacement frame is lab
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact SI conversion and dot-product arithmetic, final-only precision
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  1 plan
+    phase: plan
+    goal: Find the work done by the supplied force
+    rule: physics.work.plan, Constant-force work plan
+    claim: no claim
+    explanation: Check applicability, dimensions and frames before using W = F dot d
+    assumption before: force profile is variable
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Constant-force work from Cartesian components
+    applicability: the supplied force is constant over the displacement
+    applicability: both vectors have matching rank two or three
+    applicability: both vectors declare a named frame
+    applicability: both vectors use the same frame
+    applicability: force and displacement have their required dimensions
+    fact: force: (3 i + 4 j) N
+    fact: displacement: (2 i + 1 j) m
+    fact: force profile: variable
+    alternative: variable-force line integral
+    rationale: the existing local exact vector operation produces and checks the component dot product
+    verification: declared force profile, failed, variable
+    verification: rank comparison, not attempted, checked before evaluating the dot product
+    verification: frame declaration, not attempted, checked before comparing frame identity
+    verification: frame identity, not attempted, checked before evaluating matching components
+    verification: dimensional analysis, not attempted, checked before applying the work definition
+    verification: registered strategy preconditions, failed, precondition pre.work.constant-force is failed
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check whether the work definition applies
+      rule: physics.work.check-applicability, Constant-force applicability
+      claim: definition
+      explanation: W = F dot d requires a force constant over the displacement
+      proof obligation: obl.work.constant-force, the force is constant over the displacement
+      target claim: the constant-force work definition applies
+      check method: declared force profile
+      expected: constant force
+      observed: variable
+      verification: declared force profile, failed, variable
+      verified: no

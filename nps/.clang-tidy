@@ -1,0 +1,34 @@
+# Curated for this embedded C++11 target (TI-Nspire, -fno-exceptions, -Os). This is deliberately not
+# the full clang-tidy set. The families kept are the ones that catch real device faults rather than
+# restyle working code:
+#   bugprone and clang-analyzer   logic and memory errors, the class that reset the calculator
+#   cert                          unchecked returns and unsafe calls
+#   performance                   the copies and allocations that matter under -Os
+#   portability                   surprises across the cross compile
+#   concurrency                   a cheap guard even though the device is single threaded
+#   misc-use-internal-linkage     file-local helpers that should not have external linkage
+# The noisy style families (modernize, readability, most of misc and cppcoreguidelines) are left off
+# on purpose, because this codebase has its own idioms and they would flag correct code by the
+# hundred.
+#
+# Three checks inside the kept families are disabled because they only restyle code that is already
+# correct: easily-swappable-parameters flags any two parameters of the same type, and the two
+# string-find checks want every one-character search literal rewritten as a char.
+#
+# The runner (tools/tidy.sh) points this at the shipped algorithmic core and leaves out the two
+# diagnostic-heavy device entry files. The resident-module _exit rule is a separate clang-query
+# check, tools/resident-exit.query.
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  performance-*,
+  portability-*,
+  misc-use-internal-linkage,
+  -bugprone-easily-swappable-parameters,
+  -performance-faster-string-find,
+  -performance-prefer-single-char-overloads
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'stepcas/src/'

@@ -1,0 +1,19 @@
+problem: x^2 = 4
+variable: x
+outcome: cancelled
+detail: cancelled
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.pure-square.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((x^2) = 4)
+  requested method: isolate the square and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: not recorded
+steps
+  none

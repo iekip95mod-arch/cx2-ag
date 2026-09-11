@@ -1,0 +1,60 @@
+problem: sin(x) + x^x
+variable: x
+outcome: unsupported form
+detail: an exponent that contains the variable needs logarithmic differentiation, which is not implemented
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.derivative.single-variable
+  envelope version: <not recorded>
+  normalized problem: (sin(x) + (x^x))
+  requested method: differentiate by rule
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: partially solved
+steps
+  1 plan
+    phase: plan
+    goal: Differentiate (sin(x) + (x^x)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every form that produced a recorded step matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: differentiate
+      goal: Differentiate (sin(x) + (x^x))
+      rule: d.sum, Sum rule
+      claim: equivalent expression
+      explanation: The derivative of a sum is the sum of the derivatives
+      detail: Each term is differentiated on its own and the results are added.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Differentiate each term separately
+      before: d((sin(x) + (x^x)), x)
+      after: (cos(x) + d((x^x), x))
+      reversible: no
+      verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+      verified: yes
+      1.1.1 transformation
+        phase: differentiate
+        goal: Differentiate sin(x)
+        rule: d.function, Trigonometric derivative
+        claim: equivalent expression
+        explanation: Use the known derivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the derivative of sin
+        before: d(sin(x), x)
+        after: cos(x)
+        reversible: no
+        verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+        verified: yes

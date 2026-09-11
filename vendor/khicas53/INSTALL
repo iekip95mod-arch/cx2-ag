@@ -1,0 +1,15 @@
+Install:
+Run the TI Nspire CX/CX II CAS software.
+Clic on the Explorer icon.
+Connect the calculator.
+Copy the ndless directory to the calculator (clic on ndless directory on the computer,
+ctrl-c then clic on calculator ctrl-v).
+If you have already custom extensions declared in ndless.cfg.tns, don't overwrite your own ndless.cfg.tns (the first time you will run KhiCAS, it will associate extensions xw and py to KhiCAS) or run your custom applications to redeclare your custom extensions.
+
+Installation:
+Lancer sur votre ordinateur le logiciel TI Nspire CX ou CX II CAS.
+Cliquer sur l'icone Explorateur de contenu
+Connecter la calculatrice
+Copier le repertoire ndless vers la calculatrice (clic sur le repertoire ndless
+de l'ordinateur, ctrl-c, puis clic sur la calculatrice et ctrl-v).
+Si vous avez declare des extensions supplementaires dans ndless.cfg.tns, ne l'ecrasez pas (au premier lancement, KhiCAS associera automatiquement les extensions xw et py a KhiCAS) ou re-executez les applications correspondantes pour redeclarer ces extensions.

@@ -1,0 +1,102 @@
+[
+  {
+    "old": "Select the entry box at the bottom. Type !s 2*x+3=11 and press Enter. The exclamation mark is available from the punctuation palette.",
+    "new": "Select the bottom entry box. Submit !g, !h off and !v x separately, pressing Enter after each. This sets full walkthroughs in x. Then submit !s 2*x+3=11. Find ! in the punctuation palette.",
+    "occurrences": 1
+  },
+  {
+    "old": "Choose Algebra > Simplify, Expand or Factor. Complete the call and press Enter.",
+    "new": "Choose Algebra > Simplify or Factor. For expansion, type expand(...) directly. There is no Expand item in the current Algebra menu. Complete the expression and press Enter.",
+    "occurrences": 1
+  },
+  {
+    "old": "Select the old input or output you want to reuse.",
+    "new": "First check the entry line. If you want to replace its contents, focus it and clear it with Ctrl+Del. Then select the old input or output in history.",
+    "occurrences": 1
+  },
+  {
+    "old": "Press Enter to copy it into the entry line. This gives you an opportunity to edit before evaluating again.",
+    "new": "Press Enter to insert it at the entry line’s saved cursor position or replace its selection. Existing text outside the selection remains. Check the combined expression before calculating.",
+    "occurrences": 1
+  },
+  {
+    "old": "Delete a history entry",
+    "new": "Del or Ctrl+Del on a history entry",
+    "occurrences": 1
+  },
+  {
+    "old": "Ctrl+Del is not harmless everywhere. In history it is an entry-deletion action. Check that the cursor is in the bottom input field before using it to clear a line.",
+    "new": "Del and Ctrl+Del both delete the selected input/output pair when history has focus. To edit or clear typed input, first check that the cursor is in the bottom entry field.",
+    "occurrences": 1
+  },
+  {
+    "old": "Current transformation details use Do for the operation, Write for the resulting expression and Why for its justification.",
+    "new": "Current verified transformation details use Do for the operation and Write for the resulting expression. Why gives the justification when included at the selected detail level.",
+    "occurrences": 1
+  },
+  {
+    "old": "Current transformation details use Do, Write and Why.",
+    "new": "Current verified transformations use Do and Write, with Why when included at the selected detail level.",
+    "occurrences": 1
+  },
+  {
+    "old": "Rewrite a polynomial as nested multiplication for evaluation.",
+    "new": "Evaluate P at a supplied value using Horner’s method. For example, horner([1,-2,1],2) returns 1. It is not simply a display-format switch.",
+    "occurrences": 1
+  },
+  {
+    "old": "Probability of exactly k successes in n independent trials with success probability p.",
+    "new": "Use the documented order binomial(n,k,p) for exactly k successes. Example: binomial(10,2,0.4). The menu shows n,p,k. Avoid that order at p=0 or p=1, where inference is ambiguous.",
+    "occurrences": 1
+  },
+  {
+    "old": "Exponential density. Confirm whether a parameter is a rate or a scale before entering it.",
+    "new": "Density mu*exp(-mu*x), with positive rate mu and x >= 0. The mean is 1/mu. The parameter is a rate, not a mean or scale.",
+    "occurrences": 1
+  },
+  {
+    "old": "Geometric probability for repeated independent trials. Check the trial-count convention.",
+    "new": "Probability that the first success is on trial k: (1-p)^(k-1)*p, with k starting at 1. It does not count failures starting at zero.",
+    "occurrences": 1
+  },
+  {
+    "old": "Check whether the supplied element belongs to a collection. Inspect the backend’s returned indicator.",
+    "new": "Return 0 when absent. Otherwise return the first zero-based position plus 1. For example, contains([10,20],20) returns 2, not just true.",
+    "occurrences": 1
+  },
+  {
+    "old": "The native family allows factorial through 100 and permutations/combinations with 0 <= k <= n <= 100. Trial-division prime and factorization lessons are bounded around one million. Division and gcd inputs are bounded around one billion. Negative inputs are supported for gcd but generally refused by the other listed methods. Resource limits still apply.",
+    "new": "Factorial allows 0 through 100. Counting requires 0 <= k <= n <= 100. Prime testing allows 0 through 1000000. Factoring allows 2 through 1000000. Division allows a dividend from 0 through 1000000000 and a positive divisor through 1000000000. Gcd accepts either sign through magnitude 1000000000. Next-prime search stops at 1000000. Powmod requires base 0 through 1000000000, exponent 1 through 1000000 and modulus 2 through 1000000000. Resource limits still apply.",
+    "occurrences": 1
+  },
+  {
+    "old": "Use ordinary Giac mode for this introductory plot. Type the command above and press Enter.",
+    "new": "Submit !g on its own line for ordinary Giac mode. Then type the plot command above and press Enter.",
+    "occurrences": 1
+  },
+  {
+    "old": "Use T in a walkthrough or Actions > Read Full Text from the shell.",
+    "new": "Use T in a walkthrough or Actions > Read Full Text from the entry screen.",
+    "occurrences": 1
+  },
+  {
+    "old": "Open a transformation and read Do, Write and Why.",
+    "new": "Open a transformation. Read Do, Write and any Why explanation. If verification failed, read the Attempted or Unverified wording instead.",
+    "occurrences": 1
+  },
+  {
+    "old": "What was not performed",
+    "new": "Review checks and their limits",
+    "occurrences": 1
+  },
+  {
+    "old": "The manual was prepared against the working source on 9 September 2026. The repository HEAD identifier was 0961d6e.",
+    "new": "The manual was prepared and reviewed against the working source on 9 September 2026. The repository HEAD identifier was 0961d6e.",
+    "occurrences": 1
+  },
+  {
+    "old": "No new solver implementation, package deployment, OS update, runtime installation or physical-handheld acceptance test was performed to create this manual. The prepared examples were checked mathematically and against the declared syntax, not all replayed on the current handheld.",
+    "new": "The review ran the current UI host test and separate native example probes. UI controls passed 3742 host checks. The native probes confirmed supported algebra, calculus, integer and kinematics examples. The host backend could not execute matrix traces or Giac-only commands. No new handheld test, deployment or OS change was performed.",
+    "occurrences": 1
+  }
+]

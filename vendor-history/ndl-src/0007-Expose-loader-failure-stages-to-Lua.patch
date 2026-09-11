@@ -1,0 +1,1175 @@
+From 73da54394eb1a2694bc4b2bb229f9fd170169a3f Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Thu, 10 Sep 2026 10:10:20 -0400
+Subject: [PATCH 7/7] Expose loader failure stages to Lua
+
+---
+ ndl/src/resources/luaext.c        |  24 ++++-
+ ndl/src/resources/ndl.h           |  14 +++
+ ndl/src/resources/ploaderhook.c   |  42 ++++----
+ ndl/src/resources/zehn_loader.cpp |  52 ++++++----
+ ndl/src/resources/zehn_loader.h   |   2 +
+ tests/build_loader_probe.py       |  22 +++++
+ tests/loader_probe.lua            |  58 +++++++++++
+ tests/loader_probe_entry.c        |   3 +
+ tests/lua_loader_harness.c        |  72 ++++++++++++++
+ tests/ploader_harness.c           | 156 ++++++++++++++++++++++++++++++
+ tests/prg_loader_harness.c        |  86 ++++++++++++++++
+ tests/test_loader_diagnostics.py  |  89 +++++++++++++++++
+ tests/zehn_loader_harness.cpp     | 153 +++++++++++++++++++++++++++++
+ 13 files changed, 732 insertions(+), 41 deletions(-)
+ create mode 100644 tests/build_loader_probe.py
+ create mode 100644 tests/loader_probe.lua
+ create mode 100644 tests/loader_probe_entry.c
+ create mode 100644 tests/lua_loader_harness.c
+ create mode 100644 tests/ploader_harness.c
+ create mode 100644 tests/prg_loader_harness.c
+ create mode 100644 tests/test_loader_diagnostics.py
+ create mode 100644 tests/zehn_loader_harness.cpp
+
+diff --git a/ndl/src/resources/luaext.c b/ndl/src/resources/luaext.c
+index f1152ba..938f046 100644
+--- a/ndl/src/resources/luaext.c
++++ b/ndl/src/resources/luaext.c
+@@ -29,13 +29,23 @@
+ static void *loaded[LUAEXT_MAX_MODULES];
+ static unsigned loaded_next_index = 0;
+ 
++// The callback returns 0 both for a file that is not the one wanted and for the one that is and
++// would not load, and file_each cannot tell those apart, so the failure has to come back separately.
++struct require_state {
++	const char *filename;
++	int load_failed;
++	struct ld_diagnostic diagnostic;
++};
++
+ static int require_file_each_cb(const char *path, void *context) {
+-	if (strcmp(strrchr(path, '/') + 1, (char*)context))
++	struct require_state *state = (struct require_state *)context;
++	if (strcmp(strrchr(path, '/') + 1, state->filename))
+ 		return 0;
+ 	loaded[loaded_next_index] = NULL;
+-	if (ld_exec(path, &loaded[loaded_next_index]) != 0) {
++	if (ld_exec_with_args_diagnostic(path, 0, NULL, &loaded[loaded_next_index], &state->diagnostic) != 0) {
+ 		// Loading failed or module returned failure
+ 		ld_free(loaded[loaded_next_index]);
++		state->load_failed = 1;
+ 		return 0;
+ 	}
+  	loaded_next_index++; // found and loaded
+@@ -44,6 +54,7 @@ static int require_file_each_cb(const char *path, void *context) {
+ 
+ static int require(lua_State *L) {
+ 	char modulepath[FILENAME_MAX];
++	struct require_state state = { modulepath, 0, { "none", 0, 0 } };
+ 	const char *name = luaL_checkstring(L, 1);
+ 	if (strlen(name) >= 30) goto require_not_found;
+ 	if (loaded_next_index >= LUAEXT_MAX_MODULES) {
+@@ -51,7 +62,14 @@ static int require(lua_State *L) {
+ 		return 1;
+ 	}
+ 	sprintf(modulepath, "%s.luax.tns", name);
+-	if (!file_each(get_documents_dir(), require_file_each_cb, modulepath)) {
++	if (!file_each(get_documents_dir(), require_file_each_cb, &state)) {
++		if (state.load_failed) {
++			char detail[128];
++			snprintf(detail, sizeof(detail), "%s (code %d, bytes %lu)", state.diagnostic.stage,
++				state.diagnostic.code, (unsigned long)state.diagnostic.bytes);
++			luaL_error(L, "module " LUA_QS " was found but would not load: %s", name, detail);
++			return 1;
++		}
+ require_not_found:
+ 		luaL_error(L, "module " LUA_QS " not found", name);
+ 		return 1;
+diff --git a/ndl/src/resources/ndl.h b/ndl/src/resources/ndl.h
+index 19ab2d3..9e6624c 100644
+--- a/ndl/src/resources/ndl.h
++++ b/ndl/src/resources/ndl.h
+@@ -77,9 +77,23 @@ enum e_ld_bin_format {
+ 	LD_ZEHN_BIN
+ };
+ extern enum e_ld_bin_format ld_bin_format;
++struct ld_diagnostic {
++	const char *stage;
++	int code;
++	size_t bytes;
++};
++static inline int ld_diagnostic_set(struct ld_diagnostic *diagnostic, const char *stage, int code, size_t bytes) {
++	if (diagnostic) {
++		diagnostic->stage = stage;
++		diagnostic->code = code;
++		diagnostic->bytes = bytes;
++	}
++	return code;
++}
+ void ld_set_resident(void);
+ int ld_exec(const char *path, void **resident_ptr);
+ int ld_exec_with_args(const char *path, int argc, char *argv[], void **resident_ptr);
++int ld_exec_with_args_diagnostic(const char *path, int argc, char *argv[], void **resident_ptr, struct ld_diagnostic *diagnostic);
+ void ld_free(void *resident_ptr);
+ void plh_startup();
+ 
+diff --git a/ndl/src/resources/ploaderhook.c b/ndl/src/resources/ploaderhook.c
+index edee3da..23e2b1d 100644
+--- a/ndl/src/resources/ploaderhook.c
++++ b/ndl/src/resources/ploaderhook.c
+@@ -65,12 +65,12 @@ void ld_set_resident(void) {
+ 
+ enum e_ld_bin_format ld_bin_format = LD_ERROR_BIN;
+ 
+-static int ndl_load(const char *docpath, NUC_FILE *docfile, void **base, int (**entry_address_ptr)(int, char*[]), bool *supports_hww)
++static int ndl_load(const char *docpath, NUC_FILE *docfile, void **base, int (**entry_address_ptr)(int, char*[]), bool *supports_hww, struct ld_diagnostic *diagnostic)
+ {
+ 	struct nuc_stat docstat;
+ 	if (nuc_stat(docpath, &docstat)) {
+ 		puts("ndl_load: can't open doc");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "prg.stat", 1, 0);
+ 	}
+ 
+ 	// Scan the first 20KiB for an embedded Zehn file
+@@ -81,13 +81,13 @@ static int ndl_load(const char *docpath, NUC_FILE *docfile, void **base, int (**
+ 	uint32_t * const scanarea = malloc(scansize);
+ 	if (!scanarea) {
+ 		puts("ndl_load: can't malloc");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "prg.scan.allocate", 1, scansize);
+ 	}
+ 
+ 	if (!nuc_fread(scanarea, scansize, 1, docfile)) {
+ 		puts("ndl_load: can't read doc");
+ 		free(scanarea);
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "prg.scan.read", 1, scansize);
+ 	}
+ 
+ 	for(size_t i = 0; i + 1 < scansize / sizeof(uint32_t); ++i)
+@@ -96,7 +96,7 @@ static int ndl_load(const char *docpath, NUC_FILE *docfile, void **base, int (**
+ 		if(scanarea[i] == 0x6e68655a && scanarea[i + 1] == 1)
+ 		{
+ 			nuc_fseek(docfile, i * sizeof(uint32_t), SEEK_SET);
+-			int ret = zehn_load(docfile, base, entry_address_ptr, supports_hww);
++			int ret = zehn_load_diagnostic(docfile, base, entry_address_ptr, supports_hww, diagnostic);
+ 			switch(ret)
+ 			{
+ 			case 0: // Execute as Zehn
+@@ -116,18 +116,18 @@ static int ndl_load(const char *docpath, NUC_FILE *docfile, void **base, int (**
+ 	uint8_t *docptr = execmem_alloc(docstat.st_size);
+ 	if (!docptr) {
+ 		puts("ndl_load: can't malloc");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "prg.executable.allocate", 1, docstat.st_size);
+ 	}
+ 	if (!nuc_fread(docptr, docstat.st_size, 1, docfile)) {
+ 		puts("ndl_load: can't read doc");
+ 		execmem_free(docptr);
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "prg.executable.read", 1, docstat.st_size);
+ 	}
+ 
+ 	*base = docptr;
+ 	*entry_address_ptr = (int (*)(int argc, char *argv[]))(docptr + sizeof(PRGMSIG));
+ 
+-	return 0;
++	return ld_diagnostic_set(diagnostic, "none", 0, 0);
+ }
+ 
+ int ld_exec(const char *path, void **resident_ptr) {
+@@ -232,6 +232,11 @@ static bool expand_stack()
+ // Resident program shouldn't use argv after returning.
+ // argsn/args don't include the program path. args doesn't need to be NULL terminated. Can be 0/NULL.
+ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident_ptr) {
++	return ld_exec_with_args_diagnostic(path, argsn, args, resident_ptr, NULL);
++}
++
++int ld_exec_with_args_diagnostic(const char *path, int argsn, char *args[], void **resident_ptr, struct ld_diagnostic *diagnostic) {
++	ld_diagnostic_set(diagnostic, "none", 0, 0);
+ 	char prgm_path[FILENAME_MAX];
+ 	char doc_path[FILENAME_MAX]; // non const
+ 	unsigned i;
+@@ -246,7 +251,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	// Stack expansion
+ 	if (!expand_stack()) {
+ 		puts("ld_exec: Could not expand stack");
+-		return 0xDEAD;
++		return ld_diagnostic_set(diagnostic, "stack.expand", 0xDEAD, 0);
+ 	}
+ 
+ 	// File association
+@@ -255,7 +260,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	char *ext = strrchr(extbuf, '.');
+ 	if (!ext || ext == extbuf) {
+ 		puts("ld_exec: can't find file extension");
+-		return 0xDEAD; // shouldn't happen, all files have a .tns extension
++		return ld_diagnostic_set(diagnostic, "path.extension", 0xDEAD, 0);
+ 	}
+ 	*ext = '\0'; // keep the extension before .tns
+ 	ext = strrchr(extbuf, '.');
+@@ -287,14 +292,14 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	if(!prgm)
+ 	{
+ 		puts("ld_exec: couldn't fopen file!\n");
+-		return 0xDEAD;
++		return ld_diagnostic_set(diagnostic, "file.open", 0xDEAD, 0);
+ 	}
+ 
+ 	if(nuc_fread(&signature, sizeof(signature), 1, prgm) != 1)
+ 	{
+ 		// empty file?
+ 		nuc_fclose(prgm);
+-		return 0xDEAD;
++		return ld_diagnostic_set(diagnostic, "file.signature.read", 0xDEAD, sizeof(signature));
+ 	}
+ 
+ 	nuc_fseek(prgm, 0, SEEK_SET);
+@@ -306,7 +311,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	{
+ 	case 0x00475250: //"PRG\0"
+ 		ld_bin_format = LD_PRG_BIN;
+-		if((ret = ndl_load(prgm_path, prgm, &base, &entry, &supports_hww)) == 0)
++		if((ret = ndl_load(prgm_path, prgm, &base, &entry, &supports_hww, diagnostic)) == 0)
+ 		{
+ 			nuc_fclose(prgm);
+ 			break;
+@@ -323,10 +328,10 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 		}
+ 
+ 		nuc_fclose(prgm);
+-		return 0xDEAD;
++		return ld_diagnostic_set(diagnostic, "bflt.load", 0xDEAD, 0);
+ 	case 0x6e68655a: //"Zehn"
+ 		ld_bin_format = LD_ZEHN_BIN;
+-		if((ret = zehn_load(prgm, &base, &entry, &supports_hww)) == 0)
++		if((ret = zehn_load_diagnostic(prgm, &base, &entry, &supports_hww, diagnostic)) == 0)
+ 		{
+ 			nuc_fclose(prgm);
+ 			break;
+@@ -336,7 +341,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 		return ret == 1 ? 0xDEAD : 0xBEEF;
+ 	default:
+ 		nuc_fclose(prgm);
+-		return 0xDEAD;
++		return ld_diagnostic_set(diagnostic, "file.signature.format", 0xDEAD, 0);
+ 	}	
+ 
+ 	int intmask = TCT_Local_Control_Interrupts(-1); /* TODO workaround: disable the interrupts to avoid the clock on the screen */
+@@ -347,7 +352,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 		savedscr = malloc(_scrsize());
+ 		if (!savedscr) {
+ 			puts("ld_exec: can't malloc savedscr");
+-			ret = 0xDEAD;
++			ret = ld_diagnostic_set(diagnostic, "screen.allocate", 0xDEAD, _scrsize());
+ 			goto ld_exec_with_args_quit;
+ 		}
+ 
+@@ -361,7 +366,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	argv = malloc((argc + 1) * sizeof(char*));
+ 	if (!argv) {
+ 		puts("ld_exec: can't malloc argv");
+-		ret = 0xDEAD;
++		ret = ld_diagnostic_set(diagnostic, "arguments.allocate", 0xDEAD, (argc + 1) * sizeof(char*));
+ 		goto ld_exec_with_args_quit;
+ 	}
+ 	argv[0] = prgm_path;
+@@ -395,6 +400,7 @@ int ld_exec_with_args(const char *path, int argsn, char *args[], void **resident
+ 	
+ 	clear_cache();
+ 	ret = entry(argc, argv); /* run the program */
++	ld_diagnostic_set(diagnostic, ret ? "program.entry" : "none", ret, 0);
+ 	if (has_colors)
+ 		lcd_incolor(); // in case not restored by the program
+ 
+diff --git a/ndl/src/resources/zehn_loader.cpp b/ndl/src/resources/zehn_loader.cpp
+index 854c342..d05fabd 100644
+--- a/ndl/src/resources/zehn_loader.cpp
++++ b/ndl/src/resources/zehn_loader.cpp
+@@ -85,18 +85,24 @@ static void wu32(void *ptr, uint32_t val)
+ 
+ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*[]), bool *supports_hww)
+ {
++	return zehn_load_diagnostic(file, mem_ptr, entry, supports_hww, nullptr);
++}
++
++extern "C" int zehn_load_diagnostic(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*[]), bool *supports_hww, struct ld_diagnostic *diagnostic)
++{
++	ld_diagnostic_set(diagnostic, "none", 0, 0);
+ 	Zehn_header header;
+ 
+ 	// The Zehn file may not begin at the file start
+ 	size_t file_start = nuc_ftell(file);
+ 
+ 	if(nuc_fread(&header, sizeof(header), 1, file) != 1)
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "zehn.header.read", 1, sizeof(header));
+ 
+ 	if(header.signature != ZEHN_SIGNATURE || header.version != ZEHN_VERSION || header.file_size > header.alloc_size)
+ 	{
+ 		puts("[Zehn] This Zehn file is not supported!");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "zehn.header.format", 1, 0);
+ 	}
+ 
+ 	Storage<Zehn_reloc> relocs(header.reloc_count);
+@@ -106,7 +112,9 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 	if(relocs.alloc_failed() || flags.alloc_failed() || extra_data.alloc_failed())
+ 	{
+ 		puts("[Zehn] Allocation of metadata failed!");
+-		return 1;
++		size_t bytes = relocs.alloc_failed() ? sizeof(Zehn_reloc) * relocs.size()
++			: flags.alloc_failed() ? sizeof(Zehn_flag) * flags.size() : extra_data.size();
++		return ld_diagnostic_set(diagnostic, "zehn.metadata.allocate", 1, bytes);
+ 	}
+ 
+ 	if(nuc_fread(reinterpret_cast<void*>(relocs.data()), sizeof(Zehn_reloc), header.reloc_count, file) != header.reloc_count
+@@ -114,7 +122,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 		|| nuc_fread(reinterpret_cast<void*>(extra_data.data()), 1, header.extra_size, file) != header.extra_size)
+ 	{
+ 		puts("[Zehn] File read failed!");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "zehn.metadata.read", 1, 0);
+ 	}
+ 
+ 	size_t remaining_mem = header.alloc_size - nuc_ftell(file) + file_start, remaining_file = header.file_size - nuc_ftell(file) + file_start;
+@@ -124,7 +132,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 	if(!base)
+ 	{
+ 		puts("[Zehn] Memory allocation failed!");
+-		return 1;
++		return ld_diagnostic_set(diagnostic, "zehn.executable.allocate", 1, remaining_mem);
+ 	}
+ 
+ 	if(relocs.size() > 0 && relocs.data()[0].type == Zehn_reloc_type::FILE_COMPRESSED)
+@@ -132,20 +140,24 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 		if(relocs.data()[0].offset != static_cast<int>(Zehn_compress_type::ZLIB))
+ 		{
+ 			puts("[Zehn] Compression format not supported!");
+-			return 1;
++			return ld_diagnostic_set(diagnostic, "zehn.compression.format", 1, 0);
+ 		}
+ 
+ 		Storage<uint8_t> compressed(remaining_file);
++		if(compressed.alloc_failed())
++			return ld_diagnostic_set(diagnostic, "zehn.compressed.allocate", 1, remaining_file);
+ 		if(nuc_fread(compressed.data(), remaining_file, 1, file) != 1)
+ 		{
+ 			puts("[Zehn] File read failed!");
+-			return 1;
++			return ld_diagnostic_set(diagnostic, "zehn.compressed.read", 1, remaining_file);
+ 		}
+ 
+ 		uLongf dest_len = remaining_mem;
+-		if(uncompress(base, &dest_len, compressed.data(), remaining_file) != Z_OK)
++		int zlib_status = uncompress(base, &dest_len, compressed.data(), remaining_file);
++		if(zlib_status != Z_OK)
+ 		{
+ 			puts("[Zehn] Decompression failed!");
++			ld_diagnostic_set(diagnostic, "zehn.decompress", zlib_status, remaining_mem);
+ 			return 1;
+ 		}
+ 
+@@ -156,7 +168,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 		if(nuc_fread(base, remaining_file, 1, file) != 1)
+ 		{
+ 			puts("[Zehn] File read failed!");
+-			return 1;
++			return ld_diagnostic_set(diagnostic, "zehn.executable.read", 1, remaining_file);
+ 		}
+ 	
+ 		// Fill rest with zeros (.bss and other NOBITS sections)
+@@ -177,7 +189,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 			if(!zehn_check_string(extra_data.data(), f, 255, &application_name))
+ 			{
+ 				puts("[Zehn] Invalid application name!");
+-				return 1;
++				return ld_diagnostic_set(diagnostic, "zehn.name", 1, 0);
+ 			}
+ 
+ 			break;
+@@ -210,28 +222,28 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 			if(f.data == false && has_colors)
+ 			{
+ 				msgbox("Error", "The application %s doesn't support CX and CM calculators!", application_name);
+-				return 2;
++				return ld_diagnostic_set(diagnostic, "zehn.color", 2, 0);
+ 			}
+ 			break;
+ 		case Zehn_flag_type::RUNS_ON_CLICKPAD:
+ 			if(f.data == false && !is_touchpad)
+ 			{
+ 				msgbox("Error", "The application %s doesn't support clickpads!", application_name);
+-				return 2;
++				return ld_diagnostic_set(diagnostic, "zehn.clickpad", 2, 0);
+ 			}
+ 			break;
+ 		case Zehn_flag_type::RUNS_ON_TOUCHPAD:
+ 			if(f.data == false && is_touchpad)
+ 			{
+ 				msgbox("Error", "The application %s doesn't support touchpads!", application_name);
+-				return 2;
++				return ld_diagnostic_set(diagnostic, "zehn.touchpad", 2, 0);
+ 			}
+ 			break;
+ 		case Zehn_flag_type::RUNS_ON_32MB:
+ 			if(f.data == false && (!has_colors || is_cm))
+ 			{
+ 				msgbox("Error", "The application %s requires more than 32MB of RAM!", application_name);
+-				return 2;
++				return ld_diagnostic_set(diagnostic, "zehn.ram", 2, 0);
+ 			}
+ 			break;
+                 case Zehn_flag_type::RUNS_ON_HWW:
+@@ -246,13 +258,13 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 	if(isKeyPressed(KEY_NSPIRE_CAT))
+ 	{
+ 		msgbox("Information about the executable", "Name: %s Version: %u\nAuthor: %s\nNotice: %s", application_name, application_version, application_author, application_notice);
+-		return 2;
++		return ld_diagnostic_set(diagnostic, "zehn.information", 2, 0);
+ 	}
+ 
+ 	if(NDL_VERSION < ndl_version_min || (NDL_VERSION == ndl_version_min && NDL_REVISION < ndl_revision_min))
+ 	{
+ 		msgbox("Error", "The application %s requires at least ndl %d.%d.%d!", application_name, ndl_version_min / 10, ndl_version_min % 10, ndl_revision_min);
+-		return 2;
++		return ld_diagnostic_set(diagnostic, "zehn.version.minimum", 2, 0);
+ 	}
+ 
+ 	if(NDL_VERSION > ndl_version_max || (NDL_VERSION == ndl_version_max && NDL_REVISION > ndl_revision_max))
+@@ -262,7 +274,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 		else
+ 			msgbox("Error", "The application %s requires ndl %d.%d or older!", application_name, ndl_version_max / 10, ndl_version_max % 10);
+ 
+-		return 2;
++		return ld_diagnostic_set(diagnostic, "zehn.version.maximum", 2, 0);
+ 	}
+ 
+ 	// Iterate through the reloc table
+@@ -271,7 +283,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 		if(r.offset >= remaining_mem)
+ 		{
+ 			puts("[Zehn] Wrong reloc in Zehn file!");
+-			return 1;
++			return ld_diagnostic_set(diagnostic, "zehn.relocation.offset", 1, 0);
+ 		}
+ 
+ 		// No alignment guaranteed!
+@@ -285,7 +297,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+                         if(r.offset != 0)
+                         {
+                             printf("[Zehn] Unexpected UNALIGNED_RELOC value %u!\n", r.offset);
+-                            return 1;
++                            return ld_diagnostic_set(diagnostic, "zehn.relocation.unaligned", 1, 0);
+                         }
+ 
+ 			break;
+@@ -305,7 +317,7 @@ extern "C" int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry)(int,char*
+ 			break;
+ 		default:
+ 			printf("[Zehn] Unsupported reloc %d!\n", static_cast<int>(r.type));
+-			return 1;
++			return ld_diagnostic_set(diagnostic, "zehn.relocation.type", 1, 0);
+ 		}
+ 	}
+ 
+diff --git a/ndl/src/resources/zehn_loader.h b/ndl/src/resources/zehn_loader.h
+index 2b9747d..c30d3fc 100644
+--- a/ndl/src/resources/zehn_loader.h
++++ b/ndl/src/resources/zehn_loader.h
+@@ -8,6 +8,8 @@ extern "C" {
+ #endif
+ 
+ int zehn_load(NUC_FILE *file, void **mem_ptr, int (**entry_address_ptr)(int,char*[]), bool *supports_hww);
++struct ld_diagnostic;
++int zehn_load_diagnostic(NUC_FILE *file, void **mem_ptr, int (**entry_address_ptr)(int,char*[]), bool *supports_hww, struct ld_diagnostic *diagnostic);
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/tests/build_loader_probe.py b/tests/build_loader_probe.py
+new file mode 100644
+index 0000000..8b84015
+--- /dev/null
++++ b/tests/build_loader_probe.py
+@@ -0,0 +1,22 @@
++from pathlib import Path
++import os
++import struct
++import subprocess
++import sys
++
++
++root = Path(__file__).resolve().parents[1]
++sdk = root / "ndl-sdk"
++output = Path(sys.argv[1])
++output.mkdir()
++environment = dict(os.environ)
++environment["PATH"] = str(sdk / "bin") + os.pathsep + str(sdk / "toolchain/install/bin") + os.pathsep + environment["PATH"]
++(output / "ld_diag_bad.luax.tns").write_bytes(struct.pack("<8I", 0x6e68655a, 2, 32, 0, 0, 0, 32, 0))
++(output / "ld_diag_zlib.luax.tns").write_bytes(struct.pack("<9I", 0x6e68655a, 1, 44, 1, 0, 0, 52, 0, 3) + b"invalid!")
++subprocess.run([str(sdk / "bin/nspire-ld"), str(root / "tests/loader_probe_entry.c"),
++                "-Os", "-o", str(output / "ld_diag_entry.elf")], env=environment, check=True)
++subprocess.run([str(sdk / "bin/genzehn"), "--input", str(output / "ld_diag_entry.elf"),
++                "--output", str(output / "ld_diag_entry.luax.tns"), "--name", "ld_diag_entry",
++                "--uses-lcd-blit", "true", "--240x320-support", "true"], env=environment, check=True)
++subprocess.run([str(sdk / "tools/luna/luna"), str(root / "tests/loader_probe.lua"),
++                str(output / "loader_probe.tns")], check=True)
+diff --git a/tests/loader_probe.lua b/tests/loader_probe.lua
+new file mode 100644
+index 0000000..c36eb80
+--- /dev/null
++++ b/tests/loader_probe.lua
+@@ -0,0 +1,58 @@
++platform.apilevel = "2.0"
++
++local cases = {
++    {"Header", "ld_diag_bad", "zehn.header.format (code 1, bytes 0)"},
++    {"Decompression", "ld_diag_zlib", "zehn.decompress (code -3, bytes 16)"},
++    {"Program entry", "ld_diag_entry", "program.entry (code 17, bytes 0)"}
++}
++local responses, selected = {}, 1
++
++function on.enterKey()
++    if #responses > 0 then return end
++    for i, case in ipairs(cases) do
++        local ok, response = pcall(nrequire, case[2])
++        responses[i] = {text = tostring(response), passed = not ok and
++            string.find(tostring(response), case[3], 1, true) ~= nil}
++    end
++    platform.window:invalidate()
++end
++
++function on.arrowKey(key)
++    if key == "down" then selected = math.min(#cases, selected + 1) end
++    if key == "up" then selected = math.max(1, selected - 1) end
++    platform.window:invalidate()
++end
++
++function on.paint(gc)
++    gc:setColorRGB(255, 255, 255)
++    gc:fillRect(0, 0, platform.window:width(), platform.window:height())
++    gc:setColorRGB(20, 35, 60)
++    gc:setFont("sansserif", "b", 11)
++    gc:drawString("Loader diagnostics", 6, 4, "top")
++    gc:setFont("sansserif", "r", 10)
++    for i, case in ipairs(cases) do
++        local response = responses[i]
++        local status = response and (response.passed and "PASS" or "FAIL") or "waiting"
++        gc:drawString((selected == i and "> " or "  ") .. case[1] .. ": " .. status,
++            6, 24 + (i - 1) * 17, "top")
++    end
++    local text = responses[selected] and responses[selected].text or "Enter runs once. Up and Down show each complete response."
++    local line, y = "", 83
++    for word in text:gmatch("%S+") do
++        local nextLine = line == "" and word or line .. " " .. word
++        if gc:getStringWidth(nextLine) > platform.window:width() - 12 then
++            gc:drawString(line, 6, y, "top")
++            y = y + 15
++            line = word
++        else line = nextLine end
++    end
++    gc:drawString(line, 6, y, "top")
++end
++
++function on.save() return {responses = responses, selected = selected} end
++function on.restore(state)
++    if type(state) == "table" then
++        responses = state.responses or {}
++        selected = state.selected or 1
++    end
++end
+diff --git a/tests/loader_probe_entry.c b/tests/loader_probe_entry.c
+new file mode 100644
+index 0000000..08d7662
+--- /dev/null
++++ b/tests/loader_probe_entry.c
+@@ -0,0 +1,3 @@
++int main(void) {
++    return 17;
++}
+diff --git a/tests/lua_loader_harness.c b/tests/lua_loader_harness.c
+new file mode 100644
+index 0000000..9e86d1b
+--- /dev/null
++++ b/tests/lua_loader_harness.c
+@@ -0,0 +1,72 @@
++#include <assert.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <string.h>
++#include <lua.h>
++#include <lauxlib.h>
++
++DIAGNOSTIC_SOURCE
++
++static int scenario, calls, frees;
++static unsigned char module_memory;
++static const char *get_documents_dir(void) { return "/documents"; }
++static void ld_free(void *base) { if (base) { assert(base == &module_memory); ++frees; } }
++static int ld_exec_with_args_diagnostic(const char *path, int argc, char *argv[], void **base, struct ld_diagnostic *diagnostic) {
++    assert(argc == 0 && !argv && strstr(path, "probe.luax.tns"));
++    ++calls;
++    if (scenario == 1 || (scenario == 2 && calls == 1))
++        return ld_diagnostic_set(diagnostic, "zehn.executable.allocate", 0xDEAD, UINT32_MAX);
++    if (scenario == 3) {
++        *base = &module_memory;
++        return ld_diagnostic_set(diagnostic, "program.entry", -17, 0);
++    }
++    *base = &module_memory;
++    return ld_diagnostic_set(diagnostic, "none", 0, 0);
++}
++static int file_each(const char *directory, int (*callback)(const char *, void *), void *context) {
++    assert(!strcmp(directory, "/documents"));
++    assert(callback("/documents/unrelated.tns", context) == 0);
++    if (scenario == 0) return 0;
++    if (callback("/documents/a/probe.luax.tns", context)) return 1;
++    assert(callback("/documents/other.luax.tns", context) == 0);
++    return scenario == 2 ? callback("/documents/b/probe.luax.tns", context) : 0;
++}
++
++REQUIRE_SOURCE
++
++static int cases;
++static void check(lua_State *L, int which, const char *name, const char *error) {
++    ++cases;
++    scenario = which;
++    calls = frees = 0;
++    lua_pushcfunction(L, require);
++    lua_pushstring(L, name);
++    int status = lua_pcall(L, 1, 1, 0);
++    if (error) {
++        assert(status != 0);
++        assert(!strcmp(lua_tostring(L, -1), error));
++    } else assert(status == 0);
++    lua_pop(L, 1);
++}
++
++int main(void) {
++    lua_State *L = luaL_newstate();
++    assert(L);
++    check(L, 1, "probe", "module 'probe' was found but would not load: zehn.executable.allocate (code 57005, bytes 4294967295)");
++    assert(loaded_next_index == 0 && calls == 1 && frees == 0);
++    check(L, 0, "probe", "module 'probe' not found");
++    assert(loaded_next_index == 0 && calls == 0);
++    check(L, 3, "probe", "module 'probe' was found but would not load: program.entry (code -17, bytes 0)");
++    assert(loaded_next_index == 0 && calls == 1 && frees == 1);
++    check(L, 2, "probe", NULL);
++    assert(loaded_next_index == 1 && calls == 2 && frees == 0 && loaded[0] == &module_memory);
++    check(L, 4, "probe", NULL);
++    assert(loaded_next_index == 2 && calls == 1);
++    check(L, 0, "abcdefghijklmnopqrstuvwxyz1234", "module 'abcdefghijklmnopqrstuvwxyz1234' not found");
++    assert(calls == 0);
++    loaded_next_index = LUAEXT_MAX_MODULES;
++    check(L, 4, "probe", "cannot load module 'probe': too many modules loaded");
++    assert(calls == 0);
++    lua_close(L);
++    printf("Lua loader diagnostic cases: %d\n", cases);
++}
+diff --git a/tests/ploader_harness.c b/tests/ploader_harness.c
+new file mode 100644
+index 0000000..4e00218
+--- /dev/null
++++ b/tests/ploader_harness.c
+@@ -0,0 +1,156 @@
++#include <assert.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++DIAGNOSTIC_SOURCE
++
++typedef struct { int unused; } NUC_FILE;
++enum e_ld_bin_format { LD_ERROR_BIN, LD_PRG_BIN, LD_BFLT_BIN, LD_ZEHN_BIN };
++static enum e_ld_bin_format ld_bin_format;
++static bool is_current_prgm_resident, has_colors, is_cx2, is_hww, plh_noscrredraw;
++static NUC_FILE input;
++static unsigned char program_memory[128], screen_memory[16];
++static int fail_stack, fail_open, fail_signature, loader_return, entry_return, nested_entry;
++static int allocation_index, fail_allocation, live_allocations, closes, program_frees, entries;
++static uint32_t signature = 0x6e68655a;
++static char **resident_argv;
++#define REAL_SCREEN_BASE_ADDRESS screen_memory
++struct assoc_file_each_cb_ctx { const char *prgm_name; char *prgm_path; bool *isassoc; };
++static int assoc_file_each_cb(const char *path, void *context) { (void)path; (void)context; return 0; }
++static bool expand_stack(void) { return !fail_stack; }
++static void cfg_open(void) {}
++static void cfg_close(void) {}
++static char *cfg_get(const char *key) { (void)key; return NULL; }
++static int file_each(const char *path, int (*callback)(const char *, void *), void *context) {
++    (void)path; (void)callback; (void)context; return 0;
++}
++static NUC_FILE *nuc_fopen(const char *path, const char *mode) { (void)path; (void)mode; return fail_open ? NULL : &input; }
++static size_t nuc_fread(void *bytes, size_t size, size_t count, NUC_FILE *file) {
++    (void)file;
++    assert(size == sizeof(signature) && count == 1);
++    if (fail_signature) return 0;
++    memcpy(bytes, &signature, sizeof(signature));
++    return 1;
++}
++static void nuc_fclose(NUC_FILE *file) { assert(file == &input); ++closes; }
++static void nuc_fseek(NUC_FILE *file, long offset, int origin) { (void)file; (void)offset; (void)origin; }
++static void *probe_malloc(size_t size) {
++    if (++allocation_index == fail_allocation) return NULL;
++    void *allocation = malloc(size);
++    if (allocation) ++live_allocations;
++    return allocation;
++}
++static void probe_free(void *allocation) { if (allocation) --live_allocations; free(allocation); }
++static void ld_free(void *base) { if (base) { assert(base == program_memory); ++program_frees; } }
++static int ld_exec_with_args_diagnostic(const char *, int, char *[], void **, struct ld_diagnostic *);
++static int program_entry(int argc, char *argv[]) {
++    ++entries;
++    assert(argc == 1 && argv[0] && !argv[1]);
++    resident_argv = argv;
++    if (nested_entry) {
++        nested_entry = 0;
++        fail_open = 1;
++        struct ld_diagnostic inner = {0};
++        assert(ld_exec_with_args_diagnostic("inner.tns", 0, NULL, NULL, &inner) == 0xDEAD);
++        assert(!strcmp(inner.stage, "file.open"));
++        fail_open = 0;
++        is_current_prgm_resident = true;
++    }
++    return entry_return;
++}
++static int zehn_load_diagnostic(NUC_FILE *file, void **base, int (**entry)(int, char *[]), bool *hww, struct ld_diagnostic *diagnostic) {
++    (void)file; (void)hww;
++    if (loader_return) {
++        ld_diagnostic_set(diagnostic, "zehn.decompress", -4, 9654328);
++        return loader_return;
++    }
++    *base = program_memory;
++    *entry = program_entry;
++    return 0;
++}
++static int ndl_load(const char *path, NUC_FILE *file, void **base, int (**entry)(int, char *[]), bool *hww, struct ld_diagnostic *diagnostic) {
++    (void)path;
++    return zehn_load_diagnostic(file, base, entry, hww, diagnostic);
++}
++static int bflt_load(NUC_FILE *file, void **base, int (**entry)(int, char *[])) {
++    bool hww = false;
++    return zehn_load_diagnostic(file, base, entry, &hww, NULL);
++}
++static int TCT_Local_Control_Interrupts(int mask) { (void)mask; return 0; }
++static void wait_no_key_pressed(void) {}
++static unsigned _scrsize(void) { return sizeof(screen_memory); }
++static void ut_disable_watchdog(void) {}
++static void lcd_compat_enable(void) {}
++static void lcd_compat_disable(void) {}
++static void lcd_incolor(void) {}
++static void clear_cache(void) {}
++#define malloc probe_malloc
++#define free probe_free
++
++LOADER_SOURCE
++
++#undef malloc
++#undef free
++
++static int cases;
++static void check(const char *path, const char *stage, int returned, int code, size_t bytes, int resident) {
++    ++cases;
++    allocation_index = entries = closes = program_frees = 0;
++    resident_argv = NULL;
++    struct ld_diagnostic diagnostic = {"stale", 123, 456};
++    void *base = NULL;
++    int status = ld_exec_with_args_diagnostic(path, 0, NULL, resident ? &base : NULL, &diagnostic);
++    assert(status == returned && !strcmp(diagnostic.stage, stage));
++    assert(diagnostic.code == code && diagnostic.bytes == bytes);
++    assert(closes == (!fail_stack && !fail_open && strchr(path, '.') != NULL));
++    if (entries && returned != 0xDEAD && resident) {
++        assert(base == program_memory && program_frees == 0);
++        ld_free(base);
++        probe_free(resident_argv);
++    } else if (entries || fail_allocation) assert(program_frees == 1);
++    assert(live_allocations == 0);
++    fail_stack = fail_open = fail_signature = fail_allocation = loader_return = entry_return = 0;
++    signature = 0x6e68655a;
++}
++
++int main(void) {
++    fail_stack = 1;
++    check("probe.tns", "stack.expand", 0xDEAD, 0xDEAD, 0, 1);
++    check("probe", "path.extension", 0xDEAD, 0xDEAD, 0, 1);
++    fail_open = 1;
++    check("probe.tns", "file.open", 0xDEAD, 0xDEAD, 0, 1);
++    fail_signature = 1;
++    check("probe.tns", "file.signature.read", 0xDEAD, 0xDEAD, 4, 1);
++    signature = 17;
++    check("probe.tns", "file.signature.format", 0xDEAD, 0xDEAD, 0, 1);
++    for (int format = 0; format < 2; ++format) {
++        for (int refusal = 1; refusal <= 2; ++refusal) {
++            signature = format ? 0x00475250 : 0x6e68655a;
++            loader_return = refusal;
++            check("probe.tns", "zehn.decompress", refusal == 1 ? 0xDEAD : 0xBEEF, -4, 9654328, 1);
++        }
++    }
++    signature = 0x544c4662;
++    loader_return = 1;
++    check("probe.tns", "bflt.load", 0xDEAD, 0xDEAD, 0, 1);
++    fail_allocation = 1;
++    check("probe.tns", "screen.allocate", 0xDEAD, 0xDEAD, sizeof(screen_memory), 1);
++    fail_allocation = 2;
++    check("probe.tns", "arguments.allocate", 0xDEAD, 0xDEAD, 2 * sizeof(char *), 1);
++    for (int resident = 0; resident <= 1; ++resident) {
++        int codes[] = {0, 17, -8, 0xDEAD, 0xBEEF};
++        for (unsigned i = 0; i < sizeof(codes) / sizeof(codes[0]); ++i) {
++            entry_return = codes[i];
++            check("probe.tns", codes[i] ? "program.entry" : "none", codes[i], codes[i], 0, resident);
++        }
++    }
++    nested_entry = 1;
++    entry_return = 17;
++    check("probe.tns", "program.entry", 17, 17, 0, 1);
++    assert(ld_exec_with_args("probe.tns", 0, NULL, NULL) == 0);
++    assert(live_allocations == 0);
++    printf("Outer loader diagnostic cases: %d\n", cases + 1);
++}
+diff --git a/tests/prg_loader_harness.c b/tests/prg_loader_harness.c
+new file mode 100644
+index 0000000..119ae60
+--- /dev/null
++++ b/tests/prg_loader_harness.c
+@@ -0,0 +1,86 @@
++#include <assert.h>
++#include <stdbool.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++DIAGNOSTIC_SOURCE
++
++#define PRGMSIG "PRG"
++#define LD_ZEHN_BIN 3
++static int ld_bin_format;
++typedef struct { unsigned char bytes[64]; size_t position; } NUC_FILE;
++struct nuc_stat { size_t st_size; };
++static int fail_stat, fail_read, reads, fail_allocation, allocations, live_allocations, embedded_return;
++static int nuc_stat(const char *path, struct nuc_stat *info) { (void)path; info->st_size = 64; return fail_stat; }
++static size_t nuc_fread(void *bytes, size_t size, size_t count, NUC_FILE *file) {
++    if (++reads == fail_read) return 0;
++    assert(bytes && size * count <= sizeof(file->bytes) - file->position);
++    memcpy(bytes, file->bytes + file->position, size * count);
++    file->position += size * count;
++    return count;
++}
++static void nuc_fseek(NUC_FILE *file, long position, int origin) { assert(origin == SEEK_SET); file->position = position; }
++static void *probe_malloc(size_t size) {
++    if (++allocations == fail_allocation) return NULL;
++    void *allocation = malloc(size);
++    if (allocation) ++live_allocations;
++    return allocation;
++}
++static void probe_free(void *allocation) { if (allocation) --live_allocations; free(allocation); }
++static void *execmem_alloc(size_t size) { return probe_malloc(size); }
++static void execmem_free(void *base) { probe_free(base); }
++static int zehn_load_diagnostic(NUC_FILE *file, void **base, int (**entry)(int, char *[]), bool *hww, struct ld_diagnostic *diagnostic) {
++    (void)file; (void)base; (void)entry; (void)hww;
++    return ld_diagnostic_set(diagnostic, "zehn.header.format", embedded_return, 0);
++}
++#define malloc probe_malloc
++#define free probe_free
++
++PRG_SOURCE
++
++#undef malloc
++#undef free
++
++static int cases;
++static void check(const char *stage, int code, size_t bytes, bool embedded) {
++    ++cases;
++    allocations = reads = 0;
++    NUC_FILE file = {{0}, 0};
++    memcpy(file.bytes, PRGMSIG, sizeof(PRGMSIG));
++    if (embedded) {
++        uint32_t words[] = {0x6e68655a, 1};
++        memcpy(file.bytes + 4, words, sizeof(words));
++    }
++    struct ld_diagnostic diagnostic = {"stale", 123, 456};
++    void *base = NULL;
++    int (*entry)(int, char *[]) = NULL;
++    bool hww = false;
++    assert(ndl_load("probe.tns", &file, &base, &entry, &hww, &diagnostic) == code);
++    assert(!strcmp(diagnostic.stage, stage) && diagnostic.code == code && diagnostic.bytes == bytes);
++    if (!code) { assert(base && entry && live_allocations == 1); execmem_free(base); }
++    else assert(!base && !entry);
++    assert(live_allocations == 0);
++    fail_stat = fail_read = fail_allocation = 0;
++}
++
++int main(void) {
++    fail_stat = 1;
++    check("prg.stat", 1, 0, false);
++    fail_allocation = 1;
++    check("prg.scan.allocate", 1, 64, false);
++    fail_read = 1;
++    check("prg.scan.read", 1, 64, false);
++    fail_allocation = 2;
++    check("prg.executable.allocate", 1, 64, false);
++    fail_read = 2;
++    check("prg.executable.read", 1, 64, false);
++    check("none", 0, 0, false);
++    embedded_return = 1;
++    check("none", 0, 0, true);
++    embedded_return = 2;
++    check("zehn.header.format", 2, 0, true);
++    assert(ld_bin_format == LD_ZEHN_BIN);
++    printf("PRG loader diagnostic cases: %d\n", cases);
++}
+diff --git a/tests/test_loader_diagnostics.py b/tests/test_loader_diagnostics.py
+new file mode 100644
+index 0000000..ca6fe73
+--- /dev/null
++++ b/tests/test_loader_diagnostics.py
+@@ -0,0 +1,89 @@
++import os
++from pathlib import Path
++import re
++import subprocess
++import tempfile
++import unittest
++
++
++ROOT = Path(__file__).resolve().parents[1]
++RESOURCES = ROOT / "ndl/src/resources"
++
++
++class LoaderDiagnostics(unittest.TestCase):
++    def test_prg_loader(self):
++        header = (RESOURCES / "ndl.h").read_text()
++        diagnostic = header[header.index("struct ld_diagnostic {"):header.index("void ld_set_resident")]
++        source = (RESOURCES / "ploaderhook.c").read_text()
++        source = source[source.index("static int ndl_load("):source.index("int ld_exec(")]
++        harness = (ROOT / "tests/prg_loader_harness.c").read_text()
++        with tempfile.TemporaryDirectory(prefix="ndl-prg-") as directory:
++            work = Path(directory)
++            translation_unit = work / "prg.c"
++            translation_unit.write_text(harness.replace("DIAGNOSTIC_SOURCE", diagnostic).replace("PRG_SOURCE", source))
++            binary = work / "prg"
++            subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-O1", "-g",
++                            "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
++                            str(translation_unit), "-o", str(binary)], check=True)
++            process = subprocess.run([str(binary)], capture_output=True, text=True)
++            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
++
++    def test_lua_diagnostics(self):
++        header = (RESOURCES / "ndl.h").read_text()
++        diagnostic = header[header.index("struct ld_diagnostic {"):header.index("void ld_set_resident")]
++        source = (RESOURCES / "luaext.c").read_text()
++        source = source[source.index("#define LUAEXT_MAX_MODULES"):source.index("static int ndl_uninstall")]
++        harness = (ROOT / "tests/lua_loader_harness.c").read_text()
++        with tempfile.TemporaryDirectory(prefix="ndl-lua-") as directory:
++            work = Path(directory)
++            translation_unit = work / "require.c"
++            translation_unit.write_text(harness.replace("DIAGNOSTIC_SOURCE", diagnostic).replace("REQUIRE_SOURCE", source))
++            binary = work / "require"
++            flags = subprocess.check_output(["pkg-config", "--cflags", "--libs", "luajit"], text=True).split()
++            subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-O1", "-g",
++                            "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
++                            str(translation_unit), "-o", str(binary)] + flags, check=True)
++            process = subprocess.run([str(binary)], capture_output=True, text=True)
++            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
++
++    def test_outer_loader(self):
++        header = (RESOURCES / "ndl.h").read_text()
++        diagnostic = header[header.index("struct ld_diagnostic {"):header.index("void ld_set_resident")]
++        source = (RESOURCES / "ploaderhook.c").read_text()
++        source = source[source.index("int ld_exec_with_args("):source.index("// To free the program")]
++        harness = (ROOT / "tests/ploader_harness.c").read_text()
++        with tempfile.TemporaryDirectory(prefix="ndl-exec-") as directory:
++            work = Path(directory)
++            translation_unit = work / "loader.c"
++            translation_unit.write_text(harness.replace("DIAGNOSTIC_SOURCE", diagnostic).replace("LOADER_SOURCE", source))
++            binary = work / "loader"
++            subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-O1", "-g",
++                            "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
++                            str(translation_unit), "-o", str(binary)], check=True)
++            process = subprocess.run([str(binary)], capture_output=True, text=True)
++            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
++
++    def test_compressed_allocation_failure(self):
++        source = (RESOURCES / "zehn_loader.cpp").read_text()
++        source = re.sub(r"^#include .*$", "", source, flags=re.MULTILINE)
++        source = source.replace("reinterpret_cast<uint32_t>(base)",
++                                "static_cast<uint32_t>(reinterpret_cast<uintptr_t>(base))")
++        harness = (ROOT / "tests/zehn_loader_harness.cpp").read_text()
++        header = (RESOURCES / "ndl.h").read_text()
++        diagnostic = header[header.index("struct ld_diagnostic {"):header.index("void ld_set_resident")]
++        declarations = (RESOURCES / "zehn_loader.h").read_text()
++        with tempfile.TemporaryDirectory(prefix="ndl-loader-") as directory:
++            work = Path(directory)
++            translation_unit = work / "zehn.cpp"
++            translation_unit.write_text(harness.replace("LOAD_SOURCE", diagnostic + declarations + source))
++            binary = work / "zehn"
++            subprocess.run([os.environ.get("CXX", "c++"), "-std=c++11", "-O1", "-g",
++                            "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
++                            "-I", str(ROOT / "ndl-sdk/include"), str(translation_unit),
++                            "-o", str(binary)], check=True)
++            process = subprocess.run([str(binary)], capture_output=True, text=True)
++            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/zehn_loader_harness.cpp b/tests/zehn_loader_harness.cpp
+new file mode 100644
+index 0000000..1400675
+--- /dev/null
++++ b/tests/zehn_loader_harness.cpp
+@@ -0,0 +1,153 @@
++#include <algorithm>
++#include <cassert>
++#include <climits>
++#include <cstdarg>
++#include <cstdint>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <iostream>
++#include <memory>
++#include <vector>
++#include <zehn.h>
++
++struct NUC_FILE {
++    std::vector<uint8_t> bytes;
++    size_t position = 0;
++};
++
++static int allocation_index, fail_allocation, live_allocations, null_reads;
++static int read_index, fail_read, decompress_status, case_count;
++static void *probe_malloc(size_t size) {
++    if (++allocation_index == fail_allocation) return nullptr;
++    void *allocation = std::malloc(size ? size : 1);
++    if (allocation) ++live_allocations;
++    return allocation;
++}
++static void probe_free(void *allocation) {
++    if (allocation) --live_allocations;
++    std::free(allocation);
++}
++static void *execmem_alloc(size_t size) { return probe_malloc(size); }
++static void execmem_free(void *allocation) { probe_free(allocation); }
++static long nuc_ftell(NUC_FILE *file) { return static_cast<long>(file->position); }
++static size_t nuc_fread(void *bytes, size_t size, size_t count, NUC_FILE *file) {
++    if (!size || !count) return 0;
++    if (++read_index == fail_read) return 0;
++    if (!bytes) { ++null_reads; return 0; }
++    size_t read_count = std::min(count, (file->bytes.size() - file->position) / size);
++    std::memcpy(bytes, file->bytes.data() + file->position, size * read_count);
++    file->position += size * read_count;
++    return read_count;
++}
++using uLongf = unsigned long;
++static const int Z_OK = 0;
++static int uncompress(uint8_t *out, uLongf *length, const uint8_t *, size_t) {
++    if (decompress_status) return decompress_status;
++    std::memset(out, 0, *length);
++    return Z_OK;
++}
++static void show_msgbox(const char *, const char *) {}
++static bool has_colors = true, is_touchpad = true, is_cm = false;
++static bool catalog_pressed;
++static bool isKeyPressed(int) { return catalog_pressed; }
++#define KEY_NSPIRE_CAT 1
++#define NDL_VERSION 64
++#define NDL_REVISION 2022
++#define malloc probe_malloc
++#define free probe_free
++
++LOAD_SOURCE
++
++#undef malloc
++#undef free
++
++static NUC_FILE package(std::vector<Zehn_reloc> relocs = {{Zehn_reloc_type::FILE_COMPRESSED, 0}},
++                        std::vector<Zehn_flag> flags = {{Zehn_flag_type::EXECUTABLE_VERSION, 1}}, uint32_t extra_size = 4) {
++    NUC_FILE file;
++    uint32_t metadata = sizeof(Zehn_header) + 4 * static_cast<uint32_t>(relocs.size() + flags.size()) + extra_size;
++    Zehn_header header{ZEHN_SIGNATURE, ZEHN_VERSION, metadata + 8,
++                       static_cast<uint32_t>(relocs.size()), static_cast<uint32_t>(flags.size()),
++                       extra_size, metadata + 16, 0};
++    file.bytes.resize(header.file_size);
++    std::memcpy(file.bytes.data(), &header, sizeof(header));
++    if (!relocs.empty()) std::memcpy(file.bytes.data() + sizeof(header), relocs.data(), relocs.size() * 4);
++    if (!flags.empty()) std::memcpy(file.bytes.data() + sizeof(header) + relocs.size() * 4, flags.data(), flags.size() * 4);
++    std::memset(file.bytes.data() + metadata - extra_size, 'x', extra_size - 1);
++    file.bytes[metadata - 1] = 0;
++    return file;
++}
++
++static void check(NUC_FILE file, const char *stage, int code = 1, size_t bytes = 0, int status = 1) {
++    ++case_count;
++    allocation_index = read_index = 0;
++    ld_diagnostic diagnostic{"stale", 123, 456};
++    void *base = nullptr;
++    int (*entry)(int, char *[]) = nullptr;
++    bool supports_hww = false;
++    assert(zehn_load_diagnostic(&file, &base, &entry, &supports_hww, &diagnostic) == status);
++    if (std::strcmp(diagnostic.stage, stage)) std::cerr << diagnostic.stage << " expected " << stage << '\n';
++    assert(std::strcmp(diagnostic.stage, stage) == 0);
++    assert(diagnostic.code == code && diagnostic.bytes == bytes);
++    assert(null_reads == 0);
++    if (status) assert(base == nullptr && entry == nullptr);
++    else {
++        assert(base && entry && live_allocations == 1);
++        execmem_free(base);
++    }
++    assert(live_allocations == 0);
++    fail_allocation = fail_read = decompress_status = 0;
++}
++
++int main() {
++    for (int allocation = 1; allocation <= 5; ++allocation) {
++        fail_allocation = allocation;
++        check(package(), allocation <= 3 ? "zehn.metadata.allocate" :
++              allocation == 4 ? "zehn.executable.allocate" : "zehn.compressed.allocate",
++              1, allocation <= 3 ? 4 : allocation == 4 ? 16 : 8);
++    }
++    for (int read = 1; read <= 5; ++read) {
++        fail_read = read;
++        check(package(), read == 1 ? "zehn.header.read" : read == 5 ? "zehn.compressed.read" : "zehn.metadata.read",
++              1, read == 1 ? sizeof(Zehn_header) : read == 5 ? 8 : 0);
++    }
++    for (int code : {-3, -4, -5}) {
++        decompress_status = code;
++        check(package(), "zehn.decompress", code, 16);
++    }
++    NUC_FILE wrong_header = package();
++    wrong_header.bytes[0] = 0;
++    check(wrong_header, "zehn.header.format");
++    check(package({{Zehn_reloc_type::FILE_COMPRESSED, 1}}), "zehn.compression.format");
++    fail_read = 4;
++    check(package({}), "zehn.executable.read", 1, 8);
++    check(package({{Zehn_reloc_type::SET_ZERO, 16}}), "zehn.relocation.offset");
++    check(package({{Zehn_reloc_type::UNALIGNED_RELOC, 1}}), "zehn.relocation.unaligned");
++    check(package({{static_cast<Zehn_reloc_type>(99), 0}}), "zehn.relocation.type");
++    check(package({}, {{Zehn_flag_type::RUNS_ON_COLOR, 0}}), "zehn.color", 2, 0, 2);
++    check(package({}, {{Zehn_flag_type::RUNS_ON_TOUCHPAD, 0}}), "zehn.touchpad", 2, 0, 2);
++    is_touchpad = false;
++    check(package({}, {{Zehn_flag_type::RUNS_ON_CLICKPAD, 0}}), "zehn.clickpad", 2, 0, 2);
++    is_touchpad = true;
++    is_cm = true;
++    check(package({}, {{Zehn_flag_type::RUNS_ON_32MB, 0}}), "zehn.ram", 2, 0, 2);
++    is_cm = false;
++    catalog_pressed = true;
++    check(package(), "zehn.information", 2, 0, 2);
++    catalog_pressed = false;
++    check(package({}, {{Zehn_flag_type::NDL_VERSION_MIN, 65}}), "zehn.version.minimum", 2, 0, 2);
++    check(package({}, {{Zehn_flag_type::NDL_VERSION_MAX, 63}}), "zehn.version.maximum", 2, 0, 2);
++    check(package({}, {{Zehn_flag_type::NDL_REVISION_MIN, 2023}, {Zehn_flag_type::NDL_VERSION_MIN, 64}}), "zehn.version.minimum", 2, 0, 2);
++    check(package({}, {{Zehn_flag_type::NDL_REVISION_MAX, 2021}, {Zehn_flag_type::NDL_VERSION_MAX, 64}}), "zehn.version.maximum", 2, 0, 2);
++    check(package({}, {{Zehn_flag_type::EXECUTABLE_NAME, 0}}, 260), "zehn.name");
++    check(package(), "none", 0, 0, 0);
++    check(package({{Zehn_reloc_type::SET_ZERO, 0}}), "none", 0, 0, 0);
++    NUC_FILE legacy = package();
++    void *base = nullptr;
++    int (*entry)(int, char *[]) = nullptr;
++    bool supports_hww = false;
++    assert(zehn_load(&legacy, &base, &entry, &supports_hww) == 0);
++    execmem_free(base);
++    assert(live_allocations == 0);
++    std::cout << "Zehn diagnostic cases: " << case_count + 1 << '\n';
++}
+-- 
+2.55.0
+

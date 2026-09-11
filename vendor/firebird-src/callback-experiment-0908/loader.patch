@@ -1,0 +1,62 @@
+diff --git a/../core/armsnippets_loader.c b/armsnippets_loader.c
+index 978f671..3822dc4 100644
+--- a/../core/armsnippets_loader.c
++++ b/armsnippets_loader.c
+@@ -22,13 +22,25 @@ static void armloader_restore_state(void) {
+ }
+ 
+ static void (*armloader_cb_ptr)(struct arm_state*);
+-
+-void armloader_cb(void) {
++static uint32_t armloader_return_sp;
++static unsigned rejected_returns;
++
++bool armloader_cb(void) {
++    if(arm.reg[13] != armloader_return_sp ||
++       (arm.cpsr_low28 & 0x3F) != (armloader_orig_arm_state.cpsr_low28 & 0x3F)) {
++        if(rejected_returns++ < 5)
++            emuprintf("snippet: ignore shared pc %08x sp %08x, expected %08x\n",
++                      arm.reg[15], arm.reg[13], armloader_return_sp);
++        return false;
++    }
++    emuprintf("snippet: matched return pc %08x sp %08x after %u foreign hits\n",
++              arm.reg[15], arm.reg[13], rejected_returns);
+     struct arm_state after_snippet_exec_arm_state;
+     memcpy(&after_snippet_exec_arm_state, &arm, sizeof(arm));
+     armloader_restore_state();
+     if(armloader_cb_ptr)
+         armloader_cb_ptr(&after_snippet_exec_arm_state);
++    return true;
+ }
+ 
+ /* Push code onto the guest stack and enter it at entry_offset, with lr set to the interrupted pc.
+@@ -62,8 +74,10 @@ static bool armloader_push_code(const uint8_t *code, uint32_t code_size, uint32_
+ }
+ 
+ /* Have callback run, and the saved state come back, when the guest returns to the interrupted pc. */
+-static void armloader_arm_return(void (*callback)(struct arm_state*)) {
++static void armloader_arm_return(void (*callback)(struct arm_state*), uint32_t return_sp) {
+     armloader_cb_ptr = callback;
++    armloader_return_sp = return_sp;
++    rejected_returns = 0;
+     uint32_t *flags = &RAM_FLAGS(virt_mem_ptr(armloader_orig_arm_state.reg[15], 4));
+     if (*flags & RF_CODE_TRANSLATED) flush_translations();
+     *flags |= RF_ARMLOADER_CB;
+@@ -107,7 +121,7 @@ bool armloader_load_snippet(enum SNIPPETS snippet, struct armloader_load_params
+             }
+         }
+     }
+-    armloader_arm_return(callback);
++    armloader_arm_return(callback, arm.reg[13] - 4);
+ 
+     // for debugging
+     /*flags = &RAM_FLAGS(virt_mem_ptr(arm.reg[15], 4));
+@@ -176,7 +190,7 @@ static void armloader_blob_now(void) {
+     emuprintf("blob: loading %u bytes at pc %08x sp %08x cpsr %08x\n", deferred_blob_size,
+               arm.reg[15], arm.reg[13], arm.cpsr_low28);
+     if(armloader_push_code(deferred_blob, deferred_blob_size, 0))
+-        armloader_arm_return(armloader_blob_done);
++        armloader_arm_return(armloader_blob_done, arm.reg[13]);
+     free(deferred_blob);
+     deferred_blob = NULL;
+ }

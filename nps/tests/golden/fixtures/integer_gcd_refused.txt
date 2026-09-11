@@ -1,0 +1,18 @@
+problem: gcd(1000000001,18)
+outcome: unsupported form
+detail: gcd walkthroughs support integer literals from -1000000000 through 1000000000
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: gcd(1000000001, 18)
+  requested method: gcd
+  angle convention: not applicable
+  branch convention: signed integers with nonnegative gcd, gcd(0,0)=0
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

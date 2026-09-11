@@ -1,0 +1,67 @@
+From 34a265a211c5b3a8a2efcf69dbb0a7c8ba997435 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 20:03:54 -0400
+Subject: [PATCH 5/7] Clarify persistent runtime installation
+
+---
+ README.md | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/README.md b/README.md
+index f410921..d8f8dd3 100644
+--- a/README.md
++++ b/README.md
+@@ -40,7 +40,9 @@ The public nl_ndl_rev and assert_ndl_rev names reuse the existing nl_ndless_rev
+ 
+ Upstream URLs, copyright notices, third-party source and the upstream ndless/gcc Docker base image retain their identities. The Luna submodule section name remains its existing Git identity. Its checkout location changes to ndl-sdk/tools/luna.
+ 
+-The runtime reads ndl.cfg.tns, starts programs from /documents/ndl/startup, and installs persistence from /documents/ndl/persistent.tns. A resident older runtime and its persisted boot document still use their original filenames until rebooted and reinstalled. Preserve those files while staging the new installer, resources and persistence document together. Opening the resources document requests uninstall and reboot.
++The runtime reads ndl.cfg.tns and starts programs from /documents/ndl/startup. The persistent installer copies /documents/ndl/persistent.tns into the OS current-document boot slot. A resident older runtime and its saved boot document retain their original filenames. Renaming files or resetting does not replace that saved installation. Preserve the old resources and boot material until an explicit uninstall and reboot have completed, then launch the selected new installer. Opening the resources document requests uninstall and reboot. It does not install the runtime.
++
++The ordinary runtime uses /documents/ndl. External /appdata/ndl loading belongs to the separate relocation patch in the cx2 research/folder-hiding project. Its earlier emulator results do not qualify this renamed build on a handheld.
+ 
+ Run the local checks from this repository root:
+ 
+@@ -65,7 +67,7 @@ Prerequisites: OS 6.2.0.333 or 6.4.0.74 on CX II, CX II-T or CX II CAS.
+ * Transfer `ndl_installer_4.5.5-6.2.0-6.4.0.tns` into a folder named "ndl" (top-level)
+ * Transfer `ndl_resources.tns` into the same folder
+ * Open the installer, press any alphanumeric key and wait
+-* If it fails or reboots, try again until it works
++* If it fails or reboots, establish whether a runtime is resident before another attempt. Do not launch an installer over a resident runtime.
+ * Have fun!
+ 
+ ### Persistent Installation
+@@ -73,15 +75,15 @@ A persistent installation means ndl will automatically load when you turn on or
+ 
+ **Warning:** This feature is experimental and not ready for daily use. The Ndless team is not responsible for any data loss, reboot-looped calculators, or any damage incurred to your Nspire.
+ 
+-* Ensure ndl is not currently installed (reset your calculator first if it is).
++* Ensure no runtime is resident. If persistence is already installed, use that installation's resources document to uninstall and wait for the reboot. A reset alone can reload persistence.
+ * Set your language to English through the Settings menu
+   * Press `[Home]` > `[5]` (Settings) > `[1]` (Change Language) -> `English`
+-* Transfer `persistent_6.2.0-6.4.0.tns` (from the release's `persistent` folder) into the "ndl" folder
+-* Rename the file you just transferred to `persistent.tns`
+-* Transfer `ndl_resources.tns` into the same folder
+-* Open `persistent.tns` and wait for the automatic installation
++* Transfer the local build's ndl/calcbin/persistent_6.2.0-6.4.0.tns into the top-level ndl folder as persistent.tns.
++* Transfer ndl/calcbin/ndl_resources.tns from the same build into that folder and verify both transferred files.
++* Open persistent.tns and wait for installation. This document contains its own installer and does not require running the standard installer first.
++* Verify visible runtime operation, then reboot and verify it again before treating persistence as working.
+ * Have fun!
+-  * If you get stuck in a reboot loop, hold `[ESC]`. If that fails, format your filesystem via the maintenance menu.
++  * If a reboot loop occurs, hold ESC during boot. Preserve recovery copies before using destructive maintenance options.
+   * By running the `ndl_resources.tns` file after installing, you can uninstall the loader as well.
+ 
+ OS 4.5.5.79 <img src="https://i.imgur.com/oJGpCsB.gif" align="right">
+@@ -97,7 +99,7 @@ Prerequisites: OS 4.5.5.79 on CX or CX CAS
+ * Transfer `ndl_installer_4.5.5-6.2.0-6.4.0.tns` into a folder named "ndl" (top-level)
+ * Transfer `ndl_resources.tns` into the same folder
+ * Open the installer, press the corresponding key for your boot1 version and wait
+-* If it fails or reboots, try again until it works
++* If it fails or reboots, establish whether a runtime is resident before another attempt. Do not launch an installer over a resident runtime.
+ * Have fun!
+ 
+ 
+-- 
+2.55.0
+

@@ -1,0 +1,728 @@
+# Coverage catalog
+
+PRD section 27 wants the coverage catalog to be a versioned product artifact rather than an informal
+checklist, and section 19.9 wants public coverage claims generated from it rather than from topic
+labels somebody wrote. This is that catalog. tools/coverage.cc checks it against the golden fixtures
+and refuses a claim with nothing behind it.
+
+One block per family. A line is a field name and its value. A `rule` line names a rule the family
+emits and where the evidence for it comes from: `fixture` means a golden fixture records it, and
+`device` means only a run on the calculator reaches it, which the host corpus cannot.
+
+`test_group_ids` names the groups in tests/unit/run_tests.cc that exercise the family. It is how the
+traceability report links a requirement to the families it applies to, and a group named here that
+no test run reports fails that report.
+
+`proof_obligation_ids` names the obligations the family's steps raise, which section 19.9 wants
+reported on its own rather than folded into rule or corpus coverage. Same rule as the rules: one the
+fixtures raise and the catalog does not name is a failure, and so is one named here that no fixture
+raises.
+
+The tool lists every missing or unanswered section 27 field for each family. Its separate schema
+inventory counts field names present anywhere in the catalog, which cannot establish completeness
+for any family. Missing release metadata remains visible rather than being filled with placeholders.
+
+An explicit unqualified or unreleased status answers a metadata field without establishing acceptance.
+Metadata gaps are reported without changing the existing rule, envelope and evidence checks. A passing
+coverage run does not establish that the release meets section 27.
+
+A field whose answer is nothing opens with the word none and then says why. That is a different
+statement from a line left out, which is the question nobody answered, and the eight fields section
+5.5 calls the family envelope have to carry one or the other for every family. On
+proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so a
+family that raises no obligation says so and the join still fails the day a fixture raises one.
+
+The required_assumptions field is prose and an assumption is a sentence, so the join is over the
+engine strings the line puts in double quotes. Each quoted string has to be recorded by a fixture of that family,
+and the line is free to say whatever else it needs around it. The channels that count are the ones
+that carry an assumption, the solve-level summary and a step's assumptions before, not a domain
+restriction, which is a condition one step met along the way rather than something the family
+requires. A line that declares none has to have nothing carried against it, and a line declaring an
+assumption has to quote at least one string, because a sentence nothing joins is present without
+being true. What the join does not catch, and this is deliberate: a family already quoting one string
+can start carrying a second one nobody wrote down. Completeness is not checkable here, because many
+carried strings hold problem data, as in the frame name in vector frame is lab.
+
+family id algebra.linear-equation.one-unknown
+topic_and_level Single-variable linear equations and formula isolation, PRD section 22.1
+accepted_expression_grammar an equation over sums, products, negations, division by a constant and integer powers with a constant base, where the unknown appears to the first power and any other symbol has to be supplied as a known
+accepted_input_forms an equation in one unknown, written in the project's own grammar
+domains_and_parameter_assumptions the coefficient of the unknown is checked to be non-zero before dividing
+supported_branches_and_degenerate_cases no solution when the unknown cancels and the sides differ, every value when they agree
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
+parser_module_ids src/core/parser.cc, src/steps/linear.cc
+required_assumptions none, the one condition the method needs is the coefficient of the unknown being non-zero, and that is checked before dividing rather than assumed
+test_group_ids linear
+proof_obligation_ids obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.linear.coefficient-decides, obl.plan.preconditions-hold
+supported_methods collect like terms to one side, then divide both sides by the coefficient
+unsupported_near_neighbors quadratic and higher degree, systems in more than one unknown, inequalities, parametric coefficients
+solution_soundness_status verified, every candidate is substituted into the collected equation
+solution_completeness_status partial, degree one only
+corpus_case_ids the golden fixtures naming this family
+device_performance_status measured on the physical calculator, see STATUS.md
+direct_keypad_entry_status entered from the calculator keypad, measured
+isolated_runtime_status unqualified, the complete supported corpus must pass with USB physically disconnected
+release_status unreleased
+rule eq.linear.inverse-operations fixture
+rule eq.linear.inspect-collected-coefficient fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id algebra.quadratic.pure-square.one-unknown
+topic_and_level Degree-two equations in one unknown with no term of degree one, solved by isolating the square
+family_envelope_version 1
+accepted_expression_grammar the same equation grammar read as linear in the square, so sums, products, negations and constant powers, with the square of the unknown as the only power of it
+accepted_input_forms an equation whose only power of the unknown is the square, written in the project's own grammar
+domains_and_parameter_assumptions the real domain, and the coefficient of the square is checked to be non-zero before dividing
+supported_branches_and_degenerate_cases two roots when the isolated square is positive, one repeated root when it is zero, and no real solution when it is negative
+exact_special_function_and_numerical_result_policy exact rationals only, refusing a square whose root is irrational rather than reporting a decimal
+parser_module_ids src/core/parser.cc, src/steps/quadratic.cc, src/steps/linear.cc
+required_assumptions none, the coefficient of the square is checked before dividing and the sign of the isolated square decides the case rather than being assumed
+test_group_ids quadratic
+proof_obligation_ids obl.eq.same-solutions, obl.quadratic.case-is-a-root, obl.quadratic.candidate-satisfies, obl.quadratic.rejected-case-is-infeasible, obl.quadratic.cases-are-complete, obl.plan.preconditions-hold
+supported_methods read the equation as linear in the square, isolate it, then record one case per real root
+unsupported_near_neighbors equations with a term of degree one, squares with no exact rational root, higher degree, complex roots
+solution_soundness_status verified, every case is substituted into the equation as it was typed rather than into the isolated form
+solution_completeness_status verified within the envelope, the recorded cases are multiplied back out and compared with the quadratic they were split from
+corpus_case_ids the golden fixtures naming this family
+device_performance_status not yet measured on the physical calculator
+direct_keypad_entry_status not yet entered from the calculator keypad
+isolated_runtime_status unqualified, host build results do not establish isolated calculator execution
+release_status unreleased
+rule eq.quadratic.square-root fixture
+rule eq.quadratic.isolate-the-square fixture
+rule eq.quadratic.square-root-case fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.reject-negative-square fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+
+family id physics.kinematics.catch-up.equal-position
+reference_curriculum_set_ids StepCAS product requirements PHYS-002, PHYS-014, PHYS-015, PHYS-025, PHYS-026, PHYS-027, PHYS-028, PHYS-029, M1 archetype 4
+curriculum_source_locations StepCAS_Product_Requirements_Document.md sections 9.4 through 9.7, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 4
+topic_and_level Two-stage one-dimensional catch-up and equal-position events, M1 archetype 4
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each position, velocity, acceleration, and start-time field
+domains_and_parameter_assumptions two distinct named bodies share one declared one-dimensional frame and an event is admissible only after both start times
+supported_branches_and_degenerate_cases delayed starts, a meeting at the shared-domain boundary, an algebraic meeting before that boundary, no meeting, coincident laws, and exact zero acceleration reduced to constant velocity
+exact_special_function_and_numerical_result_policy compatible units convert exactly to SI, the existing linear solver isolates event time exactly, and measured precision is applied only to final event reports
+accepted_input_forms one typed CatchUpProblem containing two CatchUpBody records with identity, frame, motion model, and typed quantities
+word_language_profile_ids none, typed entry only
+parser_module_ids src/units/units.cc, src/physics/catch_up.cc, src/steps/linear.cc
+required_assumptions velocity is constant on each active interval, or a constant-acceleration model carries exact zero acceleration, and the solve carries "motion is one-dimensional with positive position along the declared axis"
+supported_methods build both active-interval position laws, equate positions, use the existing exact linear solver, enforce the shared domain, and substitute into both original laws
+unsupported_near_neighbors nonzero or measured-zero acceleration, nonlinear motion in time, more than two bodies, two-dimensional pursuit, implicit frame conversion, and collision dynamics
+strategy_ids physics.catch-up.constant-velocity
+test_group_ids catch up
+proof_obligation_ids obl.catch-up.position-law-dimensions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+solution_soundness_status verified by typed dimensions, exact linear candidate substitution, exact shared-domain comparison, and substitution into both original position laws
+solution_completeness_status complete for two constant-velocity active-interval laws within exact rational and resource limits, partial for broader catch-up motion
+corpus_case_ids catch_up_delayed_start, catch_up_measured_report, catch_up_before_shared_domain, catch_up_nonlinear_refused
+explanation_review_status solved and refusal derivations covered by golden fixtures, independent explanation review not yet recorded
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native typed Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status host core and native Lua bridge validated, ARM module compiles and packages, calculator runtime not yet measured
+capability_manifest_ids physics.kinematics.catch-up.equal-position
+release_status in development, unreleased
+rule physics.catch-up.constant-velocity fixture
+rule physics.catch-up.check-dimensions fixture
+rule physics.catch-up.equal-position fixture
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule physics.catch-up.shared-domain fixture
+rule physics.catch-up.verify-first-position fixture
+rule physics.catch-up.verify-second-position fixture
+rule physics.catch-up.significant-figures fixture
+
+family id physics.kinematics.relative-motion.components.two-dimension
+reference_curriculum_set_ids StepCAS product requirements PHYS-016, M1 archetype 7
+curriculum_source_locations StepCAS_Product_Requirements_Document.md section 11, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 7
+topic_and_level Two-dimensional Cartesian relative velocity, M1 archetype 7
+family_envelope_version 1
+accepted_expression_grammar existing scalar expression grammar for each velocity component
+accepted_input_forms one typed RelativeMotionProblem naming a subject, a reference, two framed rank-two velocity vectors and a coordinate convention
+domains_and_parameter_assumptions both velocities are rank two, declare the same named frame, and carry dimension L T^-1
+supported_branches_and_degenerate_cases exact and measured components, negative components, and compatible velocity units with different SI scales
+exact_special_function_and_numerical_result_policy exact rational SI conversion and component subtraction, with measured precision applied only to the final report
+word_language_profile_ids none, typed entry only
+parser_module_ids src/units/units.cc, src/physics/relative_motion.cc
+required_assumptions both velocities are expressed in the declared Cartesian frame, which for the compass frame is carried as "positive i is east and positive j is north"
+test_group_ids relative motion
+proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
+strategy_ids physics.relative-motion.plan
+supported_methods validate ranks, frames and dimensions, convert both velocities exactly to SI, subtract matching components with Giac checking each one, then interpret the component signs in the declared axes
+unsupported_near_neighbors implicit frame transformation, rank-three relative motion, rotating frames, relativistic addition, and unequal dimensions
+solution_soundness_status verified by rank, frame declaration, frame identity, input and result dimension, and a Giac comparison on each exact component
+solution_completeness_status partial, two-dimensional Cartesian relative velocity in one shared frame
+corpus_case_ids relative_motion_mixed_units
+explanation_review_status core rule sequence covered by a golden fixture, independent explanation review not yet recorded
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native typed Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status ARM core compiles, calculator runtime not yet measured
+capability_manifest_ids physics.kinematics.relative-motion.components.two-dimension
+release_status in development, unreleased
+rule physics.relative-motion.plan fixture
+rule physics.relative-motion.check-rank fixture
+rule physics.relative-motion.check-frame-declared fixture
+rule physics.relative-motion.check-frame-match fixture
+rule physics.relative-motion.check-input-dimensions fixture
+rule physics.relative-motion.definition fixture
+rule physics.relative-motion.convert-si fixture
+rule physics.relative-motion.check-result-dimension fixture
+rule physics.relative-motion.component-i fixture
+rule physics.relative-motion.component-j fixture
+rule physics.relative-motion.interpret-direction fixture
+# src/physics/relative_motion.cc also emits physics.relative-motion.significant-figures. No fixture
+# records it, since the only pinned case is exact, so it is not claimed here.
+
+family id units.chain-link-conversion
+topic_and_level Exact multiplicative unit conversion for scalar quantities, M1 chain-link conversion
+accepted_expression_grammar a source quantity written as a number and a unit spelling from the table, as in 5 m/s or 2.5 km/h or a bare number for a pure number, and a target unit in that same spelling, rather than a free expression
+accepted_input_forms a typed source Quantity and target Unit, with a wrapper for one supported quantity spelling and one supported target-unit spelling
+domains_and_parameter_assumptions source and target dimensions must match and every unit scale must fit exact rational arithmetic
+supported_branches_and_degenerate_cases exact and measured scalars, compound units, and SI prefix chains raised to area or volume powers
+exact_special_function_and_numerical_result_policy exact rational factors and intermediates, with measured precision applied only to the final report
+parser_module_ids src/units/units.cc, src/physics/unit_conversion.cc
+required_assumptions none, the source and target units are required to share a dimension and that is checked rather than assumed
+test_group_ids unit conversion, units
+proof_obligation_ids obl.unit-conversion.dimensions-match, obl.unit-conversion.source-factor-exact, obl.unit-conversion.target-factor-exact, obl.unit-conversion.rounding-final, obl.unit-conversion.rounding-within-half-place, obl.plan.preconditions-hold
+supported_methods source unit to SI followed by SI to target using the registered exact scales
+unsupported_near_neighbors affine conversions, incompatible dimensions, unsupported unit spellings, and uncertainty propagation
+solution_soundness_status verified by a dimension check, both exact unit-table factors, and the final precision check
+solution_completeness_status complete for compatible multiplicative units in the current unit table while every exact rational operation fits
+corpus_case_ids unit_conversion_powered_chain
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+release_status in development, unreleased
+rule unit.convert.plan fixture
+rule unit.convert.check-dimension fixture
+rule unit.convert.source-to-si fixture
+rule unit.convert.si-to-target fixture
+rule unit.convert.report-precision fixture
+
+family id physics.density.mass-volume
+topic_and_level Mass, volume, and density through the definition m = rho*V, M1 density
+accepted_expression_grammar existing quantity grammar for each mass, volume and density field, rather than a free expression
+accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser
+domains_and_parameter_assumptions the three quantities must have mass, volume, and mass-per-volume dimensions and the requested unknown must be uniquely determined
+supported_branches_and_degenerate_cases any one of mass, volume, or density may be unknown, with exact prefix conversion and explicit refusal of a zero divisor that does not determine one value
+exact_special_function_and_numerical_result_policy exact rational SI conversion and linear isolation, with measured precision applied only after candidate verification
+parser_module_ids src/units/units.cc, src/physics/density.cc, src/steps/linear.cc
+required_assumptions the supplied scalars describe one uniform-density relation, carried as "density is uniform across the sample"
+test_group_ids density, units
+proof_obligation_ids obl.density.dimensions-agree, obl.density.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods exact SI substitution into m = rho*V followed by the existing exact linear solver
+unsupported_near_neighbors buoyancy, mixtures, spatially varying density, geometric volume derivation, and more than one unknown
+solution_soundness_status verified by dimensional analysis and exact substitution into both the density definition and collected linear equation
+solution_completeness_status complete for one unknown and two compatible knowns when the unique exact rational answer fits
+corpus_case_ids density_volume_mixed_units, density_mass_cubic_prefix
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+release_status in development, unreleased
+rule physics.density.definition fixture
+rule physics.density.check-dimensions fixture
+rule physics.density.convert-units fixture
+rule physics.density.substitute fixture
+rule physics.density.check-candidate fixture
+rule physics.density.significant-figures fixture
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+
+family id physics.vectors.cartesian-addition.two-dimension
+topic_and_level Two-dimensional Cartesian vector addition, PRD section 11 and M1 archetype 5
+accepted_expression_grammar existing vector grammar for each addend, either unit-vector form such as 3 i + 4 j m/s or an ordered tuple such as (3, 4) m/s
+accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form
+domains_and_parameter_assumptions both vectors have rank two, matching named frames and matching dimensions
+supported_branches_and_degenerate_cases exact zero and negative components, compatible units with different SI scales
+exact_special_function_and_numerical_result_policy exact rational SI conversion and addition, rounded only for final reporting
+parser_module_ids src/units/units.cc, src/physics/vector_addition.cc
+required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab"
+test_group_ids vector addition, units
+proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
+supported_methods exact SI conversion followed by matching component addition
+unsupported_near_neighbors three-dimensional addition in this archetype, implicit frame transformation, unequal dimensions
+solution_soundness_status verified by rank, frame, dimension, exact conversion and exact rational addition records
+solution_completeness_status complete for two-dimensional Cartesian addition within exact int64 rational bounds
+corpus_case_ids vector_addition_mixed_units
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status ARM artifact compiles, runtime not yet measured
+release_status unreleased
+rule vec.add.plan fixture
+rule vec.add.check-rank fixture
+rule vec.add.check-frame fixture
+rule vec.add.check-dimension fixture
+rule vec.add.convert-si fixture
+rule vec.add.component-i fixture
+rule vec.add.component-j fixture
+rule vec.add.report-precision fixture
+
+family id physics.vectors.magnitude-components.two-dimension
+reference_curriculum_set_ids StepCAS product requirements PHYS-016, M1 archetype 7
+curriculum_source_locations StepCAS_Product_Requirements_Document.md PHYS-016 and section 11, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 7
+topic_and_level Two-dimensional magnitude and direction conversion with Cartesian components, PHYS-016 and M1 archetype 7
+family_envelope_version 1
+accepted_expression_grammar existing scalar expression grammar for magnitude, angle, x, and y fields
+domains_and_parameter_assumptions a named Cartesian frame, a physical unit with exact positive SI scale, and an explicit degree or radian angle unit
+supported_branches_and_degenerate_cases exact symbolic components, measured final-only approximation, and quadrant-aware inverse conversion including negative x and y
+exact_special_function_and_numerical_result_policy exact degree-to-radian factors and exact formulas require adapter zero checks before any requested final approximation, while host fixtures use scripted backend replies to test the protocol and evidence flow
+accepted_input_forms typed MagnitudeAngleExpr or rank-two Vector and VectorExpr values with explicit frame, unit, precision, and angle unit
+word_language_profile_ids none, typed entry only
+parser_module_ids src/core/parser.cc, src/physics/vector_components.cc, src/cas/giac/giac_adapter.cc
+required_assumptions a supplied magnitude is nonnegative and all components use the declared Cartesian frame and shared unit, carried with the names in them, as in "vector frame is lab" and "the supplied unit has dimension L"
+supported_methods x = r cos(theta), y = r sin(theta), the existing exact vector magnitude, and quadrant-aware atan2(y, x)
+unsupported_near_neighbors rank-three direction reconstruction, implicit basis transforms, implicit angle units, automatic symbolic nonnegativity proof, and a direction for the zero vector
+strategy_ids vec.components.plan, vec.polar.plan
+test_group_ids vector components
+proof_obligation_ids obl.vector-components.rank-two, obl.vector-components.frame-declared, obl.vector-components.angle-unit-explicit, obl.vector-components.dimensions-preserved, obl.vector-components.component-relations, obl.vector-components.magnitude-relation, obl.vector-components.quadrant-direction, obl.vector-components.precision-final, obl.plan.preconditions-hold
+solution_soundness_status production answers are withheld unless metadata checks and backend zero checks pass, while golden fixtures validate that evidence flow with scripted replies and do not independently establish Giac algebra
+solution_completeness_status partial, limited to two-dimensional Cartesian conversion and dependent on an available symbolic backend
+corpus_case_ids vector_components_exact, vector_components_negative_quadrant
+explanation_review_status core rule sequence and proof evidence covered by golden fixtures, independent explanation review not yet recorded
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native typed Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+capability_manifest_ids physics.vectors.magnitude-components.two-dimension
+release_status in development, unreleased
+rule vec.components.plan fixture
+rule vec.components.check-frame fixture
+rule vec.components.check-angle-unit fixture
+rule vec.components.check-dimension fixture
+rule vec.components.x fixture
+rule vec.components.y fixture
+rule vec.components.report-precision fixture
+rule vec.polar.plan fixture
+rule vec.polar.check-rank fixture
+rule vec.polar.check-frame fixture
+rule vec.polar.check-angle-unit fixture
+rule vec.polar.check-dimension fixture
+rule vec.polar.magnitude fixture
+rule vec.polar.direction fixture
+rule vec.polar.report-precision fixture
+
+family id physics.work.constant-force-dot-product
+topic_and_level Constant-force component-vector work within PHYS-009
+accepted_expression_grammar existing vector grammar for the force and the displacement, in unit-vector or ordered-tuple form with one unit spelling on each
+accepted_input_forms a typed WorkProblem with force and displacement vectors, named Cartesian frames, and an explicit force profile
+domains_and_parameter_assumptions force has dimension M L T^-2, displacement has dimension L, ranks and frames match, and the force is constant over the displacement
+supported_branches_and_degenerate_cases rank two or three, positive, zero, or negative work, exact or measured components, and compatible multiplicative unit prefixes
+exact_special_function_and_numerical_result_policy exact rational SI conversion and vector dot product, with measured precision applied only after candidate verification
+parser_module_ids src/units/units.cc, src/physics/work.cc
+required_assumptions force and displacement components use the same declared Cartesian frame, and the force is constant over the displacement, carried as "force profile is constant"
+test_group_ids work
+proof_obligation_ids obl.work.constant-force, obl.work.ranks-match, obl.work.frames-declared, obl.work.frames-match, obl.work.input-dimensions, obl.work.law-applied-after-checks, obl.work.result-dimension, obl.work.candidate-satisfies, obl.work.sign-interpreted, obl.physics.converts-by-table, obl.work.dot-is-the-definition, obl.work.rounding-within-half-place, obl.plan.preconditions-hold
+supported_methods validate applicability and vector roles, convert exactly to SI, use the existing vector_dot operation, verify the candidate, and interpret its sign
+unsupported_near_neighbors variable-force path integrals, implicit frame transformations, work-energy methods, rotational work, and the other PHYS-009 families
+solution_soundness_status verified by applicability, rank, frame, input and result dimension, exact dot-product, candidate, and sign checks
+solution_completeness_status partial, constant-force Cartesian component-vector work only
+corpus_case_ids work_negative_mixed_units, work_variable_force_refused
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status ARM core compiles, calculator runtime not yet measured
+release_status in development, unreleased
+rule physics.work.plan fixture
+rule physics.work.check-applicability fixture
+rule physics.work.check-rank fixture
+rule physics.work.check-frame-declared fixture
+rule physics.work.check-frame-match fixture
+rule physics.work.check-input-dimensions fixture
+rule physics.work.constant-force-definition fixture
+rule physics.work.convert-si fixture
+rule physics.work.check-result-dimension fixture
+rule physics.work.evaluate-dot fixture
+rule physics.work.check-candidate fixture
+rule physics.work.interpret-sign fixture
+rule physics.work.significant-figures fixture
+
+family id calculus.derivative.single-variable
+topic_and_level Supported derivative rules and nested combinations, PRD section 22.1
+accepted_expression_grammar sums, products, quotients, negations, integer powers and calls to a named function, over numbers and the one variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms an expression in one variable, with the supported functions
+domains_and_parameter_assumptions rules apply where the original expression and its derivative are defined. Logarithms, roots, quotients and reciprocal powers carry their corresponding domain restrictions
+supported_branches_and_degenerate_cases a constant with respect to the variable, including another symbol
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
+parser_module_ids src/core/parser.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family, a condition a form needs is recorded as a domain restriction on the step that introduces it, as the quotient rule records a denominator that is not zero
+test_group_ids differentiate
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.plan.preconditions-hold
+supported_methods one rule per step, chosen by the shape of the node and recorded by name
+unsupported_near_neighbors implicit differentiation, partial derivatives, higher derivatives in one step
+solution_soundness_status cross-checked against Giac on the calculator, which is evidence rather than proof
+solution_completeness_status partial, the thirteen rules the header lists and no others
+corpus_case_ids the golden fixtures naming this family
+device_performance_status measured on the physical calculator, see STATUS.md
+direct_keypad_entry_status entered from the calculator keypad, measured
+isolated_runtime_status unqualified, the complete supported corpus must pass with USB physically disconnected
+release_status unreleased
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.variable fixture
+rule d.sum fixture
+rule d.constant-multiple fixture
+rule d.product fixture
+rule d.quotient fixture
+rule d.power fixture
+rule d.chain fixture
+rule d.function fixture
+
+family id calculus.integral.indefinite.single-variable
+topic_and_level Supported elementary indefinite integrals, PRD section 22.1
+accepted_expression_grammar sums, products, negations, integer powers including the reciprocal, and calls to a named function, over numbers and the one variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms an expression in one variable, within the Milestone 3 envelope
+domains_and_parameter_assumptions the logarithm needs a positive argument, and a symbolic coefficient is assumed non-zero
+supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
+parser_module_ids src/core/parser.cc, src/steps/integrate.cc
+required_assumptions whatever the integrand's own form needs, recorded as it is met rather than remembered, as in "x > 0" for the logarithm a reciprocal integrates to
+test_group_ids integrate
+proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.plan.preconditions-hold
+supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand
+unsupported_near_neighbors general integration by parts, nonlinear substitution, general rational exponents, tan, reciprocal square roots, powers of logarithms and logarithms with nonlinear arguments
+solution_soundness_status the answer is differentiated by rule. Canonical agreement verifies simple identities. Inconclusive canonical comparisons require an exact zero difference from Giac under recorded domain restrictions, otherwise the answer is withheld
+solution_completeness_status partial, one substitution deep and linear arguments only
+corpus_case_ids the golden fixtures naming this family
+device_performance_status measured on the physical calculator, see STATUS.md
+direct_keypad_entry_status entered from the calculator keypad, measured
+isolated_runtime_status unqualified, the complete supported corpus must pass with USB physically disconnected
+release_status unreleased
+rule calculus.integrate.rules fixture
+rule calculus.integrate.check-by-differentiation fixture
+rule i.power fixture
+rule i.reciprocal fixture
+rule i.sum fixture
+rule i.constant-multiple fixture
+rule i.linear-substitution fixture
+rule i.constant-of-integration fixture
+rule i.logarithm-parts fixture
+rule i.constant fixture
+rule i.function fixture
+
+family id calculus.integral.definite.single-variable
+topic_and_level Elementary definite integrals in one real variable
+family_envelope_version 1
+accepted_expression_grammar constants, sums, constant multiples, integer powers and supported sin, cos, exp, ln and sqrt calls with affine arguments, within the existing antiderivative rules
+accepted_input_forms int(expression,variable,lower,upper), integrate and the TI integral glyph in Exact mode with finite rational bounds
+domains_and_parameter_assumptions the integrand and the computed antiderivative must be continuous on the complete interval, including endpoints. Each logarithmic primitive selects a positive argument using the sign of its affine base. The chosen branch is checked over the complete interval
+supported_branches_and_degenerate_cases reversed bounds, equal bounds for continuous integrands, rational endpoints and reciprocal powers away from zero, including negative affine arguments and sums using different logarithm branches. Affine square roots allow zero radicands at endpoints using the continuous primitive
+exact_special_function_and_numerical_result_policy exact rational or symbolic endpoint expressions. Checked rational arithmetic refuses overflow. Unsupported native cases may expose a distinctly labeled Giac answer without claiming a complete walkthrough
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/integrate.cc
+required_assumptions none carried globally. Interval validity and primitive branch restrictions are checked locally
+test_group_ids calculus, command, adapter
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement
+supported_methods interval continuity checks, a native antiderivative verified by differentiation with Giac exact identity checks when needed, affine logarithm integration by parts, the fundamental theorem of calculus and exact endpoint subtraction
+unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, general integration by parts, logarithm powers and nonlinear substitution
+solution_soundness_status native expected-answer, domain refusal, budget and rule-schema tests pass. Actual Giac bridge comparisons pass under host sanitizers. Physical qualification remains pending
+solution_completeness_status partial, limited by the stated grammar, checked arithmetic and resource budgets. No native result survives failed verification or terminal cancellation
+corpus_case_ids defint_polynomial, defint_zero_width, defint_reciprocal, defint_elementary, defint_logarithm_affine, defint_logarithm_reversed, defint_square_root_endpoint
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and TI template dispatch implemented. Handheld qualification pending
+isolated_runtime_status ARM package built. Emulator and physical-device qualification pending
+capability_manifest_ids calculus.integral.definite.single-variable
+release_status in development, unreleased
+rule defint.interval fixture
+rule defint.zero-width fixture
+rule defint.fundamental-theorem fixture
+rule defint.subtract fixture
+rule calculus.check-giac fixture
+rule i.constant fixture
+rule i.logarithm-parts fixture
+rule calculus.integrate.rules fixture
+rule calculus.integrate.check-by-differentiation fixture
+rule i.power fixture
+rule i.reciprocal fixture
+rule i.constant-multiple fixture
+rule i.linear-substitution fixture
+
+family id calculus.limit.single-variable
+topic_and_level Finite and infinite limits in one real variable
+family_envelope_version 1
+accepted_expression_grammar supported continuous arithmetic and elementary expressions at rational points, polynomial square-root boundaries with an exact real approach-domain proof, rational functions over rational-coefficient polynomials with degree bounds of 32, and smooth elementary numerators over those polynomial denominators when exact rational derivative values establish the required vanishing orders
+accepted_input_forms limit(expression,variable,point) and limit(expression,variable,point,direction), including the TI editor alias lim. Direction is -1 for left, 0 for both and 1 for right. Infinite points use infinity, the TI infinity symbol or either negative spelling without a side argument
+domains_and_parameter_assumptions original denominators remain excluded after cancellation. Rational denominators must be nonzero polynomials with isolated roots. Real principal branches and radians apply
+supported_branches_and_degenerate_cases direct substitution, one-sided and two-sided square-root boundaries with nonnegative polynomial radicands on every requested side, zero-polynomial radicands, removable singularities, repeated polynomial zeros, smooth sine, cosine, exponential, logarithm and positive-radicand square-root numerators, one-sided poles, matching signed infinities, opposite-sided nonexistence and rational limits at infinity
+exact_special_function_and_numerical_result_policy exact finite expressions, signed infinity or an explicit nonexistent two-sided limit. Giac fallback answers remain distinct from native walkthrough completion
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried globally. Original excluded points and the requested direction are recorded locally
+test_group_ids calculus, command, adapter
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.limit.classification, obl.plan.preconditions-hold
+supported_methods continuity, exact derivative order and sign proofs for polynomial root domains, quotient normalization with excluded points, repeated differentiation for removable zeros with smoothness checks for elementary numerators, exact derivative order and sign comparison, and leading-term degree comparison at infinity
+unsupported_near_neighbors symbolic finite points, square-root boundary approaches without a proved real neighborhood, nonpolynomial denominators in indeterminate forms, elementary numerators without proved smoothness or exact derivative values, transcendental limits at infinity, oscillatory singularities, multivariable limits, identically zero denominators and expressions exceeding arithmetic or shared work budgets
+solution_soundness_status independent expected answers and native rule-schema checks pass. Actual Giac bridge comparisons pass under host sanitizers. Infinite and nonexistent native classifications use exact polynomial order and sign certificates
+solution_completeness_status partial, within the stated grammar and resource bounds. A verified signed infinity is distinct from a finite real result, and opposite one-sided infinities do not establish a two-sided limit
+corpus_case_ids limit_continuous, limit_root_boundary, limit_removable, limit_pole, limit_no_two_sided, limit_at_infinity
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and five limit templates implemented. Handheld qualification pending
+isolated_runtime_status ARM package built. Emulator and physical-device qualification pending
+capability_manifest_ids calculus.limit.single-variable
+release_status in development, unreleased
+rule limit.continuity fixture
+rule limit.real-domain fixture
+rule limit.rational-form fixture
+rule limit.lhopital fixture
+rule limit.evaluate fixture
+rule limit.infinity fixture
+rule limit.classify fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.variable fixture
+rule d.sum fixture
+rule d.power fixture
+
+family id physics.kinematics.constant-acceleration.one-dimension
+topic_and_level One-dimensional constant-acceleration kinematics, PRD section 22.1
+accepted_expression_grammar the five named symbols v0, v, a, t and x, one per part, with the existing quantity grammar on each value and the parts separated by commas, new lines or semicolons
+accepted_input_forms structured entry of an unknown and quantities with units, not prose
+domains_and_parameter_assumptions acceleration is constant over the interval, and motion is along one axis
+supported_branches_and_degenerate_cases a route through an intermediate quantity when no single equation reaches the unknown
+exact_special_function_and_numerical_result_policy exact rationals throughout, rounded once at the end to the figures the measured givens allow
+parser_module_ids src/units/units.cc, src/physics/kinematics.cc
+required_assumptions "acceleration is constant" and "motion is along one axis, positive in the chosen direction", both carried on the solve and the first also carried on the step that plans with it
+test_group_ids kinematics, units
+# The linear solver's obligation appears here too, for the same reason its rules do: a kinematics
+# solve nests it and the record carries what it raised.
+proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.plan.preconditions-hold
+supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear solver
+unsupported_near_neighbors two bodies at equal position, projectile motion in two dimensions, forces, energy
+solution_soundness_status verified, dimensions checked and the answer substituted back by the linear solver
+solution_completeness_status partial, one body and one axis
+corpus_case_ids the golden fixtures naming this family
+device_performance_status measured on the physical calculator, see STATUS.md
+direct_keypad_entry_status entered from the calculator keypad, measured
+isolated_runtime_status unqualified, the complete supported corpus must pass with USB physically disconnected
+release_status unreleased
+rule physics.kinematics.constant-acceleration fixture
+rule kin.substitute fixture
+rule kin.convert-units fixture
+rule kin.significant-figures fixture
+rule physics.kinematics.check-dimensions fixture
+rule kin.rearrange device
+# A kinematics solve nests the linear solver, whose steps land in the same derivation, so a reader
+# of one of these records sees these rules and the family exercises them.
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+
+family id algebra.formula-rearrangement.single-occurrence
+topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
+accepted_input_forms an equation in the project's own grammar, and the symbol to isolate
+accepted_expression_grammar sums, products, negations, first powers and reciprocals of the symbol
+domains_and_parameter_assumptions a divisor that is not a literal number is carried as a stated restriction rather than assumed non-zero, and so is the other side of a reciprocal
+supported_branches_and_degenerate_cases none, because every supported inverse has one real value
+exact_special_function_and_numerical_result_policy exact throughout, no arithmetic is folded and no value is approximated
+parser_module_ids src/core/parser.cc, src/steps/rearrange.cc, src/core/evaluate.cc
+required_assumptions whatever the inverse operations introduce, recorded as it is met, as in "R is not zero" when the rearrangement divides by R
+test_group_ids rearrange
+proof_obligation_ids obl.rearrange.substitution-identity, obl.rearrange.same-solutions, obl.plan.preconditions-hold
+supported_methods peel one operation at a time off the side holding the symbol, applying its inverse to both sides
+unsupported_near_neighbors a symbol appearing more than once, an even power (two roots), any other root, a symbol inside a function, a symbol in an exponent, and inequalities
+solution_soundness_status verified by rule-local equality invariants on every move, then checked by substituting the rearranged side back and evaluating both sides exactly, with Giac asked for a symbolic second opinion when a backend is supplied
+solution_completeness_status partial, one occurrence of the symbol and the inverses listed above
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status solved and refusal derivations covered by golden fixtures, independent explanation review not yet recorded
+device_performance_status not measured
+direct_keypad_entry_status native rearrange command and Ki V4 routing implemented, manual keypad qualification pending
+isolated_runtime_status host core and native Lua bridge validated, calculator runtime not yet measured
+release_status unreleased
+rule alg.rearrange.inverse-operations fixture
+rule alg.rearrange.swap-sides fixture
+rule alg.rearrange.subtract-both-sides fixture
+rule alg.rearrange.divide-both-sides fixture
+rule alg.rearrange.negate-both-sides fixture
+rule alg.rearrange.reciprocal-both-sides fixture
+rule alg.rearrange.drop-unit-factor fixture
+rule alg.rearrange.first-power fixture
+rule alg.rearrange.check-by-substitution fixture
+
+family id algebra.polynomial-rewrite.single-expression
+topic_and_level Simplifying, expanding and factoring an expression, PRD section 9.4 ALG-001 and ALG-002
+accepted_input_forms one expression in the project's own grammar, with the form to rewrite it into
+accepted_expression_grammar sums, products, negations and whole-number powers over exact integers and symbols
+domains_and_parameter_assumptions none, every rule here holds wherever the expression is defined
+supported_branches_and_degenerate_cases an expression already in the asked-for form is reported as such rather than given an invented step, and a quadratic with no whole-number pair is left as it is
+exact_special_function_and_numerical_result_policy exact integers and fractions only, and a decimal literal is refused rather than converted
+parser_module_ids src/core/parser.cc, src/steps/rewrite.cc, src/core/evaluate.cc
+required_assumptions none, the rules here are identities over exact integers and symbols, so no condition has to be carried
+test_group_ids rewrite
+proof_obligation_ids obl.rewrite.same-value, obl.alg.rule-preserves-value, obl.alg.fold-preserves-value, obl.alg.factor-multiplies-back, obl.plan.preconditions-hold
+supported_methods work out one arithmetic operation at a time, drop a term of zero, write repeated factors as powers, gather terms differing only by a coefficient, distribute a product over a sum, take out a common factor, and factor a monic quadratic by product and sum
+unsupported_near_neighbors decimals, a quadratic this rule cannot make monic, cubics and higher, rational expressions, radicals, and arithmetic wider than exact int64 rationals
+solution_soundness_status verified, each factoring step multiplies its own answer back out and compares it term by term, and the finished expression is worked out against the original at six exact assignments with Giac asked as well when a backend is supplied
+solution_completeness_status partial, a common factor and a monic quadratic
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status rewritten and refusal derivations covered by golden fixtures, independent explanation review not yet recorded
+device_performance_status not measured
+direct_keypad_entry_status native simplify, expand and factor commands and Ki V4 routing implemented, manual keypad qualification pending
+isolated_runtime_status host core and native Lua bridge validated, calculator runtime not yet measured
+release_status unreleased
+rule alg.simplify.fold-and-collect fixture
+rule alg.expand.distribute-and-collect fixture
+rule alg.factor.common-then-quadratic fixture
+rule alg.fold-arithmetic fixture
+rule alg.drop-zero-term fixture
+rule alg.collect-like-terms fixture
+rule alg.gather-powers fixture
+rule alg.distribute fixture
+rule alg.power-as-product fixture
+rule alg.factor.common-factor fixture
+rule alg.factor.product-and-sum fixture
+rule alg.factor.difference-of-squares fixture
+rule alg.rewrite.check-by-evaluation fixture
+
+family id number.integer-method.literal
+reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
+curriculum_source_locations docs/menu-walkthrough-plan.md, Number and Probability menu inventory
+topic_and_level Integer division, greatest common divisors, counting, primality, prime factorization and modular exponentiation
+family_envelope_version 2
+accepted_expression_grammar one top-level iquo, irem, factorial, perm, comb, is_prime, nextprime, ifactor or powmod call with nonnegative integer literal arguments, or gcd with signed integer literal arguments
+accepted_input_forms ordinary menu commands in Exact mode, with every argument supplied
+domains_and_parameter_assumptions iquo and irem accept 0 <= dividend <= 1000000000 and 1 <= divisor <= 1000000000. gcd accepts both arguments from -1000000000 through 1000000000. factorial accepts 0 through 100. perm and comb require 0 <= k <= n <= 100. is_prime accepts 0 through 1000000. ifactor accepts 2 through 1000000. nextprime accepts 0 through 999999 and searches at most 1000000. powmod requires base from 0 through 1000000000, exponent from 1 through 1000000 and modulus from 2 through 1000000000
+supported_branches_and_degenerate_cases zero dividends, signed gcd with a nonnegative result and gcd(0,0)=0, empty counting products, composite and prime inputs, repeated prime factors and bounded next-prime searches. A search without a prime within the bound refuses a result
+exact_special_function_and_numerical_result_policy exact GMP integer products including factorial(100). is_prime returns 2 for a proven prime and 0 otherwise. Decimal mode and approximate literals are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/integer.cc
+required_assumptions none, every argument and method bound is checked before recording a plan
+test_group_ids integer, command
+proof_obligation_ids obl.int.division-identity, obl.int.gcd-sign, obl.int.gcd-remainder, obl.int.gcd-certificate, obl.int.factorial-product, obl.int.permutation-product, obl.int.combination-product, obl.int.trial-division, obl.int.prime-decision, obl.int.next-prime, obl.int.modular-power, obl.int.factor-product, obl.plan.preconditions-hold
+strategy_ids plan.integer-method
+supported_methods quotient and remainder identity, GMP Euclidean division and checked Bezout certificate, consecutive products, exact binomial recurrence, trial division through the square root, consecutive candidate exclusion, prime factor reconstruction and binary modular exponentiation
+unsupported_near_neighbors negative arguments except for gcd, symbolic or compound arguments, approximate literals, Decimal mode, inputs beyond the stated bounds, zero or negative modular exponents and modulus one. Tuple-valued iegcd and iabcuv and other integer menu commands remain pending
+solution_soundness_status version 1 exact arithmetic checks and finite recurrence completion passed independent host review, including an external arithmetic oracle. Version 2 gcd passed independent host review and 934 signed, zero, boundary and randomized pairs against Python math.gcd. Physical qualification remains pending
+solution_completeness_status bounded to the declared literal envelope and resource policy. The complete Number and Probability menus remain unfinished
+corpus_case_ids integer_quotient, integer_remainder, integer_gcd, integer_gcd_zero, integer_gcd_refused, integer_factorial, integer_permutation, integer_combination, integer_prime, integer_composite, integer_next_prime, integer_modular_power, integer_factorization, integer_refused, integer_invalid, integer_step_budget, integer_cancelled
+explanation_review_status version 1 semantic fixtures and host invariants passed independent review. Version 2 review and learner testing remain pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatcher implemented, physical keypad qualification pending
+isolated_runtime_status host core and Lua bridge checked, physical execution and Giac compatibility qualification pending
+capability_manifest_ids number.integer-method.literal
+release_status in development, unreleased
+rule plan.integer-method fixture
+rule int.division fixture
+rule int.factorial-product fixture
+rule int.permutation-product fixture
+rule int.combination-product fixture
+rule int.trial-division fixture
+rule int.prime-conclusion fixture
+rule int.next-prime fixture
+rule int.modular-power fixture
+rule int.factor-product fixture
+rule int.gcd-sign fixture
+rule int.gcd-remainder fixture
+rule int.gcd-conclusion fixture
+
+family id matrix.ref.rational
+reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
+curriculum_source_locations docs/menu-walkthrough-plan.md, Matrix and Vector menu inventory
+topic_and_level Exact rational matrices in row echelon form
+family_envelope_version 1
+accepted_expression_grammar one top-level ref call with a rectangular list of row lists. Cells use exact arithmetic over integer literals with sums, products, negation and integer powers, including reciprocal powers for division
+accepted_input_forms ordinary ref menu command in Exact mode with one matrix argument
+domains_and_parameter_assumptions one through four rows and one through six columns. Every input cell, intermediate matrix cell and row-operation coefficient must fit the shared exact Rational representation and checked arithmetic bounds. In-range input cells do not guarantee that a reduction stays within that envelope
+supported_branches_and_degenerate_cases zero matrices, zero and dependent rows, negative and fractional cells, rectangular matrices and single-cell matrices. A matrix already in the requested form can complete without a transformation
+exact_special_function_and_numerical_result_policy exact rational row operations and final matrix only. Decimal mode, decimal syntax, approximate containers or cells and symbolic or complex entries are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/matrix.cc
+required_assumptions none, matrix shape, exact provenance and arithmetic bounds are checked before recording a plan
+test_group_ids matrix, matrix row, matrix form, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.matrix.row-equivalent, obl.matrix.trace-complete, obl.matrix.ref-form
+strategy_ids plan.matrix-method
+supported_methods actual Giac row swaps, nonzero row scaling and addition of a multiple of a distinct row. Exact certificates validate every changed and unchanged cell. A separate final check requires that leading nonzero entries move strictly right, zero rows are last and entries below each pivot are zero. Unit pivots are not required
+unsupported_near_neighbors empty, flat, ragged or deeper lists, symbolic and approximate arithmetic, unsupported options or extra arguments, matrices beyond the stated dimensions and arithmetic outside checked bounds. Other matrix commands remain outside this family
+solution_soundness_status exact row certificates, trace continuity and final-form checks pass native tests and the actual host Giac Lua bridge. Physical qualification remains pending
+solution_completeness_status successful results require a complete verified trace from the input to the requested matrix form. This family does not solve a linear system or claim solution-set completeness. Cancellation and Meter limits retain the verified prefix without a final result. Arena failure discards unusable records
+corpus_case_ids matrix_ref_scaled, matrix_ref_swap, matrix_ref_dependent, matrix_ref_zero
+explanation_review_status semantic fixtures and Do, Write and Why bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch implemented, physical keypad qualification pending
+isolated_runtime_status actual host Giac callback and native Lua bridge execution checked with calculator OS shims. Emulator and handheld qualification remain pending
+capability_manifest_ids matrix.ref.rational
+release_status in development, unreleased
+rule plan.matrix-method fixture
+rule matrix.row-swap fixture
+rule matrix.row-scale fixture
+rule matrix.row-add-multiple fixture
+rule matrix.ref-conclusion fixture
+
+family id matrix.rref.rational
+reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
+curriculum_source_locations docs/menu-walkthrough-plan.md, Matrix and Vector menu inventory
+topic_and_level Exact rational matrices in reduced row echelon form
+family_envelope_version 1
+accepted_expression_grammar one top-level rref call with a rectangular list of row lists. Cells use exact arithmetic over integer literals with sums, products, negation and integer powers, including reciprocal powers for division
+accepted_input_forms ordinary rref menu command in Exact mode with one matrix argument
+domains_and_parameter_assumptions one through four rows and one through six columns. Every input cell, intermediate matrix cell and row-operation coefficient must fit the shared exact Rational representation and checked arithmetic bounds. In-range input cells do not guarantee that a reduction stays within that envelope
+supported_branches_and_degenerate_cases zero matrices, zero and dependent rows, negative and fractional cells, rectangular matrices and single-cell matrices. A matrix already in the requested form can complete without a transformation
+exact_special_function_and_numerical_result_policy exact rational row operations and final matrix only. Decimal mode, decimal syntax, approximate containers or cells and symbolic or complex entries are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/matrix.cc
+required_assumptions none, matrix shape, exact provenance and arithmetic bounds are checked before recording a plan
+test_group_ids matrix, matrix row, matrix form, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.matrix.row-equivalent, obl.matrix.trace-complete, obl.matrix.rref-form
+strategy_ids plan.matrix-method
+supported_methods actual Giac row swaps, nonzero row scaling and addition of a multiple of a distinct row. Exact certificates validate every changed and unchanged cell. A separate final check requires that leading entries move strictly right, zero rows are last, every pivot equals one and all other entries in each pivot column are zero
+unsupported_near_neighbors empty, flat, ragged or deeper lists, symbolic and approximate arithmetic, unsupported options or extra arguments, matrices beyond the stated dimensions and arithmetic outside checked bounds. Other matrix commands remain outside this family
+solution_soundness_status exact row certificates, trace continuity and final-form checks pass native tests and the actual host Giac Lua bridge. Physical qualification remains pending
+solution_completeness_status successful results require a complete verified trace from the input to the requested matrix form. This family does not solve a linear system or claim solution-set completeness. Cancellation and Meter limits retain the verified prefix without a final result. Arena failure discards unusable records
+corpus_case_ids matrix_rref_scaled, matrix_rref_swap, matrix_rref_fraction, matrix_rref_identity, matrix_rref_form_refused
+explanation_review_status semantic fixtures and Do, Write and Why bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch implemented, physical keypad qualification pending
+isolated_runtime_status actual host Giac callback and native Lua bridge execution checked with calculator OS shims. Emulator and handheld qualification remain pending
+capability_manifest_ids matrix.rref.rational
+release_status in development, unreleased
+rule plan.matrix-method fixture
+rule matrix.row-swap fixture
+rule matrix.row-scale fixture
+rule matrix.row-add-multiple fixture
+rule matrix.rref-conclusion fixture
+
+family id matrix.det.rational
+reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
+curriculum_source_locations docs/menu-walkthrough-plan.md, Matrix and Vector menu inventory
+topic_and_level Exact rational determinants by recorded row reduction
+family_envelope_version 1
+accepted_expression_grammar one top-level det call with a square list of row lists. Cells use exact arithmetic over integer literals with sums, products, negation and integer powers, including reciprocal powers for division
+accepted_input_forms ordinary det menu command in Exact mode with one matrix argument
+domains_and_parameter_assumptions square matrices of order one through four. Every input cell, intermediate matrix cell and row-operation coefficient must fit the shared exact Rational representation and checked arithmetic bounds. The GMP determinant factor, diagonal product and scalar answer have a separate 4096-bit numerator and denominator limit
+supported_branches_and_degenerate_cases zero and singular matrices, dependent and duplicate rows, negative and fractional cells, single-cell matrices, row swaps and exact scalar answers beyond int64. Unchanged matrix events do not alter the retained determinant factor
+exact_special_function_and_numerical_result_policy exact rational scalar result only. Decimal mode, decimal syntax, approximate containers or cells and symbolic or complex entries are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/matrix.cc
+required_assumptions none, square shape, exact provenance and arithmetic bounds are checked before recording a plan
+test_group_ids matrix, matrix row, matrix form, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.matrix.row-equivalent, obl.matrix.det-factor, obl.matrix.trace-complete, obl.matrix.ref-form, obl.matrix.det-diagonal-product, obl.matrix.det-correction
+strategy_ids plan.matrix-determinant
+supported_methods actual Giac row swaps, nonzero row scaling and row addition with independently checked matrix transitions. Each changing event records its determinant effect. Exact echelon verification precedes the diagonal product. Dividing by the accumulated nonzero factor recovers the original determinant
+unsupported_near_neighbors empty, flat, ragged, rectangular or deeper lists, symbolic and approximate arithmetic, unsupported options or extra arguments, order above four, intermediate cells outside checked Rational bounds and determinant arithmetic beyond its bit limit. Other matrix commands remain outside this family
+solution_soundness_status exact row, determinant factor, diagonal and correction certificates pass native and actual host Giac tests. A bounded GMP permutation oracle supplies independent expected values. Physical qualification remains pending
+solution_completeness_status successful results require a complete verified matrix trace and exact scalar correction. Cancellation and Meter limits preserve the verified prefix without a final determinant. Arena failure discards unusable records
+corpus_case_ids matrix_det_scalar, matrix_det_swap, matrix_det_fraction, matrix_det_singular, matrix_det_identity, matrix_det_large
+explanation_review_status semantic fixtures and actual native Do, Write and Why UI checks cover determinant effects and the final correction. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native menu dispatch implemented, physical keypad qualification pending
+isolated_runtime_status actual host Giac callback and native Lua bridge execution checked with calculator OS shims. Emulator and handheld determinant qualification remain pending
+capability_manifest_ids matrix.det.rational
+release_status in development, unreleased
+rule plan.matrix-determinant fixture
+rule matrix.det-row-swap fixture
+rule matrix.det-row-scale fixture
+rule matrix.det-row-add-multiple fixture
+rule matrix.det-diagonal-product fixture
+rule matrix.det-correction fixture

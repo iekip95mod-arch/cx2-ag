@@ -1,0 +1,348 @@
+From 3bc42cedf5158b83b85b59294f4c8a8ba90c0abe Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 07:26:06 -0400
+Subject: [PATCH 02/11] Preserve early USB replies
+
+---
+ src/cx2.cpp         |  86 +++++++++++++-------------
+ src/handle.h        |   7 +++
+ tests/transport.cpp | 143 +++++++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 192 insertions(+), 44 deletions(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index 0fbee6d..893e341 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -274,7 +274,7 @@ template <typename T> T* messageCast(NNSEMessage *message)
+ 	return reinterpret_cast<T*>(message);
+ }
+ 
+-static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message, PacketDeadline deadline, uint8_t **streamdata = nullptr, int *streamsize = nullptr)
++static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message, PacketDeadline deadline)
+ {
+ 	auto *handle = &nsp_handle->device;
+ 
+@@ -294,6 +294,9 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 		return NSPIRE_ERR_SUCCESS;
+ 	}
+ 
++	if(message->service == StreamService && nsp_handle->cx2_pending_count == NSPIRE_CX2_PENDING_CAPACITY)
++		return -NSPIRE_ERR_NOMEM;
++
+ 	if(message->reqAck & 1)
+ 	{
+ 		NNSEMessage ack = {
+@@ -394,11 +397,14 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 		}
+ 		case StreamService:
+ 		{
+-			if(streamdata)
+-				*streamdata = message->data;
+-			if(streamsize)
+-				*streamsize = ntohs(message->length) - sizeof(NNSEMessage);
+-
++			auto payload_size = ntohs(message->length) - sizeof(NNSEMessage);
++			if(payload_size > sizeof(packet))
++				return -NSPIRE_ERR_INVALPKT;
++			auto index = (nsp_handle->cx2_pending_head + nsp_handle->cx2_pending_count) % NSPIRE_CX2_PENDING_CAPACITY;
++			auto &pending = nsp_handle->cx2_pending[index];
++			pending.size = payload_size;
++			memcpy(pending.bytes, message->data, pending.size);
++			nsp_handle->cx2_pending_count++;
+ 			break;
+ 		}
+ 		default:
+@@ -416,9 +422,11 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 	if(nsp_handle->cx2_handshake_complete)
+ 		return NSPIRE_ERR_SUCCESS;
+ 
++	nsp_handle->cx2_pending_head = 0;
++	nsp_handle->cx2_pending_count = 0;
+ 	auto *handle = &nsp_handle->device;
+ 
+-	const int maxlen = sizeof(NNSEMessage) + 1472;
++	const int maxlen = sizeof(NNSEMessage) + NSPIRE_CX2_MAX_PAYLOAD;
+ 	NNSEMessage * const message = reinterpret_cast<NNSEMessage*>(malloc(maxlen));
+ 	if(!message)
+ 		return -NSPIRE_ERR_NOMEM;
+@@ -440,7 +448,7 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 
+ int packet_send_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ {
+-	if(size < 0 || size > 1472)
++	if(size < 0 || size > NSPIRE_CX2_MAX_PAYLOAD)
+ 		return -NSPIRE_ERR_INVALID;
+ 	int ret = assureReady(nsp_handle);
+ 	if(ret)
+@@ -466,7 +474,7 @@ int packet_send_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ 	ret = writePacket(handle, msg, deadline);
+ 	if(!ret)
+ 	{
+-		const int maxlen = sizeof(NNSEMessage) + 1472;
++		const int maxlen = sizeof(NNSEMessage) + NSPIRE_CX2_MAX_PAYLOAD;
+ 		NNSEMessage * const message = reinterpret_cast<NNSEMessage*>(malloc(maxlen));
+ 		if(!message) {
+ 			free(msg);
+@@ -509,39 +517,33 @@ int packet_recv_cx2(struct nspire_handle *nsp_handle, char *data, int size)
+ 	if(ret)
+ 		return ret;
+ 
+-	auto *handle = &nsp_handle->device;
+-	
+-	const int maxlen = sizeof(NNSEMessage) + 1472;
+-	NNSEMessage * const message = reinterpret_cast<NNSEMessage*>(malloc(maxlen));
+-	if(!message)
+-		return -NSPIRE_ERR_NOMEM;
+-	
+-	uint8_t *streamdata = nullptr;
+-	int streamsize = 0;
+-	auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+-	for(int i = 10; i-- && !streamdata;)
+-	{
+-		ret = readPacket(handle, message, maxlen, deadline);
+-		if(ret)
+-			break;
+-		
+-		ret = handlePacket(nsp_handle, message, deadline, &streamdata, &streamsize);
+-		if(ret)
+-			break;
+-	}
+-	
+-	if(!ret) {
+-		if(!streamdata)
+-			ret = -NSPIRE_ERR_TIMEOUT;
+-		else if(streamsize > size)
+-			ret = -NSPIRE_ERR_INVALPKT;
+-		else {
+-			memcpy(data, streamdata, streamsize);
+-			ret = size - streamsize;
++	if(!nsp_handle->cx2_pending_count) {
++		const int maxlen = sizeof(NNSEMessage) + NSPIRE_CX2_MAX_PAYLOAD;
++		NNSEMessage * const message = reinterpret_cast<NNSEMessage*>(malloc(maxlen));
++		if(!message)
++			return -NSPIRE_ERR_NOMEM;
++		auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++		for(int i = 10; i-- && !nsp_handle->cx2_pending_count;)
++		{
++			ret = readPacket(&nsp_handle->device, message, maxlen, deadline);
++			if(ret)
++				break;
++			ret = handlePacket(nsp_handle, message, deadline);
++			if(ret)
++				break;
+ 		}
++		free(message);
++		if(ret)
++			return ret;
+ 	}
+-	
+-	free(message);
+-	
+-	return ret;
++	if(!nsp_handle->cx2_pending_count)
++		return -NSPIRE_ERR_TIMEOUT;
++	auto &pending = nsp_handle->cx2_pending[nsp_handle->cx2_pending_head];
++	if(pending.size > size)
++		return -NSPIRE_ERR_INVALPKT;
++	if(pending.size)
++		memcpy(data, pending.bytes, pending.size);
++	nsp_handle->cx2_pending_head = (nsp_handle->cx2_pending_head + 1) % NSPIRE_CX2_PENDING_CAPACITY;
++	nsp_handle->cx2_pending_count--;
++	return size - pending.size;
+ }
+diff --git a/src/handle.h b/src/handle.h
+index f68ac80..6945daa 100644
+--- a/src/handle.h
++++ b/src/handle.h
+@@ -24,6 +24,8 @@
+ #include "api/handle.h"
+ #include "usb.h"
+ 
++enum { NSPIRE_CX2_MAX_PAYLOAD = 1472, NSPIRE_CX2_PENDING_CAPACITY = 10 };
++
+ struct nspire_handle {
+ 	usb_device_t device;
+ 
+@@ -33,6 +35,11 @@ struct nspire_handle {
+ 
+ 	bool is_cx2;
+ 	bool cx2_handshake_complete;
++	struct {
++		uint16_t size;
++		uint8_t bytes[NSPIRE_CX2_MAX_PAYLOAD];
++	} cx2_pending[NSPIRE_CX2_PENDING_CAPACITY];
++	uint8_t cx2_pending_head, cx2_pending_count;
+ };
+ 
+ #endif
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 4e20925..1b9bbe0 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -553,6 +553,8 @@ static void zero_progress_and_truncation() {
+ 	reset();
+ 	usb.reads.push_back({0, packet});
+ 	CHECK(packet_recv_cx2(&handle, bytes, 3) == -NSPIRE_ERR_INVALPKT);
++	CHECK(packet_recv_cx2(&handle, bytes, sizeof(bytes)) == sizeof(bytes) - 4);
++	CHECK(bytes[0] == 1 && bytes[3] == 4);
+ 	reset();
+ 	packet.push_back(0);
+ 	usb.reads.push_back({0, packet});
+@@ -621,6 +623,142 @@ static void allocation_failures() {
+ 	CHECK(!handle.cx2_handshake_complete && usb.bulk_calls == 1);
+ }
+ 
++static void early_stream_reply() {
++	for(bool early : {false, true}) {
++		reset();
++		auto handle = ready();
++		usb.auto_ack = true;
++		std::vector<unsigned char> reply{'k', 1, 2, 7};
++		if(early)
++			usb.reads.push_back({0, frame(StreamService, reply, 1)});
++		char request[4]{};
++		CHECK(packet_send_cx2(&handle, request, sizeof request) == 0);
++		if(!early)
++			usb.reads.push_back({0, frame(StreamService, reply, 1)});
++		char received[4]{};
++		CHECK(packet_recv_cx2(&handle, received, sizeof received) == 0);
++		CHECK(memcmp(received, reply.data(), reply.size()) == 0);
++		CHECK(usb.reads.empty());
++		CHECK((usb.write_services == std::vector<uint8_t>{StreamService, StreamService | AckFlag}));
++	}
++}
++
++static void early_stream_fifo() {
++	auto handle = ready();
++	usb.auto_ack = true;
++	for(unsigned round = 0; round < 3; ++round) {
++		std::vector<std::vector<unsigned char>> replies{{'k', 1, 2, 7},
++			std::vector<unsigned char>(sizeof(packet), static_cast<unsigned char>(round)),
++			std::vector<unsigned char>(52, 0x53), {}};
++		for(const auto &reply : replies) {
++			auto incoming = frame(StreamService, reply, 1);
++			if(incoming.size() % 64 == 0)
++				incoming.push_back(0xA5);
++			usb.reads.push_back({0, {incoming.begin(), incoming.begin() + 12}});
++			if(incoming.size() > 12)
++				usb.reads.push_back({0, {incoming.begin() + 12, incoming.end()}});
++		}
++		char request = 1;
++		CHECK(packet_send_cx2(&handle, &request, 1) == 0);
++		int transfers = usb.bulk_calls;
++		fail_allocation = 0;
++		for(const auto &reply : replies) {
++			char received[1472]{};
++			CHECK(packet_recv_cx2(&handle, reply.empty() ? nullptr : received,
++				static_cast<int>(reply.size())) == 0);
++			if(!reply.empty())
++				CHECK(memcmp(received, reply.data(), reply.size()) == 0);
++		}
++		CHECK(usb.bulk_calls == transfers && usb.reads.empty());
++		fail_allocation = -1;
++	}
++}
++
++static void pending_stream_capacity() {
++	auto handle = ready();
++	usb.auto_ack = true;
++	char request = 1;
++	for(unsigned i = 0; i < NSPIRE_CX2_PENDING_CAPACITY; ++i) {
++		usb.reads.push_back({0, frame(StreamService, {static_cast<unsigned char>(i)}, 1)});
++		CHECK(packet_send_cx2(&handle, &request, 1) == 0);
++	}
++	auto acknowledged = usb.write_services.size();
++	usb.reads.push_back({0, frame(StreamService, {0x53}, 1)});
++	CHECK(packet_send_cx2(&handle, &request, 1) == -NSPIRE_ERR_NOMEM);
++	CHECK(usb.write_services.size() == acknowledged + 1);
++	CHECK(usb.write_services.back() == StreamService);
++	for(unsigned i = 0; i < NSPIRE_CX2_PENDING_CAPACITY; ++i) {
++		char received = -1;
++		CHECK(packet_recv_cx2(&handle, &received, 1) == 0);
++		CHECK(received == i);
++	}
++	usb.reads.push_back({0, frame(StreamService, {0x53}, 1)});
++	char received = 0;
++	CHECK(packet_recv_cx2(&handle, &received, 1) == 0 && received == 0x53);
++	CHECK(usb.reads.empty());
++}
++
++static void pending_stream_lifetime() {
++	usb.auto_ack = true;
++	usb.reads.push_back({0, frame(StreamService, {7}, 1)});
++	usb.reads.push_back({0, frame(TimeService, {0})});
++	nspire_handle_t *handle = nullptr;
++	CHECK(nspire_init(&handle) == 0);
++	auto other = ready();
++	char received = 0;
++	CHECK(packet_recv_cx2(&other, &received, 1) == -NSPIRE_ERR_TIMEOUT);
++	CHECK(packet_recv_cx2(handle, &received, 1) == 0 && received == 7);
++	usb.reads.push_back({0, frame(StreamService, {8}, 1)});
++	CHECK(packet_send_cx2(handle, &received, 1) == 0);
++	handle->cx2_handshake_complete = false;
++	usb.reads.push_back({0, frame(TimeService, {0})});
++	usb.reads.push_back({0, frame(StreamService, {9}, 1)});
++	CHECK(packet_recv_cx2(handle, &received, 1) == 0 && received == 9);
++	usb.reads.push_back({0, frame(StreamService, {10}, 1)});
++	CHECK(packet_send_cx2(handle, &received, 1) == 0);
++	nspire_free(handle);
++	usb.reads.push_back({0, frame(TimeService, {0})});
++	CHECK(nspire_init(&handle) == 0);
++	CHECK(packet_recv_cx2(handle, &received, 1) == -NSPIRE_ERR_TIMEOUT);
++	nspire_free(handle);
++}
++
++static void early_reply_without_send_ack() {
++	auto handle = ready();
++	usb.reads.push_back({0, frame(StreamService, {7}, 1)});
++	char request = 1;
++	CHECK(packet_send_cx2(&handle, &request, 1) == -NSPIRE_ERR_TIMEOUT);
++	int transfers = usb.bulk_calls;
++	char received = 0;
++	CHECK(packet_recv_cx2(&handle, &received, 1) == 0 && received == 7);
++	CHECK(usb.bulk_calls == transfers);
++}
++
++static void oversized_stream_recovery() {
++	for(bool during_send : {false, true}) {
++		for(size_t length = sizeof(packet) + 1; length <= NSPIRE_CX2_MAX_PAYLOAD; ++length) {
++			reset();
++			auto handle = ready();
++			packet received{};
++			std::vector<unsigned char> valid(16);
++			valid[0] = 0x54;
++			valid[1] = 0xFD;
++			valid[15] = 0x51;
++			usb.reads.push_back({0, frame(StreamService, std::vector<unsigned char>(length), 1)});
++			if(during_send) {
++				usb.auto_ack = true;
++				char request = 1;
++				CHECK(packet_send_cx2(&handle, &request, 1) == -NSPIRE_ERR_INVALPKT);
++			} else
++				CHECK(packet_recv(&handle, &received) == -NSPIRE_ERR_INVALPKT);
++			usb.reads.push_back({0, frame(StreamService, valid, 1)});
++			CHECK(packet_recv(&handle, &received) == 0);
++			CHECK(received.magic == 0x54FD && received.data_size == 0);
++			CHECK(usb.reads.empty());
++		}
++	}
++}
++
+ static void packet_length_validation() {
+ 	auto handle = ready();
+ 	packet received{};
+@@ -781,8 +919,9 @@ int main() {
+ 		interface_startup, interface_startup_errors, descriptor_cleanup, receive_error_classes,
+ 		fragmented_receive, zero_progress_and_truncation,
+ 		ack_and_handshake_failures, send_errors_and_deadlines, packet_length_validation,
+-		allocation_failures, padded_screenshot_packets, init_fallback_and_reconnect,
+-		alternate_endpoint_traffic, error_strings};
++		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
++		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
++		alternate_endpoint_traffic, oversized_stream_recovery, error_strings};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

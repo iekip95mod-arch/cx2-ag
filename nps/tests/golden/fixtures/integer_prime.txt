@@ -1,0 +1,75 @@
+problem: is_prime(17)
+outcome: evaluated
+result: 2
+detail: trial division proves this integer prime
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: is_prime(17)
+  requested method: is_prime
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: is_prime(17)
+    rule: plan.integer-method, Test 2 and every odd divisor through the square root
+    claim: no claim
+    explanation: Test 2 and every odd divisor through the square root
+    detail: is_prime(17): Test 2 and every odd divisor through the square root
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Test 2 and every odd divisor through the square root
+    applicability: nonnegative integer literals fit the method's stated bounds
+    fact: is_prime(17)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, is_prime(17)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: integer
+      goal: is_prime(17)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 17 = 2 * 8 + 1, so this is not a divisor
+      detail: 17 = 2 * 8 + 1, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 2 divides 17
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 17 = 2 * 8 + 1
+      verification: exact integer division identity, passed, 17 * 1 = 2 * 8 + 1, with 0 <= remainder < divisor
+      verified: yes
+    1.2 check
+      phase: integer
+      goal: is_prime(17)
+      rule: int.trial-division, Check the quotient and remainder for this candidate divisor
+      claim: definition
+      explanation: 17 = 3 * 5 + 2, so this is not a divisor
+      detail: 17 = 3 * 5 + 2, so this is not a divisor. An exact integer divisor leaves remainder zero. A nonzero remainder excludes this divisor, so the search must continue
+      proof obligation: obl.int.trial-division, Check the quotient and remainder for this candidate divisor
+      target claim: whether 3 divides 17
+      check method: exact integer division identity
+      expected: dividend = divisor * quotient + remainder, 0 <= remainder < divisor
+      observed: 17 = 3 * 5 + 2
+      verification: exact integer division identity, passed, 17 * 1 = 3 * 5 + 2, with 0 <= remainder < divisor
+      verified: yes
+    1.3 transformation
+      phase: integer
+      goal: is_prime(17)
+      rule: int.prime-conclusion, Test 2 and every odd divisor through the square root
+      claim: equivalent expression
+      explanation: No divisor among 2 and the odd integers through sqrt(17) fits. A composite has a factor at most its square root, so 17 is prime (result 2)
+      detail: No divisor among 2 and the odd integers through sqrt(17) fits. A composite has a factor at most its square root, so 17 is prime (result 2). Primes are integers at least 2. If an integer is composite, one of a pair of proper factors is at most its square root. Testing 2 excludes all even factors, then every odd candidate is tested
+      proof obligation: obl.int.prime-decision, Test 2 and every odd divisor through the square root
+      action: No divisor among 2 and the odd integers through sqrt(17) fits. A composite has a factor at most its square root, so 17 is prime (result 2)
+      before: is_prime(17)
+      after: 2
+      reversible: yes
+      verification: complete trial division, passed, No divisor among 2 and the odd integers through sqrt(17) fits. A composite has a factor at most its square root, so 17 is prime (result 2)
+      verified: yes

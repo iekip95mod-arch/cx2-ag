@@ -1,0 +1,12 @@
+#! /bin/bash
+set -e
+NDL_SDK=${NDL_SDK:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../ndl-src/ndl-sdk" && pwd)}
+export PATH="$NDL_SDK/bin:$NDL_SDK/toolchain/install/bin:$PATH"
+export CC=nspire-gcc
+export CXX=nspire-g++
+export LD=nspire-ld
+export AS=nspire-as
+export NM=${NDL_SDK}/toolchain/install/bin/arm-none-eabi-nm
+export RANLIB=${NDL_SDK}/toolchain/install/bin/arm-none-eabi-ranlib
+# GMP/MPFR configure command 
+# ./configure --host=none --prefix=${NDL_SDK}

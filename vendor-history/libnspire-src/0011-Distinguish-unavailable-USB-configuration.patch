@@ -1,0 +1,123 @@
+From f6764a03d72a4d73cc5959179dc80dcc0b4c63b4 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 02:19:12 -0400
+Subject: [PATCH 11/11] Distinguish unavailable USB configuration
+
+---
+ src/api/error.h     |  1 +
+ src/error.c         |  1 +
+ src/usb.c           |  2 +-
+ tests/transport.cpp | 35 +++++++++++++++++++++++++++++++++--
+ 4 files changed, 36 insertions(+), 3 deletions(-)
+
+diff --git a/src/api/error.h b/src/api/error.h
+index f72a187..345c152 100644
+--- a/src/api/error.h
++++ b/src/api/error.h
+@@ -46,6 +46,7 @@ enum {
+ 	NSPIRE_ERR_ACCESS,
+ 	NSPIRE_ERR_USB_BUSY,
+ 	NSPIRE_ERR_DISCONNECTED,
++	NSPIRE_ERR_USB_CONFIG,
+ 
+ 	/* Number of errors */
+ 	NSPIRE_ERR_MAX
+diff --git a/src/error.c b/src/error.c
+index 8106d6f..1595da0 100644
+--- a/src/error.c
++++ b/src/error.c
+@@ -35,6 +35,7 @@ static const char *error_msg[NSPIRE_ERR_MAX] = {
+ 	[NSPIRE_ERR_ACCESS]	= "USB access denied",
+ 	[NSPIRE_ERR_USB_BUSY]	= "USB interface busy",
+ 	[NSPIRE_ERR_DISCONNECTED]	= "USB device disconnected",
++	[NSPIRE_ERR_USB_CONFIG]	= "USB configuration unavailable",
+ 
+ };
+ 
+diff --git a/src/usb.c b/src/usb.c
+index 59dd069..f0536a3 100644
+--- a/src/usb.c
++++ b/src/usb.c
+@@ -114,7 +114,7 @@ static int usb_configure(libusb_device_handle *dev, int interface_only) {
+ 	if (ret)
+ 		return usb_error(ret);
+ 	if (current != NSP_DEFAULT_CONFIG)
+-		return interface_only ? -NSPIRE_ERR_INVALID :
++		return interface_only ? -NSPIRE_ERR_USB_CONFIG :
+ 			usb_error(libusb_set_configuration(dev, NSP_DEFAULT_CONFIG));
+ 	return NSPIRE_ERR_SUCCESS;
+ }
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 5b58d80..447d7db 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -5,6 +5,7 @@
+ #include <stdexcept>
+ #include <string>
+ #include <vector>
++#include <stdlib.h> // Load allocator declarations before fault injection.
+ #include <unistd.h>
+ 
+ extern "C" {
+@@ -433,6 +434,35 @@ static void interface_startup() {
+ 	usb_free_device(&handle);
+ }
+ 
++static void configuration_preflight() {
++	usb_device_t handle{};
++	for(int configuration : {0, 2}) {
++		reset();
++		usb.current_config = configuration;
++		int status = usb_get_device(&handle, NSP_VID, NSP_PID_CX2);
++		if(cx2_interface_only) {
++			CHECK(status == -NSPIRE_ERR_USB_CONFIG);
++			CHECK(std::string(nspire_strerror(status)) == "USB configuration unavailable");
++			CHECK(status != -NSPIRE_ERR_INVALID);
++			CHECK(handle.dev == nullptr);
++			CHECK(usb.open_calls == 1 && usb.close_calls == 1);
++			CHECK(usb.claim_calls == 0 && usb.release_calls == 0);
++			CHECK(usb.detach_calls == 0 && usb.set_calls == 0 && usb.reset_calls == 0);
++			CHECK(usb.get_alternate_calls == 0 && usb.set_alternate_calls == 0);
++			CHECK(usb.bulk_calls == 0 && usb.delay_calls == 0);
++		} else {
++			CHECK(status == 0 && usb.set_calls == 1 && usb.reset_calls == 1);
++			usb_free_device(&handle);
++		}
++	}
++	reset();
++	usb.config_status = LIBUSB_ERROR_TIMEOUT;
++	CHECK(usb_get_device(&handle, NSP_VID, NSP_PID_CX2) == -NSPIRE_ERR_TIMEOUT);
++	CHECK(handle.dev == nullptr && usb.close_calls == 1);
++	CHECK(usb.claim_calls == 0 && usb.set_calls == 0 && usb.reset_calls == 0);
++	CHECK(usb.bulk_calls == 0);
++}
++
+ static void interface_startup_errors() {
+ 	if(!cx2_interface_only)
+ 		return;
+@@ -444,7 +474,7 @@ static void interface_startup_errors() {
+ 		{LIBUSB_ERROR_ACCESS, 0, 1, NSPIRE_ERR_ACCESS},
+ 		{LIBUSB_ERROR_NOT_SUPPORTED, 0, 1, NSPIRE_ERR_LIBUSB},
+ 		{LIBUSB_ERROR_NO_DEVICE, 0, 1, NSPIRE_ERR_DISCONNECTED},
+-		{0, 0, 0, NSPIRE_ERR_INVALID},
++		{0, 0, 0, NSPIRE_ERR_USB_CONFIG},
+ 		{0, LIBUSB_ERROR_ACCESS, 1, NSPIRE_ERR_ACCESS},
+ 		{0, LIBUSB_ERROR_NO_DEVICE, 1, NSPIRE_ERR_DISCONNECTED}
+ 	};
+@@ -1396,11 +1426,12 @@ static void error_strings() {
+ 	CHECK(std::string(nspire_strerror(-NSPIRE_ERR_ACCESS)) == "USB access denied");
+ 	CHECK(std::string(nspire_strerror(-NSPIRE_ERR_USB_BUSY)) == "USB interface busy");
+ 	CHECK(std::string(nspire_strerror(-NSPIRE_ERR_DISCONNECTED)) == "USB device disconnected");
++	CHECK(std::string(nspire_strerror(-NSPIRE_ERR_USB_CONFIG)) == "USB configuration unavailable");
+ }
+ 
+ int main() {
+ 	void (*tests[])() = {discovery_errors, setup_errors, reset_recovery, reset_recovery_bounded,
+-		interface_startup, interface_startup_errors, descriptor_cleanup, receive_error_classes,
++		interface_startup, configuration_preflight, interface_startup_errors, descriptor_cleanup, receive_error_classes,
+ 		fragmented_receive, partial_timeout_receive, zero_progress_and_truncation,
+ 		ack_and_handshake_failures, send_errors_and_deadlines, packet_length_validation,
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+-- 
+2.55.0
+

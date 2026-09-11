@@ -1,0 +1,10 @@
+if(NOT DEFINED INPUT OR NOT EXISTS "${INPUT}")
+    message(FATAL_ERROR "INPUT must name an existing package")
+endif()
+if(NOT DEFINED OUTPUT OR OUTPUT STREQUAL "")
+    message(FATAL_ERROR "OUTPUT must name the sidecar")
+endif()
+
+file(SHA256 "${INPUT}" digest)
+get_filename_component(filename "${INPUT}" NAME)
+file(WRITE "${OUTPUT}" "${digest}  ${filename}\n")

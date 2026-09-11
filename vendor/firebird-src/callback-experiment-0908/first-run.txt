@@ -1,0 +1,309 @@
+ln c
+<<fb-cmd>> ln c
+[NUL]
+
+
+Boot ROM Stage  (5.0.0.42)
+Build: 2018/3/2, 14:16:20
+Copyright (c) 2006-2018 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver initialization...
+  OK         Serial Port 1
+[NUL]  OK         Serial Port 2
+  OK         Aladdin PMU
+  OK         Serial Flash Controller
+  OK         gpio
+  OK         Serial NAND Flash
+  OK         crypt_sha
+  OK         Flash Partition Manager
+  OK         mf-data{validated}
+  OK         efuse
+  OK         MEMC-FTDDR3030
+  OK         PTT Data Aladdin
+Clocks:  CPU = 396 MHz AHB = 198 MHz APB = 99 MHz
+
+Driver initialization complete.
+Last boot progress: 0
+
+Available system memory: 29692
+Checking for NAND: NAND Flash ID: MICRON       (128 MB)
+Device ID: 1D5000000000021DB1952CAE893
+DDR already initialized.
+Wakeup Status: wakeupOnKey
+DRAM size: 64 MB
+SDRAM memory test:   Pass
+Clearing SDRAM...Done.
+Clearing SDRAM...Done.
+Boot option: Normal
+
+Loading from Boot Loader partition...
+
+5%10%15%19%20%22%25%27%30%33%35%38%41%43%46%48%51%54%56%59%60%61%62%63%65%66%67%69%70%71%73%74%75%77%78%79%81%82%83%84%86%87%88%90%91%92%94%95%96%98%99%100%
+
+BOOT: loading complete (35 ticks), launching <BOOT LOADE> image.
+[NUL]
+
+
+Boot Loader Stage  (6.2.0.7)
+Build: 2023/10/20, 13:41:51
+Copyright (c) 2006-2023 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver initialization...
+  OK         Serial Port 1
+[NUL]  OK         Serial Port 2
+  OK         Aladdin PMU
+  OK         Serial Flash Controller
+  OK         gpio
+  OK         Serial NAND Flash
+  OK         crypt_des
+  OK         crypt_sha
+  OK         Flash Partition Manager
+  OK         spi-lcd
+  OK         mf-data{validated<0x00000000>}
+  OK         i2c
+Touchpad NU_INITIALIZE case...
+  OK         tic-tpd
+  OK         backlight{AutoDim Disabled}
+Display: Unknown Display(0x00, 0x00, 0x00)
+  OK         lcd_controller{Unknown}
+  OK         Tuning Data Aladdin
+  OK         ADC FTADCC010
+  OK   POSIX console
+  OK         Display{Supervisor}
+  OK         efuse
+  OK         clcd_hw_cursor
+  OK         logos{uninitialized}
+  OK         MEMC-FTDDR3030
+  OK         null-1
+  OK   POSIX null
+  OK         OS Data Aladdin
+  OK         PTT Data Aladdin
+  OK         rtc
+  OK         spi-cradle
+  OK         terminal
+Clocks:  CPU = 396 MHz AHB = 198 MHz APB = 99 MHz
+
+Driver initialization complete.
+TI_PMU_wakeupStatus(): Woke up with wakeupOnKey.
+NAND Flash ID: MICRON       (128 MB)
+Device ID: 1D5000000000021DB1952CAE893
+Initialization of File System is a success.
+
+
+Initializing graphics subsystem.
+[0;35mLogo Driver source change notice: logos{defaults}
+[0m[0mDisplay: Unknown Display(0x00, 0x00, 0x00)
+
+BOOT: loading complete (79 ticks), launching <OS LOADER> image.
+   Boot ROM Time: 0.35 seconds
+Boot Loader Time: 0.79 seconds
+[NUL]
+
+
+OS Loader Stage  (6.2.0.7)
+Build: 2023/10/20, 13:43:8
+Copyright (c) 2006-2023 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver initialization...
+  OK         Serial Port 1
+[NUL]  OK         Serial Port 2
+  OK         Aladdin PMU
+  OK         Serial Flash Controller
+  OK         gpio
+  OK         Serial NAND Flash
+  OK         crypt_des
+  OK         crypt_sha
+  OK         Flash Partition Manager
+  OK         spi-lcd
+  OK         mf-data{validated<0x00000000>}
+  OK         i2c
+  OK         tic-tpd
+  OK         backlight{AutoDim Disabled}
+  OK         lcd_controller{Unknown}
+  OK         Tuning Data Aladdin
+  OK         ADC FTADCC010
+  OK   POSIX console
+  OK         Display{Supervisor}
+  OK         efuse
+  OK         clcd_hw_cursor
+  OK         logos{uninitialized}
+  OK         MEMC-FTDDR3030
+  OK         null-1
+  OK   POSIX null
+  OK         OS Data Aladdin
+  OK         PTT Data Aladdin
+  OK         rtc
+  OK         spi-cradle
+  OK         terminal
+Clocks:  CPU = 396 MHz AHB = 198 MHz APB = 99 MHz
+
+Driver initialization complete.
+NAND Flash ID: MICRON       (128 MB)
+Device ID: 1D5000000000021DB1952CAE893
+Initialization of File System is a success.
+[0;35mLogo Driver source change notice: logos{defaults}
+[0m[0m0%1%2%3%3%4%5%6%6%7%8%9%9%10%11%12%13%13%14%15%16%16%17%18%19%19%20%21%22%23%23%24%25%26%26%27%28%29%29%30%31%32%33%33%34%35%36%36%37%38%39%39%40%41%42%43%43%44%45%46%46%47%48%49%49%50%51%52%53%53%54%55%56%56%57%58%59%59%60%61%62%63%63%64%65%66%66%67%68%69%69%70%71%72%73%73%74%75%76%76%77%78%79%79%80%81%82%83%83%84%85%86%86%87%88%89%89%90%91%92%93%93%94%95%96%96%97%98%99%99%100%
+
+BOOT: loading complete (574 ticks), launching <TI-Nspire> image.
+   Boot ROM Time: 0.35 seconds
+Boot Loader Time: 0.79 seconds
+  OS Loader Time: 5.74 seconds
+15130 ms
+[NUL]
+
+
+TI-nSpire OS  (6.4.0.74)
+Build: 2025/12/10, 18:50:1
+Copyright (c) 2006-2025 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver initialization...
+  OK         Serial Port 1
+[NUL]  OK         Serial Port 2
+  OK         Aladdin PMU
+  OK         Serial Flash Controller
+  OK         gpio
+  OK         Serial NAND Flash
+  OK         crypt_des
+  OK         crypt_sha
+  OK         Flash Partition Manager
+  OK         spi-lcd
+  OK         mf-data{validated<0x00000000>}
+  OK         i2c
+  OK         tic-tpd
+  OK         backlight{AutoDim Disabled}
+  OK         lcd_controller{Unknown}
+  OK         Tuning Data Aladdin
+  OK         null_al
+  OK         ADC FTADCC010
+  OK   POSIX console
+  OK         Display{Supervisor}
+  OK         efuse
+  OK         clcd_hw_cursor
+  OK         keypad_drv
+  OK         logos{uninitialized}
+  OK         MEMC-FTDDR3030
+  OK         null-1
+  OK   POSIX null
+  OK         OS Data Aladdin
+  OK         PTT Data Aladdin
+  OK         rtc
+  OK         spi-cradle
+  OK         terminal
+Clocks:  CPU = 396 MHz AHB = 198 MHz APB = 99 MHz
+
+Driver initialization complete.
+
+POSIX layer initialized.
+TI_PM_SetShipMode:  FALSE
+Preparing file system. This takes a while...
+Datalight Reliance v2.10.1150
+Copyright (c) 2003-2006 Datalight, Inc.
+Datalight FlashFX Pro v3.00 Build 1358
+Nucleus Edition for ARM9
+Copyright (c) 1993-2006 Datalight, Inc.
+Patents: US#5860082, US#6260156.
+
+   POSIX file system initialized.
+File system ready.
+[0;35mLogo Driver source change notice: logos{defaults}
+[0m[0m
+
+
+
+
+TOTAL BYTES: 101374
+------------------ Module is Gone!! 
+Created Execution Context
+<TI_PCL_Init2> SetSystem Settings   -->
+<TI_PCL_Init2> TI_RM_LoadAllStrings -->
+<TI_PCL_Init2> TI_UI_IME_Init -->
+<TI_PCL_Init2> RegisterC1Widgets -->
+<TI_PCL_Init2> TI_GOIO_InitializeGoIO -->
+<TI_PCL_Init2> TI_AM_Initialize -->
+Product   : 16 (defined in os/inc/deviceinfo.h)
+Platform  : 2 (defined in documentmanager/inc/hal.h)
+Version   : 3.6.0.337 CE 
+Build Date: 2013-5-10
+RET - Echo UDP: TI_Echo_UDP_Init called +++
+RET - ECHO UDP: EchoUDPListenerThread. Inside Thread +++
+usblink connected.
+   Boot ROM Time: 0.35 seconds
+Boot Loader Time: 0.79 seconds
+  OS Loader Time: 5.74 seconds
+  Installer Time: 20.40 seconds
+         OS Time: 6.01 seconds
+Setting theDoc.filename to NULL in Execution Context
+exec /documents/rreftrace/trace2.tns
+<<fb-ready>>
+<<fb-cmd>> exec /documents/rreftrace/trace2.tns
+exec: this is not the task Ndl loads programs from (sp a4001d5c), so /documents/rreftrace/trace2.tns is queued until the guest reaches it. Continue the guest, and press a key on the calculator if it stays idle. Cancel with `exec -`.
+exec: loading at pc 103a4f90 sp 1800f2a0 cpsr 00000013, running /documents/rreftrace/trace2.tns
+r
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=90140000  r2=ffffffcd  r3=00000000  r4=a4001dc0  r5=00000000
+ r6=112b2bf0  r7=0000004c  r8=1800e13c  r9=00000000 r10=a40019f4 r11=1800f2e8
+r12=00000001  sp=a4001de8  lr=100010c0  pc=10002090
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=200000d3
+<<fb-ready>>
+screenshot /private/tmp/cx2-rref-trace-dJ18Da/guarded-exec.ppm
+c
+<<fb-cmd>> screenshot /private/tmp/cx2-rref-trace-dJ18Da/guarded-exec.ppm
+screenshot -> /private/tmp/cx2-rref-trace-dJ18Da/guarded-exec.ppm
+<<fb-ready>>
+<<fb-cmd>> c
+<<fb-ready>>
+u 103a4f70
+d 11430858
+r
+<<fb-cmd>> u 103a4f70
+103a4f70: e59dc030	ldr	r12,[sp + 030]
+103a4f74: e5941034	ldr	r1,[r4 + 034]
+103a4f78: e58c1000	str	r1,[r12]
+103a4f7c: e5940038	ldr	r0,[r4 + 038]
+103a4f80: e3500000	cmp	r0,00000000
+103a4f84: 15900010	ldrne	r0,[r0 + 010]
+103a4f88: 058a0000	streq	r0,[r10]
+103a4f8c: 158a0000	strne	r0,[r10]
+103a4f90: eb02188e	bl	1042b1d0
+103a4f94: e3a00000	mov	r0,00000000
+103a4f98: e8bd85f8	ldmia	sp!,{r3-r8,r10,pc}
+103a4f9c: 50415254	subpl	r5,r1,r4 asr r2
+103a4fa0: 11430d50	???ne
+103a4fa4: e92d4070	stmdb	sp!,{r4-r6,lr}
+103a4fa8: e1a04001	mov	r4,r1
+103a4fac: e1a05000	mov	r5,r0
+<<fb-ready>>
+<<fb-cmd>> d 11430858
+11430850                          00 00 00 00 3B 00 00 00           ....;...
+11430860  B4 57 44 11 00 00 00 00-00 00 00 00 00 00 00 00   �WD.............
+11430870  0F 00 00 00 D0 D1 41 11-00 00 00 00 00 00 00 00   ....��A.........
+11430880  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+11430890  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308A0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308B0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308C0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308D0  00 00 00 00 00 00 00 00                           ........        
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=1138d834  r1=11430c7c  r2=112c787c  r3=00000404  r4=1800e13c  r5=00000000
+ r6=112b2bf0  r7=0000004c  r8=1800e13c  r9=00000000 r10=a40019f4 r11=1800f2e8
+r12=2e1c4b4d  sp=a4001dc0  lr=1042b014  pc=10002078
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=200000d3
+<<fb-ready>>
+stop
+<<fb-cmd>> stop
+<<fb-ready>>
+

@@ -1,0 +1,44 @@
+name: Deferred fix
+description: A known fix that was scoped out, with what stays broken recorded
+labels: [deferred]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Deferring is a decision that gets said out loud, not a completion. File this at the moment
+        the fix is scoped out, not later, and write what a user or a caller still hits meanwhile.
+  - type: input
+    id: location
+    attributes:
+      label: File and line
+      placeholder: nps/src/cas/giac/adapter.cc:733
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: The fix that belongs here
+      description: The one that fixes the concept, not the cheapest green test.
+    validations:
+      required: true
+  - type: textarea
+    id: broken
+    attributes:
+      label: What stays broken until it lands
+      description: The behavior somebody still gets. If a partial fix went in, say which producer it left alone.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it was scoped out
+    validations:
+      required: true
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

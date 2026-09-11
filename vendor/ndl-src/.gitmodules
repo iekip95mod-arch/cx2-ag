@@ -1,0 +1,13 @@
+[submodule "nspire-io"]
+	path = ndl-sdk/thirdparty/nspire-io
+	url = https://github.com/Vogtinator/nspire-io.git
+[submodule "zlib"]
+	path = ndl-sdk/thirdparty/zlib
+	url = https://github.com/madler/zlib.git
+	ignore = dirty
+[submodule "freetype2"]
+	path = ndl-sdk/thirdparty/freetype2
+	url = https://gitlab.freedesktop.org/freetype/freetype.git
+[submodule "ndless-sdk/tools/luna"]
+	path = ndl-sdk/tools/luna
+	url = https://github.com/ndless-nspire/luna

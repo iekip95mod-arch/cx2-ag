@@ -1,0 +1,44 @@
+problem: int(x,x,2,2)
+result: 0
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.definite.single-variable
+  envelope version: 1
+  normalized problem: int(x, x, 2, 2)
+  requested method: definite integral
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Check the interval
+    rule: defint.interval, Check the interval
+    claim: equivalent expression
+    explanation: The supported operations are continuous on this interval and no denominator vanishes
+    detail: Before using endpoint subtraction, check every point between the bounds. A pole inside the interval makes ordinary antiderivative subtraction invalid even when both endpoints are finite.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Check the integrand throughout [2, 2]
+    before: int(x, x, 2, 2)
+    after: int(x, x, 2, 2)
+    reversible: no
+    verification: rule-local invariant, passed, The supported operations are continuous on this interval and no denominator vanishes
+    verified: yes
+  2 transformation
+    phase: calculus
+    goal: Equal bounds
+    rule: defint.zero-width, Equal bounds
+    claim: equivalent expression
+    explanation: A continuous function has zero integral over a zero-width interval
+    detail: Use this rule when the bounds coincide and the integrand is defined there. It does not assign a value to an undefined integrand.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Use zero for an interval of zero width
+    before: int(x, x, 2, 2)
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, A continuous function has zero integral over a zero-width interval
+    verified: yes

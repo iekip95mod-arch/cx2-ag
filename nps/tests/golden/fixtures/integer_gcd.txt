@@ -1,0 +1,103 @@
+problem: gcd(-48,18)
+outcome: evaluated
+result: 6
+detail: The last nonzero remainder is 6. It divides both inputs, and -48 * 1 + 18 * 3 = 6 certifies that every common divisor divides it
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: gcd((-48), 18)
+  requested method: gcd
+  angle convention: not applicable
+  branch convention: signed integers with nonnegative gcd, gcd(0,0)=0
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: gcd((-48), 18)
+    rule: plan.integer-method, Reduce by Euclidean division and certify the greatest common divisor
+    claim: no claim
+    explanation: Reduce by Euclidean division and certify the greatest common divisor
+    detail: gcd((-48), 18): Reduce by Euclidean division and certify the greatest common divisor
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce by Euclidean division and certify the greatest common divisor
+    applicability: signed integer literals fit the method's stated bounds
+    fact: gcd((-48), 18)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, gcd((-48), 18)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integer
+      goal: gcd((-48), 18)
+      rule: int.gcd-sign, Replace signed integers by their magnitudes
+      claim: equivalent expression
+      explanation: Signs do not change common divisors: gcd((-48), 18) = gcd(48, 18)
+      detail: Signs do not change common divisors: gcd((-48), 18) = gcd(48, 18). Changing an integer's sign does not change its positive divisors. The gcd is therefore unchanged by taking both magnitudes
+      proof obligation: obl.int.gcd-sign, Replace signed integers by their magnitudes
+      action: Signs do not change common divisors: gcd((-48), 18) = gcd(48, 18)
+      before: gcd((-48), 18)
+      after: gcd(48, 18)
+      reversible: yes
+      verification: integer magnitude normalization, passed, Signs do not change common divisors: gcd((-48), 18) = gcd(48, 18)
+      verified: yes
+    1.2 transformation
+      phase: integer
+      goal: gcd((-48), 18)
+      rule: int.gcd-remainder, Replace the pair by divisor and remainder
+      claim: equivalent expression
+      explanation: 48 = 2 * 18 + 12, so gcd(48, 18) = gcd(18, 12)
+      detail: 48 = 2 * 18 + 12, so gcd(48, 18) = gcd(18, 12). When a = q*b + r, every common divisor of a and b divides r, and every common divisor of b and r divides a. The positive divisor strictly decreases, so this process terminates
+      proof obligation: obl.int.gcd-remainder, Replace the pair by divisor and remainder
+      action: 48 = 2 * 18 + 12, so gcd(48, 18) = gcd(18, 12)
+      before: gcd(48, 18)
+      after: gcd(18, 12)
+      reversible: yes
+      verification: exact Euclidean reduction, passed, 48 * 1 = 18 * 2 + 12, with 0 <= remainder < divisor
+      verified: yes
+    1.3 transformation
+      phase: integer
+      goal: gcd((-48), 18)
+      rule: int.gcd-remainder, Replace the pair by divisor and remainder
+      claim: equivalent expression
+      explanation: 18 = 1 * 12 + 6, so gcd(18, 12) = gcd(12, 6)
+      detail: 18 = 1 * 12 + 6, so gcd(18, 12) = gcd(12, 6). When a = q*b + r, every common divisor of a and b divides r, and every common divisor of b and r divides a. The positive divisor strictly decreases, so this process terminates
+      proof obligation: obl.int.gcd-remainder, Replace the pair by divisor and remainder
+      action: 18 = 1 * 12 + 6, so gcd(18, 12) = gcd(12, 6)
+      before: gcd(18, 12)
+      after: gcd(12, 6)
+      reversible: yes
+      verification: exact Euclidean reduction, passed, 18 * 1 = 12 * 1 + 6, with 0 <= remainder < divisor
+      verified: yes
+    1.4 transformation
+      phase: integer
+      goal: gcd((-48), 18)
+      rule: int.gcd-remainder, Replace the pair by divisor and remainder
+      claim: equivalent expression
+      explanation: 12 = 2 * 6 + 0, so gcd(12, 6) = gcd(6, 0)
+      detail: 12 = 2 * 6 + 0, so gcd(12, 6) = gcd(6, 0). When a = q*b + r, every common divisor of a and b divides r, and every common divisor of b and r divides a. The positive divisor strictly decreases, so this process terminates
+      proof obligation: obl.int.gcd-remainder, Replace the pair by divisor and remainder
+      action: 12 = 2 * 6 + 0, so gcd(12, 6) = gcd(6, 0)
+      before: gcd(12, 6)
+      after: gcd(6, 0)
+      reversible: yes
+      verification: exact Euclidean reduction, passed, 12 * 1 = 6 * 2 + 0, with 0 <= remainder < divisor
+      verified: yes
+    1.5 transformation
+      phase: integer
+      goal: gcd((-48), 18)
+      rule: int.gcd-conclusion, Reduce by Euclidean division and certify the greatest common divisor
+      claim: equivalent expression
+      explanation: The last nonzero remainder is 6. It divides both inputs, and -48 * 1 + 18 * 3 = 6 certifies that every common divisor divides it
+      detail: The last nonzero remainder is 6. It divides both inputs, and -48 * 1 + 18 * 3 = 6 certifies that every common divisor divides it. A positive common divisor g is greatest if a*u+b*v=g: every common divisor divides this integer combination and therefore divides g. When both inputs are zero, gcd(0,0) is defined as zero
+      proof obligation: obl.int.gcd-certificate, Reduce by Euclidean division and certify the greatest common divisor
+      action: The last nonzero remainder is 6. It divides both inputs, and -48 * 1 + 18 * 3 = 6 certifies that every common divisor divides it
+      before: gcd((-48), 18)
+      after: 6
+      reversible: yes
+      verification: common divisibility and Bezout identity, passed, -48 * 1 + 18 * 3 = 6, with a nonnegative common divisor
+      verified: yes

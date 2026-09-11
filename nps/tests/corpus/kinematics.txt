@@ -1,0 +1,1163 @@
+# One-dimensional constant-acceleration kinematics, PRD section 22.1 row 4.
+#
+# The required result is model choice, symbolic isolation, units and a final check. The first and
+# the last are the engine's own: the plan records which equation was chosen and why the others were
+# not, and the linear solver substitutes its candidate back. What a case pins is the problem, the
+# answer with its unit, and the outcome.
+#
+# The symbolic isolation step is Giac's, and Giac is not linked on the host, so on this run that
+# step records that no backend was given. The isolation itself is device evidence.
+#
+# The result is the value as reported with its unit, so a case whose givens are measured names the
+# rounded value and a case whose givens are exact names the exact one.
+
+case kinematics.final-velocity.from-initial-and-acceleration
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.final-velocity.from-rest
+  family kinematics
+  input find v; v0 = 0 m/s; a = 10 m/s^2; t = 3 s
+  expect solved
+  result 30 m/s
+
+case kinematics.final-velocity.decelerating
+  family kinematics
+  input find v; v0 = 20 m/s; a = -4 m/s^2; t = 3 s
+  expect solved
+  result 8 m/s
+
+case kinematics.initial-velocity.from-final
+  family kinematics
+  input find v0; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.acceleration.from-two-velocities
+  family kinematics
+  input find a; v = 17 m/s; v0 = 5 m/s; t = 4 s
+  expect solved
+  result 3 m/s^2
+
+case kinematics.time.from-two-velocities
+  family kinematics
+  input find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2
+  expect solved
+  result 4 s
+
+case kinematics.displacement.from-initial-and-acceleration
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.initial-velocity.from-displacement
+  family kinematics
+  input find v0; x = 44 m; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.acceleration.from-displacement
+  family kinematics
+  input find a; x = 44 m; v0 = 5 m/s; t = 4 s
+  expect solved
+  result 3 m/s^2
+
+case kinematics.displacement.from-two-velocities-and-acceleration
+  family kinematics
+  input find x; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2
+  expect solved
+  result 44 m
+
+case kinematics.displacement.from-average-velocity
+  family kinematics
+  input find x; v0 = 5 m/s; v = 17 m/s; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.time.from-displacement-and-two-velocities
+  family kinematics
+  input find t; x = 44 m; v0 = 5 m/s; v = 17 m/s
+  expect solved
+  result 4 s
+
+case kinematics.final-velocity.from-displacement-and-time
+  family kinematics
+  input find v; x = 44 m; v0 = 5 m/s; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.initial-velocity.from-displacement-and-final
+  family kinematics
+  input find v0; x = 44 m; v = 17 m/s; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.two-hop.velocity-through-initial
+  family kinematics
+  input find v; x = 20 m; t = 4 s; a = 3 m/s^2
+  expect solved
+  result 11 m/s
+
+case kinematics.units.kilometres-per-hour
+  family kinematics
+  input find v; v0 = 18 km/h; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.milliseconds
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; t = 4000 ms
+  expect solved
+  result 44 m
+
+case kinematics.units.kilometres
+  family kinematics
+  input find v0; x = 1 km; a = 0 m/s^2; t = 100 s
+  expect solved
+  result 10 m/s
+
+case kinematics.units.minutes
+  family kinematics
+  input find v; v0 = 0 m/s; a = 2 m/s^2; t = 1 min
+  expect solved
+  result 120 m/s
+
+case kinematics.units.centimetres
+  family kinematics
+  input find v0; x = 400 cm; v = 0 m/s; t = 2 s
+  expect solved
+  result 4 m/s
+
+case kinematics.measured.two-figures
+  family kinematics
+  input find v; v0 = 0 m/s; a = 9.8 m/s^2; t = 2.5 s
+  expect solved
+  result 25 m/s
+
+case kinematics.measured.repeating-decimal
+  family kinematics
+  input find t; v = 1.0 m/s; v0 = 0 m/s; a = 3 m/s^2
+  expect solved
+  result 0.33 s
+
+case kinematics.measured.exact-value-still-rounded
+  family kinematics
+  input find v; v0 = 5.0 m/s; a = 3.0 m/s^2; t = 4.0 s
+  expect solved
+  result 17 m/s
+
+case kinematics.measured.displacement
+  family kinematics
+  input find x; v0 = 0 m/s; a = 9.8 m/s^2; t = 2.0 s
+  expect solved
+  result 20 m
+
+case kinematics.refused.quadratic-in-time
+  family kinematics
+  input find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2
+  expect no applicable equation
+  detail this equation is not linear in t
+
+case kinematics.refused.too-few-givens
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2
+  expect no applicable equation
+
+# v^2 = v0^2 + 2*a*x reaches v here and has two roots, so the linear solver refuses it and no other
+# equation gets there. That is the milestone envelope rather than a defect, and the refusal names the
+# equation it turned down.
+case kinematics.refused.quadratic-in-final-velocity
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; x = 44 m
+  expect no applicable equation
+  detail this equation is not linear in v
+
+case kinematics.final-velocity.negative-initial
+  family kinematics
+  input find v; v0 = -5 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 7 m/s
+
+case kinematics.final-velocity.zero-acceleration
+  family kinematics
+  input find v; v0 = 6 m/s; a = 0 m/s^2; t = 9 s
+  expect solved
+  result 6 m/s
+
+case kinematics.displacement.zero-acceleration
+  family kinematics
+  input find x; v0 = 6 m/s; a = 0 m/s^2; t = 9 s
+  expect solved
+  result 54 m
+
+case kinematics.displacement.from-rest
+  family kinematics
+  input find x; v0 = 0 m/s; a = 4 m/s^2; t = 3 s
+  expect solved
+  result 18 m
+
+case kinematics.displacement.negative-acceleration
+  family kinematics
+  input find x; v0 = 20 m/s; a = -4 m/s^2; t = 3 s
+  expect solved
+  result 42 m
+
+case kinematics.acceleration.from-displacement-and-two-velocities
+  family kinematics
+  input find a; x = 44 m; v = 17 m/s; v0 = 5 m/s
+  expect solved
+  result 3 m/s^2
+
+case kinematics.time.from-displacement-and-average
+  family kinematics
+  input find t; x = 54 m; v0 = 6 m/s; v = 6 m/s
+  expect solved
+  result 9 s
+
+case kinematics.initial-velocity.zero-answer
+  family kinematics
+  input find v0; v = 12 m/s; a = 4 m/s^2; t = 3 s
+  expect solved
+  result 0 m/s
+
+case kinematics.acceleration.negative-answer
+  family kinematics
+  input find a; v = 8 m/s; v0 = 20 m/s; t = 3 s
+  expect solved
+  result -4 m/s^2
+
+case kinematics.units.hours
+  family kinematics
+  input find x; v0 = 36 km/h; a = 0 m/s^2; t = 1 h
+  expect solved
+  result 36000 m
+
+case kinematics.units.grams-are-refused
+  family kinematics
+  input find v; v0 = 5 kg; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.time-in-metres
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 m
+  expect dimension mismatch
+
+case kinematics.units.mixed-length
+  family kinematics
+  input find v0; x = 44000 mm; v = 17 m/s; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.measured.three-figures
+  family kinematics
+  input find v; v0 = 1.50 m/s; a = 2.00 m/s^2; t = 4.00 s
+  expect solved
+  result 9.50 m/s
+
+case kinematics.measured.one-figure
+  family kinematics
+  input find v; v0 = 0 m/s; a = 2 m/s^2; t = 3.0 s
+  expect solved
+  result 6.0 m/s
+
+case kinematics.measured.mixed-with-exact
+  family kinematics
+  input find x; v0 = 2.5 m/s; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 10 m
+
+case kinematics.two-hop.displacement-through-final-velocity
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; v = 17 m/s
+  expect solved
+  result 44 m
+
+case kinematics.refused.no-unknown-reachable
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2
+  expect no applicable equation
+
+case kinematics.refused.only-one-known
+  family kinematics
+  input find x; t = 4 s
+  expect no applicable equation
+
+case kinematics.two-hop.acceleration-through-initial
+  family kinematics
+  input find a; v = 17 m/s; t = 4 s; x = 44 m
+  expect solved
+  result 3 m/s^2
+
+case kinematics.two-hop.displacement-through-initial
+  family kinematics
+  input find x; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.initial-velocity.zero-from-displacement
+  family kinematics
+  input find v0; v = 12 m/s; t = 3 s; x = 18 m
+  expect solved
+  result 0 m/s
+
+case kinematics.time.from-rest-and-displacement
+  family kinematics
+  input find t; x = 18 m; v0 = 0 m/s; v = 12 m/s
+  expect solved
+  result 3 s
+
+case kinematics.acceleration.from-rest-and-displacement
+  family kinematics
+  input find a; x = 18 m; v0 = 0 m/s; t = 3 s
+  expect solved
+  result 4 m/s^2
+
+case kinematics.displacement.from-rest-and-two-velocities
+  family kinematics
+  input find x; v0 = 0 m/s; v = 12 m/s; a = 4 m/s^2
+  expect solved
+  result 18 m
+
+case kinematics.units.minutes-with-acceleration
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 1 min
+  expect solved
+  result 185 m/s
+
+case kinematics.units.minutes-and-displacement
+  family kinematics
+  input find x; v0 = 0 m/s; a = 2 m/s^2; t = 1 min
+  expect solved
+  result 3600 m
+
+case kinematics.units.centimetres-and-displacement
+  family kinematics
+  input find v0; x = 4400 cm; v = 17 m/s; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.units.kilometres-per-hour-and-displacement
+  family kinematics
+  input find x; v0 = 18 km/h; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.units.kilometres-per-hour-and-hours
+  family kinematics
+  input find v; v0 = 36 km/h; a = 0 m/s^2; t = 1 h
+  expect solved
+  result 10 m/s
+
+case kinematics.units.both-velocities-converted
+  family kinematics
+  input find a; v = 36 km/h; v0 = 18 km/h; t = 5 s
+  expect solved
+  result 1 m/s^2
+
+case kinematics.initial-velocity.from-deceleration
+  family kinematics
+  input find v0; v = 8 m/s; a = -4 m/s^2; t = 3 s
+  expect solved
+  result 20 m/s
+
+case kinematics.time.from-deceleration
+  family kinematics
+  input find t; v = 8 m/s; v0 = 20 m/s; a = -4 m/s^2
+  expect solved
+  result 3 s
+
+case kinematics.displacement.from-two-velocities-decelerating
+  family kinematics
+  input find x; v0 = 20 m/s; v = 8 m/s; t = 3 s
+  expect solved
+  result 42 m
+
+case kinematics.acceleration.negative-from-displacement
+  family kinematics
+  input find a; x = 42 m; v0 = 20 m/s; t = 3 s
+  expect solved
+  result -4 m/s^2
+
+case kinematics.initial-velocity.from-negative-acceleration-and-displacement
+  family kinematics
+  input find v0; x = 42 m; a = -4 m/s^2; t = 3 s
+  expect solved
+  result 20 m/s
+
+case kinematics.displacement.decelerating-from-two-velocities-and-acceleration
+  family kinematics
+  input find x; v = 8 m/s; v0 = 20 m/s; a = -4 m/s^2
+  expect solved
+  result 42 m
+
+case kinematics.zero.no-motion-displacement
+  family kinematics
+  input find x; v0 = 0 m/s; v = 0 m/s; t = 5 s
+  expect solved
+  result 0 m
+
+case kinematics.zero.no-motion-velocity
+  family kinematics
+  input find v; v0 = 0 m/s; a = 0 m/s^2; t = 5 s
+  expect solved
+  result 0 m/s
+
+case kinematics.units.milliseconds-and-initial-velocity
+  family kinematics
+  input find v0; v = 17 m/s; a = 3 m/s^2; t = 4000 ms
+  expect solved
+  result 5 m/s
+
+case kinematics.measured.displacement-two-figures
+  family kinematics
+  input find x; v0 = 2.0 m/s; a = 3.0 m/s^2; t = 4.0 s
+  expect solved
+  result 32 m
+
+case kinematics.final-velocity.negative-answer
+  family kinematics
+  input find v; v0 = 5 m/s; a = -4 m/s^2; t = 3 s
+  expect solved
+  result -7 m/s
+
+case kinematics.final-velocity.brought-to-rest
+  family kinematics
+  input find v; v0 = 12 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result 0 m/s
+
+case kinematics.initial-velocity.negative-answer
+  family kinematics
+  input find v0; v = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result -7 m/s
+
+case kinematics.acceleration.zero-answer
+  family kinematics
+  input find a; v = 5 m/s; v0 = 5 m/s; t = 4 s
+  expect solved
+  result 0 m/s^2
+
+case kinematics.acceleration.to-rest
+  family kinematics
+  input find a; v = 0 m/s; v0 = 12 m/s; t = 4 s
+  expect solved
+  result -3 m/s^2
+
+case kinematics.acceleration.rational-answer
+  family kinematics
+  input find a; v = 6 m/s; v0 = 5 m/s; t = 4 s
+  expect solved
+  result 0.25 m/s^2
+
+case kinematics.time.zero-answer
+  family kinematics
+  input find t; v = 5 m/s; v0 = 5 m/s; a = 3 m/s^2
+  expect solved
+  result 0 s
+
+case kinematics.time.rational-answer
+  family kinematics
+  input find t; v = 6 m/s; v0 = 5 m/s; a = 3 m/s^2
+  expect solved
+  result 1/3 s
+
+case kinematics.displacement.negative-answer
+  family kinematics
+  input find x; v0 = 5 m/s; a = -4 m/s^2; t = 3 s
+  expect solved
+  result -3 m
+
+case kinematics.displacement.zero-answer-from-deceleration
+  family kinematics
+  input find x; v0 = 6 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result 0 m
+
+case kinematics.displacement.negative-initial-no-acceleration
+  family kinematics
+  input find x; v0 = -5 m/s; a = 0 m/s^2; t = 4 s
+  expect solved
+  result -20 m
+
+case kinematics.displacement.rational-answer
+  family kinematics
+  input find x; v0 = 1 m/s; a = 1 m/s^2; t = 1 s
+  expect solved
+  result 1.5 m
+
+case kinematics.displacement.half-acceleration-from-rest
+  family kinematics
+  input find x; v0 = 0 m/s; a = 1 m/s^2; t = 1 s
+  expect solved
+  result 0.5 m
+
+case kinematics.acceleration.to-rest-over-a-displacement
+  family kinematics
+  input find a; v = 0 m/s; v0 = 10 m/s; x = 25 m
+  expect solved
+  result -2 m/s^2
+
+case kinematics.displacement.stopping-distance
+  family kinematics
+  input find x; v = 0 m/s; v0 = 10 m/s; a = -2 m/s^2
+  expect solved
+  result 25 m
+
+case kinematics.acceleration.zero-from-equal-velocities
+  family kinematics
+  input find a; v = 10 m/s; v0 = 10 m/s; x = 25 m
+  expect solved
+  result 0 m/s^2
+
+case kinematics.displacement.zero-from-equal-velocities
+  family kinematics
+  input find x; v = 10 m/s; v0 = 10 m/s; a = 3 m/s^2
+  expect solved
+  result 0 m
+
+case kinematics.final-velocity.from-zero-displacement
+  family kinematics
+  input find v; v0 = 5 m/s; x = 0 m; t = 4 s
+  expect solved
+  result -5 m/s
+
+case kinematics.initial-velocity.from-zero-displacement
+  family kinematics
+  input find v0; x = 0 m; v = 5 m/s; t = 4 s
+  expect solved
+  result -5 m/s
+
+case kinematics.time.rational-from-average-velocity
+  family kinematics
+  input find t; x = 30 m; v0 = 4 m/s; v = 5 m/s
+  expect solved
+  result 20/3 s
+
+case kinematics.displacement.from-a-negative-initial-average
+  family kinematics
+  input find x; v0 = -5 m/s; v = 15 m/s; t = 4 s
+  expect solved
+  result 20 m
+
+case kinematics.displacement.zero-from-a-reversed-average
+  family kinematics
+  input find x; v0 = -5 m/s; v = 5 m/s; t = 4 s
+  expect solved
+  result 0 m
+
+case kinematics.units.kilometres-per-hour-and-minutes
+  family kinematics
+  input find x; v0 = 36 km/h; a = 0 m/s^2; t = 1 min
+  expect solved
+  result 600 m
+
+case kinematics.units.two-velocities-in-kilometres-per-hour
+  family kinematics
+  input find a; v = 72 km/h; v0 = 36 km/h; t = 5 s
+  expect solved
+  result 2 m/s^2
+
+case kinematics.units.kilometres-with-two-velocities
+  family kinematics
+  input find t; x = 1 km; v0 = 10 m/s; v = 10 m/s
+  expect solved
+  result 100 s
+
+case kinematics.units.minutes-and-two-velocities
+  family kinematics
+  input find x; v0 = 5 m/s; v = 15 m/s; t = 2 min
+  expect solved
+  result 1200 m
+
+case kinematics.units.milliseconds-and-two-velocities
+  family kinematics
+  input find x; v0 = 5 m/s; v = 15 m/s; t = 500 ms
+  expect solved
+  result 5 m
+
+case kinematics.units.kilometres-and-a-deceleration
+  family kinematics
+  input find a; v = 0 m/s; v0 = 100 m/s; x = 1 km
+  expect solved
+  result -5 m/s^2
+
+case kinematics.measured.acceleration-answer
+  family kinematics
+  input find a; v = 17.0 m/s; v0 = 5.0 m/s; t = 4.0 s
+  expect solved
+  result 3.0 m/s^2
+
+case kinematics.measured.time-answer
+  family kinematics
+  input find t; v = 17.0 m/s; v0 = 5.0 m/s; a = 3.0 m/s^2
+  expect solved
+  result 4.0 s
+
+case kinematics.measured.sum-rule-drops-a-decimal-place
+  family kinematics
+  input find v; v0 = -5.0 m/s; a = 3.0 m/s^2; t = 4.0 s
+  expect solved
+  result 7 m/s
+
+case kinematics.measured.sum-rule-at-zero
+  family kinematics
+  input find v; v0 = 12.0 m/s; a = -3.0 m/s^2; t = 4.0 s
+  expect solved
+  result 0 m/s
+
+case kinematics.measured.negative-displacement
+  family kinematics
+  input find x; v0 = 2.0 m/s; a = -3.0 m/s^2; t = 4.0 s
+  expect solved
+  result -16 m
+
+case kinematics.refused.quadratic-in-initial-velocity
+  family kinematics
+  input find v0; v = 10 m/s; a = 2 m/s^2; x = 24 m
+  expect no applicable equation
+  detail this equation is not linear in v0
+
+case kinematics.refused.time-from-two-givens
+  family kinematics
+  input find t; v0 = 5 m/s; x = 44 m
+  expect no applicable equation
+
+case kinematics.refused.acceleration-from-two-givens
+  family kinematics
+  input find a; v = 10 m/s; t = 4 s
+  expect no applicable equation
+
+case kinematics.zero.no-motion-acceleration
+  family kinematics
+  input find a; v = 0 m/s; v0 = 0 m/s; t = 5 s
+  expect solved
+  result 0 m/s^2
+
+case kinematics.zero.no-motion-time
+  family kinematics
+  input find t; v = 0 m/s; v0 = 0 m/s; a = 3 m/s^2
+  expect solved
+  result 0 s
+
+case kinematics.initial-velocity.zero-acceleration
+  family kinematics
+  input find v0; v = 20 m/s; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 20 m/s
+
+case kinematics.time.from-rest-decimal-answer
+  family kinematics
+  input find t; v = 5 m/s; v0 = 0 m/s; a = 2 m/s^2
+  expect solved
+  result 2.5 s
+
+case kinematics.initial-velocity.returns-to-the-start
+  family kinematics
+  input find v0; x = 0 m; a = 3 m/s^2; t = 4 s
+  expect solved
+  result -6 m/s
+
+case kinematics.acceleration.returns-to-the-start
+  family kinematics
+  input find a; x = 0 m; v0 = 5 m/s; t = 4 s
+  expect solved
+  result -2.5 m/s^2
+
+case kinematics.initial-velocity.from-displacement-at-constant-speed
+  family kinematics
+  input find v0; x = 44 m; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 11 m/s
+
+case kinematics.acceleration.from-rest-and-displacement-and-time
+  family kinematics
+  input find a; x = 44 m; v0 = 0 m/s; t = 4 s
+  expect solved
+  result 5.5 m/s^2
+
+case kinematics.time.from-rest-and-an-average
+  family kinematics
+  input find t; x = 44 m; v0 = 0 m/s; v = 11 m/s
+  expect solved
+  result 8 s
+
+case kinematics.final-velocity.from-rest-and-a-displacement
+  family kinematics
+  input find v; v0 = 0 m/s; x = 44 m; t = 4 s
+  expect solved
+  result 22 m/s
+
+case kinematics.initial-velocity.brought-to-rest
+  family kinematics
+  input find v0; v = 0 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result 12 m/s
+
+case kinematics.time.to-rest
+  family kinematics
+  input find t; v = 0 m/s; v0 = 12 m/s; a = -3 m/s^2
+  expect solved
+  result 4 s
+
+case kinematics.displacement.at-rest-throughout
+  family kinematics
+  input find x; v = 0 m/s; v0 = 0 m/s; a = 3 m/s^2
+  expect solved
+  result 0 m
+
+case kinematics.final-velocity.negative-initial-and-negative-acceleration
+  family kinematics
+  input find v; v0 = -5 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result -17 m/s
+
+case kinematics.displacement.negative-initial-and-negative-acceleration
+  family kinematics
+  input find x; v0 = -5 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result -44 m
+
+case kinematics.acceleration.between-two-negative-velocities
+  family kinematics
+  input find a; v = -17 m/s; v0 = -5 m/s; t = 4 s
+  expect solved
+  result -3 m/s^2
+
+case kinematics.time.between-two-negative-velocities
+  family kinematics
+  input find t; v = -17 m/s; v0 = -5 m/s; a = -3 m/s^2
+  expect solved
+  result 4 s
+
+case kinematics.displacement.between-two-negative-velocities
+  family kinematics
+  input find x; v0 = -15 m/s; v = -5 m/s; t = 4 s
+  expect solved
+  result -40 m
+
+# The calculator's own 2D editor is where units arrive from, so the same acceleration is written
+# seven ways here. The arithmetic is the covered one on purpose: what each case pins is that the
+# unit scanner reads that spelling, not that the equation works.
+case kinematics.units.velocity-as-a-negative-power
+  family kinematics
+  input find v; v0 = 5 m s^-1; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.editor-brackets-around-a-quotient
+  family kinematics
+  input find v; v0 = 5 ((m)/(s)); a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.editor-brackets-around-an-exponent
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 ((m)/(s^(2))); t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.acceleration-as-two-divisions
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s/s; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.acceleration-as-a-negative-power
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m*s^-2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.acceleration-over-a-bracketed-product
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/(s*s); t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.bracketed-exponent-alone
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^(2); t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.kilometres-per-minute
+  family kinematics
+  input find x; v0 = 36 km/min; a = 0 m/s^2; t = 1 min
+  expect solved
+  result 36000 m
+
+case kinematics.units.centimetres-per-second
+  family kinematics
+  input find v; v0 = 500 cm/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.millimetres-per-second
+  family kinematics
+  input find v; v0 = 5000 mm/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 17 m/s
+
+case kinematics.units.metres-per-millisecond
+  family kinematics
+  input find x; v0 = 5 m/ms; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 20000 m
+
+# Acceleration in kilometres per hour per second, which is a compound with three factors and a
+# scale of 5/18. The answer is a fraction, which is what exact arithmetic is for.
+case kinematics.units.acceleration-in-mixed-units
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 km/h/s; t = 4 s
+  expect solved
+  result 25/3 m/s
+
+case kinematics.degenerate.zero-time
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; t = 0 s
+  expect solved
+  result 0 m
+
+case kinematics.degenerate.acceleration-over-zero-time
+  family kinematics
+  input find a; v = 5 m/s; v0 = 3 m/s; t = 0 s
+  expect no applicable equation
+
+case kinematics.degenerate.time-at-zero-acceleration
+  family kinematics
+  input find t; v = 17 m/s; v0 = 5 m/s; a = 0 m/s^2
+  expect no applicable equation
+
+case kinematics.final-velocity.negative-initial-and-acceleration
+  family kinematics
+  input find v; v0 = -5 m/s; a = -3 m/s^2; t = 4 s
+  expect solved
+  result -17 m/s
+
+case kinematics.displacement.negative-initial-velocity
+  family kinematics
+  input find x; v0 = -5 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 4 m
+
+case kinematics.acceleration.negative-time
+  family kinematics
+  input find a; v = 5 m/s; v0 = 17 m/s; t = -4 s
+  expect solved
+  result 3 m/s^2
+
+case kinematics.degenerate.everything-zero
+  family kinematics
+  input find x; v0 = 0 m/s; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 0 m
+
+case kinematics.degenerate.velocity-with-nothing-happening
+  family kinematics
+  input find v; v0 = 0 m/s; a = 0 m/s^2; t = 4 s
+  expect solved
+  result 0 m/s
+
+case kinematics.initial-velocity.from-a-zero-final
+  family kinematics
+  input find v0; v = 0 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result -12 m/s
+
+case kinematics.time.to-a-stop
+  family kinematics
+  input find t; v = 0 m/s; v0 = 12 m/s; a = -3 m/s^2
+  expect solved
+  result 4 s
+
+case kinematics.displacement.to-a-stop-by-average-velocity
+  family kinematics
+  input find x; v = 0 m/s; v0 = 20 m/s; t = 4 s
+  expect solved
+  result 40 m
+
+case kinematics.extra-givens.consistent
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s; x = 44 m
+  expect solved
+  result 17 m/s
+
+# The displacement given here contradicts the other three, and the answer is the same as with no
+# displacement at all, because the first equation that reaches v never looks at it. Recorded as the
+# behaviour: an over-determined problem is not checked for consistency.
+case kinematics.extra-givens.contradictory
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s; x = 999 km
+  expect solved
+  result 17 m/s
+
+case kinematics.extra-givens.displacement-with-four-knowns
+  family kinematics
+  input find x; v0 = 5 m/s; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.spelling.unknown-as-a-question-mark
+  family kinematics
+  input a = ?; x = 20 m; t = 4 s; v = 11 m/s
+  expect solved
+  result 3 m/s^2
+
+case kinematics.spelling.solve-for
+  family kinematics
+  input solve for x; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.spelling.displacement-as-d
+  family kinematics
+  input find t; d = 40 m; v0 = 20 m/s; v = 0 m/s
+  expect solved
+  result 4 s
+
+case kinematics.spelling.unknown-keyword
+  family kinematics
+  input unknown v0; x = 44 m; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 5 m/s
+
+case kinematics.units.acceleration-given-as-a-velocity
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.acceleration-given-as-a-force
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 N; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.time-squared
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; t = 4 s^2
+  expect dimension mismatch
+
+case kinematics.units.velocity-given-as-an-acceleration
+  family kinematics
+  input find v; v0 = 5 m/s^2; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+# m/s*kg is metres times kilograms per second and m/s/kg is metres per second per kilogram. Neither
+# is a velocity, and they are different wrong answers, so a scanner that skipped brackets and
+# operators alike would turn one of them into the other.
+case kinematics.units.velocity-times-a-mass
+  family kinematics
+  input find v; v0 = 5 m/s*kg; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.velocity-per-mass
+  family kinematics
+  input find v; v0 = 5 m/s/kg; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.displacement-as-an-area
+  family kinematics
+  input find v0; x = 44 m^2; v = 17 m/s; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.displacement-as-an-energy
+  family kinematics
+  input find v0; x = 44 J; v = 17 m/s; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.velocity-given-as-a-mass
+  family kinematics
+  input find v; v0 = 5 g; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+# A space is a product, so "m s" is a metre-second and not a millisecond. The two spellings differ
+# by one character and by six orders of magnitude.
+case kinematics.units.metre-second-is-not-a-millisecond
+  family kinematics
+  input find v; v0 = 5 m s; a = 3 m/s^2; t = 4 s
+  expect dimension mismatch
+
+case kinematics.units.time-in-millimetres
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 mm
+  expect dimension mismatch
+
+case kinematics.units.time-with-no-unit
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4
+  expect dimension mismatch
+
+# A unit that ends in an operator should not be a unit, and the scanner has the words for it: "a
+# unit ends with nothing after its last operator". They are unreachable at the top level, because
+# A unit ending in an operator is refused by the scanner. These two pinned the hole where it was not:
+# "m/" used to read as "m", so 5 m/ was five metres and only the dimension check caught it, and
+# "m/s^2*" used to read as "m/s^2" and solve as if nothing were wrong.
+case kinematics.units.trailing-division
+  family kinematics
+  input find v; v0 = 5 m/; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.units.trailing-product
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2*; t = 4 s
+  expect not parsed
+
+case kinematics.units.leading-division
+  family kinematics
+  input find v; v0 = 5 /s; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.units.exponent-with-no-number
+  family kinematics
+  input find v; v0 = 5 m/s^; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.units.exponent-past-the-limit
+  family kinematics
+  input find v; v0 = 5 m/s^200; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.units.unclosed-editor-bracket
+  family kinematics
+  input find v; v0 = 5 ((m)/(s); a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+# A kilometre to the seventh has a conversion factor of ten to the twenty-first, which is past
+# int64, and the scanner refuses rather than wrapping.
+case kinematics.units.conversion-factor-past-the-representation
+  family kinematics
+  input find v; v0 = 5 km^7/s; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.given.repeated-symbol
+  family kinematics
+  input find v; v0 = 5 m/s; v0 = 6 m/s; t = 4 s
+  expect not parsed
+
+case kinematics.given.value-with-no-symbol
+  family kinematics
+  input find v; 5 m/s; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.given.symbol-with-nothing-before-the-equals
+  family kinematics
+  input find v; = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect not parsed
+
+case kinematics.given.value-written-as-a-word
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = four s
+  expect not parsed
+
+case kinematics.resource.two-hop-runs-out-of-steps
+  family kinematics
+  input find x; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  max_steps 3
+  expect resource exceeded
+
+case kinematics.resource.two-hop-runs-out-of-rewrites
+  family kinematics
+  input find a; x = 20 m; t = 4 s; v = 11 m/s
+  max_rewrites 3
+  expect resource exceeded
+
+case kinematics.two-hop.displacement-from-final-velocity-and-time
+  family kinematics
+  input find x; v = 17 m/s; a = 3 m/s^2; t = 4 s
+  expect solved
+  result 44 m
+
+case kinematics.two-hop.acceleration-through-initial-velocity
+  family kinematics
+  input find a; x = 20 m; t = 4 s; v = 11 m/s
+  expect solved
+  result 3 m/s^2
+
+# Ten point zero less nine point nine nine is one hundredth, and the cancellation leaves one
+# significant figure where all three givens had three. A rule that carried the fewest figures of the
+# inputs would report 0.0100 and claim two figures the subtraction destroyed.
+case kinematics.measured.subtraction-that-cancels
+  family kinematics
+  input find a; v = 10.0 m/s; v0 = 9.99 m/s; t = 1.00 s
+  expect solved
+  result 0.01 m/s^2
+
+case kinematics.measured.cancelling-to-zero
+  family kinematics
+  input find v; v0 = 100.0 m/s; a = -1.0 m/s^2; t = 100.0 s
+  expect solved
+  result 0 m/s
+
+case kinematics.measured.displacement-to-two-figures
+  family kinematics
+  input find x; v0 = 2.50 m/s; a = 1.20 m/s^2; t = 2.0 s
+  expect solved
+  result 7.4 m
+
+# Three figures, not the two the least precise given carries. I wrote 4.0 first, from the fewest
+# significant figures among the givens, and that rule is only the one for products. The sum
+# 5.0 + 17.0 follows decimal places instead, so 22.0 has three figures although 5.0 has two, and
+# every step after it does too.
+case kinematics.measured.time-from-three-measured-givens
+  family kinematics
+  input find t; x = 44.0 m; v0 = 5.0 m/s; v = 17.0 m/s
+  expect solved
+  result 4.00 s
+
+# The same rule the other way round: 0.50 + 0.50 keeps the hundredths place, so the answer has
+# three figures where both givens had two.
+case kinematics.measured.velocity-from-two-figures
+  family kinematics
+  input find v; v0 = 0.50 m/s; a = 0.25 m/s^2; t = 2.0 s
+  expect solved
+  result 1.00 m/s
+
+case kinematics.measured.one-measured-given-among-exact
+  family kinematics
+  input find x; v0 = 5 m/s; a = 3 m/s^2; t = 4.0 s
+  expect solved
+  result 44 m
+
+# Ten point zero less zero point zero one zero is 9.99, which rounds to two figures as 10, so a
+# measured answer is reported as a whole number and crosses a power of ten doing it.
+case kinematics.measured.rounding-across-a-power-of-ten
+  family kinematics
+  input find t; v = 10.0 m/s; v0 = 0.010 m/s; a = 1.0 m/s^2
+  expect solved
+  result 10 s
+
+case kinematics.measured.negative-initial-cancelling-to-zero
+  family kinematics
+  input find v; v0 = -0.50 m/s; a = 0.25 m/s^2; t = 2.0 s
+  expect solved
+  result 0.00 m/s
+
+# d and x are the same quantity, so giving both is giving one of them twice, and the spelling that
+# hides it is the one a user is most likely to reach for.
+case kinematics.given.displacement-under-two-spellings
+  family kinematics
+  input find x; v0 = 5 m/s; d = 44 m; x = 44 m
+  expect not parsed
+
+case kinematics.given.unknown-is-also-known
+  family kinematics
+  input find v; v = 5 m/s; a = 3 m/s^2; t = 4 s
+  expect invalid input
+
+# The outcome is coarse: an equation does apply, and the product just did not fit int64. The detail
+# is the honest half, and it names the limit against each of the three equations that reach x. The
+# outcome stays NoApplicableEquation because a refusal is what lets the search move on to the next
+# candidate instead of halting, which is the same choice the linear solver makes.
+case kinematics.arithmetic.displacement-past-the-representation
+  family kinematics
+  input find x; v0 = 9223372036854775807 m/s; a = 0 m/s^2; t = 1000 s
+  expect no applicable equation
+  detail a value grew past what exact integer arithmetic here can hold
+
+case kinematics.units.time-as-a-frequency
+  family kinematics
+  input find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s^-1
+  expect dimension mismatch

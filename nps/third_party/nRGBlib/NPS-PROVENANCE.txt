@@ -1,0 +1,7 @@
+nRGBlib
+Upstream: https://bitbucket.org/totorigolo/nrgblib
+Version: 0.3 archived source
+Revision: 85dc7a95cb52b417cb5785ab8c8e5928802fc0c7
+Source archive SHA-256: 208ed9ef2a8e9012ad0cab42e748b34224b9d1c3acaeba3906a46025302fb71a
+License: MPL 2.0. See Mozilla-Public-License-v2.0.htm.
+Integration: Unmodified upstream line and circle sources compile with renamed symbols and the parent project's clipped offscreen pixel callback. Framebuffer and screen-copy implementations are not compiled.

@@ -1,0 +1,41 @@
+name: Evidence gap
+description: A requirement or claim whose evidence does not support it
+labels: [evidence-gap]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A compiled object, a linked ELF, a packaged TNS, a loaded module and a visible device effect
+        are separate stages. This is for a claim that reached one stage and was written up as
+        another, or a requirement whose recorded evidence proves something narrower.
+  - type: input
+    id: location
+    attributes:
+      label: Where the claim is written
+      description: The document, requirement ID, report or comment that makes it.
+      placeholder: nps/catalog/families.md, family LIM-SMOOTH
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What it claims
+      description: Quote it rather than summarizing.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What the evidence actually shows
+      description: The stage that was really reached, and how you established that. Paste any output.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

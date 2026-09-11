@@ -1,0 +1,92 @@
+problem: ln(1-2*t)
+variable: t
+outcome: integrated
+result: (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C)
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.indefinite.single-variable
+  envelope version: <not recorded>
+  normalized problem: ln((1 + (-(2 * t))))
+  requested method: integrate by rule
+  active assumption: (1 + (-(2 * t))) > 0
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Integrate ln((1 + (-(2 * t)))) with respect to t
+    rule: calculus.integrate.rules, Integrate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Integrate by rule
+    applicability: every form in the integrand has an antiderivative rule
+    applicability: every function argument and every power base is the variable or linear in it
+    fact: integrate with respect to t
+    rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
+    verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
+    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integrate
+      goal: Integrate ln((1 + (-(2 * t))))
+      rule: i.logarithm-parts, Integration by parts
+      claim: equivalent expression
+      explanation: Differentiate the logarithm and integrate its constant multiplier
+      detail: Choose ln((1 + (-(2 * t)))) as the factor to differentiate and 1 as the factor to integrate. A primitive of 1 is ((1 + (-(2 * t))) * ((-2)^-1)). Multiplying this by the derivative of the logarithm gives 1. Integration by parts therefore gives (((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) minus the integral of 1. The logarithm's argument must stay positive.
+      domain restriction: (1 + (-(2 * t))) > 0
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Use integration by parts, leaving only the integral of 1
+      before: int(ln((1 + (-(2 * t)))), t)
+      after: ((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t)))
+      reversible: no
+      verification: rule-local invariant, passed, the affine argument has constant nonzero derivative, so the product rule reduces the remaining integrand to 1
+      verified: yes
+      1.1.1 transformation
+        phase: integrate
+        goal: Integrate 1
+        rule: i.constant, Constant rule
+        claim: equivalent expression
+        explanation: A constant integrates to the constant times the variable
+        detail: Reach for this when the expression has no variable in it at all. Ask what differentiates to a constant: a constant times the variable does, because differentiating it leaves the constant behind. So 5 integrates to 5 x, and checking that by differentiating gets 5 back.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Multiply the constant by the variable
+        before: int(1, t)
+        after: (1 * t)
+        reversible: no
+        verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+        verified: yes
+    1.2 transformation
+      phase: integrate
+      goal: State the general antiderivative
+      rule: i.constant-of-integration, Constant of integration
+      claim: equivalent expression
+      explanation: Any constant differentiates to zero, so adding one gives another antiderivative
+      detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Add the constant C
+      before: ((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t)))
+      after: (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C)
+      reversible: no
+      verification: rule-local invariant, passed, the derivative of a constant is zero
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the answer
+      rule: calculus.integrate.check-by-differentiation, Check by differentiation
+      claim: equivalent expression
+      explanation: Differentiate the result and compare it with the integrand
+      detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
+      proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
+      target claim: the derivative of (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C) is ln((1 + (-(2 * t))))
+      check method: differentiate by rule, then simplify the exact difference with Giac
+      expected: zero
+      observed: 0
+      verification: native differentiation and Giac exact difference, passed, the exact difference is zero under the recorded domain restrictions
+      verified: yes

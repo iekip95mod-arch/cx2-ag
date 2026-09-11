@@ -1,0 +1,39 @@
+name: Test quality
+description: A check that passes for the wrong reason or cannot fail
+labels: [test-quality]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A check that cannot fail reads as coverage and is worse than an honest gap, because the
+        next person trusts it. Show that it still passes with the thing it guards removed.
+  - type: input
+    id: location
+    attributes:
+      label: File and line
+      placeholder: nps/tests/target/ui_smoke_v4.lua:1204
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What the check is supposed to prove
+      description: Read it from the name, the assertion and whatever it was added alongside.
+    validations:
+      required: true
+  - type: textarea
+    id: mutation
+    attributes:
+      label: The mutation that should have broken it
+      description: What you changed or removed, and the output showing it passed anyway. Paste the output.
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

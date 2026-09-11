@@ -1,0 +1,489 @@
+From 483994413481eb331f05b86845de7404a68b4108 Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Mon, 7 Sep 2026 12:53:36 -0400
+Subject: [PATCH 03/11] Report failed device service completion
+
+---
+ src/service.h              |   5 +
+ src/services/devinfo.c     |   3 +-
+ src/services/dir.c         |  32 +++---
+ src/services/file.c        |  15 +--
+ src/services/os.c          |   3 +-
+ src/services/raw.c         |   3 +-
+ src/services/screenshot.c  |  14 ++-
+ tests/run_service_tests.py |  28 +++++
+ tests/service_test.c       | 205 +++++++++++++++++++++++++++++++++++++
+ 9 files changed, 266 insertions(+), 42 deletions(-)
+ create mode 100644 tests/run_service_tests.py
+ create mode 100644 tests/service_test.c
+
+diff --git a/src/service.h b/src/service.h
+index 6ceb493..fed5a3e 100644
+--- a/src/service.h
++++ b/src/service.h
+@@ -24,4 +24,9 @@
+ int service_connect(nspire_handle_t *handle, uint16_t sid);
+ int service_disconnect(nspire_handle_t *handle);
+ 
++static inline int service_finish(nspire_handle_t *handle, int status) {
++	int close_status = service_disconnect(handle);
++	return status ? status : close_status;
++}
++
+ #endif
+diff --git a/src/services/devinfo.c b/src/services/devinfo.c
+index b4171b6..6825f79 100644
+--- a/src/services/devinfo.c
++++ b/src/services/devinfo.c
+@@ -112,6 +112,5 @@ int nspire_device_info(nspire_handle_t *handle, struct nspire_devinfo *i) {
+ 	ret = NSPIRE_ERR_SUCCESS;
+ 
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+diff --git a/src/services/dir.c b/src/services/dir.c
+index 6ba1eb5..5460788 100644
+--- a/src/services/dir.c
++++ b/src/services/dir.c
+@@ -119,7 +119,7 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
+ 	while (1) {
+ 		ret = dir_enum(handle, info_ptr);
+ 		if (ret < 0)
+-			goto free_list;
++			goto end;
+ 
+ 		if (ret)
+ 			break;
+@@ -128,30 +128,29 @@ int nspire_dirlist(nspire_handle_t *handle, const char *path,
+ 	/* End dir enum */
+ 	if ( (ret = data_build("b", buffer, sizeof(buffer), &len,
+ 			0x0F)) )
+-		goto free_list;
++		goto end;
+ 
+ 	if ( (ret = data_write(handle, buffer, len)) )
+-		goto free_list;
++		goto end;
+ 
+ 	if ( (ret = data_read(handle, buffer, 2, &len)) )
+-		goto free_list;
++		goto end;
+ 
+ 	if ( (ret = data_scan("h", buffer, len, &result)) )
+-		goto free_list;
++		goto end;
+ 
+ 	if (result != 0xFF00 && result != 0xFF11) {
+ 		ret = result == 0xFF0A ? -NSPIRE_ERR_NONEXIST : -NSPIRE_ERR_INVALID;
+-		goto free_list;
++		goto end;
+ 	}
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+-	goto end;
+-free_list:
+-	/* The caller frees only on success, so a failed list is not left for it. */
+-	free(*info_ptr);
+-	*info_ptr = NULL;
+ end:
+-	service_disconnect(handle);
++	ret = service_finish(handle, ret);
++	if (ret) {
++		free(*info_ptr);
++		*info_ptr = NULL;
++	}
+ 	return ret;
+ }
+ 
+@@ -183,8 +182,7 @@ int nspire_dir_create(nspire_handle_t *handle, const char *path) {
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_EXISTS;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_dir_delete(nspire_handle_t *handle, const char *path) {
+@@ -212,8 +210,7 @@ int nspire_dir_delete(nspire_handle_t *handle, const char *path) {
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_NONEXIST;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_attr(nspire_handle_t *handle, const char *path,
+@@ -257,6 +254,5 @@ int nspire_attr(nspire_handle_t *handle, const char *path,
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+diff --git a/src/services/file.c b/src/services/file.c
+index 9937d92..0a8f2b3 100644
+--- a/src/services/file.c
++++ b/src/services/file.c
+@@ -71,8 +71,7 @@ int nspire_file_write(nspire_handle_t *handle, const char *path,
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_NONEXIST;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_file_read(nspire_handle_t *handle, const char *path,
+@@ -138,8 +137,7 @@ int nspire_file_read(nspire_handle_t *handle, const char *path,
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_file_move(nspire_handle_t *handle,
+@@ -168,8 +166,7 @@ int nspire_file_move(nspire_handle_t *handle,
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_INVALID;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_file_copy(nspire_handle_t *handle,
+@@ -198,8 +195,7 @@ int nspire_file_copy(nspire_handle_t *handle,
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_INVALID;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+ int nspire_file_delete(nspire_handle_t *handle, const char *path) {
+@@ -227,7 +223,6 @@ int nspire_file_delete(nspire_handle_t *handle, const char *path) {
+ 
+ 	ret = (result == 0xFF00) ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_EXISTS;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+ 
+diff --git a/src/services/os.c b/src/services/os.c
+index e1fd886..eb311c2 100644
+--- a/src/services/os.c
++++ b/src/services/os.c
+@@ -87,6 +87,5 @@ int nspire_os_send(nspire_handle_t *handle, void* data, size_t size) {
+ 
+ 	ret = NSPIRE_ERR_SUCCESS;
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+diff --git a/src/services/raw.c b/src/services/raw.c
+index 0d3b015..d08f278 100644
+--- a/src/services/raw.c
++++ b/src/services/raw.c
+@@ -38,6 +38,5 @@ int nspire_service_exchange(nspire_handle_t *handle, uint16_t service_id,
+ 	ret = NSPIRE_ERR_SUCCESS;
+ 
+ end:
+-	service_disconnect(handle);
+-	return ret;
++	return service_finish(handle, ret);
+ }
+diff --git a/src/services/screenshot.c b/src/services/screenshot.c
+index 85f6db5..d6c48a0 100644
+--- a/src/services/screenshot.c
++++ b/src/services/screenshot.c
+@@ -122,11 +122,11 @@ int nspire_screenshot(nspire_handle_t *handle, struct nspire_image **ptr) {
+ 
+ 	while (size) {
+ 		if ( (ret = data_read(handle, buffer, sizeof(buffer), &len)) )
+-			goto error_free;
++			goto end;
+ 
+ 		if (len <= 1 || len > sizeof buffer || len - 1 > size) {
+ 			ret = -NSPIRE_ERR_INVALID;
+-			goto error_free;
++			goto end;
+ 		}
+ 		len--;
+ 		memcpy(tmp_ptr, buffer + 1, len);
+@@ -135,14 +135,12 @@ int nspire_screenshot(nspire_handle_t *handle, struct nspire_image **ptr) {
+ 	}
+ 
+ 	if ( (ret = rle_decode(bpp, tmp, i->data, in_len, out_len)) )
+-		goto error_free;
+-	*ptr = i;
++		goto end;
+ 	ret = NSPIRE_ERR_SUCCESS;
+-	goto end;
+-error_free:
+-	if (i) free(i);
+ end:
+ 	if (tmp) free(tmp);
+-	service_disconnect(handle);
++	ret = service_finish(handle, ret);
++	if (ret) free(i);
++	else *ptr = i;
+ 	return ret;
+ }
+diff --git a/tests/run_service_tests.py b/tests/run_service_tests.py
+new file mode 100644
+index 0000000..af0d49a
+--- /dev/null
++++ b/tests/run_service_tests.py
+@@ -0,0 +1,28 @@
++import argparse
++from pathlib import Path
++import shlex
++import subprocess
++import sys
++import tempfile
++
++parser = argparse.ArgumentParser()
++parser.add_argument("--cc", default="clang")
++parser.add_argument("--sanitize", action="store_true")
++args = parser.parse_args()
++root = Path(__file__).resolve().parents[1]
++build = Path(tempfile.mkdtemp(prefix="libnspire-service-"))
++print(f"Test artifacts: {build}", flush=True)
++includes = [f"-I{root}", f"-I{root / 'src'}", f"-I{root / 'src/services'}", f"-I{root / 'src/api'}"]
++includes += shlex.split(subprocess.check_output(["pkg-config", "--cflags", "libusb-1.0"], text=True))
++flags = ["-std=gnu11", "-g", "-O1", "-ffunction-sections", "-fdata-sections"]
++if args.sanitize:
++    flags += ["-fsanitize=address,undefined", "-fno-sanitize-recover=all", "-fno-omit-frame-pointer"]
++decoder = build / "data.o"
++subprocess.run([args.cc, *flags, *includes, "-Ddata_read=unused_data_read", "-Ddata_write=unused_data_write",
++                "-Ddata_write_special=unused_data_write_special", "-c", str(root / "src/data.c"), "-o", str(decoder)], check=True)
++sources = [str(root / f"src/services/{name}.c") for name in ("file", "dir", "screenshot", "devinfo", "raw", "os")]
++binary = build / "service-tests"
++strip = "-Wl,-dead_strip" if sys.platform == "darwin" else "-Wl,--gc-sections"
++subprocess.run([args.cc, *flags, *includes, str(root / "src/service.c"), *sources,
++                str(root / "tests/service_test.c"), str(decoder), strip, "-o", str(binary)], check=True)
++subprocess.run([str(binary)], check=True, timeout=15)
+diff --git a/tests/service_test.c b/tests/service_test.c
+new file mode 100644
+index 0000000..7f1a2b9
+--- /dev/null
++++ b/tests/service_test.c
+@@ -0,0 +1,205 @@
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "src/data.h"
++#include "src/service.h"
++#include "src/api/error.h"
++#include "src/api/dir.h"
++#include "src/api/screenshot.h"
++#include "src/api/devinfo.h"
++#include "src/api/raw.h"
++#include "src/api/os.h"
++
++struct frame {
++	unsigned char bytes[254];
++	size_t length;
++};
++
++static struct frame incoming[8];
++static unsigned queued, received, written, closed, failures;
++static int close_error, write_error;
++
++uint32_t packet_max_datasize(nspire_handle_t *handle)
++{
++	(void)handle;
++	return 254;
++}
++
++int data_write_special(nspire_handle_t *handle, void *bytes, size_t length,
++		void (*callback)(struct packet *))
++{
++	struct packet packet = { 0 };
++	assert(callback && length == 2);
++	callback(&packet);
++	assert(packet.src_sid == 0x40DE);
++	assert(((unsigned char *)bytes)[0] == (handle->host_sid >> 8));
++	assert(((unsigned char *)bytes)[1] == (handle->host_sid & 0xFF));
++	closed++;
++	return close_error;
++}
++
++int data_write(nspire_handle_t *handle, void *bytes, size_t length)
++{
++	(void)bytes;
++	assert(handle->connected && length);
++	written++;
++	return write_error;
++}
++
++int data_read(nspire_handle_t *handle, void *bytes, size_t capacity, size_t *actual)
++{
++	assert(handle->connected && received < queued);
++	struct frame *frame = &incoming[received++];
++	assert(frame->length <= capacity);
++	memset(bytes, 0, capacity);
++	memcpy(bytes, frame->bytes, frame->length);
++	if (actual) *actual = frame->length;
++	return 0;
++}
++
++static void push(const void *bytes, size_t length)
++{
++	assert(queued < 8 && length <= sizeof incoming[0].bytes);
++	memcpy(incoming[queued].bytes, bytes, length);
++	incoming[queued++].length = length;
++}
++
++static void status(unsigned code)
++{
++	unsigned char bytes[] = { code >> 8, code };
++	push(bytes, sizeof bytes);
++}
++
++static const char *names[] = {
++	"file write", "file read", "file move", "file copy", "file delete",
++	"directory list", "directory create", "directory delete", "attribute",
++	"screenshot", "device info", "raw exchange", "OS send"
++};
++
++static void check_api(unsigned which, int closing, int primary)
++{
++	nspire_handle_t handle = { 0 };
++	handle.host_sid = 0x8000;
++	queued = received = written = closed = 0;
++	close_error = closing;
++	write_error = primary;
++	unsigned char bytes[254] = { 0 };
++	size_t length = 0, count = 99;
++	struct nspire_dir_info *listing = NULL;
++	struct nspire_image *image = NULL;
++	struct nspire_dir_item attribute;
++	struct nspire_devinfo info;
++	int code;
++	switch (which) {
++	case 0:
++		bytes[0] = 4;
++		push(bytes, 1);
++		status(0xFF00);
++		code = nspire_file_write(&handle, "/a", bytes, 1);
++		break;
++	case 1:
++		assert(!data_build("h000000000w", bytes, sizeof bytes, &length, 0x0301, UINT32_C(1)));
++		push(bytes, length);
++		status(0x0561);
++		code = nspire_file_read(&handle, "/a", bytes, sizeof bytes, &count);
++		if (!primary) assert(count == 1 && bytes[0] == 'a');
++		break;
++	case 2:
++		status(0xFF00);
++		code = nspire_file_move(&handle, "/a", "/b");
++		break;
++	case 3:
++		status(0xFF00);
++		code = nspire_file_copy(&handle, "/a", "/b");
++		break;
++	case 4:
++		status(0xFF00);
++		code = nspire_file_delete(&handle, "/a");
++		break;
++	case 5:
++		status(0xFF00);
++		assert(!data_build("hbswwb0", bytes, sizeof bytes, &length, 0x1000, 0, "a", UINT32_C(37), UINT32_C(9), 0));
++		push(bytes, length);
++		status(0xFF11);
++		status(0xFF00);
++		code = nspire_dirlist(&handle, "/", &listing);
++		if (!code) assert(listing && listing->num == 1 && listing->items[0].size == 37);
++		break;
++	case 6:
++		status(0xFF00);
++		code = nspire_dir_create(&handle, "/a");
++		break;
++	case 7:
++		status(0xFF00);
++		code = nspire_dir_delete(&handle, "/a");
++		break;
++	case 8:
++		assert(!data_build("bwwb0", bytes, sizeof bytes, &length, 0x20, UINT32_C(37), UINT32_C(9), 0));
++		push(bytes, length);
++		code = nspire_attr(&handle, "/a", &attribute);
++		if (!primary) assert(attribute.size == 37 && attribute.date == 9);
++		break;
++	case 9:
++		assert(!data_build("bwhhhhbb", bytes, sizeof bytes, &length, 0, UINT32_C(3), 0, 0, 4, 1, 8, 0));
++		push(bytes, length);
++		bytes[0] = 1;
++		bytes[1] = 1;
++		bytes[2] = 0x12;
++		bytes[3] = 0x34;
++		push(bytes, 4);
++		code = nspire_screenshot(&handle, &image);
++		if (!code) assert(image && image->width == 4 && image->data[0] == 0x12);
++		break;
++	case 10:
++		push(bytes, 253);
++		push("\2CX II", 7);
++		push("\3tns\0tcc", 9);
++		code = nspire_device_info(&handle, &info);
++		if (!primary) assert(!strcmp(info.device_name, "CX II"));
++		break;
++	case 11:
++		status(0x6B01);
++		code = nspire_service_exchange(&handle, 0x4044, "restart", 7, bytes, sizeof bytes, &count);
++		if (!primary) assert(count == 2 && bytes[0] == 'k' && bytes[1] == 1);
++		break;
++	default:
++		status(0x0400);
++		status(0xFF00);
++		status(0x0664);
++		code = nspire_os_send(&handle, bytes, 1);
++		break;
++	}
++	int expected = primary ? primary : closing;
++	if (code != expected || (code && (listing || image))) {
++		fprintf(stderr, "%s close=%d primary=%d returned=%d expected=%d owned_output=%d\n",
++			names[which], closing, primary, code, expected, listing != NULL || image != NULL);
++		failures++;
++	}
++	free(listing);
++	free(image);
++	assert(closed == 1 && written > 0);
++	if (primary) assert(received == 0 && written == 1);
++	else assert(received == queued);
++	assert(handle.connected == (closing != 0));
++	assert(handle.host_sid == (closing ? 0x8000 : 0x8001));
++	assert(service_connect(&handle, 0x4020) == (closing ? -NSPIRE_ERR_BUSY : 0));
++}
++
++int main(void)
++{
++	const int closing[] = { 0, -NSPIRE_ERR_TIMEOUT, -NSPIRE_ERR_DISCONNECTED, -NSPIRE_ERR_INVALPKT };
++	for (unsigned which = 0; which < sizeof names / sizeof names[0]; which++) {
++		for (unsigned close = 0; close < sizeof closing / sizeof closing[0]; close++) {
++			check_api(which, closing[close], 0);
++			check_api(which, closing[close], -NSPIRE_ERR_NONEXIST);
++		}
++	}
++	if (failures) {
++		fprintf(stderr, "service completion: %u failures\n", failures);
++		return 1;
++	}
++	puts("service completion: 13 APIs, 104 success/close/primary-error cases passed");
++	return 0;
++}
+-- 
+2.55.0
+

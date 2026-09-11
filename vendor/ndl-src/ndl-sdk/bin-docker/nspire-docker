@@ -1,0 +1,19 @@
+#!/bin/sh
+# forward the command to the Docker container
+script=`basename $0`
+sudo_prefix=
+if ! groups | tr ' ' '\n' | grep docker >/dev/null; then
+	echo "Warning: You should add your user to the 'docker' group to avoid sudo password prompt"
+	echo "see https://docs.docker.com/installation/ubuntulinux/#giving-non-root-access"
+	sudo_prefix='sudo'
+fi
+uid=`id -u`
+gid=`id -g`
+# as created by Dockerfile.arm-gcc
+ndl_uid=1000
+args="$@"
+# works around https://github.com/docker/docker/issues/7198 :
+# creates and uses the user 'ndcmduser' with the same uid/gid as the current, for proper file permissions of volume
+# uses the default user 'ndl' if it has the same uid
+$sudo_prefix docker run -v /:/hroot -v $HOME/.ndl:/home/ndcmduser/.ndl -w /hroot$(pwd) -i ndl/sdk bash -c "usertouse=ndl; [ $uid -ne $ndl_uid ] && usertouse=ndcmduser && groupadd --gid $gid ndcmdgrp && useradd --uid $uid --gid $gid ndcmduser; su \$usertouse -c \"env PATH=\$PATH $script $args\""
+

@@ -1,0 +1,182 @@
+problem: drone (36, -18) km/h; wind (3, 1) m/s; frame = ground
+variable: drone velocity relative to wind
+outcome: solved
+result: (7 i - 6 j) m/s; drone moves southeast relative to wind in the declared east-north axes
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.kinematics.relative-motion.components.two-dimension
+  envelope version: <not recorded>
+  normalized problem: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2), east-north)
+  requested method: validate two velocity vectors, convert to SI, subtract matching components, verify, and interpret direction
+  active assumption: both velocities use frame ground
+  active assumption: positive i is east and positive j is north
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact SI conversion and component subtraction, final-only precision
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find the subject velocity relative to the reference
+    rule: physics.relative-motion.plan, Cartesian relative-motion plan
+    claim: no claim
+    explanation: Check roles, dimensions and frame before applying relative velocity component by component
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Relative velocity from Cartesian components
+    applicability: both inputs are two-dimensional velocities
+    applicability: both velocities declare named frames
+    applicability: both velocities use the same frame
+    applicability: positive i is east and positive j is north
+    applicability: both inputs have velocity dimension
+    fact: subject: drone
+    fact: reference: wind
+    alternative: explicit frame transformation from a supplied basis
+    rationale: the existing exact vector subtraction produces the candidate and Giac checks each component
+    verification: rank comparison, passed, ranks 2 and 2
+    verification: frame declaration, passed, frames 'ground' and 'ground'
+    verification: frame identity, passed, frames 'ground' and 'ground'
+    verification: coordinate convention validation, passed, the supplied coordinate convention is registered and valid
+    verification: dimensional analysis, passed, subject L T^-1, reference L T^-1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check both velocity ranks
+      rule: physics.relative-motion.check-rank, Relative-motion vector rank
+      claim: definition
+      explanation: This family resolves motion in one Cartesian plane
+      proof obligation: obl.relative-motion.rank-two, both velocity vectors have rank two
+      target claim: both velocities are two-dimensional
+      check method: rank comparison
+      expected: rank 2 and rank 2
+      observed: ranks 2 and 2
+      verification: rank comparison, passed, ranks 2 and 2
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check that both velocity frames are declared
+      rule: physics.relative-motion.check-frame-declared, Declared velocity frames
+      claim: definition
+      explanation: A component vector needs a named Cartesian frame
+      proof obligation: obl.relative-motion.frames-declared, both velocity vectors declare a nonempty frame
+      target claim: both velocities name their frame
+      check method: frame declaration
+      expected: two nonempty frame names
+      observed: frames 'ground' and 'ground'
+      verification: frame declaration, passed, frames 'ground' and 'ground'
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check that both velocity frames match
+      rule: physics.relative-motion.check-frame-match, Matching velocity frames
+      claim: definition
+      explanation: Subtracting components across frames needs an explicit basis transformation
+      proof obligation: obl.relative-motion.frames-match, both velocities use the same frame
+      target claim: subject and reference velocities share one frame
+      check method: frame identity
+      expected: identical frame names
+      observed: frames 'ground' and 'ground'
+      verification: frame identity, passed, frames 'ground' and 'ground'
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check both physical quantity roles
+      rule: physics.relative-motion.check-input-dimensions, Velocity dimensions
+      claim: definition
+      explanation: Relative velocity subtracts two quantities with dimension L T^-1
+      proof obligation: obl.relative-motion.velocity-dimensions, both supplied vectors are velocities
+      target claim: both inputs have velocity dimension
+      check method: dimensional analysis
+      expected: subject L T^-1, reference L T^-1
+      observed: subject L T^-1, reference L T^-1
+      verification: dimensional analysis, passed, subject L T^-1, reference L T^-1
+      verified: yes
+    1.5 transformation
+      phase: solve
+      goal: Apply the relative velocity relation
+      rule: physics.relative-motion.definition, Relative velocity definition
+      claim: definition
+      explanation: Use v(subject/reference) = v(subject) - v(reference)
+      detail: Reach for this whenever a question asks how fast one thing is moving as seen from another that is itself moving: a car from another car, a boat from the water, a plane from the air. Subtracting the reference's velocity is what it means to watch from the reference: if you were moving alongside it, its own velocity would look like zero and everything else would shift by the same amount. The order matters, because subject minus reference and reference minus subject point opposite ways.
+      proof obligation: obl.relative-motion.definition-after-checks, the relative velocity definition is applied only after its conditions pass
+      action: Apply v(subject/reference) = v(subject) - v(reference)
+      before: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2), east-north)
+      after: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
+      reversible: no
+      verification: checked physical-law applicability, passed, the roles, ranks, frames and velocity dimensions passed
+      verified: yes
+    1.6 transformation
+      phase: solve
+      goal: Convert both velocity vectors to SI
+      rule: physics.relative-motion.convert-si, Exact SI conversion
+      claim: equivalent expression
+      explanation: Apply each declared unit's exact scale to both active components
+      detail: Reach for this whenever the two velocities are written in different units, or in any unit that is not metres per second. Subtracting a speed in km/h from one in m/s would be subtracting two different things, so both go onto the same scale first. The scale factors are exact, so this loses nothing and nothing is rounded yet.
+      proof obligation: obl.physics.converts-by-table, the SI form comes from the unit table's exact factor for the entered unit
+      action: Convert both velocities to m/s
+      before: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
+      after: (relative_velocity(drone, wind) = (framed_vector(vector(10, -5), 1, ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
+      reversible: yes
+      verification: unit table, passed, both velocity scales were applied exactly
+      verified: yes
+    1.7 check
+      phase: check
+      goal: Check the result dimension
+      rule: physics.relative-motion.check-result-dimension, Relative velocity dimension
+      claim: definition
+      explanation: Subtracting two velocities preserves velocity dimension
+      proof obligation: obl.relative-motion.result-dimension, the relative velocity has dimension L T^-1
+      target claim: the component result remains a velocity
+      check method: dimensional analysis
+      expected: L T^-1
+      observed: L T^-1
+      verification: dimensional analysis, passed, L T^-1
+      verified: yes
+    1.8 transformation
+      phase: solve
+      goal: Subtract the i velocity components
+      rule: physics.relative-motion.component-i, Relative velocity component
+      claim: equivalent expression
+      explanation: Subtract the reference component from the subject component
+      detail: Reach for this once both velocities are in the same units and the subtraction is ready to happen. Vectors subtract one axis at a time, so the i components make the answer's i component and the j components make its j, with no interaction between the two. Each of those is ordinary subtraction of numbers, which is the reason for splitting the velocities into components in the first place.
+      proof obligation: obl.relative-motion.component-i, the i component equals subject velocity minus reference velocity
+      action: 10 - 3 = 7
+      before: (10 + (-3))
+      after: 7
+      reversible: yes
+      verification: nps vector_sub, passed, 7
+      verification: Giac Simplify and local canonical comparison, passed, Giac's exact component matches vector_sub
+      verified: yes
+      backend requests: 1
+    1.9 transformation
+      phase: solve
+      goal: Subtract the j velocity components
+      rule: physics.relative-motion.component-j, Relative velocity component
+      claim: equivalent expression
+      explanation: Subtract the reference component from the subject component
+      detail: Reach for this once both velocities are in the same units and the subtraction is ready to happen. Vectors subtract one axis at a time, so the i components make the answer's i component and the j components make its j, with no interaction between the two. Each of those is ordinary subtraction of numbers, which is the reason for splitting the velocities into components in the first place.
+      proof obligation: obl.relative-motion.component-j, the j component equals subject velocity minus reference velocity
+      action: -5 - 1 = -6
+      before: (-5 + (-1))
+      after: -6
+      reversible: yes
+      verification: nps vector_sub, passed, -6
+      verification: Giac Simplify and local canonical comparison, passed, Giac's exact component matches vector_sub
+      verified: yes
+      backend requests: 1
+    1.10 check
+      phase: check
+      goal: Interpret the component signs
+      rule: physics.relative-motion.interpret-direction, Relative direction
+      claim: definition
+      explanation: The declared east-north axes give physical meaning to each exact component sign
+      proof obligation: obl.relative-motion.direction-interpreted, the relative velocity direction follows both component signs
+      target claim: the direction is interpreted in the declared axes
+      check method: exact rational sign
+      expected: east-north sign mapping
+      observed: southeast
+      verification: exact rational sign, passed, drone moves southeast relative to wind in the declared east-north axes
+      verified: yes

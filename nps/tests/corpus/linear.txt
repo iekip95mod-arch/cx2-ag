@@ -1,0 +1,1269 @@
+# Single-variable linear equations and formula isolation, PRD section 22.1 row 1.
+#
+# A case names its input, its unknown, the outcome the engine must reach and, where there is one,
+# the answer. The answer is written the way a person writes it and compared in canonical form, so a
+# case does not have to spell the printer's parenthesisation.
+#
+# Every expected value here was worked out from the mathematics, not read off the engine. Where the
+# two disagree the disagreement is the finding.
+
+case linear.identity.integer
+  family linear
+  input x = 7
+  unknown x
+  expect solved
+  result 7
+
+case linear.identity.negative
+  family linear
+  input x = -12
+  unknown x
+  expect solved
+  result -12
+
+case linear.add.integer
+  family linear
+  input x + 5 = 12
+  unknown x
+  expect solved
+  result 7
+
+case linear.add.constant-first
+  family linear
+  input 5 + x = 12
+  unknown x
+  expect solved
+  result 7
+
+case linear.add.negative-answer
+  family linear
+  input x + 20 = 12
+  unknown x
+  expect solved
+  result -8
+
+case linear.add.zero-answer
+  family linear
+  input x + 9 = 9
+  unknown x
+  expect solved
+  result 0
+
+case linear.subtract.integer
+  family linear
+  input x - 5 = 12
+  unknown x
+  expect solved
+  result 17
+
+case linear.subtract.negative-answer
+  family linear
+  input x - 5 = -12
+  unknown x
+  expect solved
+  result -7
+
+case linear.coefficient.integer
+  family linear
+  input 3x = 12
+  unknown x
+  expect solved
+  result 4
+
+case linear.coefficient.rational
+  family linear
+  input 3x = 13
+  unknown x
+  expect solved
+  result 13/3
+
+case linear.coefficient.negative-answer
+  family linear
+  input 4x = -20
+  unknown x
+  expect solved
+  result -5
+
+case linear.coefficient.zero-answer
+  family linear
+  input 7x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.coefficient.symbol-last
+  family linear
+  input x*3 = 12
+  unknown x
+  expect solved
+  result 4
+
+case linear.coefficient.unit-negative
+  family linear
+  input -x = 7
+  unknown x
+  expect solved
+  result -7
+
+case linear.two-step.worked-example
+  family linear
+  input 2x + 5 = 13
+  unknown x
+  expect solved
+  result 4
+
+case linear.two-step.rational
+  family linear
+  input 2x + 5 = 14
+  unknown x
+  expect solved
+  result 9/2
+
+case linear.two-step.negative-answer
+  family linear
+  input 2x + 15 = 5
+  unknown x
+  expect solved
+  result -5
+
+case linear.two-step.zero-answer
+  family linear
+  input 4x + 6 = 6
+  unknown x
+  expect solved
+  result 0
+
+case linear.two-step.subtracted-constant
+  family linear
+  input 2x - 5 = 13
+  unknown x
+  expect solved
+  result 9
+
+case linear.two-step.constant-first
+  family linear
+  input 5 + 2x = 13
+  unknown x
+  expect solved
+  result 4
+
+case linear.two-step.reversed-sides
+  family linear
+  input 13 = 2x + 5
+  unknown x
+  expect solved
+  result 4
+
+case linear.both-sides.integer
+  family linear
+  input 2x + 5 = 3x + 1
+  unknown x
+  expect solved
+  result 4
+
+case linear.both-sides.rational
+  family linear
+  input 2x + 5 = 3x + 2
+  unknown x
+  expect solved
+  result 3
+
+case linear.both-sides.larger-left
+  family linear
+  input 5x + 2 = 2x + 11
+  unknown x
+  expect solved
+  result 3
+
+case linear.both-sides.negative-answer
+  family linear
+  input 3x + 10 = x + 2
+  unknown x
+  expect solved
+  result -4
+
+case linear.bracket.simple
+  family linear
+  input 2(x + 3) = 10
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.subtracted-inner
+  family linear
+  input 3(x - 2) + 4 = 10
+  unknown x
+  expect solved
+  result 4
+
+case linear.bracket.coefficient-inside
+  family linear
+  input 2*(3x + 1) = 14
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.both-sides
+  family linear
+  input 2(x + 1) = 3(x - 1)
+  unknown x
+  expect solved
+  result 5
+
+case linear.divided.unit-coefficient
+  family linear
+  input x/2 = 6
+  unknown x
+  expect solved
+  result 12
+
+case linear.divided.with-coefficient
+  family linear
+  input 2x/3 = 8
+  unknown x
+  expect solved
+  result 12
+
+case linear.divided.two-fractions
+  family linear
+  input x/2 + x/3 = 5
+  unknown x
+  expect solved
+  result 6
+
+case linear.divided.fraction-and-constant
+  family linear
+  input x/4 + 2 = 5
+  unknown x
+  expect solved
+  result 12
+
+case linear.decimal.coefficient
+  family linear
+  input 0.5x = 2
+  unknown x
+  expect solved
+  result 4
+
+case linear.decimal.constant
+  family linear
+  input x + 0.5 = 1.5
+  unknown x
+  expect solved
+  result 1
+
+case linear.decimal.two-step
+  family linear
+  input 2.5x + 1.5 = 6.5
+  unknown x
+  expect solved
+  result 2
+
+case linear.wide.integer-boundary
+  family linear
+  input x + 9223372036854775806 = 9223372036854775807
+  unknown x
+  expect solved
+  result 1
+
+case linear.degenerate.no-solution
+  family linear
+  input x + 1 = x + 2
+  unknown x
+  expect no solution
+
+case linear.degenerate.no-solution-scaled
+  family linear
+  input 2x + 1 = 2x + 5
+  unknown x
+  expect no solution
+
+case linear.degenerate.every-value
+  family linear
+  input x + 1 = x + 1
+  unknown x
+  expect true for every value
+
+case linear.degenerate.every-value-cancelled
+  family linear
+  input x - x = 0
+  unknown x
+  expect true for every value
+
+case linear.degenerate.every-value-scaled
+  family linear
+  input 2(x + 1) = 2x + 2
+  unknown x
+  expect true for every value
+
+case linear.other-symbol.solved
+  family linear
+  input 3y + 6 = 21
+  unknown y
+  expect solved
+  result 5
+
+case linear.other-symbol.two-letter
+  family linear
+  input 2v0 + 4 = 14
+  unknown v0
+  expect solved
+  result 5
+
+case linear.both-sides.constants-only-left
+  family linear
+  input 2x + 5 = 3x
+  unknown x
+  expect solved
+  result 5
+
+case linear.both-sides.unknown-only-right
+  family linear
+  input 12 = 4x
+  unknown x
+  expect solved
+  result 3
+
+case linear.both-sides.negated-unknown
+  family linear
+  input -x + 6 = 2x
+  unknown x
+  expect solved
+  result 2
+
+case linear.both-sides.rational-answer
+  family linear
+  input 3x + 1 = x + 4
+  unknown x
+  expect solved
+  result 3/2
+
+case linear.bracket.negated
+  family linear
+  input -(x + 3) = 5
+  unknown x
+  expect solved
+  result -8
+
+case linear.bracket.nested
+  family linear
+  input 2*(3*(x + 1)) = 18
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.subtracted
+  family linear
+  input 10 - (x + 2) = 3
+  unknown x
+  expect solved
+  result 5
+
+case linear.bracket.times-a-fraction
+  family linear
+  input (x + 2)/2 = 5
+  unknown x
+  expect solved
+  result 8
+
+case linear.divided.by-a-negative
+  family linear
+  input x/-2 = 3
+  unknown x
+  expect solved
+  result -6
+
+case linear.divided.three-fractions
+  family linear
+  input x/2 + x/3 + x/6 = 4
+  unknown x
+  expect solved
+  result 4
+
+case linear.divided.fraction-both-sides
+  family linear
+  input x/2 = x/3 + 1
+  unknown x
+  expect solved
+  result 6
+
+case linear.decimal.both-sides
+  family linear
+  input 1.5x + 2 = 0.5x + 5
+  unknown x
+  expect solved
+  result 3
+
+case linear.decimal.negative-answer
+  family linear
+  input 0.25x = -1
+  unknown x
+  expect solved
+  result -4
+
+case linear.wide.coefficient-boundary
+  family linear
+  input 9223372036854775807x = 9223372036854775807
+  unknown x
+  expect solved
+  result 1
+
+case linear.degenerate.every-value-negated
+  family linear
+  input -(x + 1) = -x - 1
+  unknown x
+  expect true for every value
+
+case linear.degenerate.no-solution-bracketed
+  family linear
+  input 2*(x + 1) = 2x + 3
+  unknown x
+  expect no solution
+
+case linear.degenerate.zero-coefficient-both-sides
+  family linear
+  input 3x + 4 = 3x + 4
+  unknown x
+  expect true for every value
+
+case linear.identity.zero
+  family linear
+  input x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.identity.rational
+  family linear
+  input x = 3/2
+  unknown x
+  expect solved
+  result 3/2
+
+case linear.identity.reversed
+  family linear
+  input 7 = x
+  unknown x
+  expect solved
+  result 7
+
+case linear.subtract.zero-right
+  family linear
+  input x - 3 = 0
+  unknown x
+  expect solved
+  result 3
+
+case linear.two-step.subtracted-to-zero
+  family linear
+  input 2x - 6 = 0
+  unknown x
+  expect solved
+  result 3
+
+case linear.two-step.added-to-zero
+  family linear
+  input 2x + 6 = 0
+  unknown x
+  expect solved
+  result -3
+
+case linear.coefficient.negative
+  family linear
+  input -2x = 6
+  unknown x
+  expect solved
+  result -3
+
+case linear.two-step.negative-coefficient
+  family linear
+  input -2x + 1 = 5
+  unknown x
+  expect solved
+  result -2
+
+case linear.two-step.unit-negative-coefficient
+  family linear
+  input -x + 5 = 2
+  unknown x
+  expect solved
+  result 3
+
+case linear.two-step.negative-coefficient-to-zero
+  family linear
+  input 4 - 2x = 0
+  unknown x
+  expect solved
+  result 2
+
+case linear.divided.fraction-less-a-constant
+  family linear
+  input x/2 - 1 = 3
+  unknown x
+  expect solved
+  result 8
+
+case linear.bracket.shifted-over-a-divisor
+  family linear
+  input (x - 1)/3 = 2
+  unknown x
+  expect solved
+  result 7
+
+case linear.bracket.linear-over-a-divisor
+  family linear
+  input (2x + 1)/3 = 3
+  unknown x
+  expect solved
+  result 4
+
+case linear.bracket.plus-a-constant
+  family linear
+  input 2(x + 1) + 3 = 11
+  unknown x
+  expect solved
+  result 3
+
+case linear.bracket.coefficient-and-shift-inside
+  family linear
+  input 3(2x - 1) = 9
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.against-a-linear-side
+  family linear
+  input 2(x + 1) = x + 5
+  unknown x
+  expect solved
+  result 3
+
+case linear.bracket.on-the-right
+  family linear
+  input x + 3 = 2(x - 1)
+  unknown x
+  expect solved
+  result 5
+
+case linear.both-sides.no-constant-left
+  family linear
+  input 4x = 2x + 6
+  unknown x
+  expect solved
+  result 3
+
+case linear.both-sides.subtracted-left
+  family linear
+  input 5x - 2 = 3x + 4
+  unknown x
+  expect solved
+  result 3
+
+case linear.divided.fractions-and-constants-both-sides
+  family linear
+  input x/2 + 1 = x/3 + 2
+  unknown x
+  expect solved
+  result 6
+
+case linear.divided.coefficient-fraction-plus-constant
+  family linear
+  input 2x/3 + 1 = 5
+  unknown x
+  expect solved
+  result 6
+
+case linear.decimal.small-coefficient
+  family linear
+  input 0.1x = 1
+  unknown x
+  expect solved
+  result 10
+
+case linear.decimal.subtracted-constant
+  family linear
+  input x - 0.5 = 0.5
+  unknown x
+  expect solved
+  result 1
+
+case linear.decimal.three-decimals
+  family linear
+  input 1.2x + 0.8 = 3.2
+  unknown x
+  expect solved
+  result 2
+
+case linear.decimal.both-sides-with-a-unit-coefficient
+  family linear
+  input 0.5x + 0.5 = x - 0.5
+  unknown x
+  expect solved
+  result 2
+
+case linear.decimal.integer-answer-from-a-decimal-right
+  family linear
+  input 2x + 5 = 13.0
+  unknown x
+  expect solved
+  result 4
+
+case linear.add.negative-right
+  family linear
+  input x + 2 = -3
+  unknown x
+  expect solved
+  result -5
+
+case linear.coefficient.negative-both
+  family linear
+  input -3x = -12
+  unknown x
+  expect solved
+  result 4
+
+case linear.coefficient.unit-negative-both
+  family linear
+  input -x = -5
+  unknown x
+  expect solved
+  result 5
+
+case linear.two-step.negative-right
+  family linear
+  input 2x + 3 = -5
+  unknown x
+  expect solved
+  result -4
+
+case linear.divided.negative-divisor-and-right
+  family linear
+  input x/-3 = -2
+  unknown x
+  expect solved
+  result 6
+
+case linear.bracket.negated-linear
+  family linear
+  input -(2x + 1) = 5
+  unknown x
+  expect solved
+  result -3
+
+case linear.bracket.negative-coefficient-outside
+  family linear
+  input -2(x - 1) = 4
+  unknown x
+  expect solved
+  result -1
+
+case linear.identity.zero-on-the-left
+  family linear
+  input 0 = x + 4
+  unknown x
+  expect solved
+  result -4
+
+case linear.bracket.reversed-sides
+  family linear
+  input 6 = 2(x + 1)
+  unknown x
+  expect solved
+  result 2
+
+case linear.divided.fraction-both-numbers
+  family linear
+  input x/4 = 1/2
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.divided-then-shifted
+  family linear
+  input (x + 1)/2 + 1 = 4
+  unknown x
+  expect solved
+  result 5
+
+case linear.bracket.fraction-inside
+  family linear
+  input 2*(x/2 + 1) = 6
+  unknown x
+  expect solved
+  result 4
+
+case linear.add.fraction-constant
+  family linear
+  input x + 1/2 = 3/2
+  unknown x
+  expect solved
+  result 1
+
+case linear.coefficient.rational-coefficient
+  family linear
+  input 3/2*x = 3
+  unknown x
+  expect solved
+  result 2
+
+case linear.divided.rational-both-sides
+  family linear
+  input x/2 = 3/4
+  unknown x
+  expect solved
+  result 3/2
+
+case linear.bracket.negative-answer
+  family linear
+  input 2(x + 3) = 0
+  unknown x
+  expect solved
+  result -3
+
+case linear.bracket.rational-answer
+  family linear
+  input 2(x + 3) = 7
+  unknown x
+  expect solved
+  result 1/2
+
+case linear.bracket.zero-answer
+  family linear
+  input 2(x + 3) = 6
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.zero-answer
+  family linear
+  input x/2 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.negative-answer
+  family linear
+  input x/2 = -3
+  unknown x
+  expect solved
+  result -6
+
+case linear.divided.coefficient-zero-answer
+  family linear
+  input 2x/3 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.coefficient-rational-answer
+  family linear
+  input 2x/3 = 5
+  unknown x
+  expect solved
+  result 15/2
+
+case linear.divided.coefficient-negative-answer
+  family linear
+  input 2x/3 = -4
+  unknown x
+  expect solved
+  result -6
+
+case linear.divided.two-fractions-zero-answer
+  family linear
+  input x/2 + x/3 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.two-fractions-negative-answer
+  family linear
+  input x/2 + x/3 = -5
+  unknown x
+  expect solved
+  result -6
+
+case linear.divided.two-fractions-rational-answer
+  family linear
+  input x/2 + x/3 = 1
+  unknown x
+  expect solved
+  result 6/5
+
+case linear.both-sides.zero-answer
+  family linear
+  input 2x + 5 = 3x + 5
+  unknown x
+  expect solved
+  result 0
+
+case linear.both-sides.negative-one
+  family linear
+  input 2x + 5 = 3x + 6
+  unknown x
+  expect solved
+  result -1
+
+case linear.coefficient.negative-zero-answer
+  family linear
+  input -2x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.coefficient.negative-rational-answer
+  family linear
+  input -2x = 5
+  unknown x
+  expect solved
+  result -5/2
+
+case linear.coefficient.negative-positive-answer
+  family linear
+  input -2x = -6
+  unknown x
+  expect solved
+  result 3
+
+case linear.two-step.unit-negative-zero-answer
+  family linear
+  input -x + 5 = 5
+  unknown x
+  expect solved
+  result 0
+
+case linear.two-step.unit-negative-negative-answer
+  family linear
+  input -x + 5 = 8
+  unknown x
+  expect solved
+  result -3
+
+case linear.two-step.unit-negative-rational-answer
+  family linear
+  input -x + 5 = 4.5
+  unknown x
+  expect solved
+  result 1/2
+
+case linear.bracket.shifted-over-a-divisor-positive
+  family linear
+  input (x - 1)/3 = 0
+  unknown x
+  expect solved
+  result 1
+
+case linear.bracket.shifted-over-a-divisor-negative
+  family linear
+  input (x - 1)/3 = -2
+  unknown x
+  expect solved
+  result -5
+
+case linear.bracket.linear-over-a-divisor-rational
+  family linear
+  input (2x + 1)/3 = 0
+  unknown x
+  expect solved
+  result -1/2
+
+case linear.bracket.linear-over-a-divisor-negative
+  family linear
+  input (2x + 1)/3 = -1
+  unknown x
+  expect solved
+  result -2
+
+case linear.bracket.plus-a-constant-zero-answer
+  family linear
+  input 2(x + 1) + 3 = 5
+  unknown x
+  expect solved
+  result 0
+
+case linear.bracket.plus-a-constant-rational-answer
+  family linear
+  input 2(x + 1) + 3 = 4
+  unknown x
+  expect solved
+  result -1/2
+
+case linear.bracket.plus-a-constant-negative-answer
+  family linear
+  input 2(x + 1) + 3 = -1
+  unknown x
+  expect solved
+  result -3
+
+case linear.bracket.coefficient-inside-rational
+  family linear
+  input 3(2x - 1) = 0
+  unknown x
+  expect solved
+  result 1/2
+
+case linear.bracket.coefficient-inside-negative
+  family linear
+  input 3(2x - 1) = -9
+  unknown x
+  expect solved
+  result -1
+
+case linear.both-sides.no-constant-zero-answer
+  family linear
+  input 4x = 2x
+  unknown x
+  expect solved
+  result 0
+
+case linear.both-sides.subtracted-left-zero-answer
+  family linear
+  input 5x - 2 = 3x - 2
+  unknown x
+  expect solved
+  result 0
+
+case linear.both-sides.subtracted-left-negative-answer
+  family linear
+  input 5x - 2 = 3x - 8
+  unknown x
+  expect solved
+  result -3
+
+case linear.divided.fractions-both-sides-zero-answer
+  family linear
+  input x/2 + 1 = x/3 + 1
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.coefficient-fraction-zero-answer
+  family linear
+  input 2x/3 + 1 = 1
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.coefficient-fraction-rational-answer
+  family linear
+  input 2x/3 + 1 = 0
+  unknown x
+  expect solved
+  result -3/2
+
+case linear.decimal.small-coefficient-zero-answer
+  family linear
+  input 0.1x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.decimal.small-coefficient-negative-answer
+  family linear
+  input 0.1x = -1
+  unknown x
+  expect solved
+  result -10
+
+case linear.decimal.small-coefficient-rational-answer
+  family linear
+  input 0.1x = 0.15
+  unknown x
+  expect solved
+  result 3/2
+
+case linear.decimal.three-decimals-zero-answer
+  family linear
+  input 1.2x + 0.8 = 0.8
+  unknown x
+  expect solved
+  result 0
+
+case linear.decimal.three-decimals-rational-answer
+  family linear
+  input 1.2x + 0.8 = 0
+  unknown x
+  expect solved
+  result -2/3
+
+case linear.add.zero-answer-from-a-match
+  family linear
+  input x + 2 = 2
+  unknown x
+  expect solved
+  result 0
+
+case linear.coefficient.negative-three-zero-answer
+  family linear
+  input -3x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.coefficient.negative-three-rational-answer
+  family linear
+  input -3x = 4
+  unknown x
+  expect solved
+  result -4/3
+
+case linear.divided.negative-divisor-zero-answer
+  family linear
+  input x/-3 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.negative-divisor-negative-answer
+  family linear
+  input x/-3 = 2
+  unknown x
+  expect solved
+  result -6
+
+case linear.bracket.negated-linear-rational-answer
+  family linear
+  input -(2x + 1) = 0
+  unknown x
+  expect solved
+  result -1/2
+
+case linear.bracket.negated-linear-positive-answer
+  family linear
+  input -(2x + 1) = -5
+  unknown x
+  expect solved
+  result 2
+
+case linear.bracket.negative-coefficient-outside-positive
+  family linear
+  input -2(x - 1) = 0
+  unknown x
+  expect solved
+  result 1
+
+case linear.bracket.negative-coefficient-outside-larger
+  family linear
+  input -2(x - 1) = -4
+  unknown x
+  expect solved
+  result 3
+
+case linear.bracket.reversed-sides-negative
+  family linear
+  input 0 = 2(x + 1)
+  unknown x
+  expect solved
+  result -1
+
+case linear.bracket.reversed-sides-rational
+  family linear
+  input 5 = 2(x + 1)
+  unknown x
+  expect solved
+  result 3/2
+
+case linear.divided.fraction-both-numbers-zero-answer
+  family linear
+  input x/4 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.fraction-both-numbers-negative-answer
+  family linear
+  input x/4 = -1/2
+  unknown x
+  expect solved
+  result -2
+
+case linear.bracket.divided-then-shifted-negative
+  family linear
+  input (x + 1)/2 + 1 = 1
+  unknown x
+  expect solved
+  result -1
+
+case linear.bracket.divided-then-shifted-more-negative
+  family linear
+  input (x + 1)/2 + 1 = 0
+  unknown x
+  expect solved
+  result -3
+
+case linear.bracket.fraction-inside-negative
+  family linear
+  input 2*(x/2 + 1) = 0
+  unknown x
+  expect solved
+  result -2
+
+case linear.add.fraction-constant-rational-answer
+  family linear
+  input x + 1/2 = 0
+  unknown x
+  expect solved
+  result -1/2
+
+case linear.coefficient.rational-coefficient-zero-answer
+  family linear
+  input 3/2*x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.coefficient.rational-coefficient-rational-answer
+  family linear
+  input 3/2*x = 1
+  unknown x
+  expect solved
+  result 2/3
+
+case linear.divided.rational-both-sides-negative
+  family linear
+  input x/2 = -3/4
+  unknown x
+  expect solved
+  result -3/2
+
+case linear.collect.like-terms-zero-answer
+  family linear
+  input 2x + 3x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.collect.like-terms-rational-answer
+  family linear
+  input 2x + 3x = 3
+  unknown x
+  expect solved
+  result 3/5
+
+case linear.collect.like-terms-negative-answer
+  family linear
+  input 2x + 3x = -10
+  unknown x
+  expect solved
+  result -2
+
+case linear.collect.subtracted-terms-zero-answer
+  family linear
+  input 3x - x = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.collect.subtracted-terms-rational-answer
+  family linear
+  input 3x - x = -5
+  unknown x
+  expect solved
+  result -5/2
+
+case linear.bracket.same-inside-both-sides
+  family linear
+  input 2(x + 1) = 3(x + 1)
+  unknown x
+  expect solved
+  result -1
+
+case linear.bracket.different-inside-both-sides
+  family linear
+  input 2(x + 1) = 3(x - 1)
+  unknown x
+  expect solved
+  result 5
+
+case linear.divided.bracket-over-divisor-both-sides
+  family linear
+  input (x + 2)/2 = (x + 4)/3
+  unknown x
+  expect solved
+  result 2
+
+case linear.divided.bracket-over-divisor-both-sides-negative
+  family linear
+  input (x + 2)/2 = (x - 4)/3
+  unknown x
+  expect solved
+  result -14
+
+case linear.divided.subtracted-fractions-positive
+  family linear
+  input x/2 - x/3 = 1
+  unknown x
+  expect solved
+  result 6
+
+case linear.divided.subtracted-fractions-negative
+  family linear
+  input x/2 - x/3 = -1
+  unknown x
+  expect solved
+  result -6
+
+case linear.divided.subtracted-fractions-zero
+  family linear
+  input x/2 - x/3 = 0
+  unknown x
+  expect solved
+  result 0
+
+case linear.divided.subtracted-fractions-rational-right
+  family linear
+  input x/2 - x/3 = 1/2
+  unknown x
+  expect solved
+  result 3
+
+case linear.subtract.constant-first-zero-answer
+  family linear
+  input 5 - 2x = 5
+  unknown x
+  expect solved
+  result 0
+
+case linear.subtract.constant-first-rational-answer
+  family linear
+  input 5 - 2x = 0
+  unknown x
+  expect solved
+  result 5/2
+
+case linear.subtract.constant-first-negative-answer
+  family linear
+  input 5 - 2x = 9
+  unknown x
+  expect solved
+  result -2
+
+case linear.subtract.unknown-on-both-sides-of-a-difference
+  family linear
+  input 2 - x = x
+  unknown x
+  expect solved
+  result 1
+
+case linear.decimal.bracket-decimal-outside-negative
+  family linear
+  input 0.5(x + 2) = 0
+  unknown x
+  expect solved
+  result -2
+
+case linear.decimal.bracket-decimal-outside-zero
+  family linear
+  input 0.5(x + 2) = 1
+  unknown x
+  expect solved
+  result 0
+
+case linear.decimal.bracket-decimal-outside-rational
+  family linear
+  input 0.5(x + 2) = 0.25
+  unknown x
+  expect solved
+  result -3/2
+
+# The numeric mode cases that used to sit here are in numeric_mode.txt, which holds every family's.

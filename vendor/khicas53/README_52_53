@@ -1,0 +1,19 @@
+This version is for TI Nspire CX II and some CX. It will not work on TI Nspire CX HW-W.
+(use https://www-fourier.univ-grenoble-alpes.fr/~parisse/ti/khicas.zip instead).
+There are two user interfaces for KhiCAS:
+* the KhiCAS native interface, with a shell-like interface, full graph and programming
+support and sessions compatible with Xcas and calculators where KhICAS is ported
+(Numworks, Casio Prizm)
+* the lua interface, fully integrated with TI nspire OS, with 2d input (cf README.khicaslua). Type * enter to run KhiCAS shell from the lua interface.
+
+Cette version est pour les TI Nspire CX II et certaines CX : elle ne fonctionne pas 
+sur les TI Nspire CX HW-W.
+(utilisez https://www-fourier.univ-grenoble-alpes.fr/~parisse/ti/khicas.zip).
+Il y a deux interfaces utilisateur pour KhiCAS:
+* l'interface native KhiCAS, avec un shell, et le support complet pour les graphes
+et la programmation, et des sessions compatibles avec Xcas et d'autres calculatrices
+ou KhiCAS est disponible (Numworks, Casio Graph 90, Casio Graph 35eii)
+(cf. https://www-fourier.univ-grenoble-alpes.fr/~parisse/ti/khicasti.html)
+Le fichier mode_examen explique comment utiliser KhiCAS en mode examen.
+* l'interface lua, integree a l'OS des TI nspire, avec entree en 2d (cf README.khicaslua)
+On peut lancer le shell KhiCAS depuis l'interface lua en tapant * enter

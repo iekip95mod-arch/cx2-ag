@@ -1,0 +1,82 @@
+problem: x^2 + 4 = 0
+variable: x
+outcome: no real solution
+detail: the square of x would have to be (-4), and no real square is negative
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.pure-square.one-unknown
+  envelope version: <not recorded>
+  normalized problem: (((x^2) + 4) = 0)
+  requested method: isolate the square and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.square-root, Isolate the square and split on its roots
+    claim: no claim
+    explanation: Get x^2 alone, then find all real square roots
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Isolate the square and split on its roots
+    applicability: the equation is degree two in x with no term of degree one
+    applicability: the isolated square has an exact rational square root or is negative
+    fact: one unknown, x
+    fact: degree two in x with no term of degree one
+    alternative: the quadratic formula, which this equation does not need because it has no term of degree one
+    rationale: with no term of degree one the square can be isolated in one move, and every real x whose square is that value is then read off directly
+    verification: exact linear analysis in the squared term, passed, both sides reduced to a coefficient on x^2 and a constant term
+    verification: exact rational square root, passed, the isolated square is negative, so no real root is needed
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Get x^2 by itself
+      rule: eq.quadratic.isolate-the-square, Isolate the square
+      claim: solution set preserved
+      explanation: Treat x^2 as the unknown and undo its operations
+      detail: Adding the same quantity to both sides and dividing by a nonzero coefficient preserve the solutions.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Collect on the left: x^2 + 4 = 0. Subtract 4 from both sides
+      before: (((x^2) + 4) = 0)
+      after: ((x^2) = (-4))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the coefficient of x^2 was checked to be non-zero before dividing
+      verified: yes
+      1.1.1 branch
+        phase: solve
+        goal: Rule out a real root
+        rule: eq.quadratic.reject-negative-square, Negative square has no real root
+        claim: solution set preserved
+        explanation: No real number squares to (-4)
+        detail: Reach for this whenever an isolated square comes out negative. Squaring a real number never gives a negative, so the case is rejected rather than solved, and the equation has no real solution rather than an unfinished one.
+        proof obligation: obl.quadratic.rejected-case-is-infeasible, no real value satisfies the condition this case stands for
+        condition: ((x^2) = (-4))
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: sign of a real square
+        feasibility: infeasible over the reals
+        resolution: rejected
+        resolution evidence: no real number squares to a negative
+        verification: sign of a real square, passed, the isolated square is (-4), and a real square is never negative
+        verified: yes
+      1.1.2 check
+        phase: check
+        goal: Check that no case is missing
+        rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+        claim: solution set preserved
+        explanation: A real square is never negative, so there is no case to miss
+        detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+        proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+        target claim: the cases recorded are every real solution of the equation
+        check method: inspect the sign of the isolated square
+        expected: the isolated square is negative
+        observed: the isolated square is negative
+        verification: sign of a real square, passed, the isolated square is negative, so the empty set of roots is complete
+        verified: yes

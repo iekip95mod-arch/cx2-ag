@@ -1,0 +1,47 @@
+problem: iquo(17,5)
+outcome: evaluated
+result: 3
+detail: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The quotient is 3
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: number.integer-method.literal
+  envelope version: 2
+  normalized problem: iquo(17, 5)
+  requested method: iquo
+  angle convention: not applicable
+  branch convention: nonnegative integers
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: integer
+    goal: iquo(17, 5)
+    rule: plan.integer-method, Divide into equal groups and check the remainder
+    claim: no claim
+    explanation: Divide into equal groups and check the remainder
+    detail: iquo(17, 5): Divide into equal groups and check the remainder
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Divide into equal groups and check the remainder
+    applicability: nonnegative integer literals fit the method's stated bounds
+    fact: iquo(17, 5)
+    rationale: The literal arguments fit this exact finite method
+    verification: integer envelope validation, passed, iquo(17, 5)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integer
+      goal: iquo(17, 5)
+      rule: int.division, Divide into equal groups and check the remainder
+      claim: equivalent expression
+      explanation: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The quotient is 3
+      detail: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The quotient is 3. For a nonnegative dividend and positive divisor, the identity dividend = divisor * quotient + remainder with 0 <= remainder < divisor determines one quotient and one remainder
+      proof obligation: obl.int.division-identity, Divide into equal groups and check the remainder
+      action: 17 = 5 * 3 + 2, with 0 <= 2 < 5. The quotient is 3
+      before: iquo(17, 5)
+      after: 3
+      reversible: yes
+      verification: exact integer division identity, passed, 17 * 1 = 5 * 3 + 2, with 0 <= remainder < divisor
+      verified: yes

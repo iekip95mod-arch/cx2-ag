@@ -1,0 +1,120 @@
+problem: sin(2x) + 1/x
+variable: x
+outcome: integrated
+result: ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C)
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.indefinite.single-variable
+  envelope version: <not recorded>
+  normalized problem: (sin((2 * x)) + (1 * (x^(-1))))
+  requested method: integrate by rule
+  active assumption: x > 0
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Integrate (sin((2 * x)) + (1 * (x^(-1)))) with respect to x
+    rule: calculus.integrate.rules, Integrate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Integrate by rule
+    applicability: every form in the integrand has an antiderivative rule
+    applicability: every function argument and every power base is the variable or linear in it
+    fact: integrate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
+    verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
+    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: integrate
+      goal: Integrate (sin((2 * x)) + (1 * (x^(-1))))
+      rule: i.sum, Sum rule
+      claim: equivalent expression
+      explanation: The integral of a sum is the sum of the integrals
+      detail: Each term is integrated on its own and the results are added.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Integrate each term separately
+      before: int((sin((2 * x)) + (1 * (x^(-1)))), x)
+      after: (((-cos((2 * x))) * (2^-1)) + (1 * ln(x)))
+      reversible: no
+      verification: rule-local invariant, passed, integration is linear, so this holds term by term
+      verified: yes
+      1.1.1 transformation
+        phase: integrate
+        goal: Integrate sin((2 * x))
+        rule: i.linear-substitution, Trigonometric integral with a linear substitution
+        claim: equivalent expression
+        explanation: Substitute for the linear argument, then use the known antiderivative
+        detail: The derivative of (2 * x) with respect to x is 2. Divide the antiderivative by 2 to undo this factor.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Use (-cos((2 * x))), then divide by 2
+        before: int(sin((2 * x)), x)
+        after: ((-cos((2 * x))) * (2^-1))
+        reversible: no
+        verification: rule-local invariant, passed, the argument is linear in the variable with a non-zero coefficient
+        verified: yes
+      1.1.2 transformation
+        phase: integrate
+        goal: Integrate (1 * (x^(-1)))
+        rule: i.constant-multiple, Constant multiple rule
+        claim: equivalent expression
+        explanation: A constant factor stays where it is and the rest is integrated
+        detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. A fixed multiplier can be lifted out, the rest integrated on its own, and the multiplier put back, because scaling a function scales its area by the same amount. Only a factor free of the variable may move: anything that changes has to stay inside.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Take 1 outside the integral
+        before: int((1 * (x^(-1))), x)
+        after: (1 * ln(x))
+        reversible: no
+        verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+        verified: yes
+        1.1.2.1 transformation
+          phase: integrate
+          goal: Integrate (x^(-1))
+          rule: i.reciprocal, Logarithmic integral
+          claim: equivalent expression
+          explanation: The integral of one over the variable is its natural logarithm
+          detail: The logarithm is only defined for a positive argument; for a negative one the antiderivative is the logarithm of the negated argument, so the restriction is recorded rather than hidden inside an absolute value.
+          domain restriction: x > 0
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Use the natural logarithm of x
+          before: int((x^(-1)), x)
+          after: ln(x)
+          reversible: no
+          verification: rule-local invariant, passed, the exponent is minus one and the base is the variable
+          verified: yes
+    1.2 transformation
+      phase: integrate
+      goal: State the general antiderivative
+      rule: i.constant-of-integration, Constant of integration
+      claim: equivalent expression
+      explanation: Any constant differentiates to zero, so adding one gives another antiderivative
+      detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Add the constant C
+      before: (((-cos((2 * x))) * (2^-1)) + (1 * ln(x)))
+      after: ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C)
+      reversible: no
+      verification: rule-local invariant, passed, the derivative of a constant is zero
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the answer
+      rule: calculus.integrate.check-by-differentiation, Check by differentiation
+      claim: equivalent expression
+      explanation: Differentiate the result and compare it with the integrand
+      detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
+      proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
+      target claim: the derivative of ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C) is (sin((2 * x)) + (1 * (x^(-1))))
+      check method: differentiate the result by rule and compare canonical forms
+      expected: ((x^-1) + sin((2 * x)))
+      observed: ((x^-1) + sin((2 * x)))
+      verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
+      verified: yes

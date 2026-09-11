@@ -1,0 +1,7 @@
+EABase
+Upstream: https://github.com/electronicarts/EABase
+Version: EASTL dependency revision
+Revision: 0699a15efdfd20b6cecf02153bfa5663decb653c
+Source archive SHA-256: d33041d12765412080473568fec1e7cc17cde7255b6eb914085ccdf3c00911ad
+License: BSD 3-Clause. See LICENSE.
+Integration: include/Common/EABase/config/eaplatform.h adds EA_PLATFORM_NSPIRE for the ARM926EJ-S target. Other upstream sources are unchanged.

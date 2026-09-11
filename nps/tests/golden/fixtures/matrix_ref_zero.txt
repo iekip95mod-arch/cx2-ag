@@ -1,0 +1,50 @@
+problem: ref([[0,0],[0,0]])
+outcome: reduced
+result: [[0, 0], [0, 0]]
+detail: Every row operation and the final matrix form were verified.
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: matrix.ref.rational
+  envelope version: 1
+  normalized problem: [[0, 0], [0, 0]]
+  requested method: ref
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Row reduction
+    goal: Find ref([[0, 0], [0, 0]])
+    rule: plan.matrix-method, Reduce by reversible row operations
+    claim: no claim
+    explanation: Use row swaps, nonzero row scaling and row addition.
+    detail: Write the matrix after each operation. Keep every column, including any right-hand-side column.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce by reversible row operations
+    applicability: a nonempty matrix of at most 4 by 6 has exact rational cells and provenance
+    fact: [[0, 0], [0, 0]]
+    rationale: The matrix fits the exact rational row-reduction envelope.
+    verification: exact matrix envelope validation, passed, Find ref([[0, 0], [0, 0]])
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    backend requests: 1
+    1.1 check
+      phase: Check the final matrix
+      goal: Verify the recorded matrix and its requested row form
+      rule: matrix.ref-conclusion, Check row echelon form
+      claim: row equivalent
+      explanation: Write the final matrix: [[0, 0], [0, 0]]
+      detail: zero rows are last and leading entries move strictly right with zeros below each pivot. Every recorded row operation was checked exactly.
+      proof obligation: obl.matrix.trace-complete, the final matrix ends a complete verified row-operation trace
+      proof obligation: obl.matrix.ref-form, the final matrix satisfies the requested exact row form
+      target claim: The final matrix is row equivalent to the input and has the requested row form
+      check method: exact row echelon form
+      expected: row echelon form
+      observed: [[0, 0], [0, 0]]
+      verification: exact row trace continuity, passed, each row event starts at the preceding verified matrix and the result matches the endpoint
+      verification: exact row echelon form, passed, zero rows are last and leading entries move strictly right with zeros below each pivot
+      verified: yes

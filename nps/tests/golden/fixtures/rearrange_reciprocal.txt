@@ -1,0 +1,94 @@
+problem: R = 1/x
+variable: x
+outcome: isolated
+result: (x = (R^(-1)))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.formula-rearrangement.single-occurrence
+  envelope version: <not recorded>
+  normalized problem: (R = (1 * (x^(-1))))
+  requested method: inverse operations
+  active assumption: x is not zero
+  active assumption: R is not zero
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: conditionally solved
+steps
+  1 plan
+    phase: plan
+    goal: Rearrange for x
+    rule: alg.rearrange.inverse-operations, Undo the operations around the variable
+    claim: no claim
+    explanation: Peel the operations off x one at a time
+    domain restriction: x is not zero
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Undo the operations around the variable
+    applicability: x appears exactly once
+    applicability: every operation around x has an inverse rule
+    fact: x appears once in the formula
+    rationale: each operation wrapped around x is undone on both sides in turn, innermost last, and every move is reversible, so the rearranged formula says the same thing as the one it came from
+    verification: occurrence count, passed, one occurrence was found in the formula
+    verification: registered inverse-operation dispatch, passed, every operation met a registered inverse rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: rearrange
+      goal: Put x on the left
+      rule: alg.rearrange.swap-sides, Symmetry of equality
+      claim: solution set preserved
+      explanation: An equation reads the same either way round
+      detail: Equality is symmetric, so the side holding x can be written first without changing what the formula says.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Write the side holding x first
+      before: (R = (1 * (x^(-1))))
+      after: ((1 * (x^(-1))) = R)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the two sides were exchanged unchanged
+      verified: yes
+    1.2 transformation
+      phase: rearrange
+      goal: Isolate x
+      rule: alg.rearrange.drop-unit-factor, Multiplying by one changes nothing
+      claim: solution set preserved
+      explanation: A factor of one can be left out
+      detail: The other factor is one, so it is dropped rather than divided out: dividing by one would look like a move when nothing moves.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Drop the factor of one
+      before: ((1 * (x^(-1))) = R)
+      after: ((x^(-1)) = R)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the dropped factor folds to one
+      verified: yes
+    1.3 transformation
+      phase: rearrange
+      goal: Isolate x
+      rule: alg.rearrange.reciprocal-both-sides, Reciprocal of both sides
+      claim: solution set preserved
+      explanation: Two equal non-zero expressions have equal reciprocals
+      detail: The left side is one over the part holding x, so taking the reciprocal of both sides turns it the right way up. That needs the other side to be non-zero, which is stated rather than assumed.
+      domain restriction: R is not zero
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Take the reciprocal of both sides
+      before: ((x^(-1)) = R)
+      after: (x = (R^(-1)))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the other side is recorded as non-zero
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check the rearrangement
+      rule: alg.rearrange.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the rearranged right side back where x was
+      detail: The rearranged formula is right when putting its right side back where x stood leaves the two sides of the original equal. Both sides are worked out at several exact values, which can show the two differ but cannot on its own prove they agree everywhere, so a backend is asked as well when one is supplied.
+      proof obligation: obl.rearrange.substitution-identity, the original formula holds once x is replaced by the rearranged right side
+      target claim: R = (1 * (x^(-1))) holds with x replaced by (R^(-1))
+      check method: substitute the rearranged side back and evaluate both sides exactly at several assignments
+      expected: the two sides of the original formula stay equal
+      observed: the sides agreed at all 6 assignments
+      verification: exact evaluation at 6 rational assignments, passed, the two sides took the same value at all 6 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+      verified: yes

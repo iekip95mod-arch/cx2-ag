@@ -1,0 +1,58 @@
+name: Defect
+description: A wrong behavior you reproduced
+labels: [defect]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this when you ran something and saw it misbehave. If you reasoned your way to the
+        problem without running it, file a hazard instead and say so.
+  - type: input
+    id: location
+    attributes:
+      label: File and line
+      description: Where the defect lives, not where it showed up.
+      placeholder: nps/src/core/parser.cc:412
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Failure scenario
+      description: Concrete inputs or state, and the wrong output or crash that follows.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction and its output
+      description: The exact command you ran and what it printed. Paste the output, do not describe it.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Which stage did you reach
+      description: A build proves only that it compiled. Say what you actually observed.
+      options:
+        - Host build and test
+        - ARM compile only
+        - Emulator
+        - Physical device
+        - Not run, reasoned from the source
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Where the fix belongs
+      description: Optional. The owning concept, not the call site that exposed it.
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

@@ -1,0 +1,133 @@
+# The numeric mode, PRD section 13.1 and MVP criteria 6 and 11. Kept together rather than split
+# across the family files, because the mode is a dimension over every family rather than a case in
+# any one of them. Each case still declares the family it counts towards.
+#
+# Both modes read a typed decimal as the exact rational it names, which is what the native machine
+# does in its Exact calculation mode, and the reading is a step in the derivation rather than a
+# silent rewrite. What the modes disagree about is the answer line: exact stops at the fraction,
+# decimal writes it back as a decimal where the decimal terminates.
+
+case numeric.integral.exact-mode-reads-a-typed-decimal
+  family integral
+  numeric exact
+  input sin(0.5x)
+  variable x
+  expect integrated
+  result -2*cos(x/2)
+
+case numeric.integral.decimal-mode-reports-the-same-answer-in-decimals
+  family integral
+  numeric decimal
+  input sin(0.5x)
+  variable x
+  expect integrated
+  result -2*cos(0.5x)
+
+case numeric.integral.exact-mode-on-a-decimal-no-rule-inverts
+  family integral
+  numeric exact
+  input 0.5x
+  variable x
+  expect integrated
+  result 1/2*x^2/2
+
+case numeric.integral.decimal-mode-exponential-of-a-linear-argument
+  family integral
+  numeric decimal
+  input exp(0.25x)
+  variable x
+  expect integrated
+  result 4*exp(0.25x)
+
+# A third has no decimal spelling, so decimal mode leaves it a third. This is the case that proves
+# the mode reports exactly rather than rounding to fit itself.
+case numeric.integral.decimal-mode-coefficient-with-no-terminating-decimal
+  family integral
+  numeric decimal
+  input sin(x/3)
+  variable x
+  expect integrated
+  result -3*cos(x/3)
+
+case numeric.integral.decimal-mode-with-nothing-to-convert
+  family integral
+  numeric decimal
+  input x^2
+  variable x
+  expect integrated
+  result x^3/3
+
+case numeric.derivative.decimal-mode-quotient-by-a-constant
+  family derivative
+  numeric decimal
+  input x/2
+  variable x
+  expect differentiated
+  result 0.5
+
+case numeric.derivative.exact-mode-quotient-by-a-constant
+  family derivative
+  numeric exact
+  input x/2
+  variable x
+  expect differentiated
+  result 1/2
+
+case numeric.derivative.decimal-mode-coefficient-with-no-terminating-decimal
+  family derivative
+  numeric decimal
+  input x/3
+  variable x
+  expect differentiated
+  result 1/3
+
+case numeric.linear.decimal-mode-answer-is-a-half
+  family linear
+  numeric decimal
+  input 2x = 1
+  unknown x
+  expect solved
+  result 0.5
+
+case numeric.linear.exact-mode-answer-is-a-half
+  family linear
+  numeric exact
+  input 2x = 1
+  unknown x
+  expect solved
+  result 1/2
+
+case numeric.linear.decimal-mode-answer-has-no-terminating-decimal
+  family linear
+  numeric decimal
+  input 3x = 1
+  unknown x
+  expect solved
+  result 1/3
+
+# A typed decimal on the unknown's side. Solving divides by it, and both modes reach the same whole
+# number, so this is the case where the mode is set and changes nothing.
+case numeric.linear.exact-mode-decimal-coefficient
+  family linear
+  numeric exact
+  input 0.5x = 1
+  unknown x
+  expect solved
+  result 2
+
+case numeric.linear.decimal-mode-decimal-coefficient
+  family linear
+  numeric decimal
+  input 0.5x = 1
+  unknown x
+  expect solved
+  result 2
+
+# The decimal-mode half of the x^(1.0+1.0) refusal is deliberately NOT here, and please do not add
+# it. Neither mode may read a measured exponent as exact, so decimal mode refuses it too, but the
+# refusal returns before recording a step. That leaves nothing for the gate to tell apart from the
+# exact-mode run: same shape, same outcome, same result class, same rules, so the case collapses onto
+# invalid.txt's pair and adds records without coverage, which turns tools/corpus-mutation.sh red.
+# The property is pinned where a refusal that records nothing can still be seen, in the unit checks:
+# tests/unit/integrate_tests.cc and tests/unit/differentiate_tests.cc, both searching the detail for
+# the word exponent. invalid.txt keeps the default-mode pair.

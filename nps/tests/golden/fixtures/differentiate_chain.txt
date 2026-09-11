@@ -1,0 +1,88 @@
+problem: sin(x^2 + 1)
+variable: x
+outcome: differentiated
+result: (cos(((x^2) + 1)) * ((2 * (x^1)) + 0))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.derivative.single-variable
+  envelope version: <not recorded>
+  normalized problem: sin(((x^2) + 1))
+  requested method: differentiate by rule
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Differentiate sin(((x^2) + 1)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: differentiate
+      goal: Differentiate sin(((x^2) + 1))
+      rule: d.chain, Chain rule
+      claim: equivalent expression
+      explanation: Differentiate the outer function, then multiply by the inner derivative
+      detail: The argument is itself a function of the variable, so the rate of change of the whole is the rate of the outer function times the rate of the inner one.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the chain rule through sin
+      before: d(sin(((x^2) + 1)), x)
+      after: (cos(((x^2) + 1)) * ((2 * (x^1)) + 0))
+      reversible: no
+      verification: rule-local invariant, passed, the argument depends on the variable, so the chain rule applies
+      verified: yes
+      1.1.1 transformation
+        phase: differentiate
+        goal: Differentiate ((x^2) + 1)
+        rule: d.sum, Sum rule
+        claim: equivalent expression
+        explanation: The derivative of a sum is the sum of the derivatives
+        detail: Each term is differentiated on its own and the results are added.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Differentiate each term separately
+        before: d(((x^2) + 1), x)
+        after: ((2 * (x^1)) + 0)
+        reversible: no
+        verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+        verified: yes
+        1.1.1.1 transformation
+          phase: differentiate
+          goal: Differentiate (x^2)
+          rule: d.power, Power rule
+          claim: equivalent expression
+          explanation: Bring the exponent down and reduce it by one
+          detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Apply the power rule with exponent 2
+          before: d((x^2), x)
+          after: (2 * (x^1))
+          reversible: no
+          verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+          verified: yes
+        1.1.1.2 transformation
+          phase: differentiate
+          goal: Differentiate 1
+          rule: d.constant, Constant rule
+          claim: equivalent expression
+          explanation: A quantity that does not change has derivative zero
+          detail: Reach for this whenever the expression has no occurrence of the variable in it, however complicated it looks: a plain number, pi, or a second letter being held fixed all qualify. A derivative measures how fast something changes as the variable moves, and none of these move at all, so the answer is zero.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Replace the derivative of a constant with zero
+          before: d(1, x)
+          after: 0
+          reversible: no
+          verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+          verified: yes

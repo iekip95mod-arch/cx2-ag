@@ -1,0 +1,28 @@
+ENTRY(main);
+
+SECTIONS
+{
+	.start 0x0 :{
+		LONG(0x00475250) /*"PRG"*/
+		*(.start);
+	}	
+	.text : {
+		*(.text);
+		*(.got.plt);
+		*(.got);
+	}
+	.bss : {
+		*(.bss);
+		*(.bss.*);
+	}
+	.data : {
+		*(.data);
+		*(.data.*);
+	}
+	/* Put padding into its own section which is force included
+	   by the objcopy call. This ensures that NOBITS data is filled. */
+	.pad : {
+		. = ALIGN(4);
+	}
+}
+zehn_start = .;

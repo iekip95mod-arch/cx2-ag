@@ -1,0 +1,102 @@
+problem: int(sin(2*x),x,0,1)
+result: ((-1 * (2^-1) * cos(2)) + (2^-1))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.definite.single-variable
+  envelope version: 1
+  normalized problem: int(sin((2 * x)), x, 0, 1)
+  requested method: definite integral
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Check the interval
+    rule: defint.interval, Check the interval
+    claim: equivalent expression
+    explanation: The supported operations are continuous on this interval and no denominator vanishes
+    detail: Before using endpoint subtraction, check every point between the bounds. A pole inside the interval makes ordinary antiderivative subtraction invalid even when both endpoints are finite.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Check the integrand throughout [0, 1]
+    before: int(sin((2 * x)), x, 0, 1)
+    after: int(sin((2 * x)), x, 0, 1)
+    reversible: no
+    verification: rule-local invariant, passed, The supported operations are continuous on this interval and no denominator vanishes
+    verified: yes
+  2 plan
+    phase: plan
+    goal: Integrate sin((2 * x)) with respect to x
+    rule: calculus.integrate.rules, Integrate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Integrate by rule
+    applicability: every form in the integrand has an antiderivative rule
+    applicability: every function argument and every power base is the variable or linear in it
+    fact: integrate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
+    verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
+    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: integrate
+      goal: Integrate sin((2 * x))
+      rule: i.linear-substitution, Trigonometric integral with a linear substitution
+      claim: equivalent expression
+      explanation: Substitute for the linear argument, then use the known antiderivative
+      detail: The derivative of (2 * x) with respect to x is 2. Divide the antiderivative by 2 to undo this factor.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Use (-cos((2 * x))), then divide by 2
+      before: int(sin((2 * x)), x)
+      after: ((-cos((2 * x))) * (2^-1))
+      reversible: no
+      verification: rule-local invariant, passed, the argument is linear in the variable with a non-zero coefficient
+      verified: yes
+    2.2 check
+      phase: check
+      goal: Check the answer
+      rule: calculus.integrate.check-by-differentiation, Check by differentiation
+      claim: equivalent expression
+      explanation: Differentiate the result and compare it with the integrand
+      detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
+      proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
+      target claim: the derivative of ((-cos((2 * x))) * (2^-1)) is sin((2 * x))
+      check method: differentiate the result by rule and compare canonical forms
+      expected: sin((2 * x))
+      observed: sin((2 * x))
+      verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
+      verified: yes
+  3 transformation
+    phase: calculus
+    goal: Evaluate the antiderivative at both bounds
+    rule: defint.fundamental-theorem, Evaluate the antiderivative at both bounds
+    claim: equivalent expression
+    explanation: The integrand is continuous on the interval and the antiderivative passed its derivative check
+    detail: Use the fundamental theorem after finding an antiderivative and proving continuity on the whole interval. Upper minus lower also handles reversed bounds without changing the requested sign.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 1 and 0 into the antiderivative, then subtract the lower value from the upper value
+    before: int(sin((2 * x)), x, 0, 1)
+    after: (((-cos((2 * 1))) * (2^-1)) + (-((-cos((2 * 0))) * (2^-1))))
+    reversible: no
+    verification: rule-local invariant, passed, The integrand is continuous on the interval and the antiderivative passed its derivative check
+    verified: yes
+  4 transformation
+    phase: calculus
+    goal: Subtract the endpoint values
+    rule: defint.subtract, Subtract the endpoint values
+    claim: equivalent expression
+    explanation: The order of subtraction preserves the orientation of the requested bounds
+    detail: Once both endpoints have been substituted, combine their exact values. Keep the subtraction order and retain any symbolic constants without rounding.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Simplify the upper value minus the lower value
+    before: (((-cos((2 * 1))) * (2^-1)) + (-((-cos((2 * 0))) * (2^-1))))
+    after: ((-1 * (2^-1) * cos(2)) + (2^-1))
+    reversible: no
+    verification: rule-local invariant, passed, The order of subtraction preserves the orientation of the requested bounds
+    verified: yes

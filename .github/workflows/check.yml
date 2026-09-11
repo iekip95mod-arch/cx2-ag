@@ -1,0 +1,147 @@
+name: check
+
+# Several agents push to several branches at once, so the two things that decide turnaround are
+# canceling superseded runs and giving the fast gate its own job rather than queueing it behind
+# the slow one. Both are below.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# One run per ref. A second push to the same branch kills the first rather than queueing behind it,
+# which is what stops a busy agent from spending every runner on results nobody will read.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 900M
+  CMAKE_GENERATOR: Ninja
+
+jobs:
+  # The gate. Three suites that between them catch nearly everything, reported before the full run
+  # has finished configuring. Nothing depends on this job, so a failure here does not cancel the
+  # others and you still learn what else broke in the same push.
+  fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ccache libgmp-dev luajit python3
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-fast-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-fast-${{ runner.os }}-
+
+      - name: Configure
+        run: |
+          cmake -S nps -B nps/build/host \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+
+      - name: Build
+        run: cmake --build nps/build/host --parallel
+
+      - name: Unit, bridge and shell suites
+        run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|luax_host|ui_smoke_v4)$'
+
+      - name: Cache statistics
+        if: always()
+        run: ccache --show-stats
+
+  # Everything ctest knows about. Runs beside the gate rather than after it.
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ccache libgmp-dev luajit python3 php-cli
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-full-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-full-${{ runner.os }}-
+
+      - name: Configure
+        run: |
+          cmake -S nps -B nps/build/host \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+
+      - name: Build
+        run: cmake --build nps/build/host --parallel
+
+      # Not the check target, because that serializes. ctest runs the suites across the runner's
+      # cores and reports every failure rather than stopping at the first.
+      - name: Full suite
+        run: ctest --test-dir nps/build/host --output-on-failure --parallel 4
+
+  # A compiled object, a linked ELF and a packaged TNS are separate stages, so this job says only
+  # that the ARM target still builds. It proves nothing about the handheld.
+  device:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ccache libgmp-dev python3 gcc-arm-none-eabi binutils-arm-none-eabi
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-device-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-device-${{ runner.os }}-
+
+      - name: Configure
+        run: |
+          cmake -S nps -B nps/build/device \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ndl-arm926ej-s.cmake \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+
+      - name: Build the package
+        run: cmake --build nps/build/device --target unified --parallel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nspire-package
+          path: |
+            nps/build/device/*.tns
+          if-no-files-found: warn
+          retention-days: 7

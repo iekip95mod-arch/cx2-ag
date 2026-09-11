@@ -1,0 +1,45 @@
+problem: limit(1/x,x,0)
+result: does not exist
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.limit.single-variable
+  envelope version: 1
+  normalized problem: limit((1 * (x^(-1))), x, 0)
+  requested method: limit
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Write a polynomial quotient
+    rule: limit.rational-form, Write a polynomial quotient
+    claim: equivalent expression
+    explanation: Each excluded denominator is a nonzero polynomial, so its roots are isolated
+    detail: Combine rational terms before inspecting zero over zero. Keep every denominator exclusion from the original expression, even if it cancels from the combined quotient.
+    domain restriction: For nearby x: x is not zero
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Combine the rational expression over a common denominator
+    before: limit((1 * (x^(-1))), x, 0)
+    after: limit((x^-1), x, 0)
+    reversible: no
+    verification: rule-local invariant, passed, Each excluded denominator is a nonzero polynomial, so its roots are isolated
+    verified: yes
+  2 check
+    phase: check
+    goal: Determine whether the limit exists
+    rule: limit.classify, Compare the limiting signs
+    claim: no claim
+    explanation: The denominator vanishes to order 1 and the numerator to order 0. Their first nonzero derivatives establish the signs on each side
+    detail: An infinite limit describes unbounded growth. A two-sided limit exists in the extended real sense only when both sides approach the same signed infinity. Opposite signs prove that the two-sided limit does not exist.
+    proof obligation: obl.limit.classification, the polynomial orders and signs determine the limiting behavior
+    target claim: the requested limit has the reported behavior
+    check method: compare the orders of the vanishing or leading polynomial terms
+    expected: matching limiting signs on the requested approach
+    observed: left: -infinity, right: +infinity
+    verification: polynomial order and sign comparison, passed, The denominator vanishes to order 1 and the numerator to order 0. Their first nonzero derivatives establish the signs on each side
+    verified: nothing claimed

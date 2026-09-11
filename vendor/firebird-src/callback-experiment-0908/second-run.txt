@@ -1,0 +1,825 @@
+Warning: truncated output (original token count: 331)
+Total output lines: 46
+
+ln c
+<<fb-cmd>> ln c
+[NUL]
+
+
+Boot ROM Stage  (5.0.0.42)
+Build: 2018/3/2, 14:16:20
+Copyright (c) 2006-2018 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver init…231 tokens truncated…0%61%62%63%65%66%67%69%70%71%73%74%75%77%78%79%81%82%83%84%86%87%88%90%91%92%94%95%96%98%99%100%
+
+BOOT: loading complete (35 ticks), launching <BOOT LOADE> image.
+Warning: truncated output (original token count: 1557)
+Total output lines: 201
+
+[NUL]
+
+
+Boot Loader Stage  (6.2.0.7)
+Build: 2023/10/20, 13:41:51
+Copyright (c) 2006-2023 Texas Instruments Incorporated
+
+Using production keys.
+
+
+Beginning driver initialization...
+  OK         Serial Port 1
+[NUL]  OK         Serial Port 2
+  OK         Aladdin PMU
+  OK         Seri…1407 tokens truncated…
+RET - ECHO UDP: EchoUDPListenerThread. Inside Thread +++
+usblink connected.
+   Boot ROM Time: 0.35 seconds
+Boot Loader Time: 0.79 seconds
+  OS Loader Time: 5.74 seconds
+  Installer Time: 20.40 seconds
+         OS Time: 6.01 seconds
+Setting theDoc.filename to NULL in Execution Context
+k 103a4f98 +x
+key 2
+c
+<<fb-ready>>
+<<fb-cmd>> k 103a4f98 +x
+<<fb-ready>>
+<<fb-cmd>> key 2
+<<fb-ready>>
+<<fb-cmd>> c
+<<fb-ready>>
+key esc
+c
+<<fb-cmd>> key esc
+<<fb-ready>>
+<<fb-cmd>> c
+<<fb-ready>>
+key 1
+c
+<<fb-cmd>> key 1
+<<fb-ready>>
+<<fb-cmd>> c
+<<fb-ready>>
+screenshot /private/tmp/cx2-rref-trace-dJ18Da/guarded-newdoc.ppm
+r
+<<fb-cmd>> screenshot /private/tmp/cx2-rref-trace-dJ18Da/guarded-newdoc.ppm
+screenshot -> /private/tmp/cx2-rref-trace-dJ18Da/guarded-newdoc.ppm
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=0000000d  r2=ffffffcd  r3=00000402  r4=0000000d  r5=a4001d9c
+ r6=10bf4604  r7=00000000  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000001  sp=a4001d5c  lr=1000113c  pc=a40011f4
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+k 103a4f98 -x
+k 1042af30 +x
+key esc
+c
+<<fb-cmd>> k 103a4f98 -x
+<<fb-ready>>
+<<fb-cmd>> k 1042af30 +x
+<<fb-ready>>
+<<fb-cmd>> key esc
+<<fb-ready>>
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+r
+d 11430858
+<<fb-cmd>> r
+ r0=00000000  r1=000000c0  r2=200000d3  r3=20000013  r4=00000001  r5=00000000
+ r6=ffffffff  r7=00000001  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000001  sp=a4001cac  lr=103a2e64  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+<<fb-cmd>> d 11430858
+11430850                          00 00 00 00 3B 00 00 00           ....;...
+11430860  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+11430870  0F 00 00 00 D0 D1 41 11-00 00 00 00 00 00 00 00   ....��A.........
+11430880  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+11430890  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308A0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308B0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308C0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00   ................
+114308D0  00 00 00 00 00 00 00 00                           ........        
+<<fb-ready>>
+c
+r
+c
+r
+c
+r
+c
+r
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=a4001cb4  r1=00000021  r2=200000d3  r3=20000013  r4=00000021  r5=a4001cb4
+ r6=a4001cb4  r7=00000001  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2e84  pc=1042af30
+cpsr=800000d3 (N=1 Z=0 C=0 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf4868  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf4868  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf47e0  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf47e0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf45a0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf3eec  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf3eec  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befac4  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befac4  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befd84  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befd84  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf00fc  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf00fc  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000002
+r12=00000000  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d9c  r2=ffff15e1  r3=00000000  r4=10bf45a0  r5=a4001d9c
+ r6=0000ea1e  r7=00000001  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000000  sp=a4001d8c  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=0000000d  r2=ffffffcd  r3=00000402  r4=0000000d  r5=a4001d9c
+ r6=10bf4604  r7=00000000  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000001  sp=a4001d5c  lr=1000113c  pc=a40011f4
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001dc0  r2=11430864  r3=00000000  r4=10bf45a0  r5=a4001dc0
+ r6=ffffffff  r7=00000001  r8=1136468c  r9=113647b8 r10=a40019f4 r11=00000000
+r12=00000001  sp=a4001db0  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e6008c  r1=20000013  r2=00000000  r3=1141d1bc  r4=1141d1bc  r5=11e6008c
+ r6=11e6008c  r7=00000000  r8=11e60104  r9=00000000 r10=00000000 r11=a40025f0
+r12=11431540  sp=a40025bc  lr=104294cc  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e6008c  r1=00000002  r2=00000000  r3=00000000  r4=11e6008c  r5=00000002
+ r6=00000002  r7=00000000  r8=11e60104  r9=00000000 r10=00000000 r11=a40025f0
+r12=00000001  sp=a40025ac  lr=1042930c  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=114314c8  r1=20000013  r2=00000000  r3=1141d1bc  r4=1141d1bc  r5=114314c8
+ r6=114314c8  r7=00000000  r8=11431540  r9=00000000 r10=00000000 r11=a40025f0
+r12=11364744  sp=a40025bc  lr=104294cc  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=114314c8  r1=00000004  r2=00000000  r3=00000000  r4=114314c8  r5=00000004
+ r6=00000004  r7=00000000  r8=11431540  r9=00000000 r10=00000000 r11=a40025f0
+r12=00000001  sp=a40025ac  lr=1042930c  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a400257c  r2=00000000  r3=00000000  r4=10bf45a0  r5=a400257c
+ r6=1000c770  r7=00000000  r8=11364744  r9=11364714 r10=00000001 r11=a40025f0
+r12=00000001  sp=a400256c  lr=103a2c58  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001dc0  r2=11430864  r3=00000000  r4=10bf45a0  r5=a4001dc0
+ r6=1141d1d0  r7=00000000  r8=00000000  r9=00000000 r10=a40019f4 r11=a40025f0
+r12=00000000  sp=a4001db0  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=00000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=ffffffff  r2=200000d3  r3=ffffffce  r4=ffffffff  r5=11431430
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000003  sp=118d02b0  lr=103a6aa0  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=113c5b2c  r1=00000000  r2=60000013  r3=113c5b2c  r4=11430860  r5=113c5b2c
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000003  sp=118d02d8  lr=10429598  pc=1042af30
+cpsr=80000013 (N=1 Z=0 C=0 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=113c5b2c  r1=00000001  r2=20000013  r3=00000000  r4=113c5b2c  r5=00000001
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000003  sp=118d02c8  lr=1042930c  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=20000013  r2=00000000  r3=00000000  r4=11430860  r5=11431430
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000004  sp=118d02d8  lr=103a6950  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=ffffffff  r2=00000000  r3=00000000  r4=ffffffff  r5=11431430
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000004  sp=118d02b0  lr=103a6aa0  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=20000013  r2=0001ed98  r3=00000bc2  r4=11430860  r5=11431430
+ r6=00000000  r7=00000000  r8=00000000  r9=00000000 r10=118cefe0 r11=118d034c
+r12=00000004  sp=118d02d8  lr=103a6950  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431480  r1=118d0300  r2=00000003  r3=118d02fc  r4=11431480  r5=118d0300
+ r6=118d02fc  r7=000012a7  r8=00000000  r9=00000000 r10=00000003 r11=118d034c
+r12=00000004  sp=118d0298  lr=103a5060  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=114314c8  r1=00000004  r2=103a5004  r3=118d02a4  r4=114314c8  r5=000012a7
+ r6=00000004  r7=103a5004  r8=118d02a4  r9=00000000 r10=00000003 r11=118d034c
+r12=00000000  sp=118d0280  lr=10429010  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001dc0  r2=11430864  r3=00000000  r4=10bf45a0  r5=a4001dc0
+ r6=118d02fc  r7=000012a7  r8=114314c8  r9=00000000 r10=a40019f4 r11=118d034c
+r12=00000006  sp=a4001db0  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=ffffffff  r2=200000d3  r3=00000000  r4=ffffffff  r5=11431430
+ r6=000005c0  r7=113c6b64  r8=000000c8  r9=00000000 r10=113c5bd4 r11=113c6afc
+r12=00000003  sp=113c6ab0  lr=103a6aa0  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=0000000a  r1=20000013  r2=00000000  r3=0000000a  r4=00000003  r5=0000000a
+ r6=000005c0  r7=113c6b64  r8=000000c8  r9=00000000 r10=113c5bd4 r11=113c6afc
+r12=00000003  sp=113c6ad8  lr=103a748c  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=118dd098  r1=000000dd  r2=00000010  r3=00000010  r4=118dd088  r5=118dd098
+ r6=000005c0  r7=113c6b64  r8=000000c8  r9=00000000 r10=113c5bd4 r11=113c6b54
+r12=0000000f  sp=113c6ac8  lr=103a7ee0  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11431430  r1=20000013  r2=00000000  r3=00000000  r4=00000003  r5=11431430
+ r6=000005c0  r7=113c6b64  r8=000000c8  r9=00000000 r10=113c5bd4 r11=113c6b54
+r12=119cee48  sp=113c6af0  lr=103a6950  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000014  r1=fffe0000  r2=00000000  r3=fffe0000  r4=00000014  r5=113c5b28
+ r6=000010ac  r7=113c5b28  r8=00000000  r9=00000000 r10=113c5bd4 r11=113c6bc8
+r12=fffffef3  sp=113c6b88  lr=1042927c  pc=1042af30
+cpsr=a0000013 (N=1 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=113c5b2c  r1=00000002  r2=00000000  r3=00000000  r4=113c5b2c  r5=00000014
+ r6=00000002  r7=00000000  r8=00000000  r9=00000000 r10=113c5bd4 r11=113c6bc8
+r12=fffffef3  sp=113c6b70  lr=10429010  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001dc0  r2=11430864  r3=00000000  r4=10bf45a0  r5=a4001dc0
+ r6=000010ac  r7=113c5b28  r8=00000000  r9=00000000 r10=a40019f4 r11=113c6bc8
+r12=0000001f  sp=a4001db0  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e60010  r1=ffffffff  r2=5441534b  r3=11e6008c  r4=ffffffff  r5=11e60010
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e620d4
+r12=000000ff  sp=11e62088  lr=103a6aa0  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e597ec  r1=ffffffff  r2=5441534b  r3=11e6008c  r4=ffffffff  r5=11e597ec
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e62094
+r12=000000ff  sp=11e62048  lr=103a6aa0  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e597ec  r1=20000013  r2=53454d41  r3=53454d41  r4=11430860  r5=11e597ec
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e62094
+r12=000000ff  sp=11e62070  lr=103a6950  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e60010  r1=20000013  r2=53454d41  r3=53454d41  r4=11430860  r5=11e60010
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e620d4
+r12=000000ff  sp=11e620b0  lr=103a6950  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000064  r1=5441534b  r2=5441534b  r3=11e6008c  r4=00000064  r5=00000000
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e620fc
+r12=000000ff  sp=11e620d8  lr=1042927c  pc=1042af30
+cpsr=60000013 (N=0 Z=1 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=11e6008c  r1=00000002  r2=00000000  r3=00000000  r4=11e6008c  r5=00000064
+ r6=00000002  r7=00000000  r8=00000000  r9=00000002 r10=11e60150 r11=11e620fc
+r12=000000ff  sp=11e620c0  lr=10429010  pc=1042af30
+cpsr=20000013 (N=0 Z=0 C=1 V=0 Q=0 IRQ=on  FIQ=on  T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=000000c0  r2=200000d3  r3=20000013  r4=00000064  r5=00000000
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=000000ff  sp=a4001cac  lr=103a2e64  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=a4001cb4  r1=00000021  r2=200000d3  r3=20000013  r4=00000021  r5=a4001cb4
+ r6=a4001cb4  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=000000ff  sp=a4001ca4  lr=103a2e84  pc=1042af30
+cpsr=800000d3 (N=1 Z=0 C=0 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf4868  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf4868  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=000000ff  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf47e0  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf47e0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf45a0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf3eec  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf3eec  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befac4  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befac4  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befd84  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befd84  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf00fc  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf00fc  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000002
+r12=00000000  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d9c  r2=ffff1490  r3=00000000  r4=10bf45a0  r5=a4001d9c
+ r6=0000eb6f  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000000  sp=a4001d8c  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=0000000d  r2=ffffffcd  r3=00000402  r4=0000000d  r5=a4001d9c
+ r6=10bf4604  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000001  sp=a4001d5c  lr=1000113c  pc=a40011f4
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=000000c0  r2=200000d3  r3=20000013  r4=00000064  r5=00000000
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000001  sp=a4001cac  lr=103a2e64  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=a4001cb4  r1=00000021  r2=200000d3  r3=20000013  r4=00000021  r5=a4001cb4
+ r6=a4001cb4  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000001  sp=a4001ca4  lr=103a2e84  pc=1042af30
+cpsr=800000d3 (N=1 Z=0 C=0 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf4868  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf4868  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf47e0  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf47e0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf45a0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf3eec  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf3eec  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befac4  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befac4  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10befd84  r1=a4001d7c  r2=00000000  r3=00000000  r4=10befd84  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000001
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf00fc  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf00fc  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000002
+r12=00000000  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf45a0  r1=a4001d9c  r2=ffff1340  r3=00000000  r4=10bf45a0  r5=a4001d9c
+ r6=0000ecbf  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000000  sp=a4001d8c  lr=103a2c58  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=0000000d  r2=ffffffcd  r3=00000402  r4=0000000d  r5=a4001d9c
+ r6=10bf4604  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000001  sp=a4001d5c  lr=1000113c  pc=a40011f4
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=00000000  r1=000000c0  r2=200000d3  r3=20000013  r4=1042ad64  r5=00000000
+ r6=00000000  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000003  sp=a4001cac  lr=103a2e64  pc=1042af30
+cpsr=600000d3 (N=0 Z=1 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=a4001cb4  r1=00000021  r2=200000d3  r3=20000013  r4=00000021  r5=a4001cb4
+ r6=a4001cb4  r7=00000000  r8=00000000  r9=00000002 r10=a40019f4 r11=11e620fc
+r12=00000003  sp=a4001ca4  lr=103a2e84  pc=1042af30
+cpsr=800000d3 (N=1 Z=0 C=0 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf4868  r1=a4001d7c  r2=00000001  r3=00000000  r4=10bf4868  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000003  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+c
+r
+<<fb-cmd>> c
+Breakpoint at 0x1042af30
+<<fb-ready>>
+<<fb-cmd>> r
+ r0=10bf47e0  r1=a4001d7c  r2=00000000  r3=00000000  r4=10bf47e0  r5=a4001d7c
+ r6=a4001cb4  r7=00000021  r8=00000067  r9=00000000 r10=a4001d7c r11=00000000
+r12=00000001  sp=a4001ca4  lr=103a2c58  pc=1042af30
+cpsr=200000d3 (N=0 Z=0 C=1 V=0 Q=0 IRQ=off FIQ=off T=0 Mode=svc) spsr=60000013
+<<fb-ready>>
+stop
+<<fb-cmd>> stop
+<<fb-ready>>
+

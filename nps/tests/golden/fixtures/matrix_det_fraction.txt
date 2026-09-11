@@ -1,0 +1,62 @@
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: matrix.det.rational
+  envelope version: 1
+  normalized problem: [[(1 * (2^(-1))), (1 * (3^(-1)))], [0, (1 * (4^(-1)))]]
+  requested method: det
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32 determinant-bits<=4096
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Row reduction
+    goal: Find det([[(1 * (2^(-1))), (1 * (3^(-1)))], [0, (1 * (4^(-1)))]])
+    rule: plan.matrix-determinant, Reduce and track determinant factors
+    claim: no claim
+    explanation: Reduce to echelon form and track how each row operation changes the determinant.
+    detail: Start the determinant factor at 1. Multiply the final diagonal entries, then divide by the accumulated factor.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce and track determinant factors
+    applicability: a square matrix of order 1 through 4 has exact rational cells and provenance
+    fact: [[(1 * (2^(-1))), (1 * (3^(-1)))], [0, (1 * (4^(-1)))]]
+    rationale: The matrix fits the exact rational row-reduction envelope.
+    verification: exact matrix envelope validation, passed, Find det([[(1 * (2^(-1))), (1 * (3^(-1)))], [0, (1 * (4^(-1)))]])
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    backend requests: 1
+    1.1 transformation
+      phase: Calculate the determinant
+      goal: Multiply the diagonal entries of the echelon matrix
+      rule: matrix.det-diagonal-product, Multiply the triangular diagonal
+      claim: equivalent expression
+      explanation: The determinant of a triangular matrix is its diagonal product.
+      detail: Echelon form puts zeros below the main diagonal. Multiply every diagonal entry, including any zero, and retain the accumulated factor.
+      proof obligation: obl.matrix.trace-complete, the final matrix ends the verified row trace
+      proof obligation: obl.matrix.ref-form, the square final matrix has exact row echelon form
+      proof obligation: obl.matrix.det-diagonal-product, the scalar equals the product of the triangular diagonal
+      action: Multiply the diagonal entries: (1 * (2^(-1))), (1 * (4^(-1))). Keep the determinant factor in the denominator.
+      before: det([[(1 * (2^(-1))), (1 * (3^(-1)))], [0, (1 * (4^(-1)))]])
+      after: (1 * (8^-1))
+      reversible: yes
+      verification: exact row trace continuity, passed, every retained operation is contiguous and the endpoint matches the backend result
+      verification: exact row echelon form, passed, zero rows are last and leading entries move strictly right with zeros below each pivot
+      verification: exact triangular determinant product, passed, the scalar equals the GMP product of every diagonal entry in the square echelon matrix
+      verified: yes
+    1.2 check
+      phase: Recover the original determinant
+      goal: Undo the accumulated determinant factor
+      rule: matrix.det-correction, Correct for the row determinant factors
+      claim: equivalent expression
+      explanation: The determinant factor is 1, so retain the diagonal product.
+      detail: The current matrix determinant is the original determinant multiplied by 1. Division recovers the original value.
+      proof obligation: obl.matrix.det-correction, the original determinant is the diagonal product divided by the accumulated nonzero factor
+      target claim: The diagonal product is the original determinant
+      check method: exact determinant factor correction
+      expected: the accumulated determinant factor is 1
+      observed: (1 * (8^-1))
+      verification: exact determinant factor correction, passed, the answer equals the diagonal product divided by the nonzero accumulated factor
+      verified: yes

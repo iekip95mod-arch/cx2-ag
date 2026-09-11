@@ -1,0 +1,30 @@
+problem: limit((3*x^2+1)/(2*x^2+1),x,infinity)
+result: (3 * (2^-1))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.limit.single-variable
+  envelope version: 1
+  normalized problem: limit((((3 * (x^2)) + 1) * (((2 * (x^2)) + 1)^(-1))), x, infinity)
+  requested method: limit
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Compare the highest powers
+    rule: limit.infinity, Compare the highest powers
+    claim: equivalent expression
+    explanation: The numerator has degree 2 and the denominator has degree 2. Lower powers do not affect the limit at infinity
+    detail: After the vanishing factors are resolved, check that the denominator is nonzero at the approach point. The resulting quotient is continuous and can be evaluated by substitution.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Divide the leading coefficients of the equal-degree polynomials
+    before: limit((((3 * (x^2)) + 1) * (((2 * (x^2)) + 1)^(-1))), x, infinity)
+    after: (3 * (2^-1))
+    reversible: no
+    verification: rule-local invariant, passed, The numerator has degree 2 and the denominator has degree 2. Lower powers do not affect the limit at infinity
+    verified: yes

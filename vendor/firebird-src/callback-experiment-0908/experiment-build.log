@@ -1,0 +1,52 @@
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/asmcode_aarch64.S -o objects/asmcode_aarch64.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/asmcode.c -o objects/asmcode.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c armsnippets_loader.c -o objects/armsnippets_loader.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/casplus.c -o objects/casplus.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/des.c -o objects/des.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/disasm.c -o objects/disasm.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/gdbstub.c -o objects/gdbstub.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/interrupt.c -o objects/interrupt.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/lcd.c -o objects/lcd.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/link.c -o objects/link.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/mem.c -o objects/mem.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/misc.c -o objects/misc.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/mmu.c -o objects/mmu.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/schedule.c -o objects/schedule.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/serial.c -o objects/serial.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/sha256.c -o objects/sha256.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/usb.c -o objects/usb.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/usblink.c -o objects/usblink.o
+cc -std=c11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/os/os-linux.c -o objects/os-linux.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/translate_aarch64.cpp -o objects/translate_aarch64.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/arm_interpreter.cpp -o objects/arm_interpreter.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/coproc.cpp -o objects/coproc.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c cpu.cpp -o objects/cpu.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/debug.cpp -o objects/debug.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/emu.cpp -o objects/emu.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/flash.cpp -o objects/flash.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/gif.cpp -o objects/gif.o
+../core/flash.cpp:606:5: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  606 |     sprintf((char *)&pagep[0], "***PRELOAD_%s***", name);
+      |     ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+../core/flash.cpp:1558:13: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+ 1558 |             nand_cx2_state.isr |= 1;
+      |             ^
+../core/flash.cpp:1554:9: note: previous statement is here
+ 1554 |         if(nand_cx2_state.len_cur == 0)
+      |         ^
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/thumb_interpreter.cpp -o objects/thumb_interpreter.o
+2 warnings generated.
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/usblink_queue.cpp -o objects/usblink_queue.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/keypad.cpp -o objects/keypad.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/cx2.cpp -o objects/cx2.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/usb_cx2.cpp -o objects/usb_cx2.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/usblink_cx2.cpp -o objects/usblink_cx2.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../core/fieldparser.cpp -o objects/fieldparser.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core -c ../headless/main.cpp -o objects/main.o
+c++ -std=c++11 -g -O3 -DBENCHMARK -Wall -I.. -DSUPPORT_LINUX -I../core  objects/asmcode_aarch64.o objects/asmcode.o objects/armsnippets_loader.o objects/casplus.o objects/des.o objects/disasm.o objects/gdbstub.o objects/interrupt.o objects/lcd.o objects/link.o objects/mem.o objects/misc.o objects/mmu.o objects/schedule.o objects/serial.o objects/sha256.o objects/usb.o objects/usblink.o objects/os-linux.o objects/translate_aarch64.o objects/arm_interpreter.o objects/coproc.o objects/cpu.o objects/debug.o objects/emu.o objects/flash.o objects/gif.o objects/thumb_interpreter.o objects/usblink_queue.o objects/keypad.o objects/cx2.o objects/usb_cx2.o objects/usblink_cx2.o objects/fieldparser.o objects/main.o -lz -o firebird-headless-experiment

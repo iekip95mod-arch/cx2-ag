@@ -1,0 +1,182 @@
+From bf7db6bbc0d81fb05346e220ae30e7a0897ef1ad Mon Sep 17 00:00:00 2001
+From: cx2-ag <cx2-ag@users.noreply.github.com>
+Date: Tue, 8 Sep 2026 00:28:45 -0400
+Subject: [PATCH 10/11] Wait for handshake progress until its deadline
+
+---
+ src/cx2.cpp         | 15 +++++---
+ tests/transport.cpp | 91 +++++++++++++++++++++++++++++++++++++++++++--
+ 2 files changed, 97 insertions(+), 9 deletions(-)
+
+diff --git a/src/cx2.cpp b/src/cx2.cpp
+index 43a7a3a..a9a7e34 100644
+--- a/src/cx2.cpp
++++ b/src/cx2.cpp
+@@ -448,7 +448,8 @@ static int handlePacket(struct nspire_handle *nsp_handle, NNSEMessage *message,
+ 	return -NSPIRE_ERR_INVALPKT;
+ }
+ 
+-static int assureReady(struct nspire_handle *nsp_handle)
++static int assureReady(struct nspire_handle *nsp_handle,
++	PacketDeadline deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10))
+ {
+ 	if(nsp_handle->cx2_handshake_complete)
+ 		return NSPIRE_ERR_SUCCESS;
+@@ -462,16 +463,16 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 	NNSEMessage * const message = reinterpret_cast<NNSEMessage*>(malloc(maxlen));
+ 	if(!message)
+ 		return -NSPIRE_ERR_NOMEM;
+-	auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+ 	int ret = NSPIRE_ERR_SUCCESS;
+-	for(int i = 10; i-- && !nsp_handle->cx2_handshake_complete;)
++	unsigned int frames = 0;
++	while(!nsp_handle->cx2_handshake_complete)
+ 	{
+ 		ret = readPacket(handle, message, maxlen, deadline);
+ 		if(ret)
+ 			break;
+ 		ret = handlePacket(nsp_handle, message, deadline);
+-		nspire_trace("transport phase=handshake event=frame index=%d status=%d complete=%d pending=%u",
+-			10 - i, ret, nsp_handle->cx2_handshake_complete, nsp_handle->cx2_pending_count);
++		nspire_trace("transport phase=handshake event=frame index=%u status=%d complete=%d pending=%u",
++			++frames, ret, nsp_handle->cx2_handshake_complete, nsp_handle->cx2_pending_count);
+ 		if(ret)
+ 			break;
+ 	}
+@@ -479,7 +480,9 @@ static int assureReady(struct nspire_handle *nsp_handle)
+ 
+ 	int status = ret ? ret : nsp_handle->cx2_handshake_complete ? NSPIRE_ERR_SUCCESS : -NSPIRE_ERR_TIMEOUT;
+ 	nspire_trace("transport phase=handshake status=%d reason=%s remaining_ms=%u", status,
+-		ret ? "packet" : nsp_handle->cx2_handshake_complete ? "complete" : "packet-limit", remainingTimeout(deadline, UINT32_MAX));
++		nsp_handle->cx2_handshake_complete ? "complete" : ret == -NSPIRE_ERR_TIMEOUT
++			? remainingTimeout(deadline, UINT32_MAX) ? "io-timeout" : "deadline" : "packet",
++		remainingTimeout(deadline, UINT32_MAX));
+ 	return status;
+ }
+ 
+diff --git a/tests/transport.cpp b/tests/transport.cpp
+index 769e5a0..5b58d80 100644
+--- a/tests/transport.cpp
++++ b/tests/transport.cpp
+@@ -1099,6 +1099,91 @@ static void diagnostic_metadata() {
+ 	CHECK(missing == 0);
+ }
+ 
++static void handshake_after_retries() {
++	auto handle = ready();
++	handle.cx2_handshake_complete = false;
++	for(unsigned i = 0; i < 10; ++i) {
++		auto incoming = frame(StreamService, std::vector<unsigned char>(18, 0), i ? 9 : 1);
++		auto *header = reinterpret_cast<NNSEMessage*>(incoming.data());
++		header->src = 0xff;
++		header->seqno = htons(7925);
++		header->csum = 0;
++		header->csum = htons(compute_checksum(incoming.data(), static_cast<uint32_t>(incoming.size())) ^ 0xffff);
++		usb.reads.push_back({0, incoming});
++	}
++	usb.reads.push_back({0, frame(AddrReqService, std::vector<unsigned char>(65))});
++	usb.reads.push_back({0, frame(UnknownService, {1})});
++	usb.reads.push_back({0, frame(TimeService, {0})});
++	CHECK(assureReady(&handle) == 0);
++	CHECK(handle.cx2_handshake_complete && usb.reads.empty() && handle.cx2_pending_count == 1);
++	CHECK(std::count(usb.write_services.begin(), usb.write_services.end(), StreamService | AckFlag) == 10);
++	CHECK(std::count(usb.write_services.begin(), usb.write_services.end(), AddrReqService) == 2);
++	CHECK(std::count(usb.write_services.begin(), usb.write_services.end(), UnknownService) == 1);
++	CHECK(std::count(usb.write_services.begin(), usb.write_services.end(), TimeService) == 1);
++	CHECK(usb.write_services.size() == 14);
++}
++
++static void handshake_deadline_and_errors() {
++	for(bool streams : {false, true}) {
++		reset();
++		auto handle = ready();
++		handle.cx2_handshake_complete = false;
++		for(unsigned i = 0; i < 1000; ++i)
++			usb.reads.push_back({0, streams ? frame(StreamService, {0}, i ? 9 : 1)
++				: frame(UnknownService, {1}), -1, 1000});
++		auto started = std::chrono::steady_clock::now();
++		setenv("NSPIRE_TRACE", "1", 1);
++		std::string log = capture_trace([&] {
++			CHECK(assureReady(&handle, started + std::chrono::milliseconds(50)) == -NSPIRE_ERR_TIMEOUT);
++		});
++		unsetenv("NSPIRE_TRACE");
++		auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
++			std::chrono::steady_clock::now() - started).count();
++		CHECK(elapsed >= 40 && elapsed < 1000);
++		CHECK(!handle.cx2_handshake_complete && !usb.reads.empty());
++		CHECK(handle.cx2_pending_count == (streams ? 1 : 0));
++		CHECK(log.find("reason=deadline") != std::string::npos);
++		CHECK(std::count(usb.write_services.begin(), usb.write_services.end(), TimeService) == 0);
++	}
++	for(unsigned scenario = 0; scenario < 7; ++scenario) {
++		reset();
++		auto handle = ready();
++		handle.cx2_handshake_complete = false;
++		int expected = -NSPIRE_ERR_TIMEOUT;
++		if(scenario == 0) {
++			usb.reads.push_back({0, {}});
++		} else if(scenario == 1) {
++			auto corrupt = frame(TimeService, {0}, 1);
++			corrupt.back() ^= 1;
++			usb.reads.push_back({0, corrupt});
++			expected = -NSPIRE_ERR_INVALPKT;
++		} else if(scenario == 2) {
++			usb.reads.push_back({0, frame(TimeService, {0}, 1)});
++			usb.writes.push_back({LIBUSB_ERROR_NO_DEVICE, {}});
++			expected = -NSPIRE_ERR_DISCONNECTED;
++		} else if(scenario == 3) {
++			usb.reads.push_back({0, frame(TimeService, {0})});
++			usb.writes.push_back({LIBUSB_ERROR_TIMEOUT, {}});
++		} else if(scenario == 4) {
++			for(unsigned i = 0; i <= NSPIRE_CX2_PENDING_CAPACITY; ++i)
++				usb.reads.push_back({0, frame(StreamService, {0}, 1)});
++			expected = -NSPIRE_ERR_NOMEM;
++		} else if(scenario == 6) {
++			usb.reads.push_back({0, frame(TimeService, {1})});
++			expected = -NSPIRE_ERR_INVALPKT;
++		}
++		usb.reads.push_back({0, frame(TimeService, {0})});
++		auto deadline = std::chrono::steady_clock::now();
++		if(scenario != 5) deadline += std::chrono::seconds(1);
++		CHECK(assureReady(&handle, deadline) == expected);
++		CHECK(!handle.cx2_handshake_complete && usb.reads.size() == 1);
++		CHECK(usb.write_services.size() == (scenario == 2 || scenario == 3 ? 1u
++			: scenario == 4 ? NSPIRE_CX2_PENDING_CAPACITY : 0u));
++		CHECK(usb.bulk_calls == (scenario == 5 ? 0 : scenario == 4
++			? NSPIRE_CX2_PENDING_CAPACITY * 2 + 1 : scenario == 2 || scenario == 3 ? 2 : 1));
++	}
++}
++
+ static void handshake_frame_metadata() {
+ 	unsigned missing = 0;
+ 	for(bool enabled : {true, false}) {
+@@ -1120,7 +1205,7 @@ static void handshake_frame_metadata() {
+ 		std::string log = capture_trace([&] {
+ 			CHECK(assureReady(&handle) == -NSPIRE_ERR_TIMEOUT);
+ 			CHECK(!handle.cx2_handshake_complete && handle.cx2_pending_count == 10);
+-			CHECK(usb.bulk_calls == 20 && usb.reads.empty());
++			CHECK(usb.bulk_calls == 21 && usb.reads.empty());
+ 			CHECK(usb.write_services == std::vector<uint8_t>(10, StreamService | AckFlag));
+ 		});
+ 		if(!enabled) {
+@@ -1141,7 +1226,7 @@ static void handshake_frame_metadata() {
+ 				}
+ 			}
+ 		}
+-		CHECK(log.find("reason=packet-limit") != std::string::npos);
++		CHECK(log.find("reason=io-timeout") != std::string::npos);
+ 		CHECK(log.find(secret) == std::string::npos);
+ 		CHECK(log.find("50 52 49 56") == std::string::npos);
+ 	}
+@@ -1321,7 +1406,7 @@ int main() {
+ 		allocation_failures, early_stream_reply, early_stream_fifo, pending_stream_capacity,
+ 		pending_stream_lifetime, early_reply_without_send_ack, padded_screenshot_packets, init_fallback_and_reconnect,
+ 		alternate_endpoint_traffic, oversized_stream_recovery, error_strings, diagnostic_metadata,
+-		handshake_frame_metadata, navnet_header_metadata, accepted_stream_retransmissions};
++		handshake_after_retries, handshake_deadline_and_errors, handshake_frame_metadata, navnet_header_metadata, accepted_stream_retransmissions};
+ 	try {
+ 		for(auto test : tests) {
+ 			reset();
+-- 
+2.55.0
+

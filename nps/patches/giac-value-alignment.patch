@@ -1,0 +1,14 @@
+--- a/src/gen.h
++++ b/src/gen.h
+@@ -536,7 +536,11 @@
+ 
+   void delete_ptr(signed char subtype,short int type_save,ref_mpz_t * ptr_save);
+   // FIXME: for little-endian check if type/unused/subtype order is correct!
++#ifdef SMARTPTR64
++  class alignas(ulonglong) gen {
++#else
+   class gen {
++#endif
+   public:
+ #ifdef GIAC_TYPE_ON_8BITS
+     unsigned char type;  // see dispatch.h

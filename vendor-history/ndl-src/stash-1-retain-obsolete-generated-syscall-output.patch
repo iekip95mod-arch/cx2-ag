@@ -1,0 +1,58 @@
+diff --git a/ndless-sdk/include/syscall-decls.h b/ndless-sdk/include/syscall-decls.h
+index a952091..f585665 100644
+--- a/ndless-sdk/include/syscall-decls.h
++++ b/ndless-sdk/include/syscall-decls.h
+@@ -188,8 +188,8 @@ usbd_status usbd_pipe2device_handle(usbd_pipe_handle p1);
+ usbd_status usbd_sync_transfer(usbd_xfer_handle p1);
+ usbd_status usbd_open_pipe_intr(usbd_interface_handle p1, uint8_t p2, uint8_t p3, usbd_pipe_handle *p4, usbd_private_handle p5, void *p6, uint32_t *p8, usbd_callback p9, int p10);
+ usbd_status usbd_do_request(usbd_device_handle p1, usb_device_request_t *p2, void *p3);
+-usbd_status usbd_do_request_flags(usbd_device_handle p1, usb_device_request_t *p2, void *p3, uint16_t p4, int *p5, uint32_t p6);
+-usbd_status usbd_do_request_flags_pipe(usbd_device_handle p1, usbd_pipe_handle p2, usb_device_request_t *p3, void *p4, uint16_t p5, int *p6, uint32_t p7);
++usbd_status usbd_do_request_flags(usbd_device_handle p1, usb_device_request_t *p2, void *p3, uint16_t p4, int *p5);
++usbd_status usbd_do_request_flags_pipe(usbd_device_handle p1, usbd_pipe_handle p2, usb_device_request_t *p3, void *p4, uint16_t p5, int *p6);
+ usb_interface_descriptor_t* usbd_get_interface_descriptor(usbd_interface_handle p1);
+ usb_config_descriptor_t* usbd_get_config_descriptor(usbd_device_handle p1);
+ usbd_status usbd_set_interface(usbd_interface_handle p1, int p2);
+diff --git a/ndless-sdk/libsyscalls/stubs.cpp b/ndless-sdk/libsyscalls/stubs.cpp
+index ed22a6b..6df6211 100644
+--- a/ndless-sdk/libsyscalls/stubs.cpp
++++ b/ndless-sdk/libsyscalls/stubs.cpp
+@@ -961,7 +961,7 @@ usbd_status usbd_do_request(usbd_device_handle p1, usb_device_request_t *p2, voi
+ {
+ 	return syscall<e_usbd_do_request, usbd_status>(p1,p2,p3);
+ }
+-__attribute__((naked)) usbd_status usbd_do_request_flags(usbd_device_handle p1, usb_device_request_t *p2, void *p3, uint16_t p4, int *p5, uint32_t p6)
++__attribute__((naked)) usbd_status usbd_do_request_flags(usbd_device_handle p1, usb_device_request_t *p2, void *p3, uint16_t p4, int *p5)
+ {
+ 	asm volatile("push {r4-r6}\n"
+ 				"ldr r4, =savedlr_stack\n"
+@@ -983,7 +983,7 @@ __attribute__((naked)) usbd_status usbd_do_request_flags(usbd_device_handle p1,
+ 				"bx lr\n"
+ 				".ltorg" :: [nr] "i" (e_usbd_do_request_flags));
+ }
+-__attribute__((naked)) usbd_status usbd_do_request_flags_pipe(usbd_device_handle p1, usbd_pipe_handle p2, usb_device_request_t *p3, void *p4, uint16_t p5, int *p6, uint32_t p7)
++__attribute__((naked)) usbd_status usbd_do_request_flags_pipe(usbd_device_handle p1, usbd_pipe_handle p2, usb_device_request_t *p3, void *p4, uint16_t p5, int *p6)
+ {
+ 	asm volatile("push {r4-r6}\n"
+ 				"ldr r4, =savedlr_stack\n"
+@@ -1061,11 +1061,11 @@ __attribute__((naked)) int usb_register_driver(int p1, int(*p2[])(device_t), con
+ }
+ void* device_get_ivars(device_t p1)
+ {
+-	return syscall<e_device_get_ivars, void*>(p1);
++	return syscall<e_device_get_softc, void*>(p1);
+ }
+ void* device_get_softc(device_t p1)
+ {
+-	return syscall<e_device_get_softc, void*>(p1);
++	return syscall<e_device_get_ivars, void*>(p1);
+ }
+ int get_event(struct s_ns_event* p1)
+ {
+@@ -1637,4 +1637,4 @@ int TI_MS_MathExprToStr(void *p1, void *p2, uint16_t **p3)
+ {
+ 	return syscall<e_TI_MS_MathExprToStr, int>(p1,p2,p3);
+ }
+-}
++}
+\ No newline at end of file

@@ -1,0 +1,18 @@
+FAIL callback receives computed return value
+FAIL same PC on another stack leaves CPU unchanged
+FAIL same PC on another stack does not consume callback
+FAIL real snippet return invokes callback once
+FAIL callback receives computed return value
+FAIL same PC on another stack leaves CPU unchanged
+FAIL same PC on another stack does not consume callback
+FAIL real snippet return invokes callback once
+FAIL callback receives computed return value
+FAIL same PC on another stack leaves CPU unchanged
+FAIL same PC on another stack does not consume callback
+FAIL real snippet return invokes callback once
+FAIL callback receives computed return value
+FAIL same PC on another stack leaves CPU unchanged
+FAIL same PC on another stack does not consume callback
+FAIL real snippet return invokes callback once
+FAIL foreign blob return leaves CPU unchanged
+31 checks, 17 failures

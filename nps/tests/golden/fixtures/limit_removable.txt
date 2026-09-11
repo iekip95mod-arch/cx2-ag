@@ -1,0 +1,171 @@
+problem: limit((x^2-1)/(x-1),x,1)
+result: 2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.limit.single-variable
+  envelope version: 1
+  normalized problem: limit((((x^2) + (-1)) * ((x + (-1))^(-1))), x, 1)
+  requested method: limit
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Write a polynomial quotient
+    rule: limit.rational-form, Write a polynomial quotient
+    claim: equivalent expression
+    explanation: Each excluded denominator is a nonzero polynomial, so its roots are isolated
+    detail: Combine rational terms before inspecting zero over zero. Keep every denominator exclusion from the original expression, even if it cancels from the combined quotient.
+    domain restriction: For nearby x: (x + (-1)) is not zero
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Combine the rational expression over a common denominator
+    before: limit((((x^2) + (-1)) * ((x + (-1))^(-1))), x, 1)
+    after: limit(((-1 + (x^2)) * ((-1 + x)^-1)), x, 1)
+    reversible: no
+    verification: rule-local invariant, passed, Each excluded denominator is a nonzero polynomial, so its roots are isolated
+    verified: yes
+  2 transformation
+    phase: calculus
+    goal: Resolve the zero over zero form
+    rule: limit.lhopital, Resolve the zero over zero form
+    claim: equivalent expression
+    explanation: Both polynomials vanish here and the denominator has an isolated zero of finite order, so L'Hopital's rule applies
+    detail: Use L'Hopital's rule for a zero over zero limit with differentiable numerator and denominator. Nonzero polynomials have isolated zeros, which supplies the punctured-neighborhood conditions here. This is a limit rule, not equality of the two quotients at ordinary points.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Differentiate the numerator and denominator once
+    before: limit(((-1 + (x^2)) * ((-1 + x)^-1)), x, 1)
+    after: limit((2 * x), x, 1)
+    reversible: no
+    verification: rule-local invariant, passed, Both polynomials vanish here and the denominator has an isolated zero of finite order, so L'Hopital's rule applies
+    verified: yes
+    2.1 plan
+      phase: plan
+      goal: Differentiate (-1 + (x^2)) with respect to x
+      rule: calculus.differentiate.rules, Differentiate by rule
+      claim: no claim
+      explanation: Work outwards in, applying the rule that matches each form
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Differentiate by rule
+      applicability: every form in the expression has a derivative rule
+      fact: differentiate with respect to x
+      rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+      verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      2.1.1 transformation
+        phase: differentiate
+        goal: Differentiate (-1 + (x^2))
+        rule: d.sum, Sum rule
+        claim: equivalent expression
+        explanation: The derivative of a sum is the sum of the derivatives
+        detail: Each term is differentiated on its own and the results are added.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Differentiate each term separately
+        before: d((-1 + (x^2)), x)
+        after: (0 + (2 * (x^1)))
+        reversible: no
+        verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+        verified: yes
+        2.1.1.1 transformation
+          phase: differentiate
+          goal: Differentiate -1
+          rule: d.constant, Constant rule
+          claim: equivalent expression
+          explanation: A quantity that does not change has derivative zero
+          detail: Reach for this whenever the expression has no occurrence of the variable in it, however complicated it looks: a plain number, pi, or a second letter being held fixed all qualify. A derivative measures how fast something changes as the variable moves, and none of these move at all, so the answer is zero.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Replace the derivative of a constant with zero
+          before: d(-1, x)
+          after: 0
+          reversible: no
+          verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+          verified: yes
+        2.1.1.2 transformation
+          phase: differentiate
+          goal: Differentiate (x^2)
+          rule: d.power, Power rule
+          claim: equivalent expression
+          explanation: Bring the exponent down and reduce it by one
+          detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Apply the power rule with exponent 2
+          before: d((x^2), x)
+          after: (2 * (x^1))
+          reversible: no
+          verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+          verified: yes
+    2.2 plan
+      phase: plan
+      goal: Differentiate (-1 + x) with respect to x
+      rule: calculus.differentiate.rules, Differentiate by rule
+      claim: no claim
+      explanation: Work outwards in, applying the rule that matches each form
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Differentiate by rule
+      applicability: every form in the expression has a derivative rule
+      fact: differentiate with respect to x
+      rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+      verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      2.2.1 transformation
+        phase: differentiate
+        goal: Differentiate (-1 + x)
+        rule: d.sum, Sum rule
+        claim: equivalent expression
+        explanation: The derivative of a sum is the sum of the derivatives
+        detail: Each term is differentiated on its own and the results are added.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Differentiate each term separately
+        before: d((-1 + x), x)
+        after: (0 + 1)
+        reversible: no
+        verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+        verified: yes
+        2.2.1.1 transformation
+          phase: differentiate
+          goal: Differentiate -1
+          rule: d.constant, Constant rule
+          claim: equivalent expression
+          explanation: A quantity that does not change has derivative zero
+          detail: Reach for this whenever the expression has no occurrence of the variable in it, however complicated it looks: a plain number, pi, or a second letter being held fixed all qualify. A derivative measures how fast something changes as the variable moves, and none of these move at all, so the answer is zero.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Replace the derivative of a constant with zero
+          before: d(-1, x)
+          after: 0
+          reversible: no
+          verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+          verified: yes
+        2.2.1.2 transformation
+          phase: differentiate
+          goal: Differentiate x
+          rule: d.variable, Derivative of the variable
+          claim: equivalent expression
+          explanation: The variable changes at the same rate as itself
+          detail: Reach for this when the expression is the bare variable and nothing else. If x grows by some amount then x grows by exactly that amount, so the rate of change is one. It is the power rule with an exponent of one, written out separately because it comes up constantly as the last step of a longer derivative.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Replace the derivative of the variable with one
+          before: d(x, x)
+          after: 1
+          reversible: no
+          verification: rule-local invariant, passed, the expression is the variable itself
+          verified: yes
+  3 transformation
+    phase: calculus
+    goal: Evaluate the reduced limit
+    rule: limit.evaluate, Evaluate the reduced limit
+    claim: equivalent expression
+    explanation: The reduced denominator is nonzero at the approach point
+    detail: After the vanishing factors are resolved, check that the denominator is nonzero at the approach point. The resulting quotient is continuous and can be evaluated by substitution.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute the approach point into the reduced quotient
+    before: limit((2 * x), x, 1)
+    after: 2
+    reversible: no
+    verification: rule-local invariant, passed, The reduced denominator is nonzero at the approach point
+    verified: yes

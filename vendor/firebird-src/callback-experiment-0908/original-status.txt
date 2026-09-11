@@ -1,0 +1,20 @@
+ M core/armsnippets.h
+ M core/armsnippets_loader.c
+ M core/cx2.cpp
+ M core/cx2.h
+ M core/debug.cpp
+ M core/debug.h
+ M core/emu.cpp
+ M core/gdbstub.c
+ M core/keypad.cpp
+ M core/keypad.h
+ M core/usblink.c
+ M core/usblink.h
+ M core/usblink_queue.cpp
+ M core/usblink_queue.h
+ M headless/Makefile
+ M headless/main.cpp
+ M main.cpp
+ M mainwindow.cpp
+?? build-qt5/
+?? callback-experiment-0908/

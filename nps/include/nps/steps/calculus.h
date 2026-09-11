@@ -1,0 +1,46 @@
+#ifndef NPS_CALCULUS_H
+#define NPS_CALCULUS_H
+
+#include "nps/cas/giac_adapter.h"
+#include "nps/steps/command.h"
+#include "nps/steps/derivation.h"
+
+namespace nps {
+
+enum class CalculusOutcome : uint8_t {
+    Evaluated,
+    InfiniteLimit,
+    DoesNotExist,
+    UnsupportedForm,
+    InvalidInput,
+    Refused,
+    VerificationFailed,
+    Cancelled,
+    ResourceExceeded,
+};
+
+const char *calculus_outcome_name(CalculusOutcome outcome);
+
+struct CalculusResult {
+    CalculusOutcome outcome = CalculusOutcome::UnsupportedForm;
+    NodeId value = kNoNode;
+    int infinity = 0;
+    bool does_not_exist = false;
+    bool answer_only = false;
+    bool backend_attempted = false;
+    bool backend_compared = false;
+    bool agrees = false;
+    bool comparison_attempted = false;
+    Response backend_result;
+    Response comparison_result;
+    DerivationStatus status = DerivationStatus::Unsupported;
+    std::string detail;
+    Cost cost;
+};
+
+CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const Command &command,
+                                   const Budget &budget = Budget(), Backend *backend = nullptr);
+
+}
+
+#endif

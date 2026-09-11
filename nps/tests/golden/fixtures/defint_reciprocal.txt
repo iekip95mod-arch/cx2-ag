@@ -1,0 +1,117 @@
+problem: int(1/x,x,1,2)
+result: ln(2)
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.integral.definite.single-variable
+  envelope version: 1
+  normalized problem: int((1 * (x^(-1))), x, 1, 2)
+  requested method: definite integral
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Check the interval
+    rule: defint.interval, Check the interval
+    claim: equivalent expression
+    explanation: The supported operations are continuous on this interval and no denominator vanishes
+    detail: Before using endpoint subtraction, check every point between the bounds. A pole inside the interval makes ordinary antiderivative subtraction invalid even when both endpoints are finite.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Check the integrand throughout [1, 2]
+    before: int((1 * (x^(-1))), x, 1, 2)
+    after: int((1 * (x^(-1))), x, 1, 2)
+    reversible: no
+    verification: rule-local invariant, passed, The supported operations are continuous on this interval and no denominator vanishes
+    verified: yes
+  2 plan
+    phase: plan
+    goal: Integrate (1 * (x^(-1))) with respect to x
+    rule: calculus.integrate.rules, Integrate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Integrate by rule
+    applicability: every form in the integrand has an antiderivative rule
+    applicability: every function argument and every power base is the variable or linear in it
+    fact: integrate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
+    verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
+    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: integrate
+      goal: Integrate (1 * (x^(-1)))
+      rule: i.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is integrated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. A fixed multiplier can be lifted out, the rest integrated on its own, and the multiplier put back, because scaling a function scales its area by the same amount. Only a factor free of the variable may move: anything that changes has to stay inside.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take 1 outside the integral
+      before: int((1 * (x^(-1))), x)
+      after: (1 * ln(x))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      2.1.1 transformation
+        phase: integrate
+        goal: Integrate (x^(-1))
+        rule: i.reciprocal, Logarithmic integral
+        claim: equivalent expression
+        explanation: The integral of one over the variable is its natural logarithm
+        detail: The logarithm is only defined for a positive argument; for a negative one the antiderivative is the logarithm of the negated argument, so the restriction is recorded rather than hidden inside an absolute value.
+        domain restriction: x > 0
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Use the natural logarithm of x
+        before: int((x^(-1)), x)
+        after: ln(x)
+        reversible: no
+        verification: rule-local invariant, passed, the exponent is minus one and the base is the variable
+        verified: yes
+    2.2 check
+      phase: check
+      goal: Check the answer
+      rule: calculus.integrate.check-by-differentiation, Check by differentiation
+      claim: equivalent expression
+      explanation: Differentiate the result and compare it with the integrand
+      detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
+      proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
+      target claim: the derivative of (1 * ln(x)) is (1 * (x^(-1)))
+      check method: differentiate the result by rule and compare canonical forms
+      expected: (x^-1)
+      observed: (x^-1)
+      verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
+      verified: yes
+  3 transformation
+    phase: calculus
+    goal: Evaluate the antiderivative at both bounds
+    rule: defint.fundamental-theorem, Evaluate the antiderivative at both bounds
+    claim: equivalent expression
+    explanation: The integrand is continuous on the interval and the antiderivative passed its derivative check
+    detail: Use the fundamental theorem after finding an antiderivative and proving continuity on the whole interval. Upper minus lower also handles reversed bounds without changing the requested sign.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 2 and 1 into the antiderivative, then subtract the lower value from the upper value
+    before: int((1 * (x^(-1))), x, 1, 2)
+    after: ((1 * ln(2)) + (-(1 * ln(1))))
+    reversible: no
+    verification: rule-local invariant, passed, The integrand is continuous on the interval and the antiderivative passed its derivative check
+    verified: yes
+  4 transformation
+    phase: calculus
+    goal: Subtract the endpoint values
+    rule: defint.subtract, Subtract the endpoint values
+    claim: equivalent expression
+    explanation: The order of subtraction preserves the orientation of the requested bounds
+    detail: Once both endpoints have been substituted, combine their exact values. Keep the subtraction order and retain any symbolic constants without rounding.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Simplify the upper value minus the lower value
+    before: ((1 * ln(2)) + (-(1 * ln(1))))
+    after: ln(2)
+    reversible: no
+    verification: rule-local invariant, passed, The order of subtraction preserves the orientation of the requested bounds
+    verified: yes

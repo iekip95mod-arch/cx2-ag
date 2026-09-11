@@ -1,0 +1,19 @@
+problem: y = x + x
+variable: x
+outcome: variable appears more than once
+detail: x appears 2 times, and collecting it into one term first is a rule this engine does not have
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.formula-rearrangement.single-occurrence
+  envelope version: <not recorded>
+  normalized problem: (y = (x + x))
+  requested method: inverse operations
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

@@ -1,0 +1,48 @@
+problem: y = x^2
+variable: x
+outcome: unsupported form
+detail: undoing an even power of x gives a positive and a negative root, and this rule records no branches
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.formula-rearrangement.single-occurrence
+  envelope version: <not recorded>
+  normalized problem: (y = (x^2))
+  requested method: inverse operations
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  1 plan
+    phase: plan
+    goal: Rearrange for x
+    rule: alg.rearrange.inverse-operations, Undo the operations around the variable
+    claim: no claim
+    explanation: Peel the operations off x one at a time
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Undo the operations around the variable
+    applicability: x appears exactly once
+    applicability: every operation around x has an inverse rule
+    fact: x appears once in the formula
+    rationale: each operation wrapped around x is undone on both sides in turn, innermost last, and every move is reversible, so the rearranged formula says the same thing as the one it came from
+    verification: occurrence count, passed, one occurrence was found in the formula
+    verification: registered inverse-operation dispatch, failed, undoing an even power of x gives a positive and a negative root, and this rule records no branches
+    verification: registered strategy preconditions, failed, precondition pre.rearrange.invertible-path is failed
+    verified: nothing claimed
+    1.1 transformation
+      phase: rearrange
+      goal: Put x on the left
+      rule: alg.rearrange.swap-sides, Symmetry of equality
+      claim: solution set preserved
+      explanation: An equation reads the same either way round
+      detail: Equality is symmetric, so the side holding x can be written first without changing what the formula says.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Write the side holding x first
+      before: (y = (x^2))
+      after: ((x^2) = y)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the two sides were exchanged unchanged
+      verified: yes

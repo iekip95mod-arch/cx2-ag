@@ -1,0 +1,128 @@
+problem: 4x^2 = 9
+variable: x
+outcome: solved
+result: (3 * (2^(-1))) and (-(3 * (2^(-1))))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.pure-square.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((4 * (x^2)) = 9)
+  requested method: isolate the square and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.square-root, Isolate the square and split on its roots
+    claim: no claim
+    explanation: Get x^2 alone, then find all real square roots
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Isolate the square and split on its roots
+    applicability: the equation is degree two in x with no term of degree one
+    applicability: the isolated square has an exact rational square root or is negative
+    fact: one unknown, x
+    fact: degree two in x with no term of degree one
+    alternative: the quadratic formula, which this equation does not need because it has no term of degree one
+    rationale: with no term of degree one the square can be isolated in one move, and every real x whose square is that value is then read off directly
+    verification: exact linear analysis in the squared term, passed, both sides reduced to a coefficient on x^2 and a constant term
+    verification: exact rational square root, passed, the isolated square is a rational perfect square
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Get x^2 by itself
+      rule: eq.quadratic.isolate-the-square, Isolate the square
+      claim: solution set preserved
+      explanation: Treat x^2 as the unknown and undo its operations
+      detail: Adding the same quantity to both sides and dividing by a nonzero coefficient preserve the solutions.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Collect on the left: 4*x^2 - 9 = 0. Add 9 to both sides, then divide both sides by 4
+      before: ((4 * (x^2)) = 9)
+      after: ((x^2) = (9 * (4^(-1))))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the coefficient of x^2 was checked to be non-zero before dividing
+      verified: yes
+      1.1.1 branch
+        phase: solve
+        goal: Take the positive square root
+        rule: eq.quadratic.square-root-case, Square root case
+        claim: solution set narrowed
+        explanation: x = (3 * (2^(-1))) is one of the values whose square is (9 * (4^(-1)))
+        detail: A positive number has two real square roots, one of each sign. Write both cases to keep every solution.
+        proof obligation: obl.quadratic.case-is-a-root, this case's value squares to the isolated value
+        condition: (x = (3 * (2^(-1))))
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: root-coefficient reconstruction
+        feasibility: feasible
+        resolution: solved
+        resolution evidence: substitution into the original equation
+        verification: exact rational square, passed, (3 * (2^(-1))) squared is (9 * (4^(-1)))
+        verified: yes
+        1.1.1.1 check
+          phase: check
+          goal: Check this case
+          rule: eq.quadratic.check-by-substitution, Check by substitution
+          claim: solution set preserved
+          explanation: Put (3 * (2^(-1))) back into the equation as it was typed
+          detail: Substituting into the original rather than into the isolated form is what makes this a check: the isolated form came from the step being checked, so agreeing with it would prove nothing about the answer.
+          proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+          target claim: x = (3 * (2^(-1))) satisfies the equation
+          check method: substitute the case into the original equation
+          expected: left side equals right side
+          observed: both sides came out equal
+          verification: substitution, passed, both sides came out equal
+          verified: yes
+      1.1.2 branch
+        phase: solve
+        goal: Take the negative square root
+        rule: eq.quadratic.square-root-case, Square root case
+        claim: solution set narrowed
+        explanation: x = (-(3 * (2^(-1)))) is one of the values whose square is (9 * (4^(-1)))
+        detail: A positive number has two real square roots, one of each sign. Write both cases to keep every solution.
+        proof obligation: obl.quadratic.case-is-a-root, this case's value squares to the isolated value
+        condition: (x = (-(3 * (2^(-1)))))
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: root-coefficient reconstruction
+        feasibility: feasible
+        resolution: solved
+        resolution evidence: substitution into the original equation
+        verification: exact rational square, passed, (-(3 * (2^(-1)))) squared is (9 * (4^(-1)))
+        verified: yes
+        1.1.2.1 check
+          phase: check
+          goal: Check this case
+          rule: eq.quadratic.check-by-substitution, Check by substitution
+          claim: solution set preserved
+          explanation: Put (-(3 * (2^(-1)))) back into the equation as it was typed
+          detail: Substituting into the original rather than into the isolated form is what makes this a check: the isolated form came from the step being checked, so agreeing with it would prove nothing about the answer.
+          proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+          target claim: x = (-(3 * (2^(-1)))) satisfies the equation
+          check method: substitute the case into the original equation
+          expected: left side equals right side
+          observed: both sides came out equal
+          verification: substitution, passed, both sides came out equal
+          verified: yes
+      1.1.3 check
+        phase: check
+        goal: Check that no case is missing
+        rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+        claim: solution set preserved
+        explanation: The cases multiply back out to the equation that was split
+        detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+        proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+        target claim: the cases recorded are every real solution of the equation
+        check method: rebuild the quadratic from the recorded cases and compare it
+        expected: the rebuilt quadratic is the one that was split
+        observed: the rebuilt quadratic is the one that was split
+        verification: root-coefficient reconstruction, passed, the 2 recorded cases rebuild x^2 = (9 * (4^(-1)))
+        verified: yes

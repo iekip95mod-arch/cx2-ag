@@ -1,0 +1,1133 @@
+# Supported elementary indefinite integrals, PRD section 22.1 row 3.
+#
+# The required result is a complete derivation plus the derivative check, and the engine already
+# runs that check as VER-005: it differentiates its own answer by rule and withholds an answer that
+# does not come back. So what a case adds here is the answer itself, worked out from the
+# mathematics, and the domain restriction where the rule carries one.
+#
+# The result named is the particular antiderivative, without the constant of integration, since the
+# constant is a step of its own and spelling it in every case would say nothing.
+
+case integral.constant.one
+  family integral
+  input 1
+  variable x
+  expect integrated
+  result x
+
+case integral.constant.integer
+  family integral
+  input 5
+  variable x
+  expect integrated
+  result 5*x
+
+case integral.constant.negative
+  family integral
+  input -3
+  variable x
+  expect integrated
+  result -3*x
+
+case integral.constant.other-symbol
+  family integral
+  input a
+  variable x
+  expect integrated
+  result a*x
+
+case integral.power.variable
+  family integral
+  input x
+  variable x
+  expect integrated
+  result x^2/2
+
+case integral.power.square
+  family integral
+  input x^2
+  variable x
+  expect integrated
+  result x^3/3
+
+case integral.power.cube
+  family integral
+  input x^3
+  variable x
+  expect integrated
+  result x^4/4
+
+case integral.power.fifth
+  family integral
+  input x^5
+  variable x
+  expect integrated
+  result x^6/6
+
+case integral.power.negative-square
+  family integral
+  input x^-2
+  variable x
+  expect integrated
+  result -1*x^-1
+
+case integral.power.negative-cube
+  family integral
+  input x^-3
+  variable x
+  expect integrated
+  result (-1/2)*x^-2
+
+case integral.reciprocal.written-as-a-power
+  family integral
+  input x^-1
+  variable x
+  expect integrated
+  result ln(x)
+  restriction x > 0
+
+case integral.reciprocal.written-as-a-fraction
+  family integral
+  input 1/x
+  variable x
+  expect integrated
+  result ln(x)
+  restriction x > 0
+
+case integral.function.sine
+  family integral
+  input sin(x)
+  variable x
+  expect integrated
+  result -cos(x)
+
+case integral.function.cosine
+  family integral
+  input cos(x)
+  variable x
+  expect integrated
+  result sin(x)
+
+case integral.function.exponential
+  family integral
+  input exp(x)
+  variable x
+  expect integrated
+  result exp(x)
+
+case integral.constant-multiple.of-a-power
+  family integral
+  input 3*x^2
+  variable x
+  expect integrated
+  result x^3
+
+case integral.constant-multiple.of-sine
+  family integral
+  input 2*sin(x)
+  variable x
+  expect integrated
+  result -2*cos(x)
+
+case integral.constant-multiple.negation
+  family integral
+  input -cos(x)
+  variable x
+  expect integrated
+  result -sin(x)
+
+case integral.constant-multiple.fraction
+  family integral
+  input x/2
+  variable x
+  expect integrated
+  result x^2/4
+
+case integral.sum.two-powers
+  family integral
+  input x + x^2
+  variable x
+  expect integrated
+  result x^2/2 + x^3/3
+
+case integral.sum.polynomial
+  family integral
+  input 3*x^2 - 2*x + 7
+  variable x
+  expect integrated
+  result x^3 - x^2 + 7*x
+
+case integral.sum.trigonometric
+  family integral
+  input sin(x) + cos(x)
+  variable x
+  expect integrated
+  result -cos(x) + sin(x)
+
+case integral.substitution.sine-of-linear
+  family integral
+  input sin(2*x)
+  variable x
+  expect integrated
+  result (-1/2)*cos(2*x)
+
+case integral.substitution.cosine-of-linear
+  family integral
+  input cos(3*x)
+  variable x
+  expect integrated
+  result (1/3)*sin(3*x)
+
+case integral.substitution.exponential-of-linear
+  family integral
+  input exp(2*x)
+  variable x
+  expect integrated
+  result (1/2)*exp(2*x)
+
+case integral.substitution.power-of-linear
+  family integral
+  input (2*x + 1)^2
+  variable x
+  expect integrated
+  result (2*x + 1)^3/6
+
+case integral.substitution.shift
+  family integral
+  input (x + 1)^3
+  variable x
+  expect integrated
+  result (x + 1)^4/4
+
+case integral.sum.trigonometric-difference
+  family integral
+  input sin(x) - cos(x)
+  variable x
+  expect integrated
+  result -cos(x) - sin(x)
+
+case integral.sum.power-and-function
+  family integral
+  input x^2 + sin(x)
+  variable x
+  expect integrated
+  result x^3/3 - cos(x)
+
+case integral.sum.exponential-and-variable
+  family integral
+  input exp(x) + x
+  variable x
+  expect integrated
+  result exp(x) + x^2/2
+
+case integral.sum.reciprocal-and-variable
+  family integral
+  input x^-1 + x
+  variable x
+  expect integrated
+  result ln(x) + x^2/2
+  restriction x > 0
+
+case integral.sum.linear-polynomial
+  family integral
+  input 2*x + 3
+  variable x
+  expect integrated
+  result x^2 + 3*x
+
+case integral.sum.power-difference
+  family integral
+  input x^2 - x
+  variable x
+  expect integrated
+  result x^3/3 - x^2/2
+
+case integral.sum.three-functions
+  family integral
+  input sin(x) + cos(x) + exp(x)
+  variable x
+  expect integrated
+  result -cos(x) + sin(x) + exp(x)
+
+case integral.substitution.reciprocal-of-linear
+  family integral
+  input 1/(2*x + 1)
+  variable x
+  expect integrated
+  result (1/2)*ln(2*x + 1)
+  restriction ((2 * x) + 1) > 0
+
+case integral.substitution.reciprocal-of-a-shift
+  family integral
+  input 1/(x + 1)
+  variable x
+  expect integrated
+  result ln(x + 1)
+  restriction (x + 1) > 0
+
+case integral.substitution.fourth-power-of-linear
+  family integral
+  input (3*x + 2)^4
+  variable x
+  expect integrated
+  result (3*x + 2)^5/15
+
+case integral.substitution.square-of-a-shift
+  family integral
+  input (x - 1)^2
+  variable x
+  expect integrated
+  result (x - 1)^3/3
+
+case integral.substitution.exponential-of-a-negation
+  family integral
+  input exp(-x)
+  variable x
+  expect integrated
+  result -exp(-x)
+
+case integral.substitution.sine-of-a-negation
+  family integral
+  input sin(-x)
+  variable x
+  expect integrated
+  result cos(-x)
+
+case integral.substitution.cosine-of-a-shifted-linear
+  family integral
+  input cos(2*x + 1)
+  variable x
+  expect integrated
+  result (1/2)*sin(2*x + 1)
+
+case integral.substitution.exponential-of-a-shifted-linear
+  family integral
+  input exp(3*x - 1)
+  variable x
+  expect integrated
+  result (1/3)*exp(3*x - 1)
+
+case integral.constant-multiple.divided-variable
+  family integral
+  input x/3
+  variable x
+  expect integrated
+  result x^2/6
+
+case integral.constant-multiple.negated-square
+  family integral
+  input -x^2
+  variable x
+  expect integrated
+  result -x^3/3
+
+case integral.constant-multiple.of-a-cube
+  family integral
+  input 4*x^3
+  variable x
+  expect integrated
+  result x^4
+
+case integral.constant-multiple.of-the-exponential
+  family integral
+  input 2*exp(x)
+  variable x
+  expect integrated
+  result 2*exp(x)
+
+case integral.constant-multiple.of-cosine
+  family integral
+  input 3*cos(x)
+  variable x
+  expect integrated
+  result 3*sin(x)
+
+case integral.constant-multiple.divided-sine
+  family integral
+  input sin(x)/2
+  variable x
+  expect integrated
+  result -cos(x)/2
+
+case integral.symbolic.parameter-times-the-variable
+  family integral
+  input a*x
+  variable x
+  expect integrated
+  result a*x^2/2
+
+case integral.symbolic.variable-plus-a-parameter
+  family integral
+  input x + a
+  variable x
+  expect integrated
+  result x^2/2 + a*x
+
+case integral.power.negative-fourth
+  family integral
+  input x^-4
+  variable x
+  expect integrated
+  result (-1/3)*x^-3
+
+case integral.substitution.fifth-power-of-a-shift
+  family integral
+  input (x + 2)^5
+  variable x
+  expect integrated
+  result (x + 2)^6/6
+
+case integral.substitution.square-of-a-shifted-linear
+  family integral
+  input (4*x - 3)^2
+  variable x
+  expect integrated
+  result (4*x - 3)^3/12
+
+case integral.substitution.negative-square-of-a-shift
+  family integral
+  input (x - 1)^-2
+  variable x
+  expect integrated
+  result -1*(x - 1)^-1
+
+case integral.substitution.negative-cube-of-linear
+  family integral
+  input (2*x + 1)^-3
+  variable x
+  expect integrated
+  result (-1/4)*(2*x + 1)^-2
+
+case integral.substitution.constant-times-sine-of-linear
+  family integral
+  input 2*sin(3*x)
+  variable x
+  expect integrated
+  result (-2/3)*cos(3*x)
+
+case integral.substitution.constant-times-exponential-of-linear
+  family integral
+  input 5*exp(2*x)
+  variable x
+  expect integrated
+  result (5/2)*exp(2*x)
+
+case integral.substitution.constant-times-cosine-of-linear
+  family integral
+  input 3*cos(2*x)
+  variable x
+  expect integrated
+  result (3/2)*sin(2*x)
+
+case integral.substitution.reciprocal-of-a-scaled-variable
+  family integral
+  input 1/(3*x)
+  variable x
+  expect integrated
+  result (1/3)*ln(3*x)
+
+case integral.substitution.reciprocal-of-a-negative-shift
+  family integral
+  input 1/(x - 1)
+  variable x
+  expect integrated
+  result ln(x - 1)
+
+case integral.sum.power-and-exponential
+  family integral
+  input x^2 + exp(x)
+  variable x
+  expect integrated
+  result x^3/3 + exp(x)
+
+case integral.sum.variable-and-cosine
+  family integral
+  input x + cos(x)
+  variable x
+  expect integrated
+  result x^2/2 + sin(x)
+
+case integral.sum.cube-less-sine
+  family integral
+  input x^3 - sin(x)
+  variable x
+  expect integrated
+  result x^4/4 + cos(x)
+
+case integral.sum.three-powers
+  family integral
+  input 1 + x + x^2
+  variable x
+  expect integrated
+  result x + x^2/2 + x^3/3
+
+case integral.sum.constant-less-a-multiple
+  family integral
+  input 2 - 3*x
+  variable x
+  expect integrated
+  result 2*x - (3/2)*x^2
+
+case integral.sum.two-negative-powers
+  family integral
+  input x^-1 + x^-2
+  variable x
+  expect integrated
+  result ln(x) - x^-1
+  restriction x > 0
+
+case integral.sum.two-substitutions
+  family integral
+  input sin(2*x) + cos(2*x)
+  variable x
+  expect integrated
+  result (-1/2)*cos(2*x) + (1/2)*sin(2*x)
+
+case integral.sum.two-exponentials
+  family integral
+  input exp(x) + exp(2*x)
+  variable x
+  expect integrated
+  result exp(x) + (1/2)*exp(2*x)
+
+case integral.sum.function-power-and-exponential
+  family integral
+  input sin(x) + x^2 + exp(x)
+  variable x
+  expect integrated
+  result -cos(x) + x^3/3 + exp(x)
+
+case integral.sum.reciprocal-less-the-variable
+  family integral
+  input x^-1 - x
+  variable x
+  expect integrated
+  result ln(x) - x^2/2
+  restriction x > 0
+
+case integral.symbolic.parameter-times-a-square
+  family integral
+  input a*x^2
+  variable x
+  expect integrated
+  result a*x^3/3
+
+case integral.symbolic.parameter-times-sine
+  family integral
+  input a*sin(x)
+  variable x
+  expect integrated
+  result -a*cos(x)
+
+case integral.constant-multiple.negated-sine
+  family integral
+  input -sin(x)
+  variable x
+  expect integrated
+  result cos(x)
+
+case integral.constant-multiple.negated-exponential
+  family integral
+  input -exp(x)
+  variable x
+  expect integrated
+  result -exp(x)
+
+case integral.constant-multiple.twice-the-reciprocal
+  family integral
+  input 2*x^-1
+  variable x
+  expect integrated
+  result 2*ln(x)
+  restriction x > 0
+
+case integral.substitution.sine-of-a-negative-multiple
+  family integral
+  input sin(-2*x)
+  variable x
+  expect integrated
+  result cos(-2*x)/2
+
+case integral.substitution.exponential-of-a-negative-multiple
+  family integral
+  input exp(-2*x)
+  variable x
+  expect integrated
+  result -exp(-2*x)/2
+
+case integral.substitution.cosine-of-a-negation
+  family integral
+  input cos(-x)
+  variable x
+  expect integrated
+  result -sin(-x)
+
+case integral.substitution.exponential-of-a-negative-shift
+  family integral
+  input exp(x - 1)
+  variable x
+  expect integrated
+  result exp(x - 1)
+
+case integral.substitution.sine-of-a-negative-shift
+  family integral
+  input sin(x - 1)
+  variable x
+  expect integrated
+  result -cos(x - 1)
+
+case integral.substitution.cosine-of-a-shift
+  family integral
+  input cos(x + 2)
+  variable x
+  expect integrated
+  result sin(x + 2)
+
+case integral.substitution.reciprocal-of-a-reversed-linear
+  family integral
+  input 1/(1 - x)
+  variable x
+  expect integrated
+  result -ln(1 - x)
+
+case integral.substitution.cube-of-a-negative-shift
+  family integral
+  input (x - 2)^3
+  variable x
+  expect integrated
+  result (x - 2)^4/4
+
+case integral.substitution.square-of-a-reversed-linear
+  family integral
+  input (1 - x)^2
+  variable x
+  expect integrated
+  result -(1 - x)^3/3
+
+case integral.substitution.cube-of-a-shifted-linear
+  family integral
+  input (2*x - 1)^3
+  variable x
+  expect integrated
+  result (2*x - 1)^4/8
+
+case integral.substitution.exponential-of-a-larger-multiple
+  family integral
+  input exp(4*x)
+  variable x
+  expect integrated
+  result (1/4)*exp(4*x)
+
+case integral.substitution.sine-of-a-larger-multiple
+  family integral
+  input sin(5*x)
+  variable x
+  expect integrated
+  result (-1/5)*cos(5*x)
+
+case integral.substitution.reciprocal-of-a-scaled-shift
+  family integral
+  input 1/(4*x + 2)
+  variable x
+  expect integrated
+  result (1/4)*ln(4*x + 2)
+
+case integral.substitution.negative-fourth-of-a-shift
+  family integral
+  input (x + 1)^-4
+  variable x
+  expect integrated
+  result (-1/3)*(x + 1)^-3
+
+case integral.substitution.twice-a-squared-shift
+  family integral
+  input 2*(x + 1)^2
+  variable x
+  expect integrated
+  result (2/3)*(x + 1)^3
+
+case integral.substitution.negated-cosine-of-a-multiple
+  family integral
+  input -cos(2*x)
+  variable x
+  expect integrated
+  result (-1/2)*sin(2*x)
+
+case integral.sum.alternating-polynomial
+  family integral
+  input x^3 - x^2 + x
+  variable x
+  expect integrated
+  result x^4/4 - x^3/3 + x^2/2
+
+case integral.sum.constant-and-a-substitution
+  family integral
+  input 1 + sin(2*x)
+  variable x
+  expect integrated
+  result x - (1/2)*cos(2*x)
+
+case integral.sum.power-and-a-substitution
+  family integral
+  input x^2 + sin(2*x)
+  variable x
+  expect integrated
+  result x^3/3 - (1/2)*cos(2*x)
+
+case integral.sum.two-substitutions-of-different-kinds
+  family integral
+  input sin(2*x) + exp(3*x)
+  variable x
+  expect integrated
+  result (-1/2)*cos(2*x) + (1/3)*exp(3*x)
+
+case integral.sum.difference-of-two-substitutions
+  family integral
+  input sin(2*x) - cos(3*x)
+  variable x
+  expect integrated
+  result (-1/2)*cos(2*x) - (1/3)*sin(3*x)
+
+case integral.sum.reciprocal-and-a-constant
+  family integral
+  input x^-1 + 1
+  variable x
+  expect integrated
+  result ln(x) + x
+  restriction x > 0
+
+case integral.sum.positive-and-negative-powers
+  family integral
+  input x^4 + x^-2
+  variable x
+  expect integrated
+  result x^5/5 - x^-1
+
+case integral.sum.two-divided-powers
+  family integral
+  input x/2 + x^2/3
+  variable x
+  expect integrated
+  result x^2/4 + x^3/9
+
+case integral.sum.cosine-less-sine
+  family integral
+  input cos(x) - sin(x)
+  variable x
+  expect integrated
+  result sin(x) + cos(x)
+
+case integral.sum.exponential-less-a-power
+  family integral
+  input exp(x) - x^2
+  variable x
+  expect integrated
+  result exp(x) - x^3/3
+
+case integral.symbolic.parameter-times-the-reciprocal
+  family integral
+  input a*x^-1
+  variable x
+  expect integrated
+  result a*ln(x)
+  restriction x > 0
+
+case integral.symbolic.parameter-times-the-exponential
+  family integral
+  input a*exp(x)
+  variable x
+  expect integrated
+  result a*exp(x)
+
+case integral.symbolic.parameter-times-cosine
+  family integral
+  input a*cos(x)
+  variable x
+  expect integrated
+  result a*sin(x)
+
+case integral.constant-multiple.negative-cube
+  family integral
+  input -2*x^3
+  variable x
+  expect integrated
+  result -x^4/2
+
+case integral.constant-multiple.negative-exponential
+  family integral
+  input -3*exp(x)
+  variable x
+  expect integrated
+  result -3*exp(x)
+
+case integral.constant-multiple.nested
+  family integral
+  input 2*(3*x^2)
+  variable x
+  expect integrated
+  result 2*x^3
+
+case integral.constant-multiple.negated-reciprocal
+  family integral
+  input -1/x
+  variable x
+  expect integrated
+  result -ln(x)
+  restriction x > 0
+
+case integral.constant-multiple.three-over-the-variable
+  family integral
+  input 3/x
+  variable x
+  expect integrated
+  result 3*ln(x)
+  restriction x > 0
+
+case integral.constant-multiple.of-a-sum
+  family integral
+  input 3*(sin(x) + x)
+  variable x
+  expect integrated
+  result 3*(-cos(x) + x^2/2)
+
+case integral.sum.substitution-less-a-constant
+  family integral
+  input sin(2*x) - 1
+  variable x
+  expect integrated
+  result -cos(2*x)/2 - x
+
+case integral.sum.four-term-polynomial
+  family integral
+  input x^3 + x^2 + x + 1
+  variable x
+  expect integrated
+  result x^4/4 + x^3/3 + x^2/2 + x
+
+case integral.symbolic.variable-over-a-parameter
+  family integral
+  input x/a
+  variable x
+  expect integrated
+  result a^-1*(x^2/2)
+
+case integral.symbolic.sine-over-a-parameter
+  family integral
+  input sin(x)/a
+  variable x
+  expect integrated
+  result -cos(x)/a
+
+case integral.symbolic.linear-in-two-parameters
+  family integral
+  input a*x + b
+  variable x
+  expect integrated
+  result a*x^2/2 + b*x
+
+case integral.symbolic.two-parameters-on-two-functions
+  family integral
+  input a*sin(x) + b*cos(x)
+  variable x
+  expect integrated
+  result -a*cos(x) + b*sin(x)
+
+case integral.constant-multiple.negated-exponential-of-a-multiple
+  family integral
+  input -exp(2*x)
+  variable x
+  expect integrated
+  result -exp(2*x)/2
+
+case integral.constant-multiple.negative-multiple-of-a-substitution
+  family integral
+  input -2*sin(3*x)
+  variable x
+  expect integrated
+  result 2*cos(3*x)/3
+
+case integral.substitution.reciprocal-of-a-scaled-negative-shift
+  family integral
+  input 1/(2*x - 3)
+  variable x
+  expect integrated
+  result ln(2*x - 3)/2
+
+case integral.substitution.cube-of-a-scaled-linear
+  family integral
+  input (2*x + 1)^3
+  variable x
+  expect integrated
+  result (2*x + 1)^4/8
+
+case integral.substitution.negative-square-of-a-scaled-linear
+  family integral
+  input (2*x + 1)^-2
+  variable x
+  expect integrated
+  result -(2*x + 1)^-1/2
+
+case integral.substitution.square-of-a-reversed-shift
+  family integral
+  input (3 - x)^2
+  variable x
+  expect integrated
+  result -(3 - x)^3/3
+
+case integral.sum.substitution-and-the-reciprocal
+  family integral
+  input sin(2*x) + 1/x
+  variable x
+  expect integrated
+  result -cos(2*x)/2 + ln(x)
+  restriction x > 0
+
+case integral.sum.two-reciprocals-of-linears
+  family integral
+  input 1/(x + 1) + 1/(x - 1)
+  variable x
+  expect integrated
+  result ln(x + 1) + ln(x - 1)
+
+case integral.symbolic.parameter-multiple-and-a-square
+  family integral
+  input a*x + x^2
+  variable x
+  expect integrated
+  result a*x^2/2 + x^3/3
+
+case integral.sum.four-terms-of-four-kinds
+  family integral
+  input x^2 + sin(x) + exp(x) + 1
+  variable x
+  expect integrated
+  result x^3/3 - cos(x) + exp(x) + x
+
+case integral.sum.quadratic-with-every-coefficient
+  family integral
+  input 2*x^2 + 3*x + 1
+  variable x
+  expect integrated
+  result 2*x^3/3 + 3*x^2/2 + x
+
+case integral.sum.divided-exponential-and-the-variable
+  family integral
+  input exp(x)/2 + x
+  variable x
+  expect integrated
+  result exp(x)/2 + x^2/2
+
+case integral.sum.cosine-less-a-sine-substitution
+  family integral
+  input cos(2*x) - sin(3*x)
+  variable x
+  expect integrated
+  result sin(2*x)/2 + cos(3*x)/3
+
+case integral.constant-multiple.negated-reciprocal-of-a-shift
+  family integral
+  input -1/(x + 1)
+  variable x
+  expect integrated
+  result -ln(x + 1)
+
+case integral.substitution.four-times-a-cubed-shift
+  family integral
+  input 4*(x + 2)^3
+  variable x
+  expect integrated
+  result (x + 2)^4
+
+case integral.sum.two-negations-of-linear
+  family integral
+  input exp(-x) + sin(-x)
+  variable x
+  expect integrated
+  result -exp(-x) + cos(-x)
+
+case integral.constant-multiple.two-over-a-scaled-variable
+  family integral
+  input 2/(3*x)
+  variable x
+  expect integrated
+  result 2*(ln(3*x)/3)
+  restriction (3 * x) > 0
+
+case integral.constant-multiple.negative-three-over-a-square
+  family integral
+  input -3*x^-2
+  variable x
+  expect integrated
+  result 3*x^-1
+
+case integral.sum.reciprocal-and-a-negative-power
+  family integral
+  input x^-1 + x^-2
+  variable x
+  expect integrated
+  result ln(x) - x^-1
+  restriction x > 0
+
+case integral.sum.sine-and-a-sine-substitution
+  family integral
+  input sin(x) + sin(2*x)
+  variable x
+  expect integrated
+  result -cos(x) - cos(2*x)/2
+
+case integral.substitution.negative-cube-of-a-negative-shift
+  family integral
+  input (x - 2)^-3
+  variable x
+  expect integrated
+  result -(x - 2)^-2/2
+
+case integral.sum.two-divided-powers-of-different-degree
+  family integral
+  input x^2/2 + x/3
+  variable x
+  expect integrated
+  result x^3/6 + x^2/6
+
+case integral.sum.reciprocal-of-a-shift-less-the-reciprocal
+  family integral
+  input 1/(x + 1) - 1/x
+  variable x
+  expect integrated
+  result ln(x + 1) - ln(x)
+  restriction x > 0
+
+case integral.symbolic.parameter-times-the-exponential-plus-the-variable
+  family integral
+  input a*exp(x) + x
+  variable x
+  expect integrated
+  result a*exp(x) + x^2/2
+
+case integral.constant-multiple.twice-a-reciprocal-of-a-shift
+  family integral
+  input 2*(x + 1)^-1
+  variable x
+  expect integrated
+  result 2*ln(x + 1)
+
+case integral.constant-multiple.negated-square-of-a-shift
+  family integral
+  input -(x + 1)^2
+  variable x
+  expect integrated
+  result -(x + 1)^3/3
+
+case integral.sum.five-term-polynomial
+  family integral
+  input x + x^2 + x^3 + x^4 + x^5
+  variable x
+  expect integrated
+  result x^2/2 + x^3/3 + x^4/4 + x^5/5 + x^6/6
+
+case integral.sum.three-cosines-of-different-multiples
+  family integral
+  input cos(x) + cos(2*x) + cos(3*x)
+  variable x
+  expect integrated
+  result sin(x) + sin(2*x)/2 + sin(3*x)/3
+
+case integral.sum.three-kinds-with-the-reciprocal
+  family integral
+  input sin(x) - exp(x) + x^-1
+  variable x
+  expect integrated
+  result -cos(x) - exp(x) + ln(x)
+  restriction x > 0
+
+case integral.substitution.cube-of-a-reversed-linear
+  family integral
+  input (1 - x)^3
+  variable x
+  expect integrated
+  result -(1 - x)^4/4
+
+case integral.sum.two-negative-powers-of-different-degree
+  family integral
+  input x^-2 + x^-3
+  variable x
+  expect integrated
+  result -x^-1 - x^-2/2
+
+# These six were pinned in invalid.txt while the integrator refused them: an inner linear argument
+# with a rational coefficient failed its own VER-005 check, and 1/x^2 was refused because the power
+# rule read the base as parsed rather than canonically. Both are fixed, so they belong here.
+case integral.reciprocal.square-written-as-a-fraction
+  family integral
+  input 1/x^2
+  variable x
+  expect integrated
+  result -x^-1
+
+case integral.reciprocal.square-as-a-negative-power-of-a-power
+  family integral
+  input (x^2)^-1
+  variable x
+  expect integrated
+  result -x^-1
+
+case integral.substitution.sine-of-a-halved-variable
+  family integral
+  input sin(x/2)
+  variable x
+  expect integrated
+  result -2*cos(x/2)
+
+case integral.substitution.exponential-of-a-halved-variable
+  family integral
+  input exp(x/2)
+  variable x
+  expect integrated
+  result 2*exp(x/2)
+
+case integral.substitution.cosine-of-a-divided-variable
+  family integral
+  input cos(x/3)
+  variable x
+  expect integrated
+  result 3*sin(x/3)
+
+case integral.substitution.square-of-a-divided-shift
+  family integral
+  input (x/2 + 1)^2
+  variable x
+  expect integrated
+  result 2*(x/2 + 1)^3/3
+
+# The power rule reads its exponent through folded_integer, so an exponent that is arithmetically an
+# integer reaches the rule whatever its spelling. Only the integer-valued ones: x^(1.0+1.0) is still
+# refused, in invalid.txt, because folding must not launder a decimal into an exact exponent.
+case integral.power.exponent-written-as-a-sum
+  family integral
+  input x^(1+1)
+  variable x
+  expect integrated
+  result x^3/3
+
+case integral.power.exponent-written-as-a-quotient
+  family integral
+  input x^(4/2)
+  variable x
+  expect integrated
+  result x^3/3
+
+case integral.power.exponent-written-as-a-difference
+  family integral
+  input x^(3-1)
+  variable x
+  expect integrated
+  result x^3/3
+
+case integral.power.negative-exponent-written-as-a-difference
+  family integral
+  input x^(0-2)
+  variable x
+  expect integrated
+  result -x^-1
+
+# The numeric mode cases that used to sit here are in numeric_mode.txt, which holds every family's.

@@ -1,0 +1,12 @@
+# ndl SDK
+
+FROM ndl/arm-gcc
+
+ADD . /ndl-sdk
+RUN chown -R ndl:ndl /ndl-sdk
+
+ENV PATH /ndl-sdk/bin:$PATH
+
+# (Re-)build the SDK
+RUN cd /ndl-sdk && make clean && make
+
