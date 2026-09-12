@@ -580,7 +580,7 @@ void run_context_tests(TestSink &t) {
                 "a length that swallows the fields after it");
         // Taken from the enum rather than written out, so appending an outcome moves the boundary
         // here instead of turning this into a failure about a number.
-        const uint64_t last_status = static_cast<uint64_t>(DerivationStatus::SolvedButUnchecked);
+        const uint64_t last_status = static_cast<uint64_t>(DerivationStatus::SolvedAndCorroborated);
         refuses(t, blob.substr(0, 44) + std::to_string(last_status + 1) + "#",
                 ContextStatus::BadStatus, "an outcome index past the last one the enum defines");
 
@@ -589,7 +589,7 @@ void run_context_tests(TestSink &t) {
         t.check(parse_context(blob.substr(0, 44) + std::to_string(last_status) + "#", edge_arena,
                               &edge)
                         .ok() &&
-                    edge.derivation_status == DerivationStatus::SolvedButUnchecked,
+                    edge.derivation_status == DerivationStatus::SolvedAndCorroborated,
                 "and the last one it defines is accepted");
 
         // The reason Cancelled and SolvedButUnchecked were appended rather than placed in section
