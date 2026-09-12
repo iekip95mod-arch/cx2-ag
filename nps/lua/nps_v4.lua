@@ -2350,7 +2350,7 @@ menu = {
        	 { "Scatter Plot  scatterplot(Xlist,Ylist)",	function() menustring( "scatterplot(" ) end },
        	 { "Regression Plot  linear_regression_plot(X,Y)",	function() menustring( "linear_regression_plot(" ) end },
        },
-       -- 28 of the 30 a tool box may hold. Two more entries and this one has to split.
+       -- 27 of the 30 a tool box may hold. Three more entries and this one has to split.
        { "Matrix & Vector",
        	 { "Solve Linear System  linsolve",	function() menustring( "linsolve(" ) end },
        	 { "Determinant  det(M)",	function() menustring( "det(" ) end },
@@ -2359,7 +2359,6 @@ menu = {
        	 { "Row Echelon  ref(M)",	function() menustring( "ref(" ) end },
        	 { "Kernel  ker(M)",	function() menustring( "ker(" ) end },
        	 { "Image  image(M)",	function() menustring( "image(" ) end },
-       	 { "Bug  bug(M)",	function() menustring( "bug(" ) end },
        	 { "Eigenvalues  eigenvalues(M)",	function() menustring( "eigenvalues(" ) end },
        	 { "Eigenvectors  eigenvects(M)",	function() menustring( "eigenvects(" ) end },
        	 { "Jordan Form  jordan(M)",	function() menustring( "jordan(" ) end },

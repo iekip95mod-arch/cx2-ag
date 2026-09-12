@@ -860,7 +860,7 @@ do
                                          box, items))
     end
     check(#registered_menu <= 15, "the palette holds at most 15 tool boxes")
-check(entries == 183, "the full-text reader joins every retained entry: " .. entries .. " of 183")
+check(entries == 182, "the full-text reader joins every retained entry: " .. entries .. " of 182")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4227,6 +4227,31 @@ if os.getenv("NPS_COMMAND_MODULE") then
     luagiac = backend
     check(nps_split.capability_manifest == fixture_manifest and nps_split.walkthrough == fixture_walkthrough,
           "loading the real bridge preserves the shared module fixture for subsequent UI cases")
+    end)()
+end
+
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local matrix
+    for _, category in ipairs(env.menu) do
+        if category[1] == "Matrix & Vector" then matrix = category end
+    end
+    local typed = {}
+    for index = 2, #(matrix or {}) do
+        local item = matrix[index]
+        if type(item) == "table" then
+            env.fctEditor.editor:setExpression("\\0el {}", 6, 6)
+            item[2]()
+            typed[#typed + 1] = env.fctEditor:getExpression()
+        end
+    end
+    local inserted = " " .. table.concat(typed, " ") .. " "
+    check(matrix and inserted:find(" image( ", 1, true) and inserted:find(" eigenvalues( ", 1, true),
+          "the matrix palette still types the linear algebra commands it is supposed to")
+    check(not inserted:find(" bug( ", 1, true),
+          "no matrix palette entry types bug(, which the backend does not implement")
     end)()
 end
 
