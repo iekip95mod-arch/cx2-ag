@@ -10,7 +10,7 @@ name: agent-review
 # Not on synchronize. A branch under repair gets several pushes and each one would start a full
 # review of a diff that is about to change again, which spends a subscription to read work in
 # progress. The review happens when the branch is offered: opened, or taken out of draft, or asked
-# for again by putting the claude-review label on it after a fix.
+# for again with the requesting agent's review label after a fix.
 on:
   pull_request:
     types: [opened, ready_for_review, labeled]
@@ -18,19 +18,84 @@ on:
 # A push that supersedes the branch supersedes the review of it. There is no value in finishing a
 # review of a diff that has already been replaced.
 concurrency:
-  group: agent-review-${{ github.event.pull_request.number }}
+  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }}
   cancel-in-progress: true
 
 jobs:
+  select-reviewer:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      reviewer: ${{ steps.reviewer.outputs.reviewer }}
+      requested: ${{ steps.reviewer.outputs.requested }}
+      before: ${{ steps.before.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test reviewer selection
+        run: |
+          ruby .github/scripts/test-review-routing.rb
+          ruby .github/scripts/test-codex-review.rb
+          ruby .github/scripts/test-codex-auth.rb
+          ruby .github/scripts/test-review-approval.rb
+      - name: Record existing reviews
+        id: before
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          ids=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews" | jq -c '[.[][] | .id]')
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+      - name: Select the requesting agent's reviewer
+        id: reviewer
+        shell: bash
+        run: |
+          action=$(jq -r '.action' "$GITHUB_EVENT_PATH")
+          requested=true
+          label=$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")
+          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ]; then
+            requested=false
+          fi
+          if [ "$action" != labeled ] || [ "$requested" = false ]; then
+            labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
+            if [ "$(printf '%s\n' "$labels" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+              echo "::error::Keep only the requesting agent's review label."
+              exit 1
+            fi
+            label=$labels
+          fi
+          case "$label" in
+            codex-review) reviewer=codex ;;
+            claude-review) reviewer=claude ;;
+            '')
+              branch=$(jq -r '.pull_request.head.ref' "$GITHUB_EVENT_PATH")
+              case "$branch" in
+                codex/*) reviewer=codex ;;
+                *) reviewer=claude ;;
+              esac
+              ;;
+            *) exit 1 ;;
+          esac
+          echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
+
   review:
+    needs: select-reviewer
     # A draft is not finished, and reviewing a moving tree is the failure the review lane exists to
     # avoid. A label event fires for every label, so only the one that means this starts a run. The
     # bot test is for the dependabot pull requests: the action refuses a bot author anyway, so
     # without it every action bump starts a job that installs half a toolchain and then declines.
-    if: >-
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.user.type != 'Bot' &&
-      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    if: needs.select-reviewer.outputs.reviewer == 'claude' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
@@ -279,3 +344,110 @@ jobs:
             echo "already there fires nothing."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+  codex-review:
+    needs: select-reviewer
+    if: needs.select-reviewer.outputs.reviewer == 'codex' && needs.select-reviewer.outputs.requested == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Restore subscription login
+        id: key
+        env:
+          AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: bash .github/scripts/prepare-codex-auth.sh
+      - name: Require reviewer credentials
+        if: steps.key.outputs.have != 'true'
+        run: |
+          echo "::error::Codex review requires CODEX_AUTH_JSON. No review was performed."
+          exit 1
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Install reviewer prerequisites
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: |
+          brew install ccache gmp php
+          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+          npm install -g @openai/codex@0.154.0
+      - name: Review with subscription login
+        env:
+          CODEX_HOME: ${{ steps.key.outputs.home }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          printf '%s\n' '{"type":"object","properties":{"verdict":{"type":"string","enum":["APPROVED","CHANGES_REQUESTED"]},"body":{"type":"string"}},"required":["verdict","body"],"additionalProperties":false}' > "$RUNNER_TEMP/review-schema.json"
+          cat > "$RUNNER_TEMP/review-prompt.txt" <<EOF
+          Independently review the diff from $BASE_SHA to $HEAD_SHA.
+          Read the review sections of AGENTS.md. Judge only this diff and its claimed fixes.
+          Reproduce relevant behavior and validate tests against the baseline in an isolated worktree.
+          If worktree creation is denied, extract the baseline with git archive under .Internal/workspaces/.
+          For workflow changes, run the committed workflow tests and inspect trigger and credential handling.
+          Report only defects introduced by this diff as blocking. Do not hold pre-existing defects against it.
+          Do not fix files, commit, push, post comments, create issues or submit a review yourself.
+          Return the verdict and a review body with concrete findings and the verification stages reached.
+          If required verification cannot be completed, return CHANGES_REQUESTED and explain the gap.
+          A separate workflow step publishes your verdict against the reviewed commit.
+          EOF
+          codex login status
+          codex exec --sandbox workspace-write -c approval_policy='"never"' \
+            --ephemeral --output-schema "$RUNNER_TEMP/review-schema.json" \
+            --output-last-message "$RUNNER_TEMP/codex-review.json" - < "$RUNNER_TEMP/review-prompt.txt"
+      - name: Publish the review for the reviewed commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"
+          jq -e '(.verdict == "APPROVED" or .verdict == "CHANGES_REQUESTED") and (.body | type == "string" and length > 0)' "$RUNNER_TEMP/codex-review.json" > /dev/null
+          jq --arg sha "$HEAD_SHA" '{commit_id: $sha, event: (if .verdict == "APPROVED" then "APPROVE" else "REQUEST_CHANGES" end), body: .body}' "$RUNNER_TEMP/codex-review.json" > "$RUNNER_TEMP/review-request.json"
+          gh api "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-request.json" --jq '{id, state, commit_id}'
+
+  review-approved:
+    needs: [select-reviewer, review, codex-review]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Require a fresh approval from the selected reviewer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEWER: ${{ needs.select-reviewer.outputs.reviewer }}
+          BEFORE: ${{ needs.select-reviewer.outputs.before }}
+          CLAUDE_RESULT: ${{ needs.review.result }}
+          CODEX_RESULT: ${{ needs.codex-review.result }}
+          SELECT_RESULT: ${{ needs.select-reviewer.result }}
+          REVIEW_REQUESTED: ${{ needs.select-reviewer.outputs.requested }}
+        run: |
+          test "$SELECT_RESULT" = success
+          case "$REVIEWER" in
+            claude) bot='claude[bot]'; provider_result=$CLAUDE_RESULT ;;
+            codex) bot='github-actions[bot]'; provider_result=$CODEX_RESULT ;;
+            *) exit 1 ;;
+          esac
+          case "$REVIEW_REQUESTED" in
+            true) test "$provider_result" = success ;;
+            false) BEFORE='[]' ;;
+            *) exit 1 ;;
+          esac
+          test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"
+          gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews" | jq -e \
+            --arg sha "$HEAD_SHA" --arg bot "$bot" --argjson before "$BEFORE" \
+            '[.[][] | select(.commit_id == $sha and .user.login == $bot and .user.type == "Bot") | select(.id as $id | $before | index($id) | not)] | sort_by(.id) | last | .state == "APPROVED"'
