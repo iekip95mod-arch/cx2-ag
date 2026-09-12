@@ -322,13 +322,16 @@ jobs:
           PARALLEL: -j3
           PYTHON: ""
         run: |
-          brew_prefix=$(brew --prefix)
-          # No trailing colon. An empty element in LIBRARY_PATH reads as the current directory, and
-          # gcc's configure refuses to build at all when it finds one: checking LIBRARY_PATH
-          # variable, contains current directory, configure: error. It costs a full section of the
-          # build to find out.
-          export LIBRARY_PATH="$brew_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
-          export CPATH="$brew_prefix/include${CPATH:+:$CPATH}"
+          # Three formula directories rather than the brew prefix, and both of those decisions were
+          # paid for. The whole prefix puts gettext's libintl.h in front of gcc, which includes it
+          # while building libcpp and does not survive the encounter: expected unqualified-id, and
+          # the build stops in all-libcpp. And no trailing colon, because an empty element in
+          # LIBRARY_PATH reads as the current directory and gcc's configure refuses outright:
+          # checking LIBRARY_PATH variable, contains current directory, configure: error.
+          libs="$(brew --prefix gmp)/lib:$(brew --prefix mpfr)/lib:$(brew --prefix libmpc)/lib"
+          incs="$(brew --prefix gmp)/include:$(brew --prefix mpfr)/include:$(brew --prefix libmpc)/include"
+          export LIBRARY_PATH="$libs${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          export CPATH="$incs${CPATH:+:$CPATH}"
           ./build_toolchain.sh
 
       # GMP for the calculator, not for the host. nps/CMakeLists.txt:336 reads it straight out of the
