@@ -1400,7 +1400,12 @@ if(NOT CMAKE_CROSSCOMPILING)
         if(LUA_HOST)
             add_test(NAME ${smoke} COMMAND "${LUA_HOST}" tests/target/${smoke}.lua)
         else()
+            # An echo exits zero, so all three of these used to report Passed on a machine with no
+            # interpreter, which is a suite that cannot fail reading as coverage. The property below
+            # is the one thing that turns the same echo into a Skipped, and it is a plain literal
+            # rather than a pattern.
             add_test(NAME ${smoke} COMMAND ${CMAKE_COMMAND} -E echo "nps ui: skipped, no host lua found")
+            set_tests_properties(${smoke} PROPERTIES SKIP_REGULAR_EXPRESSION "no host lua found")
         endif()
         set_tests_properties(${smoke} PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endforeach()
