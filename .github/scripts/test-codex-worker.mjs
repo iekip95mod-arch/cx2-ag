@@ -265,13 +265,16 @@ test('the first meaningful commit publishes a linked draft and later commits reu
   assert.equal(published[0].body.draft, true);
   assert.equal(published[0].body.head, 'codex/issue-42');
   assert.match(published[0].body.body, /^Closes #42\n/);
+  const ownership = fixture.calls().filter(call => call.args[2] === 'POST' && call.args[3].endsWith('/issues/90/labels'));
+  assert.equal(ownership.length, 2);
+  for (const call of ownership) assert.deepEqual(call.body, { labels: ['worker:worker-amber'] });
   assert.equal(fixture.git('-C', directory, 'log', '-1', '--format=%an <%ae>'), 'worker-amber[bot] <7+worker-amber[bot]@users.noreply.github.com>');
   assert.throws(() => fixture.git('-C', fixture.checkout, 'config', '--worktree', '--get', 'core.hooksPath'));
 });
 
 test('publication refuses wrong checkout, wrong branch, closed issues and foreign PRs before pushing', async () => {
   const context = { repository, issue: 42, branch: 'codex/issue-42', login: bot.login, title: 'Printer refusal', directory: '/owned/tree' };
-  for (const failure of ['checkout', 'branch', 'closed', 'foreign', 'duplicate', 'closed-pr']) {
+  for (const failure of ['checkout', 'branch', 'closed', 'foreign', 'duplicate', 'closed-pr', 'foreign-head', 'different-ref']) {
     const pushes = [];
     const git = (...args) => {
       if (args[0] === 'rev-parse') return failure === 'checkout' ? '/another/tree' : context.directory;
@@ -283,7 +286,8 @@ test('publication refuses wrong checkout, wrong branch, closed issues and foreig
     const api = async (method, endpoint) => {
       assert.equal(method, 'GET');
       if (endpoint.includes('/issues/')) return { state: failure === 'closed' ? 'closed' : 'open' };
-      const pr = { state: failure === 'closed-pr' ? 'closed' : 'open', user: { login: failure === 'foreign' ? 'someone-else' : bot.login } };
+      const pr = { number: 90, state: failure === 'closed-pr' ? 'closed' : 'open', user: { login: failure === 'foreign' ? 'someone-else' : bot.login },
+        head: { repo: { full_name: failure === 'foreign-head' ? 'other/repo' : repository }, ref: failure === 'different-ref' ? 'main' : context.branch } };
       return failure === 'duplicate' ? [pr, pr] : [pr];
     };
     await assert.rejects(publishDraft(context, git, api));
@@ -325,4 +329,35 @@ test('a publication API failure preserves the commit and fails recovery without 
   assert.match(recovery.stderr, /Retry publication without creating another commit/);
   assert.equal((commit.stdout + commit.stderr + recovery.stdout + recovery.stderr).includes(fixture.env.GH_TOKEN), false);
   assert.equal(fixture.git('-C', directory, 'rev-parse', 'HEAD'), sha);
+});
+
+test('a failed PR ownership label is retried on the existing draft without creating another PR', () => {
+  const fixture = entryFixture({ issue: { number: 42 } }, { failEndpoint: `repos/${repository}/issues/90/labels`, failStatus: 403 });
+  verifyCheckout(fixture, 'codex/issue-42', fixture.base);
+  const directory = join(fixture.checkout, '.Internal/workspaces/codex-issue-42/tree');
+  writeFileSync(join(directory, 'regression.txt'), 'ownership label failure fixture\n');
+  fixture.git('-C', directory, 'add', 'regression.txt');
+  const commit = spawnSync('git', ['commit', '-m', 'Record ownership fixture'], { cwd: directory, env: fixture.env, encoding: 'utf8' });
+  assert.equal(commit.status, 0, commit.stderr);
+  assert.match(commit.stderr, /draft PR publication failed/);
+  const config = JSON.parse(readFileSync(fixture.env.WORKER_FIXTURE, 'utf8'));
+  delete config.failEndpoint;
+  writeFileSync(fixture.env.WORKER_FIXTURE, JSON.stringify(config));
+  const recovery = spawnSync(process.execPath, [fileURLToPath(new URL('./publish-worker-pr.mjs', import.meta.url)), join(fixture.temporary, 'worker-publication.json')], { cwd: directory, env: fixture.env, encoding: 'utf8' });
+  assert.equal(recovery.status, 0, recovery.stderr);
+  assert.equal(fixture.calls().filter(call => call.args[2] === 'POST' && call.args[3].endsWith('/pulls')).length, 1);
+  assert.equal(fixture.calls().filter(call => call.args[2] === 'POST' && call.args[3].endsWith('/issues/90/labels')).length, 2);
+});
+
+test('an explicitly migrated human PR receives the leased bot ownership label', async () => {
+  const context = { repository, issue: 42, branch: 'codex/issue-42', login: bot.login, title: 'Printer refusal', directory: '/owned/tree', legacyOwner: 'iekip95mod-arch' };
+  const pr = { number: 90, state: 'open', user: { login: context.legacyOwner }, head: { repo: { full_name: repository }, ref: context.branch } };
+  const mutations = [];
+  const git = (...args) => args[0] === 'rev-parse' ? context.directory : args[0] === 'branch' ? context.branch : 'regression.cc';
+  const api = async (method, endpoint, body) => {
+    if (method === 'POST') { mutations.push({ endpoint, body }); return {}; }
+    return endpoint.includes('/issues/') ? { state: 'open' } : [pr];
+  };
+  assert.equal(await publishDraft(context, git, api), pr);
+  assert.deepEqual(mutations, [{ endpoint: `repos/${repository}/issues/90/labels`, body: { labels: ['worker:worker-amber'] } }]);
 });

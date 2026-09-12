@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 
 export function reviewProvider(current) {
   const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
@@ -17,18 +17,29 @@ export function trustedAuthor(current, repository, roster) {
   throw Error('PR author is not a trusted executor or collaborator');
 }
 
-async function assignedReviewer(read, repository, pr, provider, options) {
+async function assignedIdentity(read, repository, pr, provider, role, options) {
   const runtime = options.assignment ? null : await import('./bot-identities.mjs');
   const roster = options.roster ?? runtime.loadRoster();
   const assignment = options.assignment ?? runtime.readAssignment;
-  const lease = await assignment({ repository, provider, role: 'reviewer', pr }, async (method, endpoint, body) => {
+  const lease = await assignment({ repository, provider, role, pr }, async (method, endpoint, body) => {
     if (method === 'POST' && endpoint === 'graphql' && body?.query?.startsWith('query(')) return read(endpoint, false, body);
     if (method !== 'GET') throw Error('Approval lookup must be read-only');
     return read(endpoint);
   }, roster);
   const identity = lease;
-  if (!identity || !roster.some(entry => entry.role === 'reviewer' && entry.provider === provider && entry.login === identity.login && entry.userId === identity.userId && Number.isSafeInteger(entry.userId) && entry.userId > 0)) throw Error('Reviewer lease does not identify a configured reviewer');
+  if (!identity || !roster.some(entry => entry.role === role && entry.provider === provider && entry.login === identity.login && entry.userId === identity.userId && Number.isSafeInteger(entry.userId) && entry.userId > 0)) throw Error('The lease does not identify a configured bot');
   return identity;
+}
+
+export async function trustedRequester(read, repository, event, actor, actorId, options = {}) {
+  const current = event.pull_request;
+  const sender = event.sender;
+  if (current.head.repo?.full_name !== repository || sender?.login !== actor || sender?.id !== Number(actorId) || !Number.isSafeInteger(sender?.id) || sender.id < 1) throw Error('The review requester does not match the event actor');
+  if (sender.type === 'User') return '';
+  if (sender.type !== 'Bot') throw Error('Unknown review requester type');
+  const identity = await assignedIdentity(read, repository, current.number, reviewProvider(current), 'executor', options);
+  if (identity.login !== sender.login || identity.userId !== sender.id) throw Error('Only the assigned executor can request a bot review');
+  return identity.login;
 }
 
 export async function approvalState(read, repository, pr, sha, options = {}) {
@@ -36,7 +47,7 @@ export async function approvalState(read, repository, pr, sha, options = {}) {
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
   const provider = reviewProvider(current);
   if (options.provider && options.provider !== provider) throw Error('The selected reviewer changed');
-  const identity = await assignedReviewer(read, repository, pr, provider, options);
+  const identity = await assignedIdentity(read, repository, pr, provider, 'reviewer', options);
   if (current.user?.id === identity.userId || current.user?.login === identity.login) throw Error('The PR author cannot review its own work');
   const reviews = await read(`repos/${repository}/pulls/${pr}/reviews?per_page=100`, true);
   const before = options.before ?? [];
@@ -86,7 +97,12 @@ async function main() {
     const { stdout } = await pending;
     return JSON.parse(stdout);
   };
-  if (process.argv.includes('--approval-gate')) {
+  if (process.argv.includes('--trust-requester')) {
+    const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+    const allowed = await trustedRequester(read, repository, event, process.env.GITHUB_ACTOR, process.env.GITHUB_ACTOR_ID);
+    appendFileSync(process.env.GITHUB_OUTPUT, `allowed_bots=${allowed}\n`);
+    return;
+  } else if (process.argv.includes('--approval-gate')) {
     if (process.env.SELECT_RESULT !== 'success') throw Error('Reviewer selection failed');
     const requested = process.env.REVIEW_REQUESTED;
     const provider = process.env.REVIEWER;

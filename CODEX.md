@@ -59,9 +59,9 @@ The worker restores CODEX_AUTH_JSON into a private temporary Codex home and reje
 
 ## Review and merge
 
-Stop editing before marking the PR ready and applying codex-review. Keep only the selected provider's review label. Claude requests claude-review and Codex requests codex-review. A separately leased reviewer from the requesting provider's pool publishes its verdict on the current PR commit. The approval gates verify that exact reviewer's login and numeric Bot ID against its lease and the trusted catalogue. The author cannot satisfy the approval gate with a self-review or comment.
+Stop editing before marking the PR ready and applying codex-review. Keep only the selected provider's review label. Claude requests claude-review and Codex requests codex-review. A separately leased reviewer from the requesting provider's pool publishes its verdict on the current PR commit. Its reviewer label identifies it before publication. The submitted review then appears under that bot's name in GitHub's Reviewers panel. A successful review-request API response alone does not prove GitHub added a bot to the requested-reviewer list. The approval gates verify that exact reviewer's login and numeric Bot ID against its lease and the trusted catalogue. The author cannot satisfy the approval gate with a self-review or comment.
 
-Fast must succeed before full and emulator start. CodeQL waits for fast, full, emulator and the current selected review approval. A failed review blocks CodeQL. New commits stale the prior approval. After fixing findings, remove and re-add codex-review. If CI already failed while waiting for review, rerun its failed jobs after approval on the same commit.
+Marking a draft ready starts CI again even if its head commit has not changed. Fast must succeed before full and emulator start. CodeQL waits for fast, full, emulator and the current selected review approval. A failed review blocks CodeQL. New commits stale the prior approval. After fixing findings, remove and re-add codex-review. If CI already failed while waiting for review, rerun its failed jobs after approval on the same commit.
 
 ~~~sh
 gh pr edit "$PR" --repo iekip95mod-arch/cx2-ag --remove-label codex-review

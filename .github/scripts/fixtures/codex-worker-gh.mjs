@@ -33,7 +33,7 @@ else if (method === 'GET' && endpoint.includes('/git/ref/heads/')) {
 else if (method === 'POST' && endpoint.endsWith('/comments')) reply = { id: 1 };
 else if (method === 'GET' && endpoint.includes('/pulls?')) reply = config.createdPr ? [config.createdPr] : [];
 else if (method === 'POST' && endpoint.endsWith('/pulls')) {
-  reply = { number: 90, html_url: 'https://github.com/iekip95mod-arch/cx2-ag/pull/90', state: 'open', user: { login: 'worker-amber[bot]' }, ...body };
+  reply = { number: 90, html_url: 'https://github.com/iekip95mod-arch/cx2-ag/pull/90', state: 'open', user: { login: 'worker-amber[bot]' }, ...body, head: { repo: { full_name: 'iekip95mod-arch/cx2-ag' }, ref: body.head } };
   writeFileSync(process.env.WORKER_FIXTURE, JSON.stringify({ ...config, createdPr: reply }));
 }
 else fail(`Unexpected endpoint ${method} ${endpoint}`);

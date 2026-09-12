@@ -121,3 +121,41 @@ trust_fixtures.each do |name, user, association, repository, expected|
   raise "#{name}: incorrect author trust result: #{stderr}" unless status.success? == expected
 end
 puts "#{trust_fixtures.length} author trust entrypoint cases passed"
+
+request_directory = File.join(run_directory, 'claude')
+executor = roster.find { |identity| identity['role'] == 'executor' && identity['provider'] == 'claude' }
+sender = { login: executor.fetch('login'), id: executor.fetch('userId'), type: 'Bot' }
+leased = { key: 'claude/executor/issue-42', provider: 'claude', role: 'executor', issue: 42, pr: 84, branch: 'claude/issue-42', slug: executor.fetch('slug'), released: false }
+request_fixtures = [
+  ['legacy-author', sender, sender.fetch(:login), sender.fetch(:id), [leased], true],
+  ['human-requester', { login: 'iekip95mod-arch', id: 10, type: 'User' }, 'iekip95mod-arch', 10, [], true],
+  ['wrong-actor', sender, 'other[bot]', sender.fetch(:id), [leased], false],
+  ['wrong-id', sender.merge(id: 999), sender.fetch(:login), 999, [leased], false],
+  ['no-lease', sender, sender.fetch(:login), sender.fetch(:id), [], false],
+  ['released-lease', sender, sender.fetch(:login), sender.fetch(:id), [leased.merge(released: true)], false],
+  ['another-executor', sender, sender.fetch(:login), sender.fetch(:id), [leased.merge(slug: roster.find { |identity| identity['role'] == 'executor' && identity['provider'] == 'claude' && identity != executor }.fetch('slug'))], false]
+]
+request_fixtures.each do |name, requester, actor, actor_id, assignments, expected|
+  state = [{ version: 1, assignments: assignments }.to_json].pack('m0')
+  File.write(File.join(request_directory, 'state.json'), { sha: 'state-sha', content: state }.to_json)
+  event_file = File.join(request_directory, 'request.json')
+  pull = JSON.parse(File.read(File.join(request_directory, 'pull.json'))).merge('number' => 84)
+  File.write(event_file, { pull_request: pull, sender: requester }.to_json)
+  output_file = File.join(request_directory, 'request-output')
+  File.write(output_file, '')
+  environment = { 'PATH' => "#{request_directory}:#{ENV.fetch('PATH')}", 'FIXTURE_DIR' => request_directory, 'GITHUB_EVENT_NAME' => 'pull_request', 'GITHUB_REPOSITORY' => 'iekip95mod-arch/cx2-ag', 'PR_NUMBER' => '84', 'PR_HEAD_SHA' => reviewed_sha, 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file, 'GITHUB_ACTOR' => actor, 'GITHUB_ACTOR_ID' => actor_id.to_s }
+  _stdout, stderr, status = Open3.capture3(environment, 'node', File.join(request_directory, '.github/scripts/wait-for-review.mjs'), '--trust-requester', unsetenv_others: true)
+  raise "#{name}: incorrect requester result: #{stderr}" unless status.success? == expected
+  if expected
+    allowed = File.read(output_file).delete_prefix('allowed_bots=').strip
+    if requester.fetch(:type) == 'Bot'
+      raise 'A named executor must pass the pinned action actor check' unless allowed.split(',').map { |login| login.strip.downcase.delete_suffix('[bot]') }.include?(actor.downcase.delete_suffix('[bot]'))
+      raise 'Only the requesting executor may be allowed' unless allowed == sender.fetch(:login)
+    else
+      raise 'Human requests must not allow any bot' unless allowed.empty?
+    end
+  else
+    raise 'Rejected requesters must not publish an allowlist' unless File.read(output_file).empty?
+  end
+end
+puts "#{request_fixtures.length} requester lease entrypoint cases passed"

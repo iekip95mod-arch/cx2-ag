@@ -41,6 +41,7 @@ jobs:
       secret_name: ${{ steps.identity.outputs.secret_name }}
       login: ${{ steps.identity.outputs.login }}
       user_id: ${{ steps.identity.outputs.user_id }}
+      allowed_bots: ${{ steps.requester.outputs.allowed_bots }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -100,6 +101,15 @@ jobs:
           echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
           echo "requested=$requested" >> "$GITHUB_OUTPUT"
 
+      - name: Require a trusted review requester
+        id: requester
+        if: steps.reviewer.outputs.requested == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/wait-for-review.mjs --trust-requester
+
       - name: Reserve the reviewer identity
         id: identity
         env:
@@ -156,6 +166,19 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
         run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
+
+      - name: Identify the assigned reviewer on the PR
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
+        run: |
+          test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
+          gh label create "reviewer:$APP_SLUG" --repo "$REPO" --description "Assigned reviewer identity" --color 8250df --force
+          gh pr edit "$PR" --repo "$REPO" --add-label "reviewer:$APP_SLUG"
 
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
@@ -242,7 +265,7 @@ jobs:
           github_token: ${{ steps.bot.outputs.token }}
           bot_id: ${{ needs.select-reviewer.outputs.user_id }}
           bot_name: ${{ needs.select-reviewer.outputs.login }}
-          allowed_bots: ${{ github.event.pull_request.user.type == 'Bot' && github.event.pull_request.user.login || '' }}
+          allowed_bots: ${{ needs.select-reviewer.outputs.allowed_bots }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -389,6 +412,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -446,6 +470,17 @@ jobs:
           private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+      - name: Identify the assigned reviewer on the PR
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
+        run: |
+          test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
+          gh label create "reviewer:$APP_SLUG" --repo "$REPO" --description "Assigned reviewer identity" --color 8250df --force
+          gh pr edit "$PR" --repo "$REPO" --add-label "reviewer:$APP_SLUG"
       - name: Publish the review for the reviewed commit
         id: publish
         env:

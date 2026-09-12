@@ -6,6 +6,7 @@ export async function publishDraft(context, git, api) {
   const { repository, issue, branch, login, title, directory, legacyOwner = '' } = context;
   if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude'].some(provider => branch === `${provider}/issue-${issue}`)) throw Error('Invalid executor publication target');
   if (legacyOwner && legacyOwner !== 'iekip95mod-arch') throw Error('Unknown legacy publishing owner');
+  if (!/^[a-z0-9-]+\[bot\]$/.test(login)) throw Error('A named bot publisher is required');
   if (git('rev-parse', '--show-toplevel') !== directory || git('branch', '--show-current') !== branch) throw Error('Publish only from the leased checkout and branch');
   if (!git('diff', '--name-only', 'origin/main...HEAD').trim()) return null;
   const original = await api('GET', `repos/${repository}/issues/${issue}`);
@@ -13,10 +14,16 @@ export async function publishDraft(context, git, api) {
   const pulls = await api('GET', `repos/${repository}/pulls?state=all&head=${encodeURIComponent(`${repository.split('/')[0]}:${branch}`)}&per_page=100`);
   if (pulls.length > 1 || pulls.some(pr => pr.state !== 'open')) throw Error('This branch already has a closed or duplicate PR. Resolve its lifecycle before publishing');
   const existing = pulls[0];
-  if (existing && existing.user.login !== login && existing.user.login !== legacyOwner) throw Error('The branch PR belongs to another publisher');
+  const validatePull = pr => {
+    if (!Number.isSafeInteger(pr.number) || pr.number < 1 || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch) throw Error('The PR does not match the leased repository branch');
+    if (pr.user.login !== login && pr.user.login !== legacyOwner) throw Error('The branch PR belongs to another publisher');
+  };
+  if (existing) validatePull(existing);
   git('push', 'origin', `HEAD:refs/heads/${branch}`);
-  if (existing) return existing;
-  return api('POST', `repos/${repository}/pulls`, { title, head: branch, base: 'main', draft: true, body: `Closes #${issue}\n\nWork is in progress. Validation and implementation details will be updated in this PR.` });
+  const pr = existing ?? await api('POST', `repos/${repository}/pulls`, { title, head: branch, base: 'main', draft: true, body: `Closes #${issue}\n\nWork is in progress. Validation and implementation details will be updated in this PR.` });
+  validatePull(pr);
+  await api('POST', `repos/${repository}/issues/${pr.number}/labels`, { labels: [`worker:${login.slice(0, -5)}`] });
+  return pr;
 }
 
 async function main() {
