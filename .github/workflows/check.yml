@@ -282,6 +282,63 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel 3
 
+  # CodeQL ran as GitHub's default setup until now, which fires on its own schedule and cannot be
+  # told to wait for anything. Here it is a job like the others, so a push whose suites are red
+  # spends nothing on scanning code that is about to change. Both suites, not just the gate: full
+  # is the one that builds the bridge and the cross package paths.
+  #
+  # The three languages default setup was scanning. One job each, because only c-cpp needs a build
+  # and running the other two behind it would make them wait for it.
+  #
+  # No ccache here, unlike every other job in this file. CodeQL extracts c-cpp by watching the
+  # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
+  # the analysis an empty database and the job would still pass.
+  codeql:
+    needs: [fast, full]
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: c-cpp
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Install prerequisites
+        if: matrix.build-mode == 'manual'
+        run: brew install gmp
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # nps_host rather than the full target. CodeQL wants the compiler invocations and nothing
+      # more, and the suites this skips were already run by the two jobs above.
+      - name: Build under the tracer
+        if: matrix.build-mode == 'manual'
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
+          cmake -S nps -B nps/build/codeql \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+          cmake --build nps/build/codeql --target nps_host --parallel
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
   # Deliberately NOT on push. A device run still costs a full cross build of the project on a three
   # core runner even when the compiler arrives ready made, and the three sources it can come from
   # are tried in order below: the Actions cache, then vendor/toolchain, then a build from source.
