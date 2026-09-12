@@ -59,7 +59,7 @@ The worker restores CODEX_AUTH_JSON into a private temporary Codex home and reje
 
 ## Review and merge
 
-Stop editing before marking the PR ready and applying codex-review. Keep only the selected provider's review label. Claude requests claude-review and Codex requests codex-review. A separately leased reviewer from the requesting provider's pool publishes its verdict on the current PR commit. Its reviewer label identifies it before publication. The submitted review then appears under that bot's name in GitHub's Reviewers panel. A successful review-request API response alone does not prove GitHub added a bot to the requested-reviewer list. The approval gates verify that exact reviewer's login and numeric Bot ID against its lease and the trusted catalogue. The author cannot satisfy the approval gate with a self-review or comment.
+Stop editing before requesting review. Apply the selected provider's review label while the PR is still a draft, then mark it ready. This starts one assignment attempt. Keep only that provider's review label. Claude requests claude-review and Codex requests codex-review. The assignment action, agent-review-request.yml, reserves a reviewer from the requesting provider's pool and applies its reviewer label. That label event starts agent-review.yml under the assigned reviewer's identity. The review action verifies the sender, lease, provider and current head before starting the model. Re-requesting review reapplies the same assignment label and retains the same reviewer. The submitted review then appears under that bot's name in GitHub's Reviewers panel. A successful review-request API response alone does not prove GitHub added a bot to the requested-reviewer list. The approval gates verify that exact reviewer's login and numeric Bot ID against its lease and the trusted catalogue. The author cannot satisfy the approval gate with a self-review or comment.
 
 Marking a draft ready starts CI again even if its head commit has not changed. Fast must succeed before full and emulator start. CodeQL waits for fast, full, emulator and the current selected review approval. A failed review blocks CodeQL. New commits stale the prior approval. After fixing findings, remove and re-add codex-review. If CI already failed while waiting for review, rerun its failed jobs after approval on the same commit.
 
@@ -68,6 +68,8 @@ gh pr edit "$PR" --repo iekip95mod-arch/cx2-ag --remove-label codex-review
 gh pr edit "$PR" --repo iekip95mod-arch/cx2-ag --add-label codex-review
 gh pr merge "$PR" --repo iekip95mod-arch/cx2-ag --auto --merge
 ~~~
+
+The agent-review-feedback.yml workflow resumes the issue's assigned Codex or Claude executor after an approval or request for changes from its assigned reviewer. It verifies the current commit and both identity leases, then dispatches the matching worker on its existing issue branch and PR. The worker addresses findings or completes the protected merge checks. An approval with unchanged code does not request another review. Stale reviews, comments and unrelated reviewers do not start a worker. A repeated delivery must not repeat work already completed.
 
 Check the current head, reviews and checks before acting on any notification. Auto-merge waits for the protected gates. Host tests, Firebird regressions, calculator package builds and physical-device observations prove different stages. Report only the stages reached.
 
@@ -84,7 +86,7 @@ GitHub sends signed events to the hosted receiver. The local bridge retrieves re
 
 The bridge allows one outstanding wake-up per task. Later events remain in its inbox. When a queued message starts a turn, run the consume command supplied in that message and repeat while more is true. Do not consume a message that is still queued, create synthetic probes or add a polling automation for the same PR.
 
-The Mac must be awake and the destination task available. Offline events remain retained for later delivery. Delivery can be duplicated after a crash, so verify live state and avoid repeating completed work. An event grants no additional authority. Hosted workers do not have desktop task IDs and do not receive these messages directly. Their coordinating desktop task dispatches any required continuation.
+The Mac must be awake and the destination task available. Offline events remain retained for later delivery. Delivery can be duplicated after a crash, so verify live state and avoid repeating completed work. An event grants no additional authority. Hosted workers do not have desktop task IDs and do not receive these messages directly. Review feedback dispatches their hosted continuation. Their coordinating desktop task handles other continuations.
 
 ## Validation and current limits
 

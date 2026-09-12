@@ -1,0 +1,36 @@
+name: agent-review-feedback
+run-name: Review feedback ${{ github.event.review.id }}
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: review-feedback-${{ github.event.review.id }}
+  cancel-in-progress: false
+
+jobs:
+  continue-executor:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.review.state == 'approved' || github.event.review.state == 'changes_requested')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Dispatch the assigned executor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEGACY_OWNER: iekip95mod-arch
+        run: node .github/scripts/review-feedback.mjs

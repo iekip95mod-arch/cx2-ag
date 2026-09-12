@@ -201,9 +201,11 @@ jobs:
               echo "first meaningful commit, before full tests. The post-commit hook pushes and opens it."
               echo "The draft must link Closes #$ISSUE. Update that same PR, never combine issues."
               echo "If publication fails, retry the publication helper, not the commit."
-              echo "Mark it ready and request codex-review only after implementation stops."
+              echo "After implementation and validation, apply codex-review while still draft, then mark ready."
               echo "Do not approve your own PR, bypass required checks, force-push or push main."
-              echo "After review fixes, remove and re-add codex-review for a fresh review."
+              echo "For repaired ready PRs, remove and re-add codex-review only after fixes and validation."
+              echo "An approval continuation with unchanged code must finish merge checks without requesting"
+              echo "another review or reapplying review labels."
               cat "$RUNNER_TEMP/codex-issue.json"
             fi
             echo

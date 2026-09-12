@@ -25,7 +25,7 @@ export function normalize(event, body) {
   if (body?.repository?.full_name !== repository) return null;
   if (event === 'workflow_run') {
     const run = body.workflow_run;
-    const workflow = ['check', 'agent-review'].find(name => run?.path === `.github/workflows/${name}.yml`);
+    const workflow = ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback'].find(name => run?.path === `.github/workflows/${name}.yml`);
     if (body.action !== 'completed' || !workflow) return null;
     if (!shaPattern.test(run.head_sha) || !number(run.id)) return null;
     if (!['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure'].includes(run.conclusion)) return null;

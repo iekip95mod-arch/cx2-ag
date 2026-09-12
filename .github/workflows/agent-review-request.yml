@@ -1,0 +1,93 @@
+name: agent-review-request
+run-name: >-
+  Assign reviewer for PR #${{ github.event.pull_request.number }} (${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }})
+on:
+  pull_request:
+    types: [opened, ready_for_review, labeled]
+
+concurrency:
+  group: agent-review-request-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }}
+  cancel-in-progress: true
+
+jobs:
+  assign:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.user.type == 'User' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Require a trusted PR author
+        run: node .github/scripts/wait-for-review.mjs --trust-author
+      - name: Select the requesting agent's reviewer
+        id: reviewer
+        shell: bash
+        run: |
+          action=$(jq -r '.action' "$GITHUB_EVENT_PATH")
+          requested=true
+          label=$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")
+          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ]; then
+            requested=false
+          fi
+          if [ "$action" != labeled ] || [ "$requested" = false ]; then
+            labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
+            if [ "$(printf '%s\n' "$labels" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+              echo "::error::Keep only the requesting agent's review label."
+              exit 1
+            fi
+            label=$labels
+          fi
+          case "$label" in
+            codex-review) reviewer=codex ;;
+            claude-review) reviewer=claude ;;
+            '')
+              branch=$(jq -r '.pull_request.head.ref' "$GITHUB_EVENT_PATH")
+              case "$branch" in
+                codex/*) reviewer=codex ;;
+                *) reviewer=claude ;;
+              esac
+              ;;
+            *) exit 1 ;;
+          esac
+          echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
+      - name: Require a trusted review requester
+        id: requester
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/wait-for-review.mjs --trust-requester
+      - name: Reserve the reviewer identity
+        id: identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROVIDER: ${{ steps.reviewer.outputs.reviewer }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/bot-identities.mjs allocate --provider "$PROVIDER" --role reviewer --pr "$PR"
+      - name: Authenticate the assigned reviewer
+        id: bot
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ steps.identity.outputs.app_id }}
+          private-key: ${{ secrets[steps.identity.outputs.secret_name] }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Deliver the reviewer assignment
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --dispatch-review

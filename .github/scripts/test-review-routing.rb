@@ -8,7 +8,12 @@ root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 classification = workflow.fetch('concurrency').fetch('group').delete_prefix('agent-review-${{ github.event.pull_request.number }}-')
 raise 'Review run names must identify requested and metadata runs by PR' unless workflow['run-name'] == 'Review PR #${{ github.event.pull_request.number }} (' + classification + ')'
-selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml'))
+selection = request.fetch('jobs').fetch('assign').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+raise 'Only assignment labels can trigger review execution' unless (workflow['on'] || workflow[true]).fetch('pull_request').fetch('types') == ['labeled'] && workflow.fetch('jobs').fetch('select-reviewer').fetch('if').include?("startsWith(github.event.label.name, 'reviewer:')")
+raise 'Review selection must be read-only' unless workflow.fetch('jobs').fetch('select-reviewer').fetch('permissions').values.all? { |value| value == 'read' }
+raise 'Assignment labels must not loop into another assignment' unless request.fetch('jobs').fetch('assign').fetch('if').include?("contains(fromJSON('[\"claude-review\", \"codex-review\"]'), github.event.label.name)")
+raise 'Assignment must not run either model' if request.fetch('jobs').values.flat_map { |job| job.fetch('steps') }.any? { |step| step.fetch('uses', '').include?('claude-code-action') || step.fetch('run', '').include?('codex exec') }
 %w[agent agent-codex agent-gemini].each do |name|
   worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
   if ['agent-codex', 'agent'].include?(name)

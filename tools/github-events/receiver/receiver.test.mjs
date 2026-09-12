@@ -72,7 +72,7 @@ test('workflow paths route renamed review runs and reject unrelated workflows', 
 test('every supported notification route persists its exact metadata', async () => {
   const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
   const cases = [];
-  for (const name of ['check', 'agent-review']) {
+  for (const name of ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback']) {
     for (const conclusion of ['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure']) {
       cases.push({ event: 'workflow_run', body: { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name: name === 'agent-review' ? 'Review PR #84 (requested)' : name, path: `.github/workflows/${name}.yml`, conclusion, pull_requests: [{ number: 84 }] } }, expected: { repository: repository.full_name, event: 'workflow_run', action: 'completed', prs: [84], sha, workflow: name, conclusion, run: 123 } });
     }

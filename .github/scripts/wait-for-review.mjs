@@ -42,6 +42,35 @@ export async function trustedRequester(read, repository, event, actor, actorId, 
   return identity.login;
 }
 
+export async function trustedAssignment(read, repository, event, actor, actorId, options = {}) {
+  if (event.action !== 'labeled' || !event.label?.name?.startsWith('reviewer:')) throw Error('A reviewer assignment label is required');
+  const current = await read(`repos/${repository}/pulls/${event.pull_request.number}`);
+  if (current.head.repo?.full_name !== repository || current.head.sha !== event.pull_request.head.sha || current.state !== 'open' || current.draft) throw Error('The assigned PR revision is no longer reviewable');
+  const identity = await assignedIdentity(read, repository, event.pull_request.number, reviewProvider(current), 'reviewer', options);
+  const sender = event.sender;
+  if (sender?.type !== 'Bot' || sender.login !== identity.login || sender.id !== identity.userId || actor !== identity.login || Number(actorId) !== identity.userId) throw Error('Only the assigned reviewer App can deliver a review assignment');
+  const label = `reviewer:${identity.slug}`;
+  if (event.label.name !== label || !current.labels.some(entry => entry.name === label)) throw Error('The assignment label does not match the active reviewer');
+  if (current.user?.login === identity.login || current.user?.id === identity.userId) throw Error('The PR author cannot review its own work');
+  return identity;
+}
+
+export async function dispatchReview(api, repository, pr, sha, appSlug, options = {}) {
+  const read = (endpoint, paginate, body) => api(body ? 'POST' : 'GET', endpoint, body);
+  const current = await read(`repos/${repository}/pulls/${pr}`);
+  if (current.head.repo?.full_name !== repository || current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('The review request is superseded, closed or draft');
+  const identity = await assignedIdentity(read, repository, pr, reviewProvider(current), 'reviewer', options);
+  if (identity.slug !== appSlug) throw Error('The routing token does not belong to the assigned reviewer');
+  const label = `reviewer:${identity.slug}`;
+  const endpoint = `repos/${repository}/labels/${encodeURIComponent(label)}`;
+  if (!await api('GET', endpoint, undefined, true)) await api('POST', `repos/${repository}/labels`, { name: label, description: 'Assigned reviewer identity', color: '8250df' });
+  if (current.labels.some(entry => entry.name === label)) await api('DELETE', `repos/${repository}/issues/${pr}/labels/${encodeURIComponent(label)}`);
+  const latest = await read(`repos/${repository}/pulls/${pr}`);
+  if (latest.head.sha !== sha || latest.state !== 'open' || latest.draft || reviewProvider(latest) !== identity.provider) throw Error('The PR changed before reviewer assignment');
+  await api('POST', `repos/${repository}/issues/${pr}/labels`, { labels: [label] });
+  return identity;
+}
+
 export async function approvalState(read, repository, pr, sha, options = {}) {
   const current = await read(`repos/${repository}/pulls/${pr}`);
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
@@ -62,6 +91,20 @@ export async function reviewState(read, repository, pr, sha, options = {}) {
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
   const pages = await read(`${prefix}/actions/workflows/agent-review.yml/runs?head_sha=${sha}&event=pull_request&per_page=100`, true);
   const runs = pages.flatMap(page => page.workflow_runs).filter(run => run.head_sha === sha && run.pull_requests.some(pull => pull.number === pr) && run.display_title === `Review PR #${pr} (requested)`).sort((a, b) => b.id - a.id);
+  const requests = await read(`${prefix}/actions/workflows/agent-review-request.yml/runs?head_sha=${sha}&event=pull_request&per_page=100`, true);
+  const assignments = requests.flatMap(page => page.workflow_runs).filter(run => run.head_sha === sha && run.pull_requests.some(pull => pull.number === pr) && run.display_title === `Assign reviewer for PR #${pr} (requested)`);
+  if (assignments.some(run => run.status !== 'completed')) return 'pending';
+  for (const run of assignments) {
+    if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1 || !Number.isFinite(Date.parse(run.run_started_at))) throw Error('The assignment attempt cannot be identified');
+  }
+  const request = assignments.sort((a, b) => Date.parse(b.run_started_at) - Date.parse(a.run_started_at) || b.id - a.id)[0];
+  if (request) {
+    if (request.conclusion !== 'success') throw Error('The reviewer assignment failed');
+    if (!runs.length) return 'pending';
+    const reviewCreated = Date.parse(runs[0].created_at);
+    if (!Number.isFinite(reviewCreated)) throw Error('The review cannot be correlated with the assignment attempt');
+    if (reviewCreated <= Date.parse(request.run_started_at)) return 'pending';
+  }
   if (!runs.length || runs.some(run => run.status !== 'completed')) return 'pending';
   const latest = runs[0];
   if (latest.conclusion !== 'success') throw Error('The current review workflow did not approve this PR');
@@ -97,7 +140,28 @@ async function main() {
     const { stdout } = await pending;
     return JSON.parse(stdout);
   };
-  if (process.argv.includes('--trust-requester')) {
+  if (process.argv.includes('--trust-assignment')) {
+    const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+    const identity = await trustedAssignment(read, repository, event, process.env.GITHUB_ACTOR, process.env.GITHUB_ACTOR_ID);
+    const outputs = { reviewer: identity.provider, requested: 'true', app_id: identity.appId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId, allowed_bots: identity.login };
+    appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));
+    return;
+  } else if (process.argv.includes('--dispatch-review')) {
+    const api = async (method, endpoint, body, missing = false) => {
+      const pending = execute('gh', ['api', '--method', method, endpoint, ...(body ? ['--input', '-'] : [])], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+      if (body) pending.child.stdin.end(JSON.stringify(body));
+      try {
+        const { stdout } = await pending;
+        return stdout.trim() ? JSON.parse(stdout) : null;
+      } catch (error) {
+        if (missing && /\(HTTP 404\)/.test(error.stderr ?? '')) return null;
+        throw error;
+      }
+    };
+    const identity = await dispatchReview(api, repository, pr, sha, process.env.APP_SLUG);
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Assigned ${identity.login} through reviewer:${identity.slug}. GitHub does not retain these Apps in requested reviewers, so the assignment label starts the review workflow.\n`);
+    return;
+  } else if (process.argv.includes('--trust-requester')) {
     const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
     const allowed = await trustedRequester(read, repository, event, process.env.GITHUB_ACTOR, process.env.GITHUB_ACTOR_ID);
     appendFileSync(process.env.GITHUB_OUTPUT, `allowed_bots=${allowed}\n`);

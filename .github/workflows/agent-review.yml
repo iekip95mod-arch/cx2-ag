@@ -1,6 +1,6 @@
 name: agent-review
 run-name: >-
-  Review PR #${{ github.event.pull_request.number }} (${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }})
+  Review PR #${{ github.event.pull_request.number }} (${{ startsWith(github.event.label.name, 'reviewer:') && 'requested' || 'metadata' }})
 
 # The review gate AGENTS.md describes, run by a reviewer that did not write the code.
 #
@@ -9,39 +9,37 @@ run-name: >-
 # comment. A review posted from here comes from the workflow's own identity rather than from the
 # author's account, so the approve lands and the verdict is machine-readable.
 
-# Not on synchronize. A branch under repair gets several pushes and each one would start a full
-# review of a diff that is about to change again, which spends a subscription to read work in
-# progress. The review happens when the branch is offered: opened, or taken out of draft, or asked
-# for again with the requesting agent's review label after a fix.
+# The assignment workflow delivers the selected reviewer label that starts this review.
 on:
   pull_request:
-    types: [opened, ready_for_review, labeled]
+    types: [labeled]
 
 # A push that supersedes the branch supersedes the review of it. There is no value in finishing a
 # review of a diff that has already been replaced.
 concurrency:
-  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }}
+  group: agent-review-${{ github.event.pull_request.number }}-${{ startsWith(github.event.label.name, 'reviewer:') && 'requested' || 'metadata' }}
   cancel-in-progress: true
 
 jobs:
   select-reviewer:
     if: >-
       github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.label.name, 'reviewer:')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: read
       pull-requests: read
     outputs:
-      reviewer: ${{ steps.reviewer.outputs.reviewer }}
-      requested: ${{ steps.reviewer.outputs.requested }}
+      reviewer: ${{ steps.identity.outputs.reviewer }}
+      requested: ${{ steps.identity.outputs.requested }}
       before: ${{ steps.before.outputs.ids }}
       app_id: ${{ steps.identity.outputs.app_id }}
       secret_name: ${{ steps.identity.outputs.secret_name }}
       login: ${{ steps.identity.outputs.login }}
       user_id: ${{ steps.identity.outputs.user_id }}
-      allowed_bots: ${{ steps.requester.outputs.allowed_bots }}
+      allowed_bots: ${{ steps.identity.outputs.allowed_bots }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,55 +66,13 @@ jobs:
         run: |
           ids=$(gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews" | jq -c '[.[][] | .id]')
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
-      - name: Select the requesting agent's reviewer
-        id: reviewer
-        shell: bash
-        run: |
-          action=$(jq -r '.action' "$GITHUB_EVENT_PATH")
-          requested=true
-          label=$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")
-          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ]; then
-            requested=false
-          fi
-          if [ "$action" != labeled ] || [ "$requested" = false ]; then
-            labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
-            if [ "$(printf '%s\n' "$labels" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
-              echo "::error::Keep only the requesting agent's review label."
-              exit 1
-            fi
-            label=$labels
-          fi
-          case "$label" in
-            codex-review) reviewer=codex ;;
-            claude-review) reviewer=claude ;;
-            '')
-              branch=$(jq -r '.pull_request.head.ref' "$GITHUB_EVENT_PATH")
-              case "$branch" in
-                codex/*) reviewer=codex ;;
-                *) reviewer=claude ;;
-              esac
-              ;;
-            *) exit 1 ;;
-          esac
-          echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
-          echo "requested=$requested" >> "$GITHUB_OUTPUT"
-
-      - name: Require a trusted review requester
-        id: requester
-        if: steps.reviewer.outputs.requested == 'true'
+      - name: Validate the delivered reviewer assignment
+        id: identity
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node .github/scripts/wait-for-review.mjs --trust-requester
-
-      - name: Reserve the reviewer identity
-        id: identity
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROVIDER: ${{ steps.reviewer.outputs.reviewer }}
-          PR: ${{ github.event.pull_request.number }}
-        run: node .github/scripts/bot-identities.mjs allocate --provider "$PROVIDER" --role reviewer --pr "$PR"
+        run: node .github/scripts/wait-for-review.mjs --trust-assignment
 
   review:
     needs: select-reviewer
@@ -167,18 +123,6 @@ jobs:
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
         run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
 
-      - name: Identify the assigned reviewer on the PR
-        if: steps.key.outputs.have == 'true'
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
-          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
-        run: |
-          test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
-          gh label create "reviewer:$APP_SLUG" --repo "$REPO" --description "Assigned reviewer identity" --color 8250df --force
-          gh pr edit "$PR" --repo "$REPO" --add-label "reviewer:$APP_SLUG"
 
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
@@ -470,17 +414,6 @@ jobs:
           private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-      - name: Identify the assigned reviewer on the PR
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
-          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
-        run: |
-          test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
-          gh label create "reviewer:$APP_SLUG" --repo "$REPO" --description "Assigned reviewer identity" --color 8250df --force
-          gh pr edit "$PR" --repo "$REPO" --add-label "reviewer:$APP_SLUG"
       - name: Publish the review for the reviewed commit
         id: publish
         env:
@@ -499,7 +432,7 @@ jobs:
 
   review-approved:
     needs: [select-reviewer, review, codex-review]
-    if: ${{ always() }}
+    if: ${{ always() && startsWith(github.event.label.name, 'reviewer:') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

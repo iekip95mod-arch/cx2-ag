@@ -91,4 +91,13 @@ raise 'Claude must publish using its leased App' unless claude_step.fetch('with'
 raise 'Claude must use its named bot commit identity' unless claude_step.fetch('with').fetch('bot_name') == '${{ needs.allocate.outputs.login }}' && claude_step.fetch('with').fetch('bot_id') == '${{ needs.allocate.outputs.user_id }}'
 raise 'Claude must use subscription OAuth without API billing' if File.read(File.join(root, '.github/workflows/agent.yml')).include?('ANTHROPIC_API_KEY')
 raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
-puts '22 worker credential contracts passed'
+raise 'Claude must allow only the internal Actions bot on dispatch' unless claude_step.fetch('with').fetch('allowed_bots') == "${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}"
+feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
+raise 'Feedback must only subscribe to submitted formal reviews' unless feedback.fetch(true) == { 'pull_request_review' => { 'types' => ['submitted'] } }
+feedback_job = feedback.fetch('jobs').fetch('continue-executor')
+raise 'Feedback must be able to dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'read', 'pull-requests' => 'read', 'actions' => 'write' }
+feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }
+raise 'Feedback must run trusted main code without checkout credentials' unless feedback_checkout.fetch('with') == { 'ref' => 'main', 'persist-credentials' => false }
+feedback_dispatch = feedback_job.fetch('steps').find { |step| step['name'] == 'Dispatch the assigned executor' }
+raise 'Feedback must execute the validated dispatcher' unless feedback_dispatch.fetch('run') == 'node .github/scripts/review-feedback.mjs' && feedback_dispatch.fetch('env').fetch('GH_TOKEN') == '${{ secrets.GITHUB_TOKEN }}'
+puts '27 worker credential contracts passed'

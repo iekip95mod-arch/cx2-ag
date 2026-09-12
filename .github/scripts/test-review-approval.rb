@@ -7,7 +7,7 @@ require 'yaml'
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 job = workflow.fetch('jobs').fetch('review-approved')
-raise 'Approval gate must run when dependencies fail or skip' unless job.fetch('if') == '${{ always() }}'
+raise 'Approval gate must run for failed assignment reviews only' unless job.fetch('if') == "${{ always() && startsWith(github.event.label.name, 'reviewer:') }}"
 raise 'Approval gate must wait for selection and both reviewers' unless job.fetch('needs').sort == ['codex-review', 'review', 'select-reviewer']
 gate_step = job.fetch('steps').find { |step| step['name'] == 'Require a fresh approval from the selected reviewer' }
 gate = gate_step.fetch('run')
@@ -16,7 +16,7 @@ raise 'Approval lookup needs the durable lease' unless job.fetch('permissions').
 %w[review codex-review].each do |name|
   raise 'Ordinary labels must not spend a review' unless workflow.fetch('jobs').fetch(name).fetch('if').include?("needs.select-reviewer.outputs.requested == 'true'")
 end
-raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("'metadata' || 'requested'")
+raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("startsWith(github.event.label.name, 'reviewer:') && 'requested' || 'metadata'")
 raise 'Review cancellation must be isolated by PR' unless workflow.fetch('concurrency').fetch('group').include?('${{ github.event.pull_request.number }}')
 roster = JSON.parse(File.read(File.join(root, '.github/scripts/bot-identities.json')))
 roster.each_with_index { |identity, index| identity.merge!('appId' => index + 100, 'userId' => index + 200, 'clientId' => "Iv1.fixture#{index}") }
@@ -159,3 +159,37 @@ request_fixtures.each do |name, requester, actor, actor_id, assignments, expecte
   end
 end
 puts "#{request_fixtures.length} requester lease entrypoint cases passed"
+
+reviewer_label = "reviewer:#{claude.fetch('slug')}"
+assigned_sender = { login: claude.fetch('login'), id: claude.fetch('userId'), type: 'Bot' }
+reviewer_lease = { key: 'claude/reviewer/issue-42', provider: 'claude', role: 'reviewer', issue: 42, pr: 84, branch: 'claude/issue-42', slug: claude.fetch('slug'), released: false }
+state = [{ version: 1, assignments: [reviewer_lease] }.to_json].pack('m0')
+File.write(File.join(request_directory, 'state.json'), { sha: 'state-sha', content: state }.to_json)
+assigned_pull = JSON.parse(File.read(File.join(request_directory, 'pull.json'))).merge('number' => 84, 'labels' => [{ 'name' => reviewer_label }])
+File.write(File.join(request_directory, 'pull.json'), assigned_pull.to_json)
+assignment_fixtures = [
+  ['assigned', assigned_sender, reviewer_label, reviewed_sha, 'labeled', true],
+  ['provider-request', assigned_sender, 'claude-review', reviewed_sha, 'labeled', false],
+  ['arbitrary-label', assigned_sender, 'reviewer:unknown', reviewed_sha, 'labeled', false],
+  ['executor-actor', sender, reviewer_label, reviewed_sha, 'labeled', false],
+  ['wrong-sender-id', assigned_sender.merge(id: 999), reviewer_label, reviewed_sha, 'labeled', false],
+  ['stale-assignment', assigned_sender, reviewer_label, 'b' * 40, 'labeled', false],
+  ['not-an-assignment', assigned_sender, reviewer_label, reviewed_sha, 'ready_for_review', false]
+]
+assignment_fixtures.each do |name, actor, label, event_sha, action, expected|
+  event_file = File.join(request_directory, 'assignment.json')
+  event_pull = assigned_pull.merge('head' => assigned_pull.fetch('head').merge('sha' => event_sha))
+  File.write(event_file, { action: action, label: { name: label }, pull_request: event_pull, sender: actor }.to_json)
+  output_file = File.join(request_directory, 'assignment-output')
+  File.write(output_file, '')
+  environment = { 'PATH' => "#{request_directory}:#{ENV.fetch('PATH')}", 'FIXTURE_DIR' => request_directory, 'GITHUB_EVENT_NAME' => 'pull_request', 'GITHUB_REPOSITORY' => 'iekip95mod-arch/cx2-ag', 'PR_NUMBER' => '84', 'PR_HEAD_SHA' => event_sha, 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file, 'GITHUB_ACTOR' => actor.fetch(:login), 'GITHUB_ACTOR_ID' => actor.fetch(:id).to_s }
+  _stdout, stderr, status = Open3.capture3(environment, 'node', File.join(request_directory, '.github/scripts/wait-for-review.mjs'), '--trust-assignment', unsetenv_others: true)
+  raise "#{name}: incorrect assignment result: #{stderr}" unless status.success? == expected
+  if expected
+    outputs = File.read(output_file).lines.to_h { |line| line.strip.split('=', 2) }
+    raise 'Claude must allow exactly its assigned reviewer actor' unless outputs.fetch('allowed_bots') == claude.fetch('login') && outputs.fetch('user_id') == claude.fetch('userId').to_s && outputs.fetch('reviewer') == 'claude'
+  else
+    raise 'Rejected assignments must not publish App metadata' unless File.read(output_file).empty?
+  end
+end
+puts "#{assignment_fixtures.length} assignment event entrypoint cases passed"
