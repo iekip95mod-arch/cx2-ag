@@ -26,6 +26,7 @@
 /tools/*
 !/tools/nsptool/
 !/tools/keysvc/
+!/tools/github-events/
 /tools/nsptool/*
 /tools/keysvc/*
 !/tools/nsptool/*.c
