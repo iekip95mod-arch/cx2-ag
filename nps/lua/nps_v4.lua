@@ -2119,6 +2119,7 @@ function applyFontSizeChange()
 end
 
 do
+	-- TI restricts handheld sizes to "7, 9, 10, 11, 12, 16, or 24": https://education.ti.com/html/eguides/nspire/EG_Nspire/EN/content/eg_lua/m_libraries/2deditorlib/setfontsize.HTML
 	local SHELL_FONTS = { 7, 9, 10, 11, 12, 16, 24 }
 
 	function fontDown()
