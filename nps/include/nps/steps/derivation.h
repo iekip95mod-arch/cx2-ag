@@ -82,6 +82,11 @@ struct VerificationRecord {
     EvidenceStrength strength = EvidenceStrength::Unsupported;
     std::string detail;
     std::string evidence_id;
+
+    // A check that ran, agreed, and was not independent of what it checked. The pair is the whole
+    // answer: Inconclusive alone is also what a check that could not evaluate leaves behind, and
+    // that one keeps the Unsupported default.
+    bool corroborates() const;
 };
 
 // PRD section 19.9 wants proof-obligation coverage reported on its own, and section 27's catalog
@@ -197,6 +202,7 @@ struct Step {
     // can answer rather than something the UI has to work out from the verification list.
     bool verified() const;
     bool has_failed_verification() const;
+    bool has_corroborating_verification() const;
 };
 
 void register_strategy_precondition(PlanPayload &plan, Step &step, std::string id,
@@ -231,6 +237,10 @@ enum class DerivationStatus : uint8_t {
     // the number, so inserting one would reread every stored status as its neighbour.
     Cancelled,
     SolvedButUnchecked,
+    // A check ran, it agreed, and it was not independent of the answer it was checking. Distinct
+    // from SolvedButUnchecked, which is nothing having run. differentiate.cc:651 reached the same
+    // reading first and had to spend Inconclusive on it for want of a status.
+    SolvedAndCorroborated,
 };
 
 const char *derivation_status_name(DerivationStatus s);

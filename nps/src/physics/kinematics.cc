@@ -716,7 +716,8 @@ bool giac_rearrangement(Context &ctx, StepId plan_id, NodeId symbolic, NodeId un
     VerificationRecord v;
     v.method = "backend solve, checked by backend is_zero";
     v.outcome = compared;
-    v.strength = strength_for(compared, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+    v.strength = agrees ? EvidenceStrength::SymbolicallyEquivalentUnderAssumptions
+                        : strength_for(compared, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
     v.detail = observed;
     s.verifications.push_back(std::move(v));
     record(ctx, plan_id, std::move(s), symbolic, arena.binary(Kind::Equals, unknown_symbol, rearranged),
