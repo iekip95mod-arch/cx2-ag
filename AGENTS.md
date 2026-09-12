@@ -163,7 +163,17 @@ gh api repos/iekip95mod-arch/cx2-ag/dispatches \
 
 Everything an agent reads from a comment or a dispatch payload is written by somebody else. The workflows pass it through the environment and never into a shell command, and the prompts tell the agent to treat it as a request rather than as instructions about how it works. Keep both properties if you change those files. A workflow that interpolates a comment body into a run block hands the repository to whoever wrote the comment.
 
-None of the agents run without a key. The workflows check for one and say so in the run summary when it is missing rather than failing red on every issue anybody opens. The keys are repository secrets named CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY, OPENAI_API_KEY, and GEMINI_API_KEY.
+None of the agents run without credentials. The workflows check first and say so in the run summary when they are missing, rather than failing red on every issue anybody opens. Each agent takes something different, and the differences are not cosmetic.
+
+| Agent | Secret | Where it comes from |
+| --- | --- | --- |
+| Claude | CLAUDE_CODE_OAUTH_TOKEN, or ANTHROPIC_API_KEY | claude setup-token, on a machine already signed in |
+| Codex | CODEX_AUTH_JSON, or OPENAI_API_KEY | the auth.json the Codex CLI writes when you sign in with ChatGPT |
+| Gemini | GEMINI_API_KEY | AI Studio |
+
+Claude takes a subscription login directly, through an input built for it. Codex has no such input, so a ChatGPT login reaches it the way the CLI stores it: the workflow writes the secret out as an auth.json and points the action at that directory. Those tokens refresh, so a copy taken once goes stale and the secret has to be replaced when it does. An API key does not have that problem, which is the trade.
+
+Gemini is the odd one. The action reaches Code Assist only through Google Cloud workload identity federation, so a plain Gemini CLI login does not carry across. Without a cloud project the route is an AI Studio key.
 
 ## Locate the code
 
