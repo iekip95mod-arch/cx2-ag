@@ -41,7 +41,7 @@ jobs:
     if: >-
       github.event_name != 'issues' ||
       github.event.label.name == 'claude'
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 30
     permissions:
       contents: write
@@ -72,14 +72,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The same set the fast job installs, so an agent asked to fix something can build and run
-      # rather than reason about what the code would have done.
+      # The same set the full job installs, so an agent asked to fix something can build and run
+      # rather than reason about what the code would have done. cmake, ninja, pkgconf and python3
+      # are already on the image.
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: brew install ccache gmp php
 
       - name: Run the agent
         if: steps.key.outputs.have == 'true'

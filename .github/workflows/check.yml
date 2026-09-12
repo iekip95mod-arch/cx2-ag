@@ -3,6 +3,16 @@ name: check
 # Several agents push to several branches at once, so the two things that decide turnaround are
 # canceling superseded runs and giving the fast gate its own job rather than queueing it behind
 # the slow one. Both are below.
+#
+# Everything runs on macos-latest, which is arm64 and the same platform this project is developed
+# on. That is the point: the host suite now runs where the code is written. The failure this
+# prevents already happened once in the other direction, when eighteen integrity checks staged
+# their fixtures under /private/tmp and only fell over on Linux. A runner that matches the
+# developer's machine catches the reverse before a push does.
+#
+# The cost, so nobody rediscovers it: five concurrent macOS jobs per account against twenty on
+# Linux, and three cores with 7 GB rather than four with 16. The parallel settings below are sized
+# for three cores rather than left at a Linux default.
 
 on:
   push:
@@ -25,24 +35,28 @@ env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 900M
   CMAKE_GENERATOR: Ninja
+  # brew spends a minute updating itself before every install otherwise, on a job that finishes in
+  # three.
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
 
 jobs:
-  # The gate. Three suites that between them catch nearly everything, reported before the full run
+  # The gate. Two suites that between them catch nearly everything, reported before the full run
   # has finished configuring. Nothing depends on this job, so a failure here does not cancel the
   # others and you still learn what else broke in the same push.
   fast:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
+      # cmake, ninja, pkgconf, zstd and python3 ship on the image. gmp does not, and the version is
+      # not a preference: nps/CMakeLists.txt:345 asks pkg-config for gmp=6.3.0 exactly, so a bump in
+      # the formula breaks configure rather than degrading it.
       - name: Install prerequisites
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3
+        run: brew install ccache gmp
 
       - name: Restore compiler cache
         uses: actions/cache@v6
@@ -54,6 +68,7 @@ jobs:
 
       - name: Configure
         run: |
+          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
           cmake -S nps -B nps/build/host \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -80,14 +95,15 @@ jobs:
         if: always()
         run: ccache --show-stats
 
-  # Everything ctest knows about. Runs beside the gate rather than after it.
-  # Gated on the fast suite. If the three quick suites are already red, the full run would only
-  # report the same failures more slowly, and a runner spent on that is a runner another agent is
-  # waiting for.
+  # Everything ctest knows about.
+  # Gated on the fast suite. If the quick suites are already red, the full run would only report the
+  # same failures more slowly, and a runner spent on that is a runner another agent is waiting for.
+  # That matters more here than it did on Linux, because five macOS jobs run at once rather than
+  # twenty.
   full:
     needs: fast
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
+    runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -95,10 +111,7 @@ jobs:
           lfs: true
 
       - name: Install prerequisites
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli zstd
+        run: brew install ccache gmp php
 
       # The bridge suite is the one thing the host build cannot reach on its own. Enabling LuaJIT
       # takes configure into nps/CMakeLists.txt:1208, and two lines later it wants the luna binary
@@ -108,21 +121,21 @@ jobs:
       - name: Unpack the committed toolchain
         id: unpack
         run: |
-          archive=vendor/toolchain/ndl-arm-none-eabi-linux-x86_64.tar.zst
+          archive=vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst
           stamp=vendor/toolchain/built-from.sha256
           if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "No committed toolchain, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          want=$(sha256sum vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
           if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "The committed toolchain is stale, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          tar --zstd -xf "$archive" -C vendor/ndl-src/ndl-sdk/toolchain/install
+          zstd -d -c "$archive" | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
           echo "used=true" >> "$GITHUB_OUTPUT"
 
       # LuaJIT goes on only once the toolchain is here. Installing it without one would take
@@ -131,10 +144,10 @@ jobs:
       - name: Install the bridge prerequisites
         if: steps.unpack.outputs.used == 'true'
         run: |
-          sudo apt-get install -y --no-install-recommends luajit libluajit-5.1-dev
+          brew install luajit
           cd vendor/ndl-src/ndl-sdk
           export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
-          make build-libndls build-tools -j"$(nproc)"
+          make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
 
       - name: Restore compiler cache
         uses: actions/cache@v6
@@ -146,6 +159,10 @@ jobs:
 
       - name: Configure
         run: |
+          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
+          if [ "${{ steps.unpack.outputs.used }}" = "true" ]; then
+            export PKG_CONFIG_PATH="$(brew --prefix luajit)/lib/pkgconfig:$PKG_CONFIG_PATH"
+          fi
           cmake -S nps -B nps/build/host \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -164,9 +181,10 @@ jobs:
           ctest --test-dir nps/build/host -N -R '^luax_host$' | grep "Test *#"
 
       # Not the check target, because that serializes. ctest runs the suites across the runner's
-      # cores and reports every failure rather than stopping at the first.
+      # cores and reports every failure rather than stopping at the first. Three, because that is
+      # what a macos-latest runner has.
       - name: Full suite
-        run: ctest --test-dir nps/build/host --output-on-failure --parallel 4
+        run: ctest --test-dir nps/build/host --output-on-failure --parallel 3
 
   # Deliberately NOT on push. The ARM toolchain is not in this repository: vendor/ndl-src/ndl-sdk
   # tracks build_toolchain.sh and a gitignore, and nspire-gcc is not tracked either, so a runner has
@@ -175,8 +193,8 @@ jobs:
   # Run it by hand when the device build matters, or let the weekly run catch a break.
   device:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    runs-on: macos-latest
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
         with:
@@ -184,12 +202,7 @@ jobs:
           lfs: true
 
       - name: Install prerequisites
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config zlib1g-dev \
-            libgmp-dev libmpfr-dev libmpc-dev python3 python3-dev \
-            build-essential texinfo bison flex wget zstd
+        run: brew install ccache gmp mpfr libmpc texinfo bison flex
 
       # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
       # is paid once and then reused until that script changes.
@@ -198,9 +211,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh') }}
+          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh') }}
 
-      # The Actions cache evicts an entry nothing has touched for a week, and the schedule below runs
+      # The Actions cache evicts an entry nothing has touched for a week, and the schedule above runs
       # weekly, so the cache is one missed run away from a rebuild that takes the best part of half
       # an hour. The committed tarball is the floor under that. It is only used when the recorded
       # hash matches the build script it was made from, so editing that script falls back to a build
@@ -209,23 +222,22 @@ jobs:
         id: unpack
         if: steps.toolchain.outputs.cache-hit != 'true'
         run: |
-          archive=vendor/toolchain/ndl-arm-none-eabi-linux-x86_64.tar.zst
+          archive=vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst
           stamp=vendor/toolchain/built-from.sha256
           if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "No committed toolchain, so it is being built from source." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          want=$(sha256sum vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
-          have=$(cut -d' ' -f1 < "$stamp")
-          if [ "$want" != "$have" ]; then
+          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "The committed toolchain was built from a different build_toolchain.sh, so it was ignored." \
               >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          tar --zstd -xf "$archive" -C vendor/ndl-src/ndl-sdk/toolchain/install
+          zstd -d -c "$archive" | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
           vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc --version
           echo "used=true" >> "$GITHUB_OUTPUT"
 
@@ -246,15 +258,32 @@ jobs:
             https://sourceware.org/pub/newlib/newlib-4.5.0.20241231.tar.gz
           do
             name=$(basename "$url")
-            wget --retry-connrefused --tries=5 --waitretry=10 -c "$url" -O "$name"
+            curl -fL --retry 5 --retry-delay 10 -C - -o "$name" "$url"
             tar -xf "$name" -C .
           done
           ls -d ./*/
 
+      # Section 0 of the script probes with a bare gcc, which here is clang, and clang does not look
+      # in the brew prefix unless told. PYTHON is emptied rather than left to find python3, because
+      # setting it makes gdb want python3-config and this project has no use for a scripted gdb.
       - name: Build the cross toolchain
         if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
-        run: ./build_toolchain.sh
+        env:
+          PARALLEL: -j3
+          PYTHON: ""
+        run: |
+          brew_prefix=$(brew --prefix)
+          export LIBRARY_PATH="$brew_prefix/lib:${LIBRARY_PATH-}"
+          export CPATH="$brew_prefix/include:${CPATH-}"
+          ./build_toolchain.sh
+
+      # GMP for the calculator, not for the host. nps/CMakeLists.txt:336 reads it straight out of the
+      # toolchain prefix, so it belongs to the toolchain rather than beside it, and packaging the
+      # prefix below carries it along.
+      - name: Cross build GMP into the toolchain prefix
+        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
+        run: ./vendor/deps/build-gmp.sh
 
       # What gets committed. Downloading this artifact and putting the two files where the unpack
       # step looks is how the committed toolchain is refreshed after build_toolchain.sh changes.
@@ -263,16 +292,16 @@ jobs:
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: |
           du -sh install
-          tar --zstd -cf "$RUNNER_TEMP/ndl-arm-none-eabi-linux-x86_64.tar.zst" -C install .
-          sha256sum build_toolchain.sh | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
-          ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-linux-x86_64.tar.zst"
+          tar -c -C install . | zstd -T0 -19 -o "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
+          shasum -a 256 build_toolchain.sh | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
+          ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
 
       - uses: actions/upload-artifact@v7
         if: steps.unpack.outputs.used != 'true'
         with:
           name: cross-toolchain
           path: |
-            ${{ runner.temp }}/ndl-arm-none-eabi-linux-x86_64.tar.zst
+            ${{ runner.temp }}/ndl-arm-none-eabi-darwin-arm64.tar.zst
             ${{ runner.temp }}/built-from.sha256
           retention-days: 7
 
@@ -284,7 +313,7 @@ jobs:
         working-directory: vendor/ndl-src/ndl-sdk
         run: |
           export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
-          make build-libndls build-tools -j"$(nproc)"
+          make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
           ls lib
 
       - name: Configure
@@ -314,7 +343,7 @@ jobs:
   emulator:
     needs: device
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
@@ -334,12 +363,11 @@ jobs:
             echo "No boot1 or flash image configured, so the emulator stage did not run." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # Qt 5 is keg-only in brew, so qmake is not on PATH by default and the build step puts it
+      # there rather than relying on a link that is not made.
       - name: Install prerequisites
         if: steps.images.outputs.have == 'true'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            build-essential qtbase5-dev qtdeclarative5-dev qt5-qmake libqt5quick5 xvfb
+        run: brew install qt@5
 
       - uses: actions/download-artifact@v8
         if: steps.images.outputs.have == 'true'
@@ -351,8 +379,9 @@ jobs:
         if: steps.images.outputs.have == 'true'
         working-directory: vendor/firebird-src
         run: |
+          export PATH="$(brew --prefix qt@5)/bin:$PATH"
           qmake firebird-emu.pro
-          make -j"$(nproc)"
+          make -j"$(sysctl -n hw.ncpu)"
 
       # Fetched rather than committed, because these are TI's images and not ours to redistribute.
       - name: Fetch the images
@@ -365,11 +394,16 @@ jobs:
           curl -fsSL "$BOOT1" -o images/boot1.img
           curl -fsSL "$FLASH" -o images/flash.img
 
+      # There is no xvfb here. Qt's own offscreen platform plugin is the macOS answer, and it is the
+      # better one anyway, because it needs no display server to be running at all.
       - name: Boot the package
         if: steps.images.outputs.have == 'true'
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-          xvfb-run -a vendor/firebird-src/firebird-emu \
-            --boot1 images/boot1.img --flash images/flash.img &
+          binary=$(find vendor/firebird-src -name firebird-emu -type f -perm -111 | head -1)
+          test -n "$binary"
+          "$binary" --boot1 images/boot1.img --flash images/flash.img &
           emu=$!
           sleep 90
           kill "$emu" 2>/dev/null || true

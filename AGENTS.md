@@ -169,6 +169,10 @@ Two more rules survive the autonomy and are worth restating because they are the
 
 Actions runs on every push and every pull request. Three workflows matter to you.
 
+Every job runs on macos-latest, which is arm64. That is not incidental: it is the platform this project is developed on, and until now nothing in CI ever built here. The failure it is aimed at has already happened once going the other way, when eighteen package integrity checks staged their fixtures under /private/tmp, a spelling that only exists on macOS, and fell over on a Linux runner. Nothing was looking for the reverse.
+
+Two things follow from it that will bite if you forget them. Five macOS jobs run at once per account rather than twenty, so the gate queueing behind the slow job matters more here than it would on Linux. And a runner has three cores and 7 GB rather than four and 16, which is why the parallel settings are written down rather than left at a default. Install with brew: cmake, ninja, pkgconf, zstd, wget and python3 are already on the image, and gmp, ccache and php are not.
+
 - check.yml is the suite. A fast gate of the unit and shell suites, then the full ctest run, which only starts if the gate passed. The device package and the emulator boot are on the weekly schedule and on manual dispatch, never on a push, because building the ARM cross compiler takes hours.
 - agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude label on an issue has the same effect as mentioning it.
 - agent-review.yml reviews a pull request when it is opened, taken out of draft, or labeled claude-review. It runs under the workflow's own identity rather than the author's account, which is what makes an approve possible at all: GitHub refuses an approve on a pull request you opened yourself, so an agent working under one account could never do more than comment.
