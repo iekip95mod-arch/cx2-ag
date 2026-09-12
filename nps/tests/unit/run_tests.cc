@@ -868,6 +868,17 @@ int main_body() {
     run_golden_tests(sink);
 
     write_evidence(sink);
+    // A total is one number, and two platforms reporting different totals from the same sources say
+    // nothing about where they parted. Set NPS_GROUP_COUNTS and the tally says which group.
+    if (const char *tally = std::getenv("NPS_GROUP_COUNTS"); tally && tally[0] != '\0') {
+        for (size_t i = 0; i < sink.groups_run.size(); ++i) {
+            const int next = i + 1 < sink.group_opened_at.size()
+                                 ? sink.group_opened_at[i + 1]
+                                 : sink.checks;
+            printf("nps group: %s %d\n", sink.groups_run[i].c_str(),
+                   next - sink.group_opened_at[i]);
+        }
+    }
     printf("nps: %d checks, %zu failed\n", sink.checks, sink.failures.size());
     for (const std::string &f : sink.failures)
         printf("  FAIL %s\n", f.c_str());

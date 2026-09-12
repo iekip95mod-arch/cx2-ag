@@ -45,12 +45,15 @@ struct TestSink {
     // catalog links a family to its test groups, and telling "this group has no tagged check yet"
     // from "this group does not exist" needs both lists.
     std::vector<std::string> groups_run;
+    // The running total as each group opened, so a tally can be taken by subtraction afterwards.
+    std::vector<int> group_opened_at;
     std::string group;
 
     // Called once per group by the runner, so a test body cannot label its evidence wrongly.
     void begin_group(const char *name) {
         group = name;
         groups_run.push_back(group);
+        group_opened_at.push_back(checks);
     }
 
     void check(bool cond, const std::string &what) {

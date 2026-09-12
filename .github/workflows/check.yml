@@ -95,6 +95,55 @@ jobs:
         if: always()
         run: ccache --show-stats
 
+  # The one job that is not on macOS, and the reason it exists is that everything else is. Moving
+  # here closed the gap where a macOS-only spelling reached Linux untested, and opened the mirror
+  # image of it. The numbers say the mirror image is real: the same sources counted 9829 checks on
+  # Linux and 9803 on macOS, so twenty six checks run on one and not the other and nobody knows
+  # which. This prints the per-group tally so the next divergence names itself.
+  #
+  # Dispatch only. It is a comparison rather than a gate, and it has nothing to say about a push.
+  linux-parity:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3
+
+      - name: Configure
+        run: |
+          cmake -S nps -B nps/build/host \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+
+      - name: Build
+        run: cmake --build nps/build/host --target nps_host --parallel
+
+      # Not through ctest. The tally goes to stdout and the suite exits non-zero while issue 4 is
+      # open, so the count has to be read whether or not the checks passed.
+      - name: Tally the checks by group
+        working-directory: nps
+        env:
+          NPS_GROUP_COUNTS: 1
+          NPS_EVIDENCE: ""
+        run: |
+          ./build/host/nps_host > tally.txt 2>&1 || true
+          grep '^nps group:' tally.txt
+          grep '^nps: ' tally.txt
+          {
+            echo '```'
+            grep '^nps group:' tally.txt
+            grep '^nps: ' tally.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # Everything ctest knows about.
   # Gated on the fast suite. If the quick suites are already red, the full run would only report the
   # same failures more slowly, and a runner spent on that is a runner another agent is waiting for.
@@ -274,8 +323,12 @@ jobs:
           PYTHON: ""
         run: |
           brew_prefix=$(brew --prefix)
-          export LIBRARY_PATH="$brew_prefix/lib:${LIBRARY_PATH-}"
-          export CPATH="$brew_prefix/include:${CPATH-}"
+          # No trailing colon. An empty element in LIBRARY_PATH reads as the current directory, and
+          # gcc's configure refuses to build at all when it finds one: checking LIBRARY_PATH
+          # variable, contains current directory, configure: error. It costs a full section of the
+          # build to find out.
+          export LIBRARY_PATH="$brew_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          export CPATH="$brew_prefix/include${CPATH:+:$CPATH}"
           ./build_toolchain.sh
 
       # GMP for the calculator, not for the host. nps/CMakeLists.txt:336 reads it straight out of the
