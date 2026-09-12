@@ -154,6 +154,28 @@ jobs:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh') }}
 
+      # build_toolchain.sh fetches through ftpmirror.gnu.org, which round robins across mirrors, and
+      # one of them answered 404 for binutils 2.44. The script skips a download whose directory is
+      # already extracted, so the sources arrive here from the canonical hosts instead. The versions
+      # are the ones the script names and have to be changed with it.
+      - name: Prefetch the toolchain sources
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        working-directory: vendor/ndl-src/ndl-sdk/toolchain
+        run: |
+          mkdir -p download
+          cd download
+          for url in \
+            https://ftp.gnu.org/gnu/binutils/binutils-2.44.tar.bz2 \
+            https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz \
+            https://ftp.gnu.org/gnu/gdb/gdb-16.2.tar.xz \
+            https://sourceware.org/pub/newlib/newlib-4.5.0.20241231.tar.gz
+          do
+            name=$(basename "$url")
+            wget --retry-connrefused --tries=5 --waitretry=10 -c "$url" -O "$name"
+            tar -xf "$name" -C .
+          done
+          ls -d ./*/
+
       - name: Build the cross toolchain
         if: steps.toolchain.outputs.cache-hit != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
