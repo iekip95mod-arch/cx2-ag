@@ -94,7 +94,7 @@ function entryFixture(event, options = {}) {
     HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_AUTHOR_NAME: 'Worker fixture', GIT_AUTHOR_EMAIL: 'fixture@users.noreply.github.com',
     GIT_COMMITTER_NAME: 'Worker fixture', GIT_COMMITTER_EMAIL: 'fixture@users.noreply.github.com',
-    GH_TOKEN: 'worker-fixture-token', GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '123',
+    GH_TOKEN: 'worker-fixture-token', GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '123', EXPECTED_BRANCH: 'codex/issue-42',
     GITHUB_WORKSPACE: checkout, RUNNER_TEMP: temporary,
     GITHUB_EVENT_PATH: join(root, 'event.json'), GITHUB_OUTPUT: join(root, 'outputs'),
     WORKER_FIXTURE: join(root, 'fixture.json')
@@ -109,12 +109,13 @@ function entryFixture(event, options = {}) {
   const config = { ...options, remote, issue, log: join(root, 'calls.jsonl') };
   writeFileSync(env.WORKER_FIXTURE, JSON.stringify(config));
   writeFileSync(env.GITHUB_EVENT_PATH, JSON.stringify(event));
-  const execute = () => spawnSync(process.execPath, [fileURLToPath(new URL('./prepare-codex-worker.mjs', import.meta.url))], { cwd: checkout, env, encoding: 'utf8' });
+  const execute = (args = []) => spawnSync(process.execPath, [fileURLToPath(new URL('./prepare-codex-worker.mjs', import.meta.url)), ...args], { cwd: checkout, env, encoding: 'utf8' });
   const calls = () => existsSync(config.log) ? readFileSync(config.log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
   return { checkout, remote, temporary, env, base, issue, git, execute, calls };
 }
 
 function verifyCheckout(fixture, branch, sha) {
+  fixture.env.EXPECTED_BRANCH = branch;
   const execution = fixture.execute();
   assert.equal(execution.status, 0, execution.stderr);
   const directory = join(fixture.checkout, '.Internal/workspaces/codex-issue-42/tree');
@@ -153,11 +154,12 @@ test('entry point resumes the PR branch commit instead of resetting it to main',
 });
 
 test('entry point rejects missing credentials and malformed events before CLI calls', () => {
-  for (const failure of ['token', 'json', 'number']) {
+  for (const failure of ['token', 'json', 'number', 'queue']) {
     const fixture = entryFixture({ inputs: { issue_number: '42' } });
     if (failure === 'token') delete fixture.env.GH_TOKEN;
     if (failure === 'json') writeFileSync(fixture.env.GITHUB_EVENT_PATH, '{');
     if (failure === 'number') writeFileSync(fixture.env.GITHUB_EVENT_PATH, JSON.stringify({ inputs: { issue_number: '../42' } }));
+    if (failure === 'queue') delete fixture.env.EXPECTED_BRANCH;
     const execution = fixture.execute();
     assert.notEqual(execution.status, 0);
     assert.match(execution.stderr, /::error::/);
@@ -188,4 +190,40 @@ test('entry point emits no ready outputs when authentication, fetch or worktree 
     assert.equal(existsSync(fixture.env.GITHUB_OUTPUT), false);
     assert.equal(existsSync(join(fixture.temporary, 'codex-issue.json')), false);
   }
+});
+
+test('issue and PR aliases resolve to the same branch queue without claiming work', () => {
+  const branch = 'codex/issue-42';
+  const pr = { head: { repo: { full_name: repository }, ref: branch }, user: { login: 'worker-owner' } };
+  for (const [event, options] of [
+    [{ issue: { number: 42 } }, {}],
+    [{ issue: { number: 84 } }, { number: 84, issue: { pull_request: {} }, pr }],
+    [{ pull_request: { number: 84 } }, { number: 84, issue: { pull_request: {} }, pr }],
+    [{ inputs: { issue_number: '84' } }, { number: 84, issue: { pull_request: {} }, pr }]
+  ]) {
+    const fixture = entryFixture(event, options);
+    const execution = fixture.execute(['--resolve']);
+    assert.equal(execution.status, 0, execution.stderr);
+    assert.equal(readFileSync(fixture.env.GITHUB_OUTPUT, 'utf8'), `branch=${branch}\n`);
+    assert.equal(fixture.calls().every(call => call.args[0] === 'api' && call.args[2] === 'GET'), true);
+    assert.equal(existsSync(join(fixture.checkout, '.Internal/workspaces')), false);
+  }
+});
+
+test('a branch change after queue resolution cannot claim or prepare a different branch', () => {
+  const fixture = entryFixture({ issue: { number: 42 } });
+  fixture.env.EXPECTED_BRANCH = 'codex/another-issue';
+  const execution = fixture.execute();
+  assert.notEqual(execution.status, 0);
+  assert.match(execution.stderr, /branch changed after queue resolution/);
+  assert.equal(fixture.calls().some(call => call.args[2] === 'POST'), false);
+  assert.equal(existsSync(fixture.env.GITHUB_OUTPUT), false);
+});
+
+test('general responses resolve without an issue branch or GitHub mutations', () => {
+  const fixture = entryFixture({ inputs: { task: 'Explain the build' } });
+  const execution = fixture.execute(['--resolve']);
+  assert.equal(execution.status, 0, execution.stderr);
+  assert.equal(readFileSync(fixture.env.GITHUB_OUTPUT, 'utf8'), 'branch=\n');
+  assert.equal(fixture.calls().length, 0);
 });

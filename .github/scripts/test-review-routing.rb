@@ -11,8 +11,22 @@ raise 'Review run names must identify requested and metadata runs by PR' unless 
 selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
 %w[agent agent-codex agent-gemini].each do |name|
   worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
-  expected = "#{name}-" + (name == 'agent-codex' ? '${{ github.event.issue.number || github.event.pull_request.number || inputs.issue_number || github.run_id }}' : '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}')
-  raise "#{name}: work must be isolated by issue or PR" unless worker.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+  if name == 'agent-codex'
+    response = worker.fetch('jobs').fetch('respond')
+    expected = 'agent-codex-${{ needs.resolve.outputs.branch || github.run_id }}'
+    raise 'Codex issue and PR aliases must share their branch queue' unless response.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+    raise 'Resolve ownership before starting a Codex worker' unless response.fetch('needs') == 'resolve'
+    resolver = worker.fetch('jobs').fetch('resolve')
+    raise 'Ownership resolution must be read-only' unless resolver.fetch('permissions').values.all? { |value| value == 'read' }
+    step = resolver.fetch('steps').find { |entry| entry['id'] == 'target' }
+    raise 'Execute the ownership resolver' unless step.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs --resolve'
+    raise 'Publish the resolved branch queue' unless resolver.fetch('outputs').fetch('branch') == '${{ steps.target.outputs.branch }}'
+    claim = response.fetch('steps').find { |entry| entry['id'] == 'worker' }
+    raise 'Recheck the branch after entering its queue' unless claim.fetch('env').fetch('EXPECTED_BRANCH') == '${{ needs.resolve.outputs.branch }}'
+  else
+    expected = "#{name}-" + '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}'
+    raise "#{name}: work must be isolated by issue or PR" unless worker.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+  end
 end
 fixtures = [
   ['opened', 'codex/change', [], nil, 'codex'],

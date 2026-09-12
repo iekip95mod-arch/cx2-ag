@@ -16,9 +16,9 @@ const [command, flag, method, endpoint] = args;
 if (command !== 'api' || flag !== '--method') fail('Unexpected GitHub CLI arguments');
 if (endpoint === config.failEndpoint) fail(`Fixture API error (HTTP ${config.failStatus})`);
 let reply;
-if (method === 'GET' && endpoint.endsWith('/issues/42')) reply = config.issue;
+if (method === 'GET' && endpoint.endsWith(`/issues/${config.number ?? 42}`)) reply = config.issue;
 else if (method === 'GET' && endpoint === 'user') reply = { login: 'worker-owner', id: 7, type: 'User' };
-else if (method === 'GET' && endpoint.endsWith('/pulls/42')) reply = config.pr;
+else if (method === 'GET' && endpoint.endsWith(`/pulls/${config.number ?? 42}`)) reply = config.pr;
 else if (method === 'GET' && endpoint.includes('/git/ref/heads/')) {
   const branch = endpoint.split('/git/ref/heads/')[1];
   try { reply = { object: { sha: git('rev-parse', '--verify', `refs/heads/${branch}`) } }; }

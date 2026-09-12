@@ -3,20 +3,25 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export async function claimIssue({ repository, number, run }, api) {
-  if (repository !== 'iekip95mod-arch/cx2-ag' || !/^[1-9][0-9]*$/.test(String(number)) || !/^[1-9][0-9]*$/.test(String(run))) throw Error('A repository issue number and run ID are required');
+async function resolveIssue(repository, number, api) {
+  if (repository !== 'iekip95mod-arch/cx2-ag' || !/^[1-9][0-9]*$/.test(String(number))) throw Error('A repository issue number is required');
   const issue = await api('GET', `repos/${repository}/issues/${number}`);
+  if (!issue.pull_request) return { issue, branch: `codex/issue-${number}` };
+  const pr = await api('GET', `repos/${repository}/pulls/${number}`);
+  if (pr.head.repo?.full_name !== repository || !pr.head.ref.startsWith('codex/')) throw Error('Only repository Codex pull requests can be resumed');
+  return { issue, branch: pr.head.ref, author: pr.user.login };
+}
+
+export async function claimIssue({ repository, number, run, expectedBranch }, api) {
+  if (!/^[1-9][0-9]*$/.test(String(run))) throw Error('A run ID is required');
+  const { issue, branch, author } = await resolveIssue(repository, number, api);
+  if (expectedBranch !== undefined && branch !== expectedBranch) throw Error('The branch changed after queue resolution. Request the worker again');
   const identity = await api('GET', 'user');
   if (identity.type !== 'User' || !identity.login || !Number.isSafeInteger(identity.id)) throw Error('CODEX_GITHUB_TOKEN must belong to an assignable GitHub user');
   if (issue.state !== 'open') throw Error('The issue or pull request is closed');
   if (issue.assignees.some(assignee => assignee.login !== identity.login)) throw Error('Another account already owns this issue');
   if (issue.labels.some(label => label.name === 'claude')) throw Error('This issue is already assigned to a Claude worker');
-  let branch = `codex/issue-${number}`;
-  if (issue.pull_request) {
-    const pr = await api('GET', `repos/${repository}/pulls/${number}`);
-    if (pr.head.repo?.full_name !== repository || !pr.head.ref.startsWith('codex/') || pr.user.login !== identity.login) throw Error('Only this account\'s Codex pull requests can be resumed');
-    branch = pr.head.ref;
-  }
+  if (author !== undefined && author !== identity.login) throw Error('Only this account\'s Codex pull requests can be resumed');
   const existing = await api('GET', `repos/${repository}/git/ref/heads/${branch}`, undefined, true);
   if (existing && !issue.pull_request && !issue.assignees.some(assignee => assignee.login === identity.login)) throw Error('An unclaimed branch already exists. Check its owner before resuming');
   if (!existing) {
@@ -43,7 +48,13 @@ async function main() {
       throw Error(`GitHub ${method} ${endpoint} failed. Check the publishing token permissions`);
     }
   };
-  const claim = await claimIssue({ repository: process.env.GITHUB_REPOSITORY, number, run: process.env.GITHUB_RUN_ID }, api);
+  if (process.argv.includes('--resolve')) {
+    const branch = number ? (await resolveIssue(process.env.GITHUB_REPOSITORY, number, api)).branch : '';
+    appendFileSync(process.env.GITHUB_OUTPUT, `branch=${branch}\n`);
+    return;
+  }
+  if (!process.env.EXPECTED_BRANCH) throw Error('Resolve the branch queue before claiming an issue');
+  const claim = await claimIssue({ repository: process.env.GITHUB_REPOSITORY, number, run: process.env.GITHUB_RUN_ID, expectedBranch: process.env.EXPECTED_BRANCH }, api);
   const directory = join(process.env.GITHUB_WORKSPACE, '.Internal/workspaces', `codex-issue-${number}`, 'tree');
   mkdirSync(join(directory, '..'), { recursive: true });
   execFileSync('gh', ['auth', 'setup-git']);
