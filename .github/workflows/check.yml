@@ -69,7 +69,11 @@ jobs:
         run: ccache --show-stats
 
   # Everything ctest knows about. Runs beside the gate rather than after it.
+  # Gated on the fast suite. If the three quick suites are already red, the full run would only
+  # report the same failures more slowly, and a runner spent on that is a runner another agent is
+  # waiting for.
   full:
+    needs: fast
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -161,3 +165,71 @@ jobs:
             nps/build/device/*.tns
           if-no-files-found: warn
           retention-days: 7
+
+  # Loading the package into Firebird is the only stage short of the handheld that shows the module
+  # actually runs. It needs a TI boot1 and an OS image, which are proprietary and are not in this
+  # repository, so this job skips unless they are supplied. Set the NSPIRE_BOOT1_URL and
+  # NSPIRE_FLASH_URL repository secrets to somewhere the runner can fetch them from.
+  emulator:
+    needs: device
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Decide whether the images are available
+        id: images
+        env:
+          BOOT1: ${{ secrets.NSPIRE_BOOT1_URL }}
+          FLASH: ${{ secrets.NSPIRE_FLASH_URL }}
+        run: |
+          if [ -n "$BOOT1" ] && [ -n "$FLASH" ]; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "No boot1 or flash image configured, so the emulator stage did not run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install prerequisites
+        if: steps.images.outputs.have == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential qtbase5-dev qtdeclarative5-dev qt5-qmake libqt5quick5 xvfb
+
+      - uses: actions/download-artifact@v4
+        if: steps.images.outputs.have == 'true'
+        with:
+          name: nspire-package
+          path: package
+
+      - name: Build Firebird
+        if: steps.images.outputs.have == 'true'
+        working-directory: vendor/firebird-src
+        run: |
+          qmake firebird-emu.pro
+          make -j"$(nproc)"
+
+      # Fetched rather than committed, because these are TI's images and not ours to redistribute.
+      - name: Fetch the images
+        if: steps.images.outputs.have == 'true'
+        env:
+          BOOT1: ${{ secrets.NSPIRE_BOOT1_URL }}
+          FLASH: ${{ secrets.NSPIRE_FLASH_URL }}
+        run: |
+          mkdir -p images
+          curl -fsSL "$BOOT1" -o images/boot1.img
+          curl -fsSL "$FLASH" -o images/flash.img
+
+      - name: Boot the package
+        if: steps.images.outputs.have == 'true'
+        run: |
+          xvfb-run -a vendor/firebird-src/firebird-emu \
+            --boot1 images/boot1.img --flash images/flash.img &
+          emu=$!
+          sleep 90
+          kill "$emu" 2>/dev/null || true
+          echo "Emulator boot attempted. This stage shows the package loads, not that any UI behaved." >> "$GITHUB_STEP_SUMMARY"
