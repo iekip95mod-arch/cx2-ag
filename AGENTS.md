@@ -222,7 +222,9 @@ Nothing breaks while these are unset. Each workflow checks first and writes a li
 
 ### The config files, and what they do not do
 
-Three directories at the root configure the three agents locally: .claude/settings.json, .gemini/settings.json and .codex/config.toml. A global ignore on the maintainer's machine hides .claude everywhere, which is why .gitignore has to un-ignore the directory before it can un-ignore the file inside it.
+Three directories at the root configure the three agents locally: .claude/settings.json, .gemini/settings.json and .codex/config.toml. A global ignore on the maintainer's machine hides .claude everywhere, which is why .gitignore has to un-ignore the directory before it can un-ignore the file inside it. Codex reads its one only after you trust the project, so it is a suggestion until then rather than something a clone applies to you.
+
+The Codex file said danger-full-access and now says workspace-write. The first is right for a runner, which is a machine thrown away at the end of the job, and wrong for anything checked in, because the file is read on whatever machine clones it. An agent that can write the checkout can do the work here.
 
 What is in them is the set of lookups nobody should be asked about twice: reading git state and reading the tracker. Nothing that writes, and nothing that builds.
 
