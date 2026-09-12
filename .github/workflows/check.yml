@@ -235,9 +235,14 @@ jobs:
       - name: Install the bridge prerequisites
         if: steps.have.outputs.toolchain == 'true'
         run: |
-          brew install luajit
+          # boost is for genzehn, which build-tools compiles and which includes
+          # boost/program_options.hpp with no include path of its own. The device job needs the same
+          # two lines for the same reason.
+          brew install luajit boost
           cd vendor/ndl-src/ndl-sdk
           export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
+          export CPATH="$(brew --prefix boost)/include${CPATH:+:$CPATH}"
+          export LIBRARY_PATH="$(brew --prefix boost)/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
           make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
 
       - name: Restore compiler cache
