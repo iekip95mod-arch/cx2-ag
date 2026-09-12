@@ -362,7 +362,7 @@ jobs:
           ls -d ./*/
 
       # Section 0 of the script probes with a bare gcc, which here is clang, and clang does not look
-      # in the brew prefix unless told. GDB is emptied because it is the one section nothing else
+      # in the brew prefix unless told. GDB is skipped because it is the one section nothing else
       # needs and the one section that does not build here: its bundled zlib meets the macOS SDK
       # headers and stops on expected identifier, after binutils, gcc and newlib are all installed.
       # PYTHON goes with it, since its only use in this script is gdb's python support.
@@ -372,7 +372,7 @@ jobs:
         env:
           PARALLEL: -j3
           PYTHON: ""
-          GDB: ""
+          NDL_SKIP_GDB: "1"
         run: |
           # Three formula directories rather than the brew prefix, and both of those decisions were
           # paid for. The whole prefix puts gettext's libintl.h in front of gcc, which includes it
