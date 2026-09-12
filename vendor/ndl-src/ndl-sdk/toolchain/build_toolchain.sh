@@ -22,7 +22,7 @@ PYTHON="${PYTHON-$(which python3 2>/dev/null)}" # or the full path to the python
 BINUTILS=binutils-2.44 # https://www.gnu.org/software/binutils/
 GCC=gcc-14.2.0 # https://gcc.gnu.org/
 NEWLIB=newlib-4.5.0.20241231 # https://sourceware.org/newlib/
-GDB=gdb-16.2 # https://www.gnu.org/software/gdb/
+GDB="${GDB-gdb-16.2}" # https://www.gnu.org/software/gdb/, or empty to skip it
 
 # For newlib
 export CFLAGS_FOR_TARGET="-DHAVE_RENAME -DMALLOC_PROVIDED -DABORT_PROVIDED -DNO_FORK -mcpu=arm926ej-s -ffunction-sections -O3"
@@ -158,8 +158,10 @@ if [ "$(cat .built_gcc_step2 2>/dev/null)" != "${GCC}" ]; then
 	printf %s "${GCC}" > .built_gcc_step2
 fi
 
-# Section 5: GDB.
-if [ "$(cat .built_gdb 2>/dev/null)" != "${GDB}" ]; then
+# Section 5: GDB. Set GDB to the empty string to skip it, the way PYTHON above already works. It
+# is the only section nothing else depends on, and its bundled zlib does not compile against the
+# macOS SDK headers, so on a Mac the whole script fails after everything usable is already built.
+if [ -n "${GDB}" ] && [ "$(cat .built_gdb 2>/dev/null)" != "${GDB}" ]; then
 	if [ ! -d "download/${GDB}" ]; then
 		echo "Downloading GDB..."
 		rm -rf download/gdb*

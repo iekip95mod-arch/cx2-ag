@@ -246,10 +246,11 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel 3
 
-  # Deliberately NOT on push. The ARM toolchain is not in this repository: vendor/ndl-src/ndl-sdk
-  # tracks build_toolchain.sh and a gitignore, and nspire-gcc is not tracked either, so a runner has
-  # to build a cross compiler before it can configure. Distribution arm-none-eabi packages do not
-  # substitute, which is what the first attempt proved: cmake's own compiler probe failed to link.
+  # Deliberately NOT on push. A device run still costs a full cross build of the project on a three
+  # core runner even when the compiler arrives ready made, and the three sources it can come from
+  # are tried in order below: the Actions cache, then vendor/toolchain, then a build from source.
+  # Distribution arm-none-eabi packages are not a fourth, which is what the first attempt proved:
+  # cmake's own compiler probe failed to link against one.
   # Run it by hand when the device build matters, or let the weekly run catch a break.
   device:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
@@ -324,14 +325,17 @@ jobs:
           ls -d ./*/
 
       # Section 0 of the script probes with a bare gcc, which here is clang, and clang does not look
-      # in the brew prefix unless told. PYTHON is emptied rather than left to find python3, because
-      # setting it makes gdb want python3-config and this project has no use for a scripted gdb.
+      # in the brew prefix unless told. GDB is emptied because it is the one section nothing else
+      # needs and the one section that does not build here: its bundled zlib meets the macOS SDK
+      # headers and stops on expected identifier, after binutils, gcc and newlib are all installed.
+      # PYTHON goes with it, since its only use in this script is gdb's python support.
       - name: Build the cross toolchain
         if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         env:
           PARALLEL: -j3
           PYTHON: ""
+          GDB: ""
         run: |
           # Three formula directories rather than the brew prefix, and both of those decisions were
           # paid for. The whole prefix puts gettext's libintl.h in front of gcc, which includes it
