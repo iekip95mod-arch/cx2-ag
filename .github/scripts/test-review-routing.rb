@@ -11,7 +11,7 @@ raise 'Review run names must identify requested and metadata runs by PR' unless 
 selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
 %w[agent agent-codex agent-gemini].each do |name|
   worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
-  expected = "#{name}-" + '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}'
+  expected = "#{name}-" + (name == 'agent-codex' ? '${{ github.event.issue.number || github.event.pull_request.number || inputs.issue_number || github.run_id }}' : '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}')
   raise "#{name}: work must be isolated by issue or PR" unless worker.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
 end
 fixtures = [
