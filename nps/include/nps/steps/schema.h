@@ -25,6 +25,11 @@ namespace nps {
 struct EvidenceAlternative {
     const char *method;
     EvidenceStrength strength;
+    // Whether this method can come back agreeing without being independent of what it checked. Such
+    // a record is Inconclusive at the strength above, which is byte for byte what a check that could
+    // not evaluate would write if it overstated itself, so the schema is the only thing that can
+    // tell the two apart.
+    bool may_corroborate = false;
 };
 
 // Any one of the alternatives discharges the obligation, which is the only combination the engine
