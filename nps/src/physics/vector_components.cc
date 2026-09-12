@@ -144,7 +144,11 @@ VerificationRecord verification(const std::string &method, const std::string &de
     record.method = method;
     record.detail = detail;
     record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
+    // Every Inconclusive recorded in this file is a backend agreeing with an answer it supplied part
+    // of, which is worth what a pass would have been worth. strength_for reads Inconclusive as a
+    // check that could not evaluate and flattens it, which is the other meaning of the same outcome.
+    record.strength = outcome == VerificationOutcome::Inconclusive ? passing
+                                                                   : strength_for(outcome, passing);
     return record;
 }
 

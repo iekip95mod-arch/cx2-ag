@@ -143,7 +143,7 @@ void run_vector_components_tests(TestSink &t) {
                     derivation.context.problem_family_id ==
                         "physics.vectors.magnitude-components.two-dimension" &&
                     derivation.context.angle_convention.find("degrees") != std::string::npos &&
-                    derivation.context.derivation_status == DerivationStatus::SolvedButUnchecked,
+                    derivation.context.derivation_status == DerivationStatus::SolvedAndCorroborated,
                 "component conversion records one rooted derivation and reproducible context");
         t.check(check_outcome(derivation, "vec.components.x") == "inconclusive" &&
                     check_outcome(derivation, "vec.components.y") == "inconclusive",
@@ -174,7 +174,7 @@ void run_vector_components_tests(TestSink &t) {
                 "a backend that never contradicts itself still reaches an answer");
         t.check(result.has_polar && print(arena, result.polar.angle) == "99",
                 "and the direction it invented for (-3, -4) is the one reported");
-        t.check(derivation.context.derivation_status == DerivationStatus::SolvedButUnchecked,
+        t.check(derivation.context.derivation_status == DerivationStatus::SolvedAndCorroborated,
                 "so the run may not be read as a verified walkthrough");
         t.equal(check_outcome(derivation, "vec.polar.magnitude"), "passed",
                 "the magnitude keeps a passing check, because 5 came from us and Giac only judged it");

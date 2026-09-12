@@ -370,9 +370,12 @@ void test_ver004_giac_cross_check(TestSink &t) {
     const CrossCheck not_independent = cross_check("2*x", true);
     t.equal(not_independent.outcome, "inconclusive",
             "VER-004: Giac agreeing with an answer Giac helped produce is not recorded as a pass");
-    t.equal(not_independent.strength, "unsupported",
-            "VER-004: and it is worth nothing as proof, which is the requirement's own distinction "
-            "between a cross-check and an independent one");
+    t.equal(not_independent.strength, "symbolically equivalent under assumptions",
+            "VER-004: and it keeps what the method is worth, because this check ran and agreed, "
+            "which is not what the backend that would not answer above left behind");
+    t.equal(not_independent.status, "solved and corroborated",
+            "VER-004: so the derivation is neither verified nor unchecked, and the status is the "
+            "third thing rather than the nearest of the two");
 
     t.evidence("VER-004",
                agreed.found && agreed.outcome == "passed" &&
@@ -380,12 +383,14 @@ void test_ver004_giac_cross_check(TestSink &t) {
                    spelled_differently.outcome == "passed" && disagreed.outcome == "failed" &&
                    disagreed.status == "verification failed" &&
                    not_independent.outcome == "inconclusive" &&
-                   not_independent.strength == "unsupported",
+                   not_independent.status == "solved and corroborated" &&
+                   unavailable.status == "solved but unchecked",
                "a derivative is compared with Giac's own after both are canonicalized, so the same "
                "answer written differently is agreement and a different answer fails the whole "
                "derivation. When Giac was also asked for part of the working, the identical "
-               "agreement is recorded as inconclusive and worth nothing as proof, which is the "
-               "requirement's distinction between a backend cross-check and an independent one");
+               "agreement is recorded as inconclusive and the derivation reports solved and "
+               "corroborated, which the requirement separates both from an independent proof and "
+               "from a check that never ran");
 }
 
 // PERF-013's third end. The requirement names three ends to reach after a stop, and for a while

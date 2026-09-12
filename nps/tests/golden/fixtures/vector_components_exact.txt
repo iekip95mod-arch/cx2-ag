@@ -16,7 +16,7 @@ context
   unit policy: preserve the declared physical dimension and unit, verify exact expressions before final-only approximation, with exact expressions retained
   detail projection: standard
   resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
-  derivation status: solved and verified
+  derivation status: solved and corroborated
 steps
   1 plan
     phase: plan
@@ -93,8 +93,8 @@ steps
       before: (10 * cos((30 * (pi * (180^-1)))))
       after: (5 * sqrt(3))
       reversible: yes
-      verification: Giac zero check, passed, the returned exact expression passed an independent zero check
-      verified: yes
+      verification: Giac zero check, inconclusive, Giac agrees, but Giac was also asked for part of the answer it is checking, so this corroborates the result rather than proving it
+      verified: no
       backend requests: 4
     1.5 transformation
       phase: solve
@@ -108,8 +108,8 @@ steps
       before: (10 * sin((30 * (pi * (180^-1)))))
       after: 5
       reversible: yes
-      verification: Giac zero check, passed, the returned exact expression passed an independent zero check
-      verified: yes
+      verification: Giac zero check, inconclusive, Giac agrees, but Giac was also asked for part of the answer it is checking, so this corroborates the result rather than proving it
+      verified: no
       backend requests: 4
     1.6 check
       phase: check

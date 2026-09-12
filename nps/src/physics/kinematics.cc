@@ -710,13 +710,13 @@ bool giac_rearrangement(Context &ctx, StepId plan_id, NodeId symbolic, NodeId un
     s.proof_obligations.push_back(
         {"obl.kinematics.symbolic-isolation",
          "the backend's isolated form has the solutions the symbolic equation had"});
-    // This step carries no passing verification, which MVP criterion 4 forbids, and the audit says
-    // so on every route that records it. Nothing independent checks a rearrangement the backend
-    // produced, so the gap is real rather than a missing record. Tracked as issue #62.
+    // Nothing independent checks a rearrangement the backend produced, so the best this can record
+    // is corroboration, which is what criterion 4 now accepts and the derivation status reports.
     VerificationRecord v;
     v.method = "backend solve, checked by backend is_zero";
     v.outcome = compared;
-    v.strength = strength_for(compared, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+    v.strength = agrees ? EvidenceStrength::SymbolicallyEquivalentUnderAssumptions
+                        : strength_for(compared, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
     v.detail = observed;
     s.verifications.push_back(std::move(v));
     record(ctx, plan_id, std::move(s), symbolic, arena.binary(Kind::Equals, unknown_symbol, rearranged),

@@ -195,12 +195,13 @@ const char *derivation_status_name(DerivationStatus s) {
         // Named as the pair of "solved and verified" rather than after the machinery, because a
         // student reads this and has no reason to know what verification is.
         case DerivationStatus::SolvedButUnchecked: return "solved but unchecked";
+        case DerivationStatus::SolvedAndCorroborated: return "solved and corroborated";
     }
     return "unknown";
 }
 
 bool derivation_status_in_range(uint64_t value) {
-    return value <= static_cast<uint64_t>(DerivationStatus::SolvedButUnchecked);
+    return value <= static_cast<uint64_t>(DerivationStatus::SolvedAndCorroborated);
 }
 
 const char *numeric_mode_name(NumericMode m) {
@@ -209,6 +210,10 @@ const char *numeric_mode_name(NumericMode m) {
         case NumericMode::Decimal: return "decimal";
     }
     return "unknown";
+}
+
+bool VerificationRecord::corroborates() const {
+    return outcome == VerificationOutcome::Inconclusive && strength != EvidenceStrength::Unsupported;
 }
 
 bool Step::verified() const {
@@ -224,6 +229,14 @@ bool Step::verified() const {
 bool Step::has_failed_verification() const {
     for (const VerificationRecord &v : verifications) {
         if (v.outcome == VerificationOutcome::Failed)
+            return true;
+    }
+    return false;
+}
+
+bool Step::has_corroborating_verification() const {
+    for (const VerificationRecord &v : verifications) {
+        if (v.corroborates())
             return true;
     }
     return false;
@@ -409,15 +422,22 @@ bool Derivation::all_verified_from(size_t checkpoint) const {
 
 DerivationStatus Derivation::outcome_from(size_t checkpoint) const {
     bool unchecked = false;
+    bool corroborated = false;
     for (size_t i = checkpoint; i < steps_.size(); ++i) {
         // A disagreement anywhere in the range outranks an inconclusive one before it, so the whole
         // range is scanned rather than the first unverified record answering.
         if (steps_[i].has_failed_verification())
             return DerivationStatus::VerificationFailed;
-        if (!steps_[i].verified())
+        if (steps_[i].has_corroborating_verification())
+            corroborated = true;
+        else if (!steps_[i].verified())
             unchecked = true;
     }
-    return unchecked ? DerivationStatus::SolvedButUnchecked : DerivationStatus::SolvedAndVerified;
+    // A step nobody checked outranks a step that was corroborated, because the weaker claim is the
+    // honest one for the range as a whole.
+    if (unchecked)
+        return DerivationStatus::SolvedButUnchecked;
+    return corroborated ? DerivationStatus::SolvedAndCorroborated : DerivationStatus::SolvedAndVerified;
 }
 
 bool keep_verified_prefix(Derivation &derivation, size_t mark, const Arena &arena, bool retain_plans) {
