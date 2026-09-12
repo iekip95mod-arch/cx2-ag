@@ -47,6 +47,15 @@ jobs:
       - name: Verify CI dependency and emulator contracts
         run: ruby .github/scripts/test-ci-scheduling.rb
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Verify event authentication and task routing
+        env:
+          TEST_WORKSPACE: ${{ runner.temp }}
+        run: node --test tools/github-events/bridge.test.mjs tools/github-events/receiver/receiver.test.mjs
+
       # cmake, ninja, pkgconf, zstd and python3 ship on the image. gmp does not, and the version is
       # not a preference: nps/CMakeLists.txt:345 asks pkg-config for gmp=6.3.0 exactly, so a bump in
       # the formula breaks configure rather than degrading it.
