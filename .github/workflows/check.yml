@@ -307,7 +307,13 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    runs-on: macos-latest
+    # The one job in this file not on macOS, and the reason the others are does not reach it: this
+    # reads source rather than running it, so a runner matching the developer's machine buys
+    # nothing. On macos-latest it could not build at all. Job 103586919848 linked nps_host with
+    # /usr/bin/c++ -arch x86_64 against an arm64 libgmp and died on every gmp symbol, because the
+    # tracer takes the build x86_64 on an arm64 image. Moving here also stops the three entries
+    # eating three of the five macOS slots the account has.
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -324,9 +330,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The linux-parity set without ccache, which is what proves this configure works here: that
+      # job is the one place ubuntu already builds nps, and it passed on run 34695482065.
       - name: Install prerequisites
         if: matrix.build-mode == 'manual'
-        run: brew install gmp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake pkg-config libgmp-dev zlib1g-dev python3
 
       - uses: github/codeql-action/init@v4
         with:
@@ -338,7 +349,6 @@ jobs:
       - name: Build under the tracer
         if: matrix.build-mode == 'manual'
         run: |
-          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
           cmake -S nps -B nps/build/codeql \
             -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
             -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
