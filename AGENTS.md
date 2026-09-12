@@ -171,9 +171,15 @@ None of the agents run without credentials. The workflows check first and say so
 | Codex | CODEX_AUTH_JSON, or OPENAI_API_KEY | the auth.json the Codex CLI writes when you sign in with ChatGPT |
 | Gemini | GEMINI_API_KEY | AI Studio |
 
-Claude takes a subscription login directly, through an input built for it. Codex has no such input, so a ChatGPT login reaches it the way the CLI stores it: the workflow writes the secret out as an auth.json and points the action at that directory. Those tokens refresh, so a copy taken once goes stale and the secret has to be replaced when it does. An API key does not have that problem, which is the trade.
+Only the Claude row is settled. It takes a subscription login through an input built for it, claude_code_oauth_token, so claude setup-token gives you the secret and nothing else is needed.
 
-Gemini is the odd one. The action reaches Code Assist only through Google Cloud workload identity federation, so a plain Gemini CLI login does not carry across. Without a cloud project the route is an AI Studio key.
+The other two are API key designs, and the subscription routes below are untested here. Say which one you used when you report a run.
+
+Codex has no login input. The workflow writes CODEX_AUTH_JSON out as an auth.json and points the action at that directory with codex-home, which is where the CLI keeps a ChatGPT sign in. Whether the action accepts it is unproven and there is reason to doubt it: its README says an API key must be provided, and it routes model calls through a local proxy that holds that key. A ChatGPT auth.json carries no key at all, so the proxy may have nothing to hold. If that path fails, an API key is the documented one.
+
+Gemini is further out. Its action reaches Code Assist through Google Cloud workload identity federation, and its own validation warns when Code Assist is asked for without a federation provider. A plain Gemini CLI sign in does not obviously carry across. Without a cloud project the documented route is an AI Studio key.
+
+Nothing breaks while these are unset. Each workflow checks first and writes a line into the run summary saying it did not run.
 
 ## Locate the code
 

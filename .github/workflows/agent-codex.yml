@@ -111,8 +111,12 @@ jobs:
       # Codex returns its answer rather than posting it, so the reply is posted here. The body comes
       # from the file, never from an expansion into the command line.
       - name: Post the reply
-        if: steps.key.outputs.have == 'true' && github.event.issue.number != ''
+        # A review comment carries a pull request rather than an issue, and gh issue comment takes
+        # either number. Without the fallback the answer is produced and then dropped.
+        if: >-
+          steps.key.outputs.have == 'true' &&
+          (github.event.issue.number || github.event.pull_request.number)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NUMBER: ${{ github.event.issue.number }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file codex-reply.md
