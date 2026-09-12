@@ -59,6 +59,15 @@ struct RewriteResult {
 RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, RewriteGoal goal,
                       const Budget &budget = Budget(), Backend *giac = nullptr);
 
+// Every repeated factor written as the power it is, recorded as one step. *out is the expression to
+// carry on with, and false means the meter stopped rather than that nothing matched.
+//
+// Shared because the canonical form deliberately leaves x * x as a product, so any engine needing
+// x * x and x^2 to be one form has to ask. A negative exponent is left alone, which is what keeps
+// x * x^-1 the product it is written as, along with the non-zero condition it carries.
+bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent, const char *phase,
+                             Meter &meter, NodeId expression, NodeId *out);
+
 }  // namespace nps
 
 #endif

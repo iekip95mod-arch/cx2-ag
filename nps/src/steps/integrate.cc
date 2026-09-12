@@ -7,6 +7,7 @@
 #include "nps/core/evaluate.h"
 #include "nps/steps/differentiate.h"
 #include "nps/steps/numeric_mode.h"
+#include "nps/steps/rewrite.h"
 #include "nps/core/print.h"
 
 namespace nps {
@@ -718,6 +719,12 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
                 refuse(ctx, why);
             }
         }
+    }
+
+    if (!ctx.failed &&
+        !gather_repeated_factors(arena, derivation, plan_id, "integrate", meter, integrand,
+                                 &integrand)) {
+        halted(ctx);
     }
 
     NodeId particular = ctx.failed ? kNoNode : antiderive(ctx, integrand, plan_id);

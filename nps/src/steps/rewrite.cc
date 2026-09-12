@@ -227,7 +227,9 @@ NodeId power_node(Arena &arena, NodeId base, int64_t exponent) {
 // What decides whether two terms are alike. The bases are put in one order and repeats are added
 // up, so x * x and x^2 land on the same key and so do x * y and y * x. The canonical form cannot do
 // this: it folds constants and leaves x * x as a product of two factors.
-NodeId monomial_key(Arena &arena, NodeId rest) {
+NodeId monomial_key(Arena &arena, NodeId rest, bool *combined = nullptr) {
+    if (combined)
+        *combined = false;
     if (rest == kNoNode)
         return kNoNode;
     std::vector<Factor> factors;
@@ -245,6 +247,8 @@ NodeId monomial_key(Arena &arena, NodeId rest) {
         if (!found)
             merged.push_back(f);
     }
+    if (combined)
+        *combined = merged.size() != factors.size();
     for (size_t i = 1; i < merged.size(); ++i) {
         for (size_t j = i; j > 0 && merged[j].base < merged[j - 1].base; --j) {
             const Factor held = merged[j];
@@ -626,7 +630,10 @@ bool drop_zero_terms(Context &ctx, NodeId *expression, const std::string &goal) 
 // than x times x before its like terms are gathered.
 // A repeated factor written as the power it is, one term to a step. Not gated on a sum, because a
 // bare product like x*x is one term and still wants gathering.
-Local gather_powers_here(Arena &arena, NodeId id, void *) {
+Local gather_powers_here(Arena &arena, NodeId id, void *gather_only) {
+    // The key sorts and pulls signs out as well as gathering, and simplify wants all three. A
+    // caller after powers alone passes a true flag, or a bare reorder records as a gathering.
+    const bool merged_only = gather_only && *static_cast<const bool *>(gather_only);
     Local out;
     std::vector<Term> terms;
     if (!terms_of(arena, id, &terms))
@@ -635,8 +642,9 @@ Local gather_powers_here(Arena &arena, NodeId id, void *) {
     size_t at = terms.size();
     NodeId key = kNoNode;
     for (size_t i = 0; i < terms.size() && at == terms.size(); ++i) {
-        const NodeId gathered = monomial_key(arena, terms[i].rest);
-        if (gathered == kNoNode || gathered == terms[i].rest)
+        bool combined = false;
+        const NodeId gathered = monomial_key(arena, terms[i].rest, &combined);
+        if (gathered == kNoNode || gathered == terms[i].rest || (merged_only && !combined))
             continue;
         at = i;
         key = gathered;
@@ -1183,6 +1191,54 @@ const char *plan_name(RewriteGoal goal) {
 }
 
 }  // namespace
+
+bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent, const char *phase,
+                             Meter &meter, NodeId expression, NodeId *out) {
+    *out = expression;
+    if (expression == kNoNode || arena.failed())
+        return true;
+
+    // Probed before charged, so an expression with nothing to gather costs nothing.
+    bool gather_only = true;
+    NodeId current = expression;
+    for (;;) {
+        std::vector<uint32_t> path;
+        std::string what;
+        const NodeId after = rewrite_once(arena, current, gather_powers_here, &gather_only,
+                                          Descend::OutermostFirst, &path, &what);
+        if (after == kNoNode)
+            break;
+        if (!meter.rewrite())
+            return false;
+        current = after;
+    }
+    if (current == expression)
+        return true;
+    if (!meter.step())
+        return false;
+
+    Step s = envelope("Write the repeated factors as powers", "alg.gather-powers",
+                      "Repeated factors are a power",
+                      "The same factor multiplied several times is that factor to a power");
+    s.phase = phase;
+    s.explanation_detailed =
+        "Counting how many times a factor appears and writing it as an exponent changes nothing "
+        "about the value. It is what lets a rule that matches a power match a product that is one.";
+    s.verifications.push_back(passed("rule-local invariant", EvidenceStrength::StructurallyValid,
+                                     "the exponents count the same factors the product had"));
+    s.proof_obligations.push_back({"obl.alg.rule-preserves-value",
+                                   "the rewritten subexpression has the value the original had"});
+
+    TransformationPayload payload;
+    payload.before = expression;
+    payload.after = current;
+    payload.concrete_action = "Write each repeated factor as a power";
+    payload.reversible = true;
+    derivation.add_transformation(parent, std::move(s), std::move(payload));
+
+    *out = current;
+    return true;
+}
 
 const char *rewrite_goal_name(RewriteGoal g) {
     switch (g) {
