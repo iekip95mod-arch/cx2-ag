@@ -348,7 +348,9 @@ endif()
 
 function(nps_hash_ndl_inputs output)
     set(sdk "${NPS_NDL_SDK}")
-    execute_process(COMMAND make -s -C "${sdk}/system" all COMMAND_ERROR_IS_FATAL ANY)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E env
+                            "PATH=${sdk}/bin:${sdk}/toolchain/install/bin:$ENV{PATH}"
+                            make -s -C "${sdk}/system" all COMMAND_ERROR_IS_FATAL ANY)
     file(GLOB_RECURSE headers CONFIGURE_DEPENDS LIST_DIRECTORIES false "${sdk}/include/*")
     file(GLOB_RECURSE toolchain_headers CONFIGURE_DEPENDS LIST_DIRECTORIES false
          "${sdk}/toolchain/install/arm-none-eabi/include/*"
