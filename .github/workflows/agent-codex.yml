@@ -87,7 +87,8 @@ jobs:
 
       - name: Run Codex
         if: steps.key.outputs.have == 'true'
-        uses: openai/codex-action@v1.12
+        # v1.12 as of this commit. See agent.yml for why these are pinned by digest.
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           prompt-file: codex-prompt.txt

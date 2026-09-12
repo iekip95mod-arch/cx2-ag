@@ -76,7 +76,9 @@ jobs:
 
       - name: Run the agent
         if: steps.key.outputs.have == 'true'
-        uses: anthropics/claude-code-action@v1
+        # Pinned to the commit v1 pointed at. A tag is a name the owner can move, and this step is
+        # handed a key and write access to the repository.
+        uses: anthropics/claude-code-action@56cf60fde42f7b19c3abfd5c9c48b69a1288461f
         env:
           # Dispatch payloads and workflow inputs are attacker-controlled on a public repository, so
           # they reach the prompt through the environment and never through run: interpolation.

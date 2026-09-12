@@ -88,7 +88,8 @@ jobs:
       - name: Run Gemini
         id: gemini
         if: steps.key.outputs.have == 'true'
-        uses: google-github-actions/run-gemini-cli@v0.1.22
+        # v0.1.22 as of this commit. See agent.yml for why these are pinned by digest.
+        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: ${{ env.GEMINI_PROMPT }}
