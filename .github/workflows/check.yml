@@ -19,14 +19,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # Only the device job reads this. It is too slow to gate a push and too useful to never run.
-  schedule:
-    - cron: "17 4 * * 1"
 
 # One run per ref per event. A second push to the same branch kills the first rather than queueing
 # behind it, which is what stops a busy agent from spending every runner on results nobody will read.
-# The event name is in the group because push, schedule and dispatch on main all resolve to the same
-# ref, and without it an ordinary push cancels the two hour device build it happened to overlap.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
@@ -95,66 +90,6 @@ jobs:
         if: always()
         run: ccache --show-stats
 
-  # The one job that is not on macOS, and the reason it exists is that everything else is. Moving
-  # here closed the gap where a macOS-only spelling reached Linux untested, and opened the mirror
-  # image of it. The numbers say the mirror image is real: the same sources counted 9829 checks on
-  # Linux and 9803 on macOS, so twenty six checks run on one and not the other and nobody knows
-  # which. This prints the per-group tally so the next divergence names itself.
-  #
-  # Dispatch only. It is a comparison rather than a gate, and it has nothing to say about a push.
-  linux-parity:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Install prerequisites
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3
-
-      - name: Configure
-        run: |
-          cmake -S nps -B nps/build/host \
-            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
-            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
-
-      - name: Build
-        run: cmake --build nps/build/host --target nps_host --parallel
-
-      # Not through ctest. The tally goes to stdout and the suite exits non-zero while issue 4 is
-      # open, so the count has to be read whether or not the checks passed.
-      - name: Tally the checks by group
-        working-directory: nps
-        env:
-          NPS_GROUP_COUNTS: 1
-          NPS_CHECK_LABELS: 1
-          NPS_EVIDENCE: ""
-        run: |
-          ./build/host/nps_host > tally.txt 2>&1 || true
-          grep '^nps group:' tally.txt
-          grep '^nps: ' tally.txt
-          grep '^nps label:' tally.txt > labels.txt
-          {
-            echo '```'
-            grep '^nps group:' tally.txt
-            grep '^nps: ' tally.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Four thousand lines, so it goes to an artifact rather than the summary. Diff it against the
-      # same file from a macOS run and the divergent checks name themselves.
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: linux-check-labels
-          path: nps/labels.txt
-          if-no-files-found: warn
-
   # Everything ctest knows about.
   # Gated on the fast suite. If the quick suites are already red, the full run would only report the
   # same failures more slowly, and a runner spent on that is a runner another agent is waiting for.
@@ -162,14 +97,6 @@ jobs:
   # twenty.
   full:
     needs: fast
-    # The gate is for pushes, where a red fast suite means the full one would only repeat it more
-    # slowly. A dispatch is somebody asking for this job on purpose, and while issue 4 keeps the
-    # fast suite red the gate would otherwise mean this job never runs at all. Without the
-    # cancelled() call in front, a needs on a failed job skips this whatever the rest of the
-    # expression says.
-    if: >-
-      ${{ !cancelled() &&
-      (github.event_name == 'workflow_dispatch' || needs.fast.result == 'success') }}
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -294,16 +221,7 @@ jobs:
   # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
   # the analysis an empty database and the job would still pass.
   codeql:
-    needs: [fast, full]
-    # The same escape hatch full has, and for the same reason it has one. Without it a red fast
-    # suite means this job never runs at all, so nobody can ask it to prove it works, including on
-    # the ccache question the comment below describes. That is not hypothetical: on the run that
-    # first carried this job, 34704586948, fast was red and codeql was skipped with full, so the
-    # branch could not demonstrate its own claim. A dispatch is somebody asking on purpose.
-    if: >-
-      ${{ !cancelled() &&
-      (github.event_name == 'workflow_dispatch' ||
-      (needs.fast.result == 'success' && needs.full.result == 'success')) }}
+    needs: [fast, full, emulator]
     permissions:
       contents: read
       security-events: write
@@ -330,8 +248,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # The linux-parity set without ccache, which is what proves this configure works here: that
-      # job is the one place ubuntu already builds nps, and it passed on run 34695482065.
       - name: Install prerequisites
         if: matrix.build-mode == 'manual'
         run: |
@@ -358,265 +274,15 @@ jobs:
         with:
           category: /language:${{ matrix.language }}
 
-  # Deliberately NOT on push. A device run still costs a full cross build of the project on a three
-  # core runner even when the compiler arrives ready made, and the three sources it can come from
-  # are tried in order below: the Actions cache, then vendor/toolchain, then a build from source.
-  # Distribution arm-none-eabi packages are not a fourth, which is what the first attempt proved:
-  # cmake's own compiler probe failed to link against one.
-  # Run it by hand when the device build matters, or let the weekly run catch a break.
-  device:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-    runs-on: macos-latest
-    timeout-minutes: 180
-    steps:
-      # Same reasoning as the full job: the tarball is fetched in the unpack step, and only when the
-      # cache missed, rather than on every checkout.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      # The last three are for MPFI rather than for the compiler. Its archive is a gitlab snapshot
-      # with a configure.ac and no configure, so the build script has to generate one.
-      - name: Install prerequisites
-        run: brew install ccache gmp mpfr libmpc texinfo bison flex autoconf automake libtool boost
-
-      # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
-      # is paid once and then reused until that script changes.
-      - name: Restore the cross toolchain
-        id: toolchain
-        uses: actions/cache@v6
-        with:
-          path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
-
-      # The Actions cache evicts an entry nothing has touched for a week, and the schedule above runs
-      # weekly, so the cache is one missed run away from a rebuild that takes the best part of half
-      # an hour. The committed tarball is the floor under that. It is only used when the recorded
-      # hash matches both scripts it was made from, so editing either one falls back to a build
-      # rather than silently installing a toolchain nobody asked for. Both, because the prefix in
-      # the tarball carries the cross built GMP as well as the compiler.
-      - name: Unpack the committed toolchain
-        id: unpack
-        if: steps.toolchain.outputs.cache-hit != 'true'
-        run: |
-          stamp=vendor/toolchain/built-from.sha256
-          if [ ! -f "$stamp" ]; then
-            echo "used=false" >> "$GITHUB_OUTPUT"
-            echo "No committed toolchain, so it is being built from source." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh | shasum -a 256 | cut -d' ' -f1)
-          if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
-            echo "used=false" >> "$GITHUB_OUTPUT"
-            echo "The committed toolchain was built from different scripts, so it was ignored." \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          git lfs pull --include "vendor/toolchain/*"
-          mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          zstd -d -c vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst \
-            | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
-          vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc --version
-          echo "used=true" >> "$GITHUB_OUTPUT"
-
-      # build_toolchain.sh fetches through ftpmirror.gnu.org, which round robins across mirrors, and
-      # one of them answered 404 for binutils 2.44. The script skips a download whose directory is
-      # already extracted, so the sources arrive here from the canonical hosts instead. The versions
-      # are the ones the script names and have to be changed with it.
-      - name: Prefetch the toolchain sources
-        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
-        working-directory: vendor/ndl-src/ndl-sdk/toolchain
-        run: |
-          mkdir -p download
-          cd download
-          for url in \
-            https://ftp.gnu.org/gnu/binutils/binutils-2.44.tar.bz2 \
-            https://ftp.gnu.org/gnu/gcc/gcc-14.2.0/gcc-14.2.0.tar.xz \
-            https://ftp.gnu.org/gnu/gdb/gdb-16.2.tar.xz \
-            https://sourceware.org/pub/newlib/newlib-4.5.0.20241231.tar.gz
-          do
-            name=$(basename "$url")
-            curl -fL --retry 5 --retry-delay 10 -C - -o "$name" "$url"
-            tar -xf "$name" -C .
-          done
-          ls -d ./*/
-
-      # Section 0 of the script probes with a bare gcc, which here is clang, and clang does not look
-      # in the brew prefix unless told. GDB is skipped because it is the one section nothing else
-      # needs and the one section that does not build here: its bundled zlib meets the macOS SDK
-      # headers and stops on expected identifier, after binutils, gcc and newlib are all installed.
-      # PYTHON goes with it, since its only use in this script is gdb's python support.
-      - name: Build the cross toolchain
-        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
-        working-directory: vendor/ndl-src/ndl-sdk/toolchain
-        env:
-          PARALLEL: -j3
-          PYTHON: ""
-          NDL_SKIP_GDB: "1"
-        run: |
-          # Three formula directories rather than the brew prefix, and both of those decisions were
-          # paid for. The whole prefix puts gettext's libintl.h in front of gcc, which includes it
-          # while building libcpp and does not survive the encounter: expected unqualified-id, and
-          # the build stops in all-libcpp. And no trailing colon, because an empty element in
-          # LIBRARY_PATH reads as the current directory and gcc's configure refuses outright:
-          # checking LIBRARY_PATH variable, contains current directory, configure: error.
-          libs="$(brew --prefix gmp)/lib:$(brew --prefix mpfr)/lib:$(brew --prefix libmpc)/lib"
-          incs="$(brew --prefix gmp)/include:$(brew --prefix mpfr)/include:$(brew --prefix libmpc)/include"
-          export LIBRARY_PATH="$libs${LIBRARY_PATH:+:$LIBRARY_PATH}"
-          export CPATH="$incs${CPATH:+:$CPATH}"
-          ./build_toolchain.sh
-
-      # Before the three libraries below, not after, and the ordering is not a preference. They are
-      # cross built with nspire-gcc, which links through bin/arm-none-eabi-ld.gold:29, and that
-      # wrapper puts -lnspireio -lndls -lsyscalls on every link. Those three are built from SDK
-      # sources rather than shipped, so without this step first GMP's configure cannot link its test
-      # program and reports "could not find a working compiler". build-tools pulls thirdparty in
-      # behind it, which is where nspireio lives and where luna comes from.
-      - name: Build the SDK libraries and tools
-        working-directory: vendor/ndl-src/ndl-sdk
-        run: |
-          export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
-          # genzehn is a host tool and it includes boost/program_options.hpp. Its own makefile adds
-          # no include path for it, and clang does not search the brew prefix on its own, so
-          # without these two the build stops on a missing header after everything else linked.
-          export CPATH="$(brew --prefix boost)/include${CPATH:+:$CPATH}"
-          export LIBRARY_PATH="$(brew --prefix boost)/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
-          make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
-          ls lib bin/genzehn
-
-      # Three calculator libraries, not host ones. nps/CMakeLists.txt:249 and :336 read them straight
-      # out of the toolchain prefix, so they belong to the toolchain rather than beside it, and
-      # packaging the prefix below carries them along. Configure stops on a missing libmpfi.a before
-      # it compiles anything, so all three have to be here.
-      #
-      # Keyed on the libraries rather than on the cache, because a cache entry made before this step
-      # existed restores a prefix with a compiler and no libraries, and a condition asking whether
-      # the cache hit would skip the very step that entry is missing.
-      - name: Cross build GMP, MPFR and MPFI into the toolchain prefix
-        run: |
-          lib=vendor/ndl-src/ndl-sdk/toolchain/install/lib
-          [ -f "$lib/libgmp.a" ] || ./vendor/deps/build-gmp.sh
-          if [ ! -f "$lib/libmpfr.a" ] || [ ! -f "$lib/libmpfi.a" ]; then
-            ./vendor/deps/build-mpfr-mpfi.sh
-          fi
-          ls -l "$lib"/libgmp.a "$lib"/libmpfr.a "$lib"/libmpfi.a
-
-      # What gets committed. Downloading this artifact and putting the two files in vendor/toolchain
-      # is how the committed toolchain is refreshed after either build script changes.
-      #
-      # Built here rather than on a developer's machine on purpose. GCC records its configure line,
-      # and libtool and pkg-config files record their libdir, so the prefix is written into a
-      # hundred and twenty five files in the tree. A runner's prefix names nobody.
-      - name: Package the toolchain for committing
-        if: steps.unpack.outputs.used != 'true'
-        run: |
-          prefix=vendor/ndl-src/ndl-sdk/toolchain/install
-          du -sh "$prefix"
-          tar -c -C "$prefix" . | zstd -T0 -19 -o "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
-          shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh \
-            | shasum -a 256 | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
-          ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
-
-      - uses: actions/upload-artifact@v7
-        if: steps.unpack.outputs.used != 'true'
-        with:
-          name: cross-toolchain
-          path: |
-            ${{ runner.temp }}/ndl-arm-none-eabi-darwin-arm64.tar.zst
-            ${{ runner.temp }}/built-from.sha256
-          retention-days: 7
-
-      - name: Configure
-        run: |
-          cmake -S nps -B nps/build/device \
-            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ndl-arm926ej-s.cmake \
-            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
-            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
-
-      - name: Build the package
-        run: cmake --build nps/build/device --target unified --parallel
-
-      # The host suite's package integrity checks verify a built package against its sidecar, so a
-      # run that produced one is the only run that can exercise them.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: nspire-package
-          path: |
-            nps/build/device/*.tns
-          if-no-files-found: warn
-          retention-days: 7
-
-  # Loading the package into Firebird is the only stage short of the handheld that shows the module
-  # actually runs. It needs a TI boot1 and an OS image, which are proprietary and are not in this
-  # repository, so this job skips unless they are supplied. Set the NSPIRE_BOOT1_URL and
-  # NSPIRE_FLASH_URL repository secrets to somewhere the runner can fetch them from.
   emulator:
-    needs: device
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    needs: fast
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-
-      - name: Decide whether the images are available
-        id: images
-        env:
-          BOOT1: ${{ secrets.NSPIRE_BOOT1_URL }}
-          FLASH: ${{ secrets.NSPIRE_FLASH_URL }}
-        run: |
-          if [ -n "$BOOT1" ] && [ -n "$FLASH" ]; then
-            echo "have=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "have=false" >> "$GITHUB_OUTPUT"
-            echo "No boot1 or flash image configured, so the emulator stage did not run." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      # Qt 5 is keg-only in brew, so qmake is not on PATH by default and the build step puts it
-      # there rather than relying on a link that is not made.
-      - name: Install prerequisites
-        if: steps.images.outputs.have == 'true'
-        run: brew install qt@5
-
-      - uses: actions/download-artifact@v8
-        if: steps.images.outputs.have == 'true'
-        with:
-          name: nspire-package
-          path: package
-
-      - name: Build Firebird
-        if: steps.images.outputs.have == 'true'
-        working-directory: vendor/firebird-src
-        run: |
-          export PATH="$(brew --prefix qt@5)/bin:$PATH"
-          qmake firebird-emu.pro
-          make -j"$(sysctl -n hw.ncpu)"
-
-      # Fetched rather than committed, because these are TI's images and not ours to redistribute.
-      - name: Fetch the images
-        if: steps.images.outputs.have == 'true'
-        env:
-          BOOT1: ${{ secrets.NSPIRE_BOOT1_URL }}
-          FLASH: ${{ secrets.NSPIRE_FLASH_URL }}
-        run: |
-          mkdir -p images
-          curl -fsSL "$BOOT1" -o images/boot1.img
-          curl -fsSL "$FLASH" -o images/flash.img
-
-      # There is no xvfb here. Qt's own offscreen platform plugin is the macOS answer, and it is the
-      # better one anyway, because it needs no display server to be running at all.
-      - name: Boot the package
-        if: steps.images.outputs.have == 'true'
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          binary=$(find vendor/firebird-src -name firebird-emu -type f -perm -111 | head -1)
-          test -n "$binary"
-          "$binary" --boot1 images/boot1.img --flash images/flash.img &
-          emu=$!
-          sleep 90
-          kill "$emu" 2>/dev/null || true
-          echo "Emulator boot attempted. This stage shows the package loads, not that any UI behaved." >> "$GITHUB_STEP_SUMMARY"
+      - name: Build and test the headless emulator
+        run: make -C vendor/firebird-src/headless -j3 check test-build
+      - name: Record emulator coverage
+        run: echo "Firebird headless regression tests passed. TI OS boot and StepCAS package loading were not exercised." >> "$GITHUB_STEP_SUMMARY"

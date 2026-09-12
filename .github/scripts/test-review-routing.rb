@@ -1,0 +1,39 @@
+require 'fileutils'
+require 'json'
+require 'open3'
+require 'tmpdir'
+require 'yaml'
+
+root = File.expand_path('../..', __dir__)
+workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
+selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+fixtures = [
+  ['opened', 'codex/change', [], nil, 'codex'],
+  ['opened', 'agent/change', [], nil, 'claude'],
+  ['ready_for_review', 'codex/change', [], nil, 'codex'],
+  ['opened', 'codex/change', ['claude-review'], nil, 'claude'],
+  ['opened', 'agent/change', ['codex-review'], nil, 'codex'],
+  ['labeled', 'codex/change', ['claude-review', 'codex-review'], 'claude-review', 'claude'],
+  ['labeled', 'agent/change', ['claude-review', 'codex-review'], 'codex-review', 'codex'],
+  ['opened', 'codex/change', ['claude-review', 'codex-review'], nil, nil],
+  ['labeled', 'codex/change', [], 'unrelated', nil]
+]
+workspace = File.join(root, '.Internal/workspaces/review-routing-tests')
+FileUtils.mkdir_p(workspace)
+run_directory = Dir.mktmpdir('run-', workspace)
+fixtures.each_with_index do |(action, branch, labels, requested_label, expected), index|
+  directory = File.join(run_directory, index.to_s)
+  FileUtils.mkdir_p(directory)
+  event_file = File.join(directory, 'event.json')
+  output_file = File.join(directory, 'output')
+  File.write(event_file, { action: action, label: { name: requested_label }, pull_request: { head: { ref: branch }, labels: labels.map { |name| { name: name } } } }.to_json)
+  File.write(output_file, '')
+  environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file }
+  _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', selection, unsetenv_others: true)
+  if expected
+    raise "case #{index}: wrong reviewer" unless status.success? && File.read(output_file) == "reviewer=#{expected}\n"
+  else
+    raise "case #{index}: invalid request accepted" if status.success? || !File.read(output_file).empty?
+  end
+end
+puts "#{fixtures.length} reviewer routing cases passed"

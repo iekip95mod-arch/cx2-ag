@@ -39,7 +39,7 @@ fixtures.each do |name, credential, expectation|
     'GITHUB_OUTPUT' => output_file,
     'GITHUB_STEP_SUMMARY' => summary_file
   }
-  stdout, stderr, status = Open3.capture3(environment, 'bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', credential_step.fetch('run'), unsetenv_others: true)
+  stdout, stderr, status = Open3.capture3(environment, 'bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', credential_step.fetch('run'), unsetenv_others: true, chdir: root)
   outputs = File.read(output_file)
   summary = File.read(summary_file)
   auth_file = File.join(directory, 'codex-home/auth.json')
