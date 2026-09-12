@@ -39,40 +39,46 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      # Two ways to authenticate and no third. The action takes an API key directly. It has no input
-      # for a ChatGPT login, so that arrives the way the CLI stores it, as an auth.json in a Codex
-      # home the action is pointed at.
       - name: Decide whether credentials are configured
         id: key
         env:
-          OPENAI: ${{ secrets.OPENAI_API_KEY }}
           AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
         run: |
           if [ -n "$AUTH_JSON" ]; then
+            if ! printf '%s' "$AUTH_JSON" | jq -e '
+              type == "object" and
+              (.tokens.access_token? | type == "string" and length > 0) and
+              (.OPENAI_API_KEY? == null or .OPENAI_API_KEY == "")
+            ' > /dev/null 2>&1; then
+              echo "::error::CODEX_AUTH_JSON must contain a ChatGPT subscription login."
+              exit 1
+            fi
+            umask 077
             mkdir -p "$RUNNER_TEMP/codex-home"
             printf '%s' "$AUTH_JSON" > "$RUNNER_TEMP/codex-home/auth.json"
             chmod 600 "$RUNNER_TEMP/codex-home/auth.json"
-            echo "home=$RUNNER_TEMP/codex-home" >> "$GITHUB_OUTPUT"
-            echo "have=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "$OPENAI" ]; then
-            echo "home=" >> "$GITHUB_OUTPUT"
-            echo "have=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "home=$RUNNER_TEMP/codex-home"
+              echo "have=true"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "have=false" >> "$GITHUB_OUTPUT"
-            echo "Neither CODEX_AUTH_JSON nor OPENAI_API_KEY is set, so Codex did not run." \
-              >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Set CODEX_AUTH_JSON to the saved ChatGPT subscription login."
+            exit 1
           fi
 
       - uses: actions/checkout@v7
         if: steps.key.outputs.have == 'true'
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
-        run: brew install ccache gmp php
+        run: |
+          brew install ccache gmp php
+          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
 
       # The comment is written by a person and reaches the prompt as a file rather than as shell
       # text, so nothing in it can become a command.
@@ -81,7 +87,7 @@ jobs:
         env:
           COMMENT: ${{ github.event.comment.body }}
           MANUAL: ${{ github.event.inputs.task }}
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: |
           {
             echo "Read AGENTS.md before anything else. It is the working agreement for this"
@@ -99,16 +105,29 @@ jobs:
             printf '%s\n' "${COMMENT:-$MANUAL}"
           } > codex-prompt.txt
 
-      - name: Run Codex
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         if: steps.key.outputs.have == 'true'
-        # v1.12 as of this commit. See agent.yml for why these are pinned by digest.
-        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          codex-home: ${{ steps.key.outputs.home }}
-          prompt-file: codex-prompt.txt
-          output-file: codex-reply.md
-          permission-profile: ":workspace"
+          node-version: "24"
+
+      - name: Install Codex CLI
+        if: steps.key.outputs.have == 'true'
+        run: npm install -g @openai/codex@0.154.0
+
+      - name: Run Codex with saved login
+        if: steps.key.outputs.have == 'true'
+        env:
+          CODEX_HOME: ${{ steps.key.outputs.home }}
+        run: |
+          codex login status
+          codex exec --sandbox workspace-write -c approval_policy='"never"' \
+            --ephemeral --output-last-message codex-reply.md - < codex-prompt.txt
+
+      - name: Show the reply
+        if: steps.key.outputs.have == 'true'
+        run: |
+          test -s codex-reply.md
+          cat codex-reply.md >> "$GITHUB_STEP_SUMMARY"
 
       # Codex returns its answer rather than posting it, so the reply is posted here. The body comes
       # from the file, never from an expansion into the command line.
