@@ -297,11 +297,8 @@ Coroutine<SolveResult> solve_body(TaskContext &task, Arena &arena, Derivation &d
     if (meter.stopped())
         co_return result;
     if (!left.valid || !right.valid) {
-        // The outcome stays NotLinear either way, because a caller trying several equations wants
-        // this one refused rather than the whole search halted. The detail and the status are what
-        // say which of the two happened.
         const bool ran_out = left.overflowed || right.overflowed;
-        result.outcome = SolveOutcome::NotLinear;
+        result.outcome = ran_out ? SolveOutcome::ResourceExceeded : SolveOutcome::NotLinear;
         result.detail = ran_out ? "a value grew past what exact integer arithmetic here can hold"
                                 : "this equation is not linear in " + arena.text(unknown);
         result.status = ran_out ? DerivationStatus::ResourceLimitReached
@@ -313,7 +310,7 @@ Coroutine<SolveResult> solve_body(TaskContext &task, Arena &arena, Derivation &d
     int64_t an, ad, bn, bd;
     if (!sub_fraction(left.coeff_num, left.coeff_den, right.coeff_num, right.coeff_den, &an, &ad) ||
         !sub_fraction(left.const_num, left.const_den, right.const_num, right.const_den, &bn, &bd)) {
-        result.outcome = SolveOutcome::NotLinear;
+        result.outcome = SolveOutcome::ResourceExceeded;
         result.detail = "the coefficients grew past what exact integer arithmetic here can hold";
         result.status = DerivationStatus::ResourceLimitReached;
         co_return result;
@@ -427,7 +424,7 @@ Coroutine<SolveResult> solve_body(TaskContext &task, Arena &arena, Derivation &d
     // x = -b/a, kept exact.
     int64_t nbn, nbd, sn, sd;
     if (!negate_fraction(bn, bd, &nbn, &nbd) || !mul_fraction(nbn, nbd, ad, an, &sn, &sd)) {
-        result.outcome = SolveOutcome::NotLinear;
+        result.outcome = SolveOutcome::ResourceExceeded;
         result.detail = "the solution did not fit in exact integer arithmetic here";
         result.status = DerivationStatus::ResourceLimitReached;
         co_return result;

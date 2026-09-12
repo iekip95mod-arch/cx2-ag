@@ -398,8 +398,9 @@ void run_density_tests(TestSink &t) {
             DensityVariable::Mass,
             known(DensityVariable::Density, "9223372036854775807 kg/m^3"),
             known(DensityVariable::Volume, "2 m^3")));
-        t.equal(density_outcome_name(overflow.result.outcome), "arithmetic overflow",
-                "an exact product beyond int64 is explicit");
+        t.equal(density_outcome_name(overflow.result.outcome), "resource exceeded",
+                "an exact product beyond int64 arrives as the solver's own capacity refusal rather "
+                "than through a status sniff");
         t.check(contains(overflow.result.detail, "exact integer arithmetic"),
                 "solver overflow explains the exact arithmetic limit");
     }

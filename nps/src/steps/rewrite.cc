@@ -861,16 +861,21 @@ int64_t whole_gcd(int64_t a, int64_t b) {
     return static_cast<int64_t>(std::gcd(magnitude(a), magnitude(b)));
 }
 
+// Found and None are the two answers the search exists to give. OutOfRoom is the third thing that
+// can happen to it, the product being past the ceiling this build searches to, and it is separate
+// because a search that never ran is not a pair that is absent.
+enum class FactorPair : uint8_t { Found, OutOfRoom, None };
+
 // p and q with p + q = sum and p * q = product, searched over the divisors of the product. This is
 // the pair a course looks for by hand, and finding it is what makes the factorisation a rule rather
 // than a backend answer copied out.
-bool product_and_sum(int64_t sum, int64_t product, int64_t *p, int64_t *q) {
+FactorPair product_and_sum(int64_t sum, int64_t product, int64_t *p, int64_t *q) {
     if (magnitude(product) > static_cast<uint64_t>(kFactorSearchLimit))
-        return false;
+        return FactorPair::OutOfRoom;
     if (product == 0) {
         *p = 0;
         *q = sum;
-        return true;
+        return FactorPair::Found;
     }
     const int64_t limit = magnitude(product) > 0 ? static_cast<int64_t>(magnitude(product)) : 0;
     for (int64_t divisor = 1; divisor <= limit / divisor; ++divisor) {
@@ -891,10 +896,10 @@ bool product_and_sum(int64_t sum, int64_t product, int64_t *p, int64_t *q) {
                 continue;
             *p = pair[0];
             *q = pair[1];
-            return true;
+            return FactorPair::Found;
         }
     }
-    return false;
+    return FactorPair::None;
 }
 
 bool take_out_common_factor(Context &ctx, NodeId *expression, const std::string &goal,
@@ -1064,8 +1069,15 @@ bool factor_monic_quadratic(Context &ctx, NodeId *expression, const std::string 
 
     int64_t p = 0;
     int64_t q = 0;
-    if (!product_and_sum(linear, constant, &p, &q))
-        return true;
+    switch (product_and_sum(linear, constant, &p, &q)) {
+        case FactorPair::Found: break;
+        case FactorPair::None: return true;
+        case FactorPair::OutOfRoom:
+            refuse(ctx, RewriteOutcome::ResourceExceeded,
+                   "the constant term is past the size this rule searches for a pair to, so whether "
+                   "one exists was never decided");
+            return false;
+    }
 
     const NodeId first = a.binary(Kind::Add, variable, a.integer(integer_text(p)));
     const NodeId second = a.binary(Kind::Add, variable, a.integer(integer_text(q)));
@@ -1407,10 +1419,11 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
         result.outcome = ctx.outcome;
         result.detail = ctx.detail.empty() ? "the expression holds a form with no rewriting rule"
                                            : ctx.detail;
-        result.status = result.outcome == RewriteOutcome::VerificationFailed
-                            ? DerivationStatus::VerificationFailed
-                            : ctx.overflowed ? DerivationStatus::ResourceLimitReached
-                                             : DerivationStatus::Unsupported;
+        result.status =
+            result.outcome == RewriteOutcome::VerificationFailed ? DerivationStatus::VerificationFailed
+            : result.outcome == RewriteOutcome::ResourceExceeded || ctx.overflowed
+                ? DerivationStatus::ResourceLimitReached
+                : DerivationStatus::Unsupported;
         result.cost = meter.cost();
         record_context(derivation, budget, expression, goal, result.status);
         return result;

@@ -207,6 +207,7 @@ QuadraticResult solve_body(Arena &arena, Derivation &derivation, NodeId equation
     const std::string name = arena.text(unknown);
     const NodeId square_term = arena.binary(Kind::Pow, unknown, arena.integer("2"));
     if (square_term == kNoNode || arena.failed()) {
+        result.outcome = QuadraticOutcome::ResourceExceeded;
         result.detail = "the arena could not hold the squared term";
         result.status = DerivationStatus::ResourceLimitReached;
         return result;
@@ -230,7 +231,7 @@ QuadraticResult solve_body(Arena &arena, Derivation &derivation, NodeId equation
             result.status = DerivationStatus::InvalidInput;
             return result;
         case LinearForm::Overflowed:
-            result.outcome = QuadraticOutcome::NotPureQuadratic;
+            result.outcome = QuadraticOutcome::ResourceExceeded;
             result.detail = "a value grew past what exact integer arithmetic here can hold";
             result.status = DerivationStatus::ResourceLimitReached;
             return result;
@@ -249,7 +250,7 @@ QuadraticResult solve_body(Arena &arena, Derivation &derivation, NodeId equation
     Rational negated_constant;
     if (!rational_sub(Rational{0, 1}, constant, &negated_constant) ||
         !rational_div(negated_constant, coefficient, &square)) {
-        result.outcome = QuadraticOutcome::NotPureQuadratic;
+        result.outcome = QuadraticOutcome::ResourceExceeded;
         result.detail = "the coefficients grew past what exact integer arithmetic here can hold";
         result.status = DerivationStatus::ResourceLimitReached;
         return result;

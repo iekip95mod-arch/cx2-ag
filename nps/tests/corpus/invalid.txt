@@ -360,7 +360,7 @@ case invalid.adversarial.integer-beyond-the-representation
   mode linear
   input x + 99999999999999999999999999 = 0
   unknown x
-  expect not linear in the unknown
+  expect resource exceeded
 
 case invalid.adversarial.exponent-below-the-representation
   family invalid
@@ -546,15 +546,14 @@ case invalid.resource.two-hop-kinematics
   expect resource exceeded
 
 # The answer is the signed minimum, which is representable, but reaching it takes the solver past
-# what its exact integer arithmetic will do. The outcome stays NotLinear on purpose, so a caller
-# probing several equations skips this candidate rather than halting the whole search, and the
-# detail carries which of the two refusals it was.
+# what its exact integer arithmetic will do. Running out of room is not a claim that the equation
+# was the wrong shape, so it is the resource outcome and the backend gate reads it as terminal.
 case invalid.linear.arithmetic-limit-at-the-boundary
   family invalid
   mode linear
   input x + 1 = -9223372036854775807
   unknown x
-  expect not linear in the unknown
+  expect resource exceeded
   detail the coefficients grew past what exact integer arithmetic here can hold
 
 # A second symbol is a parametric coefficient, which the catalog names as an unsupported near

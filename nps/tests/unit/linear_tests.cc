@@ -551,13 +551,13 @@ void run_linear_tests(TestSink &t) {
         // the gcd, the sign fix in normalise, moving the right side over and the final -b/a. UBSan
         // flagged every one. The answer would be 2^63, so the honest outcome is a refusal.
         Solved s = run("x + 4611686018427387904*(-2) = 0", "x");
-        t.equal(solve_outcome_name(s.outcome), "not linear in the unknown",
+        t.equal(solve_outcome_name(s.outcome), "resource exceeded",
                 "a constant at the int64 minimum refuses rather than negating through undefined behaviour");
         t.check(s.solution.empty(), "and offers no answer");
         t.check(s.detail.find("exact integer arithmetic") != std::string::npos, "naming the limit");
 
         Solved right = run("0 = x + 4611686018427387904*(-2)", "x");
-        t.equal(solve_outcome_name(right.outcome), "not linear in the unknown",
+        t.equal(solve_outcome_name(right.outcome), "resource exceeded",
                 "and so does the same constant on the right side");
     }
 
@@ -566,7 +566,7 @@ void run_linear_tests(TestSink &t) {
         // an equation of the wrong shape, so a caller trying several equations was told the wrong
         // reason for the one it skipped.
         Solved s = run("x = 9000000000*4000000000", "x");
-        t.equal(solve_outcome_name(s.outcome), "not linear in the unknown",
+        t.equal(solve_outcome_name(s.outcome), "resource exceeded",
                 "a product too large to hold refuses");
         t.check(s.detail.find("exact integer arithmetic") != std::string::npos,
                 "and the reason is the arithmetic limit, not the shape");
@@ -576,6 +576,35 @@ void run_linear_tests(TestSink &t) {
         t.check(shape.detail.find("not linear in x") != std::string::npos,
                 "while a genuine quadratic still says it is not linear");
         t.equal(shape.status, "unsupported", "under the unsupported status");
+        t.equal(solve_outcome_name(shape.outcome), "not linear in the unknown",
+                "and keeps the outcome that names a shape");
+    }
+
+    {
+        // Each of the three capacity refusals reports running out of room rather than claiming the
+        // equation is the wrong shape, which is what the backend gate reads to stop asking Giac.
+        Solved analysis = run("x = 9000000000*4000000000", "x");
+        t.equal(solve_outcome_name(analysis.outcome), "resource exceeded",
+                "arithmetic running out inside the analysis is a capacity refusal");
+        t.check(analysis.detail.find("a value grew past") != std::string::npos,
+                "reported from the analysis rather than from a later stage");
+
+        Solved coefficients = run("4611686018427387904*x = -4611686018427387904*x", "x");
+        t.equal(solve_outcome_name(coefficients.outcome), "resource exceeded",
+                "and so is a coefficient that will not fit once the sides are moved together");
+        t.check(coefficients.detail.find("the coefficients grew past") != std::string::npos,
+                "reported once the two sides are subtracted");
+
+        Solved solution = run("x + 4611686018427387904*(-2) = 0", "x");
+        t.equal(solve_outcome_name(solution.outcome), "resource exceeded",
+                "and so is a quotient that will not fit at the last step");
+        t.check(solution.detail.find("the solution did not fit") != std::string::npos,
+                "reported from building the answer rather than from reading the equation");
+
+        Solved shape = run("x + y = 4", "x");
+        t.equal(solve_outcome_name(shape.outcome), "not linear in the unknown",
+                "while an equation that is genuinely the wrong shape is untouched");
+        t.equal(shape.status, "unsupported", "and stays unsupported rather than a resource limit");
     }
 
     {
