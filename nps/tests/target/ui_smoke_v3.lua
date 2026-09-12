@@ -739,6 +739,47 @@ on.contextMenu()
 check(#menus == menu_count and #steps.histText == 1,
       "and a module too old to draw a menu neither opens one nor acts as though it had")
 
+-- The traversal V4 bounded in #9 was here too, and tabBackward was worse: it read getFocus().visible
+-- with no nil guard, so an empty focus list raised rather than recursing.
+do
+    local function focusable()
+        local o = { acceptsFocus = true, visible = true, x = 0, y = 0, w = 10, h = 10, dx1 = 0, dy1 = 0 }
+        function o:repos() end
+        function o:resize() end
+        function o:setFocus() self.focused = true end
+        function o:releaseFocus() self.focused = false end
+        function o:contains() return false end
+        return o
+    end
+    local tabs = View({ invalidate = function() end })
+    tabs:add(focusable())
+    tabs:add(focusable())
+    tabs:add(focusable())
+    -- Read the order out of the list rather than assuming it. View:add inserts at the front.
+    local one, two, three = tabs.focusList[1], tabs.focusList[2], tabs.focusList[3]
+    tabs:setFocus(one)
+    tabs:hide(two)
+    check(not two.visible, "View:hide is what writes visible, and it is reachable in V3 too")
+    tabs:tabForward()
+    check(tabs:getFocus() == three, "tabbing forward steps over a hidden widget rather than onto it")
+    tabs:show(two)
+    tabs:setFocus(one)
+    tabs:tabForward()
+    check(tabs:getFocus() == two, "and lands on it again once it is shown")
+    tabs:setFocus(three)
+    tabs:hide(two)
+    tabs:tabBackward()
+    check(tabs:getFocus() == one, "tabbing backward steps over it too")
+    tabs:hide(one)
+    tabs:hide(three)
+    tabs:setFocus(one)
+    check(pcall(tabs.tabForward, tabs) and pcall(tabs.tabBackward, tabs),
+          "tabbing with every widget hidden returns instead of recursing forever")
+    local empty = View({ invalidate = function() end })
+    check(pcall(empty.tabForward, empty) and pcall(empty.tabBackward, empty),
+          "and an empty focus list is refused quietly rather than indexing a nil focus")
+end
+
 -- TI documents the handheld as accepting 7, 9, 10, 11, 12, 16 or 24 and nothing else:
 -- https://education.ti.com/html/eguides/nspire/EG_Nspire/EN/content/eg_lua/m_libraries/2deditorlib/setfontsize.HTML
 do
