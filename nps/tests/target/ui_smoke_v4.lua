@@ -860,7 +860,7 @@ do
                                          box, items))
     end
     check(#registered_menu <= 15, "the palette holds at most 15 tool boxes")
-check(entries == 183, "the full-text reader joins every retained entry: " .. entries .. " of 183")
+check(entries == 182, "the full-text reader joins every retained entry: " .. entries .. " of 182")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4227,6 +4227,73 @@ if os.getenv("NPS_COMMAND_MODULE") then
     luagiac = backend
     check(nps_split.capability_manifest == fixture_manifest and nps_split.walkthrough == fixture_walkthrough,
           "loading the real bridge preserves the shared module fixture for subsequent UI cases")
+    end)()
+end
+
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local matrix
+    for _, category in ipairs(env.menu) do
+        if category[1] == "Matrix & Vector" then matrix = category end
+    end
+    local typed = {}
+    for index = 2, #(matrix or {}) do
+        local item = matrix[index]
+        if type(item) == "table" then
+            env.fctEditor.editor:setExpression("\\0el {}", 6, 6)
+            item[2]()
+            typed[#typed + 1] = env.fctEditor:getExpression()
+        end
+    end
+    local inserted = " " .. table.concat(typed, " ") .. " "
+    check(matrix and inserted:find(" image( ", 1, true) and inserted:find(" eigenvalues( ", 1, true),
+          "the matrix palette still types the linear algebra commands it is supposed to")
+    check(not inserted:find(" bug( ", 1, true),
+          "no matrix palette entry types bug(, which the backend does not implement")
+    end)()
+end
+
+do
+    (function()
+    local create, refused = D2Editor.newRichText, nil
+    D2Editor.newRichText = function()
+        local editor = create()
+        local set_font = editor.setFontSize
+        editor.setFontSize = function(self, size)
+            if size and not ({[7]=true, [9]=true, [10]=true, [11]=true, [12]=true, [16]=true, [24]=true})[size] then
+                refused = size
+                error("unsupported handheld editor font " .. tostring(size))
+            end
+            return set_font(self, size)
+        end
+        return editor
+    end
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    env.addME("x", "x+1")
+    env.fsize = 12
+    -- The stub raises on a rejected size, so the walk is protected and reports a failed check.
+    local climbed, fell = {}, {}
+    local climbing = pcall(function()
+        for _ = 1, 4 do env.fontUp() climbed[#climbed + 1] = env.fsize end
+    end)
+    check(climbing and table.concat(climbed, ",") == "16,24,24,24",
+          "Increase Font Size reaches the largest accepted size and stops there: " ..
+          table.concat(climbed, ",") .. " refused=" .. tostring(refused))
+    env.fsize = 24
+    local falling = pcall(function()
+        for _ = 1, 7 do env.fontDown() fell[#fell + 1] = env.fsize end
+    end)
+    check(falling and table.concat(fell, ",") == "16,12,11,10,9,7,7",
+          "Decrease Font Size reaches the smallest accepted size and stops there: " ..
+          table.concat(fell, ",") .. " refused=" .. tostring(refused))
+    env.fsize = 14
+    local stepped = pcall(env.fontDown)
+    check(stepped and env.fsize == 12, "a font size off the accepted ladder steps onto it rather than past it")
+    check(not refused, "every size the font menu hands the editor is one the handheld accepts")
+    D2Editor.newRichText = create
     end)()
 end
 

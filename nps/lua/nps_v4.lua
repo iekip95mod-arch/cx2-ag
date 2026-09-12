@@ -2118,14 +2118,27 @@ function applyFontSizeChange()
 	end
 end
 
-function fontDown()
-	fsize = fsize > 6 and (fsize - 1) or fsize
-	applyFontSizeChange()
-end
+do
+	-- TI restricts handheld sizes to "7, 9, 10, 11, 12, 16, or 24": https://education.ti.com/html/eguides/nspire/EG_Nspire/EN/content/eg_lua/m_libraries/2deditorlib/setfontsize.HTML
+	local SHELL_FONTS = { 7, 9, 10, 11, 12, 16, 24 }
 
-function fontUp()
-	fsize = fsize < 30 and (fsize + 1) or fsize
-	applyFontSizeChange()
+	function fontDown()
+		local chosen = SHELL_FONTS[1]
+		for _, size in ipairs(SHELL_FONTS) do
+			if size < fsize then chosen = size end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
+
+	function fontUp()
+		local chosen = SHELL_FONTS[#SHELL_FONTS]
+		for index = #SHELL_FONTS, 1, -1 do
+			if SHELL_FONTS[index] > fsize then chosen = SHELL_FONTS[index] end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
 end
 
 -- The palette is registered for the whole document, so the menu key opens it over the viewer too,
@@ -2350,7 +2363,7 @@ menu = {
        	 { "Scatter Plot  scatterplot(Xlist,Ylist)",	function() menustring( "scatterplot(" ) end },
        	 { "Regression Plot  linear_regression_plot(X,Y)",	function() menustring( "linear_regression_plot(" ) end },
        },
-       -- 28 of the 30 a tool box may hold. Two more entries and this one has to split.
+       -- 27 of the 30 a tool box may hold. Three more entries and this one has to split.
        { "Matrix & Vector",
        	 { "Solve Linear System  linsolve",	function() menustring( "linsolve(" ) end },
        	 { "Determinant  det(M)",	function() menustring( "det(" ) end },
@@ -2359,7 +2372,6 @@ menu = {
        	 { "Row Echelon  ref(M)",	function() menustring( "ref(" ) end },
        	 { "Kernel  ker(M)",	function() menustring( "ker(" ) end },
        	 { "Image  image(M)",	function() menustring( "image(" ) end },
-       	 { "Bug  bug(M)",	function() menustring( "bug(" ) end },
        	 { "Eigenvalues  eigenvalues(M)",	function() menustring( "eigenvalues(" ) end },
        	 { "Eigenvectors  eigenvects(M)",	function() menustring( "eigenvects(" ) end },
        	 { "Jordan Form  jordan(M)",	function() menustring( "jordan(" ) end },
