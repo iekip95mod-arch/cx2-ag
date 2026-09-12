@@ -341,7 +341,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential qtbase5-dev qtdeclarative5-dev qt5-qmake libqt5quick5 xvfb
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: steps.images.outputs.have == 'true'
         with:
           name: nspire-package
