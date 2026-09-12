@@ -295,6 +295,15 @@ jobs:
   # the analysis an empty database and the job would still pass.
   codeql:
     needs: [fast, full]
+    # The same escape hatch full has, and for the same reason it has one. Without it a red fast
+    # suite means this job never runs at all, so nobody can ask it to prove it works, including on
+    # the ccache question the comment below describes. That is not hypothetical: on the run that
+    # first carried this job, 34704586948, fast was red and codeql was skipped with full, so the
+    # branch could not demonstrate its own claim. A dispatch is somebody asking on purpose.
+    if: >-
+      ${{ !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (needs.fast.result == 'success' && needs.full.result == 'success')) }}
     permissions:
       contents: read
       security-events: write
