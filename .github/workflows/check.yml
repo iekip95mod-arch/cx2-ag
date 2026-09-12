@@ -136,6 +136,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          lfs: true
 
       - name: Install prerequisites
         run: |
@@ -143,7 +144,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ninja-build cmake ccache pkg-config zlib1g-dev \
             libgmp-dev libmpfr-dev libmpc-dev python3 python3-dev \
-            build-essential texinfo bison flex wget
+            build-essential texinfo bison flex wget zstd
 
       # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
       # is paid once and then reused until that script changes.
@@ -154,12 +155,41 @@ jobs:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh') }}
 
+      # The Actions cache evicts an entry nothing has touched for a week, and the schedule below runs
+      # weekly, so the cache is one missed run away from a rebuild that takes the best part of half
+      # an hour. The committed tarball is the floor under that. It is only used when the recorded
+      # hash matches the build script it was made from, so editing that script falls back to a build
+      # rather than silently installing a toolchain nobody asked for.
+      - name: Unpack the committed toolchain
+        id: unpack
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        run: |
+          archive=vendor/toolchain/ndl-arm-none-eabi-linux-x86_64.tar.zst
+          stamp=vendor/toolchain/built-from.sha256
+          if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
+            echo "used=false" >> "$GITHUB_OUTPUT"
+            echo "No committed toolchain, so it is being built from source." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          want=$(sha256sum vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          have=$(cut -d' ' -f1 < "$stamp")
+          if [ "$want" != "$have" ]; then
+            echo "used=false" >> "$GITHUB_OUTPUT"
+            echo "The committed toolchain was built from a different build_toolchain.sh, so it was ignored." \
+              >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
+          tar --zstd -xf "$archive" -C vendor/ndl-src/ndl-sdk/toolchain/install
+          vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc --version
+          echo "used=true" >> "$GITHUB_OUTPUT"
+
       # build_toolchain.sh fetches through ftpmirror.gnu.org, which round robins across mirrors, and
       # one of them answered 404 for binutils 2.44. The script skips a download whose directory is
       # already extracted, so the sources arrive here from the canonical hosts instead. The versions
       # are the ones the script names and have to be changed with it.
       - name: Prefetch the toolchain sources
-        if: steps.toolchain.outputs.cache-hit != 'true'
+        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: |
           mkdir -p download
@@ -177,9 +207,29 @@ jobs:
           ls -d ./*/
 
       - name: Build the cross toolchain
-        if: steps.toolchain.outputs.cache-hit != 'true'
+        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: ./build_toolchain.sh
+
+      # What gets committed. Downloading this artifact and putting the two files where the unpack
+      # step looks is how the committed toolchain is refreshed after build_toolchain.sh changes.
+      - name: Package the toolchain for committing
+        if: steps.unpack.outputs.used != 'true'
+        working-directory: vendor/ndl-src/ndl-sdk/toolchain
+        run: |
+          du -sh install
+          tar --zstd -cf "$RUNNER_TEMP/ndl-arm-none-eabi-linux-x86_64.tar.zst" -C install .
+          sha256sum build_toolchain.sh | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
+          ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-linux-x86_64.tar.zst"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.unpack.outputs.used != 'true'
+        with:
+          name: cross-toolchain
+          path: |
+            ${{ runner.temp }}/ndl-arm-none-eabi-linux-x86_64.tar.zst
+            ${{ runner.temp }}/built-from.sha256
+          retention-days: 7
 
       # A cross compiler on its own does not link. The first run proved it: the toolchain built, and
       # then cmake's compiler probe came back broken on three missing archives, because libsyscalls,

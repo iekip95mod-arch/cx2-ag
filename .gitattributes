@@ -9,6 +9,12 @@
 /vendor-history/** -text
 /nps/third_party/** -text
 
+# The one build output worth carrying. A runner that has to build the ARM cross compiler from
+# source spends the best part of half an hour on it before it can compile a line of this project,
+# and the Actions cache that normally covers that evicts after a week of not being touched. This is
+# the only thing in the repository big enough to want LFS and slow enough to deserve it.
+/vendor/toolchain/*.tar.zst filter=lfs diff=lfs merge=lfs -text
+
 # The folder-hiding prototype recognizes factory files by size and CRC32, so its provenance copies
 # and the evidence beside them are byte-exact records too. Normalizing themes.csv took it from the
 # 191 bytes factory_manifest.h records to 188, which is a recognition failure in every clone.
