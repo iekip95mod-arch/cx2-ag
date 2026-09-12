@@ -282,6 +282,82 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel 3
 
+  # CodeQL ran as GitHub's default setup until now, which fires on its own schedule and cannot be
+  # told to wait for anything. Here it is a job like the others, so a push whose suites are red
+  # spends nothing on scanning code that is about to change. Both suites, not just the gate: full
+  # is the one that builds the bridge and the cross package paths.
+  #
+  # The three languages default setup was scanning. One job each, because only c-cpp needs a build
+  # and running the other two behind it would make them wait for it.
+  #
+  # No ccache here, unlike every other job in this file. CodeQL extracts c-cpp by watching the
+  # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
+  # the analysis an empty database and the job would still pass.
+  codeql:
+    needs: [fast, full]
+    # The same escape hatch full has, and for the same reason it has one. Without it a red fast
+    # suite means this job never runs at all, so nobody can ask it to prove it works, including on
+    # the ccache question the comment below describes. That is not hypothetical: on the run that
+    # first carried this job, 34704586948, fast was red and codeql was skipped with full, so the
+    # branch could not demonstrate its own claim. A dispatch is somebody asking on purpose.
+    if: >-
+      ${{ !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (needs.fast.result == 'success' && needs.full.result == 'success')) }}
+    permissions:
+      contents: read
+      security-events: write
+    # The one job in this file not on macOS, and the reason the others are does not reach it: this
+    # reads source rather than running it, so a runner matching the developer's machine buys
+    # nothing. On macos-latest it could not build at all. Job 103586919848 linked nps_host with
+    # /usr/bin/c++ -arch x86_64 against an arm64 libgmp and died on every gmp symbol, because the
+    # tracer takes the build x86_64 on an arm64 image. Moving here also stops the three entries
+    # eating three of the five macOS slots the account has.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: c-cpp
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      # The linux-parity set without ccache, which is what proves this configure works here: that
+      # job is the one place ubuntu already builds nps, and it passed on run 34695482065.
+      - name: Install prerequisites
+        if: matrix.build-mode == 'manual'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake pkg-config libgmp-dev zlib1g-dev python3
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      # nps_host rather than the full target. CodeQL wants the compiler invocations and nothing
+      # more, and the suites this skips were already run by the two jobs above.
+      - name: Build under the tracer
+        if: matrix.build-mode == 'manual'
+        run: |
+          cmake -S nps -B nps/build/codeql \
+            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
+            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
+          cmake --build nps/build/codeql --target nps_host --parallel
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
   # Deliberately NOT on push. A device run still costs a full cross build of the project on a three
   # core runner even when the compiler arrives ready made, and the three sources it can come from
   # are tried in order below: the Actions cache, then vendor/toolchain, then a build from source.
