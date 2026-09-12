@@ -7078,6 +7078,37 @@ do
     local empty = env.View({ invalidate = function() end })
     check(pcall(empty.tabForward, empty), "tabbing forward with nothing to focus is refused quietly")
     check(pcall(empty.tabBackward, empty), "tabbing backward with nothing to focus is refused quietly")
+
+    -- View:hide is the only writer of visible, and until this block nothing in the document called
+    -- it, so every visible guard read a field that was always true. These four drive it, because a
+    -- guard nobody has watched work is not coverage.
+    local tabs = env.View({ invalidate = function() end })
+    tabs:add(focusable())
+    tabs:add(focusable())
+    tabs:add(focusable())
+    -- Read the order out of the list rather than assuming it. View:add inserts at the front, so
+    -- naming these after the calls that made them describes the reverse of the traversal.
+    local one, two, three = tabs.focusList[1], tabs.focusList[2], tabs.focusList[3]
+    tabs:setFocus(one)
+    tabs:hide(two)
+    check(not two.visible, "View:hide is what writes visible, and it is reachable")
+    tabs:tabForward()
+    check(tabs:getFocus() == three, "tabbing forward steps over a hidden widget rather than onto it")
+    tabs:show(two)
+    tabs:setFocus(one)
+    tabs:tabForward()
+    check(tabs:getFocus() == two, "and lands on it again once it is shown")
+    tabs:setFocus(three)
+    tabs:hide(two)
+    tabs:tabBackward()
+    check(tabs:getFocus() == one, "tabbing backward steps over it too")
+    tabs:hide(one)
+    tabs:hide(three)
+    tabs:setFocus(one)
+    -- Before the traversal was bounded this recursed until the stack gave out, which on the handheld
+    -- is a reset rather than an error a pcall can see.
+    check(pcall(tabs.tabForward, tabs) and pcall(tabs.tabBackward, tabs),
+          "tabbing with every widget hidden returns instead of recursing forever")
     end)()
 end
 
