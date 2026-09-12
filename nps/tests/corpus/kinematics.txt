@@ -1147,14 +1147,13 @@ case kinematics.given.unknown-is-also-known
   input find v; v = 5 m/s; a = 3 m/s^2; t = 4 s
   expect invalid input
 
-# The outcome is coarse: an equation does apply, and the product just did not fit int64. The detail
-# is the honest half, and it names the limit against each of the three equations that reach x. The
-# outcome stays NoApplicableEquation because a refusal is what lets the search move on to the next
-# candidate instead of halting, which is the same choice the linear solver makes.
+# An equation does apply and the product just did not fit int64, so saying no equation applied was
+# the wrong half to report. The probe now halts the sweep the way it already did when the solver ran
+# out of room later on, and the detail still names which limit was reached.
 case kinematics.arithmetic.displacement-past-the-representation
   family kinematics
   input find x; v0 = 9223372036854775807 m/s; a = 0 m/s^2; t = 1000 s
-  expect no applicable equation
+  expect resource exceeded
   detail a value grew past what exact integer arithmetic here can hold
 
 case kinematics.units.time-as-a-frequency

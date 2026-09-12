@@ -592,7 +592,8 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             // Checked against the string this step records. The predicate parses the reported text
             // back and measures the error, so it shares no path with rounded_text. A wrong
             // predicate it cannot catch, and units_tests pins that with negative cases.
-            const HalfPlace checked = rounded_within_half_place(candidate, reported, digits);
+            const HalfPlace checked =
+                precision_rounding_valid(candidate, reported, result.quantity.precision);
             if (checked == HalfPlace::Outside) {
                 result.outcome = DensityOutcome::VerificationFailed;
                 result.status = DerivationStatus::VerificationFailed;

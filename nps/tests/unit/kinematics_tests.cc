@@ -814,8 +814,9 @@ void run_kinematics_tests(TestSink &t) {
     }
     {
         Solved s = run("find x; v0 = 9000000000 m/s; a = 3 m/s^2; t = 4000000000 s");
-        t.equal(s.outcome, "no applicable equation",
-                "values whose arithmetic outgrows int64 are refused by the solver");
+        t.equal(s.outcome, "resource exceeded",
+                "values whose arithmetic outgrows int64 halt the sweep rather than reading as no "
+                "equation applying");
         t.check(has(s.detail, "exact integer arithmetic"), "and the refusal says why");
     }
 }

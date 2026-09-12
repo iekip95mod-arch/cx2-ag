@@ -518,6 +518,26 @@ void run_rewrite_tests(TestSink &t) {
         t.equal(rewrite_outcome_name(s.outcome), "already in that form",
                 "a quadratic this rule cannot make monic is refused rather than half factored");
     }
+    {
+        // The ceiling and the answer either side of it. A constant one past the size this rule
+        // searches to leaves the question open, and saying the expression is already factored would
+        // answer it, with a status calling the answer verified.
+        Rewritten ceiling = run("x^2 + x + 1000001", RewriteGoal::Factor);
+        t.equal(rewrite_outcome_name(ceiling.outcome), "resource exceeded",
+                "a constant past the search ceiling is the search never having run");
+        t.equal(ceiling.status, "resource limit reached",
+                "and the record does not call an undecided question verified");
+
+        Rewritten absent = run("x^2 + x + 999999", RewriteGoal::Factor);
+        t.equal(rewrite_outcome_name(absent.outcome), "already in that form",
+                "while a constant inside the ceiling with no pair is still left alone");
+        t.equal(absent.status, "solved and verified",
+                "because that search did run and came back empty");
+
+        Rewritten found = run("x^2 + 3x + 2", RewriteGoal::Factor);
+        t.equal(rewrite_outcome_name(found.outcome), "rewritten",
+                "and a pair inside the ceiling is still found");
+    }
 
     {
         Rewritten s = run("1.5 + 2", RewriteGoal::Simplify);
