@@ -9,6 +9,9 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Only the device job reads this. It is too slow to gate a push and too useful to never run.
+  schedule:
+    - cron: "17 4 * * 1"
 
 # One run per ref. A second push to the same branch kills the first rather than queueing behind it,
 # which is what stops a busy agent from spending every runner on results nobody will read.
@@ -104,11 +107,15 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel 4
 
-  # A compiled object, a linked ELF and a packaged TNS are separate stages, so this job says only
-  # that the ARM target still builds. It proves nothing about the handheld.
+  # Deliberately NOT on push. The ARM toolchain is not in this repository: vendor/ndl-src/ndl-sdk
+  # tracks build_toolchain.sh and a gitignore, and nspire-gcc is not tracked either, so a runner has
+  # to build a cross compiler before it can configure. Distribution arm-none-eabi packages do not
+  # substitute, which is what the first attempt proved: cmake's own compiler probe failed to link.
+  # Run it by hand when the device build matters, or let the weekly run catch a break.
   device:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,15 +125,22 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache libgmp-dev python3 gcc-arm-none-eabi binutils-arm-none-eabi
+            ninja-build cmake ccache libgmp-dev libmpfr-dev python3 \
+            build-essential texinfo bison flex wget
 
-      - name: Restore compiler cache
+      # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
+      # is paid once and then reused until that script changes.
+      - name: Restore the cross toolchain
+        id: toolchain
         uses: actions/cache@v4
         with:
-          path: .ccache
-          key: ccache-device-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            ccache-device-${{ runner.os }}-
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh') }}
+
+      - name: Build the cross toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        working-directory: vendor/ndl-src/ndl-sdk/toolchain
+        run: ./build_toolchain.sh
 
       - name: Configure
         run: |
@@ -138,6 +152,8 @@ jobs:
       - name: Build the package
         run: cmake --build nps/build/device --target unified --parallel
 
+      # The host suite's package integrity checks verify a built package against its sidecar, so a
+      # run that produced one is the only run that can exercise them.
       - uses: actions/upload-artifact@v4
         with:
           name: nspire-package

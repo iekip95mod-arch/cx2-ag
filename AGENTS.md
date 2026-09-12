@@ -24,9 +24,9 @@ Read only the relevant sections of [docs/codebase-map.md](docs/codebase-map.md) 
 
 ## GitHub workflow
 
-The remote is iekip95mod-arch/cx2-ag, private, with issues enabled and no Actions runners. Nothing runs on push. No check will contradict a claim you make, so run the checks yourself before you push and say which stage you actually reached.
+The remote is iekip95mod-arch/cx2-ag, public, with issues enabled. GitHub Actions runs the host build and the test suites on every push and pull request, so a check will contradict a claim you make. Run the checks yourself anyway before you push, and say which stage you actually reached. The ARM build is not part of that gate, for the reason given under Build and test.
 
-This repository exists for agents to work in. the maintainer grants the following in advance, so do them without asking:
+This repository exists for agents to work in. The maintainer grants the following in advance, so do them without asking:
 
 - Create branches, commit, and push, including to main.
 - Open, label, comment on and close issues.
@@ -58,7 +58,7 @@ Use deferred for a fix that was scoped out on purpose, and record in the issue w
 
 ## How the work runs
 
-This repository runs itself. the maintainer sets a goal and does not review the work in between. Nobody is waiting to approve a branch, a pull request or a merge, so an agent that stops to ask has stopped for nothing. Read that as a standing instruction rather than as permission you have to keep re-earning.
+This repository runs itself. The maintainer sets a goal and does not review the work in between. Nobody is waiting to approve a branch, a pull request or a merge, so an agent that stops to ask has stopped for nothing. Read that as a standing instruction rather than as permission you have to keep re-earning.
 
 Read the raw tracker before researching anything, and check whether a finding is already filed before you spend a session on it:
 
@@ -183,6 +183,10 @@ cmake --build nps/build/device --target unified
 ~~~
 
 Check CMAKE_HOME_DIRECTORY and dependency roots in an existing build cache before using it. The root device directory and .lane-*, .lead-tree* or .headcheck* trees can select other checkouts.
+
+The ARM toolchain is not in this repository. vendor/ndl-src/ndl-sdk/toolchain tracks build_toolchain.sh and a gitignore and nothing else, and nspire-gcc is not tracked either, so a fresh clone cannot configure the device build until that toolchain has been built. That is why Actions does not gate on the ARM build, and why the device workflow is manual rather than running on every push.
+
+One consequence reaches the host suite. The package integrity checks inside the unit binary verify a built package against its sidecar, so without a device package they fail rather than skip. On a machine with an ARM build they pass. In a fresh clone or on a runner they do not, and that accounts for eighteen of the failures a clean checkout reports.
 
 Use resident_exit_lint, tidy, fuzz_run, document, probe and luax when relevant. FUZZ_CASES and FUZZ_SEED are CMake cache options. regold rewrites source fixtures and requires explicit review. Read generated reports for unmet requirements even when the reporting process exits successfully.
 
