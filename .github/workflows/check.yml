@@ -92,12 +92,49 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          lfs: true
 
       - name: Install prerequisites
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli zstd
+
+      # The bridge suite is the one thing the host build cannot reach on its own. Enabling LuaJIT
+      # takes configure into nps/CMakeLists.txt:1208, and two lines later it wants the luna binary
+      # and a make in the SDK's system directory, both of which need the ARM cross compiler. So a
+      # host shared library ends up needing a device toolchain, because what those lines compute is
+      # package identity. The committed toolchain is what makes that affordable here.
+      - name: Unpack the committed toolchain
+        id: unpack
+        run: |
+          archive=vendor/toolchain/ndl-arm-none-eabi-linux-x86_64.tar.zst
+          stamp=vendor/toolchain/built-from.sha256
+          if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
+            echo "used=false" >> "$GITHUB_OUTPUT"
+            echo "No committed toolchain, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          want=$(sha256sum vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
+            echo "used=false" >> "$GITHUB_OUTPUT"
+            echo "The committed toolchain is stale, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
+          tar --zstd -xf "$archive" -C vendor/ndl-src/ndl-sdk/toolchain/install
+          echo "used=true" >> "$GITHUB_OUTPUT"
+
+      # LuaJIT goes on only once the toolchain is here. Installing it without one would take
+      # configure down the branch above and fail on the missing nspire-as, which turns a missing
+      # suite into a broken job.
+      - name: Install the bridge prerequisites
+        if: steps.unpack.outputs.used == 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends luajit libluajit-5.1-dev
+          cd vendor/ndl-src/ndl-sdk
+          export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
+          make build-libndls build-tools -j"$(nproc)"
 
       - name: Restore compiler cache
         uses: actions/cache@v4
@@ -117,6 +154,14 @@ jobs:
 
       - name: Build
         run: cmake --build nps/build/host --parallel
+
+      # Same reason the fast job counts its suites. A suite that failed to register is a suite ctest
+      # reports success over, and luax_host is exactly the one that goes missing when a prerequisite
+      # is half there.
+      - name: Check the bridge suite registered
+        if: steps.unpack.outputs.used == 'true'
+        run: |
+          ctest --test-dir nps/build/host -N -R '^luax_host$' | grep "Test *#"
 
       # Not the check target, because that serializes. ctest runs the suites across the runner's
       # cores and reports every failure rather than stopping at the first.
