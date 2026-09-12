@@ -110,5 +110,8 @@ jobs:
             Say which stages you actually reached. Host build and host suite are what a commit can
             claim. An ARM build proves it compiles and links and nothing more, and emulator or
             handheld evidence is a separate stage that gets reported separately or not at all.
+          # Lower than the review lane on purpose. That one builds, reverts and rebuilds, which takes
+          # turns. This one usually answers a question, and a ceiling is the only thing standing
+          # between a misread task and a run that spends an afternoon on it.
           claude_args: |
-            --max-turns 60
+            --max-turns 30
