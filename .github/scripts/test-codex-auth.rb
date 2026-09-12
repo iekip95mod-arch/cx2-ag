@@ -61,3 +61,14 @@ fixtures.each do |name, credential, expectation|
   end
 end
 puts "#{fixtures.length} credential cases passed"
+
+worker = workflow.fetch('jobs').fetch('respond')
+claim = worker.fetch('steps').find { |step| step['id'] == 'worker' }
+raise 'Issue work must use the scoped publishing token' unless claim.fetch('env').fetch('GH_TOKEN') == '${{ secrets.CODEX_GITHUB_TOKEN }}'
+raise 'Issue work must claim its branch before running Codex' unless claim.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs'
+execution = worker.fetch('steps').find { |step| step['name'] == 'Run Codex with saved login' }
+raise 'Codex must inherit its publishing credential' unless execution.fetch('run').include?('shell_environment_policy.ignore_default_excludes=true')
+raise 'Codex must run inside its assigned checkout' unless execution.fetch('run').include?('--cd "$WORKER_DIRECTORY"')
+raise 'General responses must not receive publishing credentials' unless execution.fetch('env').fetch('GH_TOKEN') == "${{ steps.worker.outputs.issue && secrets.CODEX_GITHUB_TOKEN || '' }}"
+raise 'Default Actions token must remain read-only for contents' unless worker.fetch('permissions').fetch('contents') == 'read'
+puts '6 worker credential contracts passed'
