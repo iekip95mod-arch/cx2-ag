@@ -1184,6 +1184,55 @@ const char *plan_name(RewriteGoal goal) {
 
 }  // namespace
 
+bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent, const char *phase,
+                             Meter &meter, NodeId expression, NodeId *out) {
+    *out = expression;
+    if (expression == kNoNode || arena.failed())
+        return true;
+
+    // The probe runs before the charge, the way has_decimal asks before the decimal step charges
+    // anything. An integrand with nothing to gather has to cost nothing, or every solve pays for a
+    // rule that did not fire.
+    NodeId current = expression;
+    for (;;) {
+        std::vector<uint32_t> path;
+        std::string what;
+        const NodeId after = rewrite_once(arena, current, gather_powers_here, 0,
+                                          Descend::OutermostFirst, &path, &what);
+        if (after == kNoNode)
+            break;
+        if (!meter.rewrite())
+            return false;
+        current = after;
+    }
+    if (current == expression)
+        return true;
+    if (!meter.step())
+        return false;
+
+    Step s = envelope("Write the repeated factors as powers", "alg.gather-powers",
+                      "Repeated factors are a power",
+                      "The same factor multiplied several times is that factor to a power");
+    s.phase = phase;
+    s.explanation_detailed =
+        "Counting how many times a factor appears and writing it as an exponent changes nothing "
+        "about the value. It is what lets a rule that matches a power match a product that is one.";
+    s.verifications.push_back(passed("rule-local invariant", EvidenceStrength::StructurallyValid,
+                                     "the exponents count the same factors the product had"));
+    s.proof_obligations.push_back({"obl.alg.rule-preserves-value",
+                                   "the rewritten subexpression has the value the original had"});
+
+    TransformationPayload payload;
+    payload.before = expression;
+    payload.after = current;
+    payload.concrete_action = "Write each repeated factor as a power";
+    payload.reversible = true;
+    derivation.add_transformation(parent, std::move(s), std::move(payload));
+
+    *out = current;
+    return true;
+}
+
 const char *rewrite_goal_name(RewriteGoal g) {
     switch (g) {
         case RewriteGoal::Simplify: return "simplify";

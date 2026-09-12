@@ -599,6 +599,61 @@ void run_integrate_tests(TestSink &t) {
         t.check(s.steps == 0, "leaving nothing in the record");
     }
     {
+        // A product whose factors are powers of one base is that base to the sum of the exponents,
+        // so the power rule answers it and the product router never sees it. The canonical form
+        // leaves x * x as a product, so this has to be a recorded rewrite rather than a comparison:
+        // asserting the answer alone passes for a gather that never reached the integrand the
+        // derivative check compares against, which is what "solved and verified" below catches.
+        struct Gathered {
+            const char *input;
+            const char *expected;
+            const char *rule;
+        };
+        for (const Gathered &example : {
+                 Gathered{"x*x", "x^3/3", "i.power"},
+                 Gathered{"x*x^2", "x^4/4", "i.power"},
+                 Gathered{"x^2*x^3", "x^6/6", "i.power"},
+                 Gathered{"2*x*x", "2*x^3/3", "i.power"},
+                 Gathered{"x*x+sin(x)", "x^3/3-cos(x)", "i.power"},
+                 Gathered{"(2x+1)*(2x+1)", "(2x+1)^3/6", "i.linear-substitution"},
+             }) {
+            Integrated s = run(example.input, "x");
+            t.equal(integrate_outcome_name(s.outcome), "integrated",
+                    std::string("a product of repeated factors integrates: ") + example.input);
+            t.check(agrees(example.input, "x", example.expected),
+                    std::string("and gives the power rule's answer: ") + example.input);
+            t.equal(s.status, "solved and verified",
+                    std::string("and the derivative check sees one integrand: ") + example.input);
+            t.check(uses_rule(example.input, "x", "alg.gather-powers"),
+                    std::string("and the gathering is a step of its own: ") + example.input);
+            t.check(uses_rule(example.input, "x", example.rule),
+                    std::string("and the power rule is what answered it: ") + example.input);
+        }
+    }
+    {
+        Integrated s = run("sin(x)*sin(x)", "x");
+        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
+                "a repeated factor with a base no rule can substitute for is still refused");
+        t.check(s.detail.find("not linear") != std::string::npos,
+                "and the refusal names the base rather than integration by parts");
+    }
+    {
+        // x * x^-1 is 1 away from zero and undefined at it. Gathering it would write x^0, which
+        // carries no condition, so the negative exponent is left as the factor it is and the
+        // non-zero condition the integrand states survives with it.
+        Arena arena;
+        Derivation d;
+        const NodeId e = parse(arena, "x*x^-1").root;
+        const IntegrateResult r = integrate(arena, d, e, arena.symbol("x"));
+        t.equal(integrate_outcome_name(r.outcome), "unsupported form",
+                "a factor and its reciprocal are not gathered into a power");
+        const std::vector<Restriction> held = restrictions_of(arena, e);
+        t.check(held.size() == 1 && restriction_text(arena, held[0]) == "x is not zero",
+                "and the non-zero condition that product carries is still readable");
+        t.check(!uses_rule("x*x^-1", "x", "alg.gather-powers"),
+                "and no gathering step was recorded for it");
+    }
+    {
         Integrated s = run("x^x", "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form", "a variable exponent is refused");
         t.check(s.detail.find("exp(x)") != std::string::npos, "and points at exp for the exponential");
