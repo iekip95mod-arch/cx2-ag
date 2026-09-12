@@ -90,10 +90,13 @@ on = {}
 
 -- A rich text editor with the calls the document makes, holding its expression as a string.
 local editors = {}
+-- Every size the document hands an editor, so the ladder can be judged on what the OS would see
+-- rather than on what the shell believes fsize to be.
+local font_sizes = {}
 D2Editor = {
     newRichText = function()
         local e = { expr = "", visible = true, focused = false }
-        function e:setFontSize() end
+        function e:setFontSize(size) font_sizes[#font_sizes + 1] = size end
         function e:setFocus(f) self.focused = f end
         function e:hasFocus() return self.focused end
         function e:setExpression(s) self.expr = s end
@@ -735,6 +738,45 @@ menu_count = #menus
 on.contextMenu()
 check(#menus == menu_count and #steps.histText == 1,
       "and a module too old to draw a menu neither opens one nor acts as though it had")
+
+-- TI documents the handheld as accepting 7, 9, 10, 11, 12, 16 or 24 and nothing else:
+-- https://education.ti.com/html/eguides/nspire/EG_Nspire/EN/content/eg_lua/m_libraries/2deditorlib/setfontsize.HTML
+do
+    local accepted = { [7] = true, [9] = true, [10] = true, [11] = true, [12] = true, [16] = true, [24] = true }
+    local walked = #font_sizes
+
+    local climbed = {}
+    fsize = 7
+    for _ = 1, 8 do fontUp() climbed[#climbed + 1] = fsize end
+    check(table.concat(climbed, ",") == "9,10,11,12,16,24,24,24",
+          "Increase Font Size climbs the accepted sizes and stops at the largest: " .. table.concat(climbed, ","))
+
+    local fell = {}
+    fsize = 24
+    for _ = 1, 8 do fontDown() fell[#fell + 1] = fsize end
+    check(table.concat(fell, ",") == "16,12,11,10,9,7,7,7",
+          "Decrease Font Size falls through the accepted sizes and stops at the smallest: " .. table.concat(fell, ","))
+
+    fsize = 13
+    fontDown()
+    local off_ladder = fsize
+    fsize = 13
+    fontUp()
+    check(off_ladder == 12 and fsize == 16,
+          "a size off the accepted ladder steps onto it rather than past it: " ..
+          off_ladder .. " and " .. fsize)
+
+    -- The walk above is worth nothing unless something reached the editor, so count the calls as well
+    -- as read them. Every earlier paint and history row has already put sizes in this list.
+    check(#font_sizes > walked, "the font menu reaches the editor at all")
+    local rejected = nil
+    for _, size in ipairs(font_sizes) do
+        if size ~= nil and not accepted[size] then rejected = size end
+    end
+    check(not rejected, "every size this document hands an editor is one the handheld accepts, got " ..
+          tostring(rejected))
+    fsize = 12
+end
 
 print(string.format("nps_v3 ui: %d checks, %d failed", checks, failures))
 os.exit(failures == 0 and 0 or 1)
