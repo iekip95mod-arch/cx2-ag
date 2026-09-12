@@ -59,3 +59,27 @@ test('storage errors reject delivery for redelivery', async () => {
   const env = { WEBHOOK_SECRET: secret, DB: { prepare() { throw Error('unavailable'); } } };
   assert.equal((await worker.fetch(request(), env)).status, 503);
 });
+
+test('every supported notification route persists its exact metadata', async () => {
+  const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
+  const cases = [];
+  for (const name of ['check', 'agent-review']) {
+    for (const conclusion of ['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure']) {
+      cases.push({ event: 'workflow_run', body: { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name, conclusion, pull_requests: [{ number: 84 }] } }, expected: { repository: repository.full_name, event: 'workflow_run', action: 'completed', prs: [84], sha, workflow: name, conclusion, run: 123 } });
+    }
+  }
+  for (const state of ['approved', 'changes_requested', 'dismissed']) {
+    const action = state === 'dismissed' ? 'dismissed' : 'submitted';
+    cases.push({ event: 'pull_request_review', body: { ...review, action, review: { state } }, expected: { repository: repository.full_name, event: 'pull_request_review', action, prs: [84], sha, review: state } });
+  }
+  for (const [action, merged] of [['synchronize', false], ['closed', false], ['closed', true]]) {
+    cases.push({ event: 'pull_request', body: { ...review, action, pull_request: { ...review.pull_request, merged } }, expected: { repository: repository.full_name, event: 'pull_request', action, prs: [84], sha, merged } });
+  }
+  for (const route of cases) {
+    const response = await worker.fetch(request(route.body, randomUUID(), { 'x-github-event': route.event }), env);
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), { accepted: true }, JSON.stringify(route.expected));
+  }
+  const inbox = await worker.fetch(new Request('https://receiver.test/events?wait=0', { headers: { authorization: 'Bearer test-reader' } }), env);
+  assert.deepEqual((await inbox.json()).events.map(event => event.metadata), cases.map(route => route.expected));
+});
