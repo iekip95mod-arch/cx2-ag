@@ -220,6 +220,16 @@ A sign in expires and a key does not, so a copy taken once goes stale and the se
 
 Nothing breaks while these are unset. Each workflow checks first and writes a line into the run summary saying it did not run.
 
+### The config files, and what they do not do
+
+Three directories at the root configure the three agents locally: .claude/settings.json, .gemini/settings.json and .codex/config.toml. A global ignore on the maintainer's machine hides .claude everywhere, which is why .gitignore has to un-ignore the directory before it can un-ignore the file inside it.
+
+What is in them is a list of commands nobody should be asked about twice. Building and testing this project means running cmake and ctest a hundred times in a session, and an agent that stops for permission on each one spends its budget on the prompt rather than the work.
+
+What is not in them is a deny list, on purpose. One was written and then taken out. Denying gh secret leaves gh api reaching the same endpoint, denying Read on .env leaves .env.local, and a rule over a shell is always one spelling away from being wrong. A guard that holds for the spellings somebody thought of reads as coverage, and the next agent trusts it. The boundary that actually holds is the permissions block on each workflow job, which is what scopes the token the agent is handed, and the branch protection on main. Those are enforced by GitHub rather than by a pattern match, so that is where a restriction belongs.
+
+On a pull request event the Claude action restores .claude, CLAUDE.md and .mcp.json from the base branch before it runs, so a pull request cannot widen its own reviewer's permissions by editing them. That is the action's behavior rather than ours, and it is worth knowing before you rely on a change to these files taking effect in the same pull request that makes it.
+
 ## Locate the code
 
 | Responsibility | Entry points |

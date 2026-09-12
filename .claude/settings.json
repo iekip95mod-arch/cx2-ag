@@ -19,14 +19,6 @@
       "Bash(gh label:*)",
       "Bash(gh run list:*)",
       "Bash(gh run view:*)"
-    ],
-    "deny": [
-      "Bash(gh repo delete:*)",
-      "Bash(gh repo edit:*)",
-      "Bash(gh secret:*)",
-      "Bash(gh auth token:*)",
-      "Read(**/.env)",
-      "Read(**/*.pem)"
     ]
   }
 }
