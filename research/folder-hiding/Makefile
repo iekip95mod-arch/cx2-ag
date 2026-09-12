@@ -1,4 +1,4 @@
-SDK ?= $(abspath ../../ndl-src/ndl-sdk)
+SDK ?= $(abspath ../../vendor/ndl-src/ndl-sdk)
 export PATH := $(SDK)/bin:$(PATH)
 export NDL_ZEHN_PATH := $(SDK)/tools/zehn_loader
 

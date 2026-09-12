@@ -353,7 +353,7 @@ Hand rolling is the last resort, not the default. Before you write a helper, a p
 
 1. This tree. Most of what a task needs is already here under another name, and a second copy of it is a second thing to keep correct. The #7 and #34 findings are both this failure in miniature: a producer that reinvented a field the record schema already defined.
 2. The C++ standard library. This is C++20, set at nps/CMakeLists.txt:17, so the algorithms header, string_view, optional, variant, span, charconv and the ranges are all available to you. The device toolchain builds with no exceptions and no RTTI, at nps/cmake/toolchains/ndl-arm926ej-s.cmake:51, so anything that reports failure by throwing needs the non-throwing form instead. from_chars over strtod, and an error code over a raise.
-3. A vendored dependency. Giac through khi-src, the SDK and resident runtime through ndl-src, the USB transport through libnspire-src, Lua through the SDK. These are already built, already linked and already carried onto the device.
+3. A vendored dependency. Giac through vendor/khi-src, the SDK and resident runtime through vendor/ndl-src, the USB transport through vendor/libnspire-src, Lua through the SDK. These are already built, already linked and already carried onto the device.
 
 Only then write your own, and when you do, say in the commit or the pull request body what you looked at and why it did not fit. A sentence naming the thing you rejected is worth more than a paragraph describing what you built.
 
