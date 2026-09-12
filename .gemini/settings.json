@@ -13,18 +13,16 @@
   },
   "tools": {
     "allowed": [
-      "run_shell_command(cmake)",
-      "run_shell_command(ctest)",
-      "run_shell_command(ninja)",
-      "run_shell_command(rg)",
       "run_shell_command(git status)",
       "run_shell_command(git diff)",
-      "run_shell_command(git log)"
-    ],
-    "confirmationRequired": [
-      "run_shell_command(git push)",
-      "run_shell_command(gh repo)",
-      "run_shell_command(gh secret)"
+      "run_shell_command(git log)",
+      "run_shell_command(git show)",
+      "run_shell_command(gh issue list)",
+      "run_shell_command(gh issue view)",
+      "run_shell_command(gh pr list)",
+      "run_shell_command(gh pr view)",
+      "run_shell_command(gh run list)",
+      "run_shell_command(gh run view)"
     ]
   }
 }
