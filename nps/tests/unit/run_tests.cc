@@ -871,6 +871,11 @@ int main_body() {
     // A total is one number, and two platforms reporting different totals from the same sources say
     // nothing about where they parted. Set NPS_GROUP_COUNTS and the tally says which group.
     if (const char *tally = std::getenv("NPS_GROUP_COUNTS"); tally && tally[0] != '\0') {
+        // Fifteen test functions run before the first group opens and belong to none of them, which
+        // is a couple of hundred checks the per-group lines cannot see. Without this the tally adds
+        // up to less than the total and the gap looks like an error in the tally.
+        if (!sink.group_opened_at.empty())
+            printf("nps group: (before the first group) %d\n", sink.group_opened_at[0]);
         for (size_t i = 0; i < sink.groups_run.size(); ++i) {
             const int next = i + 1 < sink.group_opened_at.size()
                                  ? sink.group_opened_at[i + 1]
