@@ -70,6 +70,7 @@ jobs:
       # pull request onto main and differ for one stacked on another branch, where a base comparison
       # would pass and the action would still decline.
       - name: Refuse to look like a review that did not happen
+        id: mine
         if: steps.key.outputs.have == 'true'
         env:
           DEFAULT: ${{ github.event.pull_request.base.repo.default_branch }}
@@ -96,6 +97,25 @@ jobs:
             echo "Review this branch with an agent that did not write it, by hand, before merging."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+      # Read before the action rather than filtering by time afterwards, so the answer does not
+      # depend on the runner clock agreeing with GitHub's.
+      - name: Count the reviews already on this pull request
+        id: before
+        if: steps.key.outputs.have == 'true'
+        # Named rather than left to the default, which is bash -e without pipefail, so a gh call
+        # that fails hands its exit status to awk and awk prints 0 over no input. A zero here is
+        # the dangerous direction: the count after would then beat it and pass an older review off
+        # as a new one.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          n=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" --jq 'length' |
+            awk '{total += $1} END {print total + 0}')
+          echo "count=$n" >> "$GITHUB_OUTPUT"
 
       # A reviewer that cannot build is a reviewer that reads, which AGENTS.md says is not a review.
       # Same set the full job installs.
@@ -224,3 +244,38 @@ jobs:
           claude_args: |
             --max-turns 80
             --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
+
+      # The step above can finish green having posted nothing, and it has four times. Twice the
+      # action declined and skipped, once the reviewer ran out waiting on a check, once it stopped
+      # against the sandbox after 26 turns. Every one of those reported success, and the rollup
+      # showed "review SUCCESS" over a pull request with an empty reviews list. The step before this
+      # one catches only the first of the four, because it knows only one reason.
+      #
+      # So ask the question the gate actually cares about, which is not whether the action ran. A
+      # review either exists on the pull request or it does not, and that is one API call.
+      - name: Refuse a green check over a review that was not posted
+        # Not always(), which also fires on a job somebody canceled, and a canceled review is not a
+        # review that was withheld.
+        if: >-
+          !cancelled() && steps.key.outputs.have == 'true' &&
+          steps.mine.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ steps.before.outputs.count }}
+        run: |
+          after=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" --jq 'length' |
+            awk '{total += $1} END {print total + 0}')
+          if [ "$after" -gt "$BEFORE" ]; then
+            exit 0
+          fi
+          {
+            echo "The review step finished without posting a review: $BEFORE before, $after after."
+            echo "A green check here would tell the merge gate a review happened, so this is red."
+            echo "The job log says how far the reviewer reached. Once whatever stopped it is fixed,"
+            echo "take the claude-review label off and put it back, because adding a label that is"
+            echo "already there fires nothing."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
