@@ -2767,8 +2767,6 @@ local function resultClass(r)
 		classification = classification .. " + UNCHECKED"
 	-- Named rather than left to the agrees test below, which a bridge cross-check sets true and so
 	-- would badge a corroborated answer as verified. A check that ran is not UNCHECKED either.
-	-- Named rather than left to the agrees test below, which a bridge cross-check sets true and so
-	-- would badge a corroborated answer as verified. A check that ran is not UNCHECKED either.
 	elseif r.status == "solved and corroborated" then
 		classification = classification .. " + CORROBORATED"
 	elseif r.status ~= "solved and verified" and r.agrees ~= true then
