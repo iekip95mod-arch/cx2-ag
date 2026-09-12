@@ -165,13 +165,23 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
+      # Not lfs: true. That would pull the 49 MB toolchain on every push and every pull request, and
+      # a free account gets 10 GiB of LFS bandwidth a month. The cache below covers the ordinary
+      # case, and the pull happens only when it misses.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-          lfs: true
 
       - name: Install prerequisites
         run: brew install ccache gmp php
+
+      # Same path and same key as the device job, so whichever runs first pays for both.
+      - name: Restore the cross toolchain
+        id: toolchain
+        uses: actions/cache@v6
+        with:
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh') }}
 
       # The bridge suite is the one thing the host build cannot reach on its own. Enabling LuaJIT
       # takes configure into nps/CMakeLists.txt:1208, and two lines later it wants the luna binary
@@ -180,29 +190,42 @@ jobs:
       # package identity. The committed toolchain is what makes that affordable here.
       - name: Unpack the committed toolchain
         id: unpack
+        if: steps.toolchain.outputs.cache-hit != 'true'
         run: |
-          archive=vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst
           stamp=vendor/toolchain/built-from.sha256
-          if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
+          if [ ! -f "$stamp" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "No committed toolchain, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
+            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1)
           if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "The committed toolchain is stale, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          git lfs pull --include "vendor/toolchain/*"
           mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          zstd -d -c "$archive" | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
+          zstd -d -c vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst \
+            | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
           echo "used=true" >> "$GITHUB_OUTPUT"
+
+      # Two ways to have a toolchain, and the steps below only care that there is one.
+      - name: Note whether a toolchain is present
+        id: have
+        run: |
+          if [ -x vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc ]; then
+            echo "toolchain=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "toolchain=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # LuaJIT goes on only once the toolchain is here. Installing it without one would take
       # configure down the branch above and fail on the missing nspire-as, which turns a missing
       # suite into a broken job.
       - name: Install the bridge prerequisites
-        if: steps.unpack.outputs.used == 'true'
+        if: steps.have.outputs.toolchain == 'true'
         run: |
           brew install luajit
           cd vendor/ndl-src/ndl-sdk
@@ -220,7 +243,7 @@ jobs:
       - name: Configure
         run: |
           export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
-          if [ "${{ steps.unpack.outputs.used }}" = "true" ]; then
+          if [ "${{ steps.have.outputs.toolchain }}" = "true" ]; then
             export PKG_CONFIG_PATH="$(brew --prefix luajit)/lib/pkgconfig:$PKG_CONFIG_PATH"
           fi
           cmake -S nps -B nps/build/host \
@@ -236,7 +259,7 @@ jobs:
       # reports success over, and luax_host is exactly the one that goes missing when a prerequisite
       # is half there.
       - name: Check the bridge suite registered
-        if: steps.unpack.outputs.used == 'true'
+        if: steps.have.outputs.toolchain == 'true'
         run: |
           ctest --test-dir nps/build/host -N -R '^luax_host$' | grep "Test *#"
 
@@ -257,10 +280,11 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 180
     steps:
+      # Same reasoning as the full job: the tarball is fetched in the unpack step, and only when the
+      # cache missed, rather than on every checkout.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-          lfs: true
 
       - name: Install prerequisites
         run: brew install ccache gmp mpfr libmpc texinfo bison flex
@@ -277,28 +301,31 @@ jobs:
       # The Actions cache evicts an entry nothing has touched for a week, and the schedule above runs
       # weekly, so the cache is one missed run away from a rebuild that takes the best part of half
       # an hour. The committed tarball is the floor under that. It is only used when the recorded
-      # hash matches the build script it was made from, so editing that script falls back to a build
-      # rather than silently installing a toolchain nobody asked for.
+      # hash matches both scripts it was made from, so editing either one falls back to a build
+      # rather than silently installing a toolchain nobody asked for. Both, because the prefix in
+      # the tarball carries the cross built GMP as well as the compiler.
       - name: Unpack the committed toolchain
         id: unpack
         if: steps.toolchain.outputs.cache-hit != 'true'
         run: |
-          archive=vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst
           stamp=vendor/toolchain/built-from.sha256
-          if [ ! -f "$archive" ] || [ ! -f "$stamp" ]; then
+          if [ ! -f "$stamp" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "No committed toolchain, so it is being built from source." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh | cut -d' ' -f1)
+          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
+            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1)
           if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
-            echo "The committed toolchain was built from a different build_toolchain.sh, so it was ignored." \
+            echo "The committed toolchain was built from different scripts, so it was ignored." \
               >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          git lfs pull --include "vendor/toolchain/*"
           mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          zstd -d -c "$archive" | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
+          zstd -d -c vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst \
+            | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
           vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc --version
           echo "used=true" >> "$GITHUB_OUTPUT"
 
@@ -356,15 +383,20 @@ jobs:
         if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
         run: ./vendor/deps/build-gmp.sh
 
-      # What gets committed. Downloading this artifact and putting the two files where the unpack
-      # step looks is how the committed toolchain is refreshed after build_toolchain.sh changes.
+      # What gets committed. Downloading this artifact and putting the two files in vendor/toolchain
+      # is how the committed toolchain is refreshed after either build script changes.
+      #
+      # Built here rather than on a developer's machine on purpose. GCC records its configure line,
+      # and libtool and pkg-config files record their libdir, so the prefix is written into a
+      # hundred and twenty five files in the tree. A runner's prefix names nobody.
       - name: Package the toolchain for committing
         if: steps.unpack.outputs.used != 'true'
-        working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: |
-          du -sh install
-          tar -c -C install . | zstd -T0 -19 -o "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
-          shasum -a 256 build_toolchain.sh | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
+          prefix=vendor/ndl-src/ndl-sdk/toolchain/install
+          du -sh "$prefix"
+          tar -c -C "$prefix" . | zstd -T0 -19 -o "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
+          shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
+            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
           ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
 
       - uses: actions/upload-artifact@v7
