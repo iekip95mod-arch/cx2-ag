@@ -40,7 +40,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache libgmp-dev luajit python3
+            ninja-build cmake ccache pkg-config libgmp-dev \
+            luajit libluajit-5.1-dev python3
 
       - name: Restore compiler cache
         uses: actions/cache@v4
@@ -60,6 +61,15 @@ jobs:
 
       - name: Build
         run: cmake --build nps/build/host --parallel
+
+      # A suite that is not registered is silently not run, and -R reports success over the two that
+      # were. luax_host went missing this way when the runner had luajit but not its headers.
+      - name: Check all three suites are registered
+        run: |
+          found=$(ctest --test-dir nps/build/host -N -R '^(unit|luax_host|ui_smoke_v4)$' \
+                  | grep -c "Test *#")
+          echo "registered: $found"
+          test "$found" -eq 3
 
       - name: Unit, bridge and shell suites
         run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|luax_host|ui_smoke_v4)$'
@@ -85,7 +95,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache libgmp-dev luajit python3 php-cli
+            ninja-build cmake ccache pkg-config libgmp-dev \
+            luajit libluajit-5.1-dev python3 php-cli
 
       - name: Restore compiler cache
         uses: actions/cache@v4

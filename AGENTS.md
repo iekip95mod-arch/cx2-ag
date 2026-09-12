@@ -186,7 +186,7 @@ Check CMAKE_HOME_DIRECTORY and dependency roots in an existing build cache befor
 
 The ARM toolchain is not in this repository. vendor/ndl-src/ndl-sdk/toolchain tracks build_toolchain.sh and a gitignore and nothing else, and nspire-gcc is not tracked either, so a fresh clone cannot configure the device build until that toolchain has been built. That is why Actions does not gate on the ARM build, and why the device workflow is manual rather than running on every push.
 
-One consequence reaches the host suite. The package integrity checks inside the unit binary verify a built package against its sidecar, so without a device package they fail rather than skip. On a machine with an ARM build they pass. In a fresh clone or on a runner they do not, and that accounts for eighteen of the failures a clean checkout reports.
+The package integrity checks inside the unit binary stage their own packages in a temporary directory rather than needing a device build, so the ARM toolchain is not what decides them. They did fail on Linux for a while, all eighteen of them, because the staging path was written as /private/tmp, which exists on macOS and nowhere else. That is fixed. It is worth knowing as a shape rather than as a fact about those tests: a host suite that has only ever run on one platform can carry a path, a locale or a filesystem assumption that reads as a real failure on the first runner that sees it.
 
 Use resident_exit_lint, tidy, fuzz_run, document, probe and luax when relevant. FUZZ_CASES and FUZZ_SEED are CMake cache options. regold rewrites source fixtures and requires explicit review. Read generated reports for unmet requirements even when the reporting process exits successfully.
 

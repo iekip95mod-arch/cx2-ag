@@ -20,10 +20,22 @@ std::string sidecar_record(const std::string &digest, const std::string &basenam
     return digest + "  " + basename + "\n";
 }
 
+// /private/tmp is a macOS spelling. On Linux it does not exist, so every mkstemp and mkdtemp below
+// failed and took eighteen integrity checks down with it.
+std::string temporary_root() {
+    const char *from_environment = std::getenv("TMPDIR");
+    if (!from_environment || from_environment[0] == '\0')
+        return "/tmp";
+    std::string root = from_environment;
+    while (root.size() > 1 && root.back() == '/')
+        root.pop_back();
+    return root;
+}
+
 class TemporarySidecar {
    public:
     explicit TemporarySidecar(const std::string &contents) {
-        std::snprintf(path_, sizeof(path_), "/private/tmp/nps_integrity_XXXXXX");
+        std::snprintf(path_, sizeof(path_), "%s/nps_integrity_XXXXXX", temporary_root().c_str());
         const int descriptor = ::mkstemp(path_);
         if (descriptor < 0) {
             path_[0] = '\0';
@@ -57,7 +69,7 @@ class TemporarySidecar {
     const char *path() const { return path_; }
 
    private:
-    char path_[64] = {};
+    char path_[kIntegrityMaxPathLength + 1] = {};
     bool ready_ = false;
 };
 
@@ -95,8 +107,8 @@ class TemporaryDeployment {
    public:
     explicit TemporaryDeployment(const std::string &package_bytes,
                                  const std::string &basename = kUnifiedPackageBasename) {
-        char pattern[] = "/private/tmp/nps_deploy_XXXXXX";
-        const char *made = ::mkdtemp(pattern);
+        std::string pattern = temporary_root() + "/nps_deploy_XXXXXX";
+        const char *made = ::mkdtemp(pattern.data());
         if (!made)
             return;
         directory_ = made;
