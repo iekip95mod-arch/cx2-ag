@@ -181,9 +181,16 @@ jobs:
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: ./build_toolchain.sh
 
-      - name: Build the luna packager
-        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
-        run: make -j"$(nproc)"
+      # A cross compiler on its own does not link. The first run proved it: the toolchain built, and
+      # then cmake's compiler probe came back broken on three missing archives, because libsyscalls,
+      # libndls and nspireio are built from the SDK sources rather than shipped. build-tools pulls
+      # thirdparty in behind it, which is where nspireio lives and where luna comes from.
+      - name: Build the SDK libraries and tools
+        working-directory: vendor/ndl-src/ndl-sdk
+        run: |
+          export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
+          make build-libndls build-tools -j"$(nproc)"
+          ls lib
 
       - name: Configure
         run: |
