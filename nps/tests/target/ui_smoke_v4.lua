@@ -4274,8 +4274,7 @@ do
     env.on.paint(gc)
     env.addME("x", "x+1")
     env.fsize = 12
-    -- The stub raises on a size the handheld would reject, so the walk is protected and the
-    -- refusal is reported as a failed check rather than as an abandoned run.
+    -- The stub raises on a rejected size, so the walk is protected and reports a failed check.
     local climbed, fell = {}, {}
     local climbing = pcall(function()
         for _ = 1, 4 do env.fontUp() climbed[#climbed + 1] = env.fsize end
@@ -4290,7 +4289,7 @@ do
     check(falling and table.concat(fell, ",") == "16,12,11,10,9,7,7",
           "Decrease Font Size reaches the smallest accepted size and stops there: " ..
           table.concat(fell, ",") .. " refused=" .. tostring(refused))
-    env.fsize = 13
+    env.fsize = 14
     local stepped = pcall(env.fontDown)
     check(stepped and env.fsize == 12, "a font size off the accepted ladder steps onto it rather than past it")
     check(not refused, "every size the font menu hands the editor is one the handheld accepts")
