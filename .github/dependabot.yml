@@ -10,5 +10,3 @@ updates:
       interval: "weekly"
     labels:
       - tooling
-    commit-message:
-      prefix: ""
