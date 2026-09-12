@@ -162,6 +162,14 @@ jobs:
   # twenty.
   full:
     needs: fast
+    # The gate is for pushes, where a red fast suite means the full one would only repeat it more
+    # slowly. A dispatch is somebody asking for this job on purpose, and while issue 4 keeps the
+    # fast suite red the gate would otherwise mean this job never runs at all. Without the
+    # cancelled() call in front, a needs on a failed job skips this whatever the rest of the
+    # expression says.
+    if: >-
+      ${{ !cancelled() &&
+      (github.event_name == 'workflow_dispatch' || needs.fast.result == 'success') }}
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
