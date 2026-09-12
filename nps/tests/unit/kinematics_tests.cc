@@ -457,7 +457,7 @@ void run_kinematics_tests(TestSink &t) {
         t.evidence("PHYS-005",
                    s.answer == "t = 4 s" && has(s.rules, "kin.rearrange kin.substitute"),
                    "the physical equation is isolated symbolically before values are substituted");
-        t.equal(s.status, "solved but unchecked",
+        t.equal(s.status, "solved and corroborated",
                 "and the run is corroborated rather than verified, because Giac wrote the form it "
                 "is being asked about");
         t.check(giac.commands.size() == 2 && has(giac.commands[0], "solve(") &&
@@ -492,7 +492,7 @@ void run_kinematics_tests(TestSink &t) {
         struct Ending { const char *label; std::vector<std::string> replies;
                         std::vector<Survivor> survives; };
         const Ending endings[] = {
-            {"agreed", {"[[(v-v0)/a]]", "0"}, {{"criterion 4", 1}}},
+            {"agreed", {"[[(v-v0)/a]]", "0"}, {}},
             {"disagreed", {"[[(v+v0)/a]]", "1"}, {{"criterion 4", 1}, {"criterion 8", 3}}},
             {"could not compare", {"[[(v-v0)/a]]"}, {{"criterion 4", 1}}},
             {"declined", {"not an expression"}, {}},
@@ -545,7 +545,7 @@ void run_kinematics_tests(TestSink &t) {
         t.equal(s.answer, "t = 4 s", "the answer stands, because the linear solver reached it alone");
         t.check(!rearranged.empty() && rearranged != "((v + (-v0)) * (a^(-1)))",
                 "while the form beside it is a rearrangement no correct engine would return");
-        t.equal(s.status, "solved but unchecked",
+        t.equal(s.status, "solved and corroborated",
                 "so the derivation may not be read as verified on the strength of that comparison");
         t.check(s.failed_checks == 0, "and nothing is recorded as failed, because nothing disagreed");
     }

@@ -330,31 +330,39 @@ function View:backSpaceHandler()
 end
 
 
-function View:tabForward()
-	local nextFocus = self.currentFocus + 1
-	if nextFocus > #self.focusList then
-		nextFocus = 1
+-- One traversal for both directions, bounded by the list rather than by a visible widget existing.
+-- The two recursions this replaces had no way out when View:hide had emptied the visible set, and a
+-- stack overflow in a key handler resets the calculator. Same shape and same fix as V4.
+function View:stepFocus(delta)
+	local count = #self.focusList
+	if count == 0 then
+		return
 	end
-	self:setFocus(self.focusList[nextFocus])
-	if self:getFocus() then
-		if not self:getFocus().visible then
-			self:tabForward()
+	local index = self.currentFocus
+	for _ = 1, count do
+		index = index + delta
+		if index > count then
+			index = 1
+		end
+		if index < 1 then
+			index = count
+		end
+		if self.focusList[index].visible then
+			self:setFocus(self.focusList[index])
+			break
 		end
 	end
 	self:invalidate()
 end
 
 
+function View:tabForward()
+	self:stepFocus(1)
+end
+
+
 function View:tabBackward()
-	local nextFocus = self.currentFocus - 1
-	if nextFocus < 1 then
-		nextFocus = #self.focusList
-	end
-	self:setFocus(self.focusList[nextFocus])
-	if not self:getFocus().visible then
-		self:tabBackward()
-	end
-	self:invalidate()
+	self:stepFocus(-1)
 end
 
 
@@ -1760,14 +1768,27 @@ function applyFontSizeChange()
 	end
 end
 
-function fontDown()
-	fsize = fsize > 6 and (fsize - 1) or fsize
-	applyFontSizeChange()
-end
+do
+	-- TI restricts handheld sizes to "7, 9, 10, 11, 12, 16, or 24": https://education.ti.com/html/eguides/nspire/EG_Nspire/EN/content/eg_lua/m_libraries/2deditorlib/setfontsize.HTML
+	local SHELL_FONTS = { 7, 9, 10, 11, 12, 16, 24 }
 
-function fontUp()
-	fsize = fsize < 30 and (fsize + 1) or fsize
-	applyFontSizeChange()
+	function fontDown()
+		local chosen = SHELL_FONTS[1]
+		for _, size in ipairs(SHELL_FONTS) do
+			if size < fsize then chosen = size end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
+
+	function fontUp()
+		local chosen = SHELL_FONTS[#SHELL_FONTS]
+		for index = #SHELL_FONTS, 1, -1 do
+			if SHELL_FONTS[index] > fsize then chosen = SHELL_FONTS[index] end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
 end
 
 function menustring( ch )

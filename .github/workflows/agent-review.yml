@@ -148,6 +148,10 @@ jobs:
           # out: cmake -E environment prints every variable in the process, and this job is handed a
           # credential, on a public repository, into a log anybody can read. ctest -S runs a script.
           # Neither matches a prefix below.
+          #
+          # The read-only gh lines are repeated from .claude/settings.json rather than inherited.
+          # Measured on run 34696181673: with this flag set, gh pr view and gh issue list were both
+          # refused, so the list here replaces that file rather than adding to it.
           claude_args: |
             --max-turns 80
-            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue create:*),Read,Grep,Glob"
+            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"

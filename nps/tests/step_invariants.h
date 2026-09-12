@@ -391,15 +391,19 @@ class Pass {
 
             if (step.kind == StepKind::Transformation) {
                 looked_at("4");
-                bool passed_and_readable = false;
+                // A check that ran, agreed and was not independent is a third answer, not the
+                // absence of one. It is weaker than a pass and the derivation status says so, but
+                // demanding a pass here would ask an engine to overstate what it did.
+                bool checked_and_readable = false;
                 for (size_t v = 0; v < step.verifications.size(); ++v) {
-                    if (step.verifications[v].outcome == VerificationOutcome::Passed &&
-                        !step.verifications[v].method.empty())
-                        passed_and_readable = true;
+                    const VerificationRecord &record = step.verifications[v];
+                    if ((record.outcome == VerificationOutcome::Passed || record.corroborates()) &&
+                        !record.method.empty())
+                        checked_and_readable = true;
                 }
-                if (!passed_and_readable)
+                if (!checked_and_readable)
                     broke(broken, "4",
-                          "a transformation with no passing verification naming its method");
+                          "a transformation with no verification naming its method");
             }
 
             if (major(derivation, id) && step.kind != StepKind::Branch) {
@@ -923,7 +927,14 @@ class Pass {
         // was held here. A check that disagreed or could not run is worth nothing, so a record that
         // kept its method's passing strength overstates what the step established.
         const EvidenceStrength owed = strength_for(record.outcome, alternative.strength);
-        if (record.strength != owed)
+        // Inconclusive is the one outcome with two readings, and the record cannot separate them:
+        // a check that could not evaluate and one that agreed without being independent write the
+        // same two fields. The schema is asked instead, so a method that cannot corroborate is
+        // still caught claiming its own passing strength on an outcome that did not earn it.
+        const bool corroborated = alternative.may_corroborate &&
+                                  record.outcome == VerificationOutcome::Inconclusive &&
+                                  record.strength == alternative.strength;
+        if (record.strength != owed && !corroborated)
             broke(broken, "VER-016",
                   std::string("the rule ") + schema.rule_id + " recorded " + obligation.id + " by " +
                       record.method + " as " + verification_outcome_name(record.outcome) + " at " +

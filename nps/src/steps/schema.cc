@@ -316,7 +316,7 @@ const EvidenceAlternative kLawApplicability[] = {
     {"checked physical-law applicability", EvidenceStrength::StructurallyValid},
 };
 const EvidenceAlternative kGiacZero[] = {
-    {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+    {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
 };
 const EvidenceAlternative kGiacSimplify[] = {
     {"Giac Simplify and local canonical comparison",
@@ -370,7 +370,7 @@ const ObligationSchema kKinematicsConversion[] = {
 // checks the catalog against this table rather than trusting the two runtime populations.
 const EvidenceAlternative kBackendSolve[] = {
     {"backend solve, checked by backend is_zero",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
 };
 const ObligationSchema kSymbolicIsolation[] = {
     {"obl.kinematics.symbolic-isolation",

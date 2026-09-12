@@ -1256,11 +1256,14 @@ void test_outcome_from(TestSink &t) {
                 "a user cancellation that kept a prefix has its own name");
         t.equal(derivation_status_name(DerivationStatus::SolvedButUnchecked), "solved but unchecked",
                 "and so does an answer whose independent check could not run");
+        t.equal(derivation_status_name(DerivationStatus::SolvedAndCorroborated),
+                "solved and corroborated",
+                "and so does an answer whose check ran, agreed, and was not independent of it");
         t.check(derivation_status_in_range(
-                    static_cast<uint64_t>(DerivationStatus::SolvedButUnchecked)),
-                "both are readable back out of a serialized context");
+                    static_cast<uint64_t>(DerivationStatus::SolvedAndCorroborated)),
+                "all three are readable back out of a serialized context");
         t.check(!derivation_status_in_range(
-                    static_cast<uint64_t>(DerivationStatus::SolvedButUnchecked) + 1),
+                    static_cast<uint64_t>(DerivationStatus::SolvedAndCorroborated) + 1),
                 "and the bound still refuses the value above them");
     }
 }

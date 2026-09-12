@@ -655,7 +655,10 @@ VerificationRecord giac_derivative_agrees(Arena &arena, Backend &giac, Meter &me
         v.outcome = VerificationOutcome::Inconclusive;
         v.detail = "Giac agrees, but Giac was also asked for part of the answer it is checking, so "
                    "this corroborates the result rather than proving it";
-        v.strength = strength_for(v.outcome, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+        // Set rather than derived, because the three Inconclusive records above are checks that
+        // could not evaluate and this one is a check that ran and agreed. strength_for cannot tell
+        // those apart, so it gives all four the Unsupported the other three want.
+        v.strength = EvidenceStrength::SymbolicallyEquivalentUnderAssumptions;
         return v;
     }
     v.outcome = VerificationOutcome::Passed;
