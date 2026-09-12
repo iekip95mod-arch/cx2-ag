@@ -25,12 +25,13 @@ export function normalize(event, body) {
   if (body?.repository?.full_name !== repository) return null;
   if (event === 'workflow_run') {
     const run = body.workflow_run;
-    if (body.action !== 'completed' || !['check', 'agent-review'].includes(run?.name)) return null;
+    const workflow = ['check', 'agent-review'].find(name => run?.path === `.github/workflows/${name}.yml`);
+    if (body.action !== 'completed' || !workflow) return null;
     if (!shaPattern.test(run.head_sha) || !number(run.id)) return null;
     if (!['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure'].includes(run.conclusion)) return null;
     const prs = [...new Set((run.pull_requests ?? []).map(pr => pr.number).filter(number))];
     if (!prs.length) return null;
-    return { repository, event, action: body.action, prs, sha: run.head_sha, workflow: run.name, conclusion: run.conclusion, run: run.id };
+    return { repository, event, action: body.action, prs, sha: run.head_sha, workflow, conclusion: run.conclusion, run: run.id };
   }
   const pr = body.pull_request;
   if (!number(pr?.number) || !shaPattern.test(pr?.head?.sha)) return null;

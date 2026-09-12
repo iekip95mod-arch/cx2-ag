@@ -48,10 +48,10 @@ test('unauthorized, malformed and unrelated deliveries cannot enter the inbox', 
   assert.equal((await worker.fetch(new Request('https://receiver.test/github', { method: 'POST', body: 'x'.repeat(1048577) }), env)).status, 413);
 });
 test('only relevant CI and review events are retained', () => {
-  const run = { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name: 'check', conclusion: 'failure', pull_requests: [{ number: 84 }, { number: 85 }] } };
+  const run = { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name: 'check', path: '.github/workflows/check.yml', conclusion: 'failure', pull_requests: [{ number: 84 }, { number: 85 }] } };
   assert.deepEqual(normalize('workflow_run', run).prs, [84, 85]);
   assert.equal(normalize('workflow_run', { ...run, action: 'in_progress' }), null);
-  assert.equal(normalize('workflow_run', { ...run, workflow_run: { ...run.workflow_run, name: 'unrelated' } }), null);
+  assert.equal(normalize('workflow_run', { ...run, workflow_run: { ...run.workflow_run, path: '.github/workflows/unrelated.yml' } }), null);
   assert.equal(normalize('pull_request_review', { ...review, review: { state: 'commented' } }), null);
   assert.equal(normalize('pull_request', { ...review, action: 'closed', pull_request: { ...review.pull_request, merged: true } }).merged, true);
 });
@@ -60,12 +60,21 @@ test('storage errors reject delivery for redelivery', async () => {
   assert.equal((await worker.fetch(request(), env)).status, 503);
 });
 
+test('workflow paths route renamed review runs and reject unrelated workflows', () => {
+  for (const name of ['Review PR #85 (requested)', 'Review PR #85 (metadata)']) {
+    const run = { repository, action: 'completed', workflow_run: { id: 34719249175, head_sha: sha, name, path: '.github/workflows/agent-review.yml', conclusion: 'success', pull_requests: [{ number: 85 }] } };
+    assert.equal(normalize('workflow_run', run)?.workflow, 'agent-review');
+    assert.equal(normalize('workflow_run', { ...run, workflow_run: { ...run.workflow_run, name: 'agent-review', path: '.github/workflows/unrelated.yml' } }), null);
+    assert.equal(normalize('workflow_run', { ...run, workflow_run: { ...run.workflow_run, name: 'agent-review', path: undefined } }), null);
+  }
+});
+
 test('every supported notification route persists its exact metadata', async () => {
   const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
   const cases = [];
   for (const name of ['check', 'agent-review']) {
     for (const conclusion of ['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure']) {
-      cases.push({ event: 'workflow_run', body: { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name, conclusion, pull_requests: [{ number: 84 }] } }, expected: { repository: repository.full_name, event: 'workflow_run', action: 'completed', prs: [84], sha, workflow: name, conclusion, run: 123 } });
+      cases.push({ event: 'workflow_run', body: { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name: name === 'agent-review' ? 'Review PR #84 (requested)' : name, path: `.github/workflows/${name}.yml`, conclusion, pull_requests: [{ number: 84 }] } }, expected: { repository: repository.full_name, event: 'workflow_run', action: 'completed', prs: [84], sha, workflow: name, conclusion, run: 123 } });
     }
   }
   for (const state of ['approved', 'changes_requested', 'dismissed']) {
