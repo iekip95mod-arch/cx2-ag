@@ -1,0 +1,66 @@
+name: Task for an agent
+description: Work you want picked up, scoped so two agents cannot collide
+labels: [task]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This one is an assignment rather than a finding. Filing it does not start anything: add the
+        claude label when you want it worked, or write @claude, @codex or @gemini in a comment.
+
+        The fields below are the four things a teammate cannot infer from the repository, and an
+        assignment missing any of them is the one that comes back done wrong.
+  - type: textarea
+    id: goal
+    attributes:
+      label: What done looks like
+      description: The finish condition, in terms of something observable. Not the steps to get there.
+      placeholder: ui_smoke_v4 covers the hint ladder, and reverting nps_v4.lua turns it red.
+    validations:
+      required: true
+  - type: textarea
+    id: owned
+    attributes:
+      label: Files this task owns
+      description: |
+        Paths, one per line. Anything not listed is off limits, which is what stops two agents
+        editing the same file. Say so here if a shared file has to be touched.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What is already known
+      description: |
+        Findings, issue numbers, the commands that were already run and what they printed. An agent
+        that has to rediscover this spends its budget doing so.
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Which stage has to be reached
+      description: Host is what a commit can claim. Anything past ARM needs hardware nobody on CI has.
+      options:
+        - Host build and host suite
+        - Host suite plus an ARM compile
+        - Emulator
+        - Physical device
+    validations:
+      required: true
+  - type: textarea
+    id: outofscope
+    attributes:
+      label: Out of scope
+      description: |
+        Optional, and worth writing. Pre-existing defects found along the way get filed as their own
+        issue rather than fixed here.
+  - type: checkboxes
+    id: labels
+    attributes:
+      label: Subsystem
+      options:
+        - label: nps-v4 (Ki V4 Lua shell and step viewer)
+        - label: bridge (the Lua and C++ module boundary)
+        - label: device-only (cannot be exercised on the host)

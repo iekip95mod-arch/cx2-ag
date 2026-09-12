@@ -1,0 +1,5 @@
+# Left on. An agent filing through gh issue create writes its own body and never sees a form, and
+# the forms here exist to shape what a person types rather than to be the only way in. Turning this
+# off would refuse the most common filing path in this repository. AGENTS.md carries the headings to
+# use when the body is written by hand.
+blank_issues_enabled: true

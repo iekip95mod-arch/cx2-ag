@@ -54,6 +54,33 @@ Everything under the workspaces directory is ignored, as are the build trees and
 
 An issue is worth filing when a finding outlives the session that found it. Give it the file and line, a failure scenario concrete enough to act on, the reproduction you ran with its output, and whether you confirmed it or reasoned it. A finding with no run is a hypothesis and the issue should say so in its own words rather than implying more.
 
+There are six forms under .github/ISSUE_TEMPLATE, and you will not see any of them. A YAML issue form only renders in the browser, and gh issue create takes a body you wrote rather than a form you filled, so an agent filing from the shell writes the headings by hand. Write these ones, so an issue filed from a terminal and an issue filed from a browser read the same and the same tooling can parse both.
+
+| Form | Headings, in order |
+| --- | --- |
+| defect | File and line, Failure scenario, Reproduction and its output, Which stage did you reach, Where the fix belongs |
+| hazard | File and line, How a failure becomes reachable, What you checked |
+| test-quality | File and line, What the check is supposed to prove, The mutation that should have broken it |
+| evidence-gap | Where the claim is written, What it claims, What the evidence actually shows |
+| deferred | File and line, The fix that belongs here, What stays broken until it lands, Why it was scoped out |
+| task | What done looks like, Files this task owns, What is already known, Which stage has to be reached, Out of scope |
+
+Each heading is a level three heading on its own line, with the answer under it:
+
+~~~sh
+gh issue create --repo "$REPO" --label defect,steps --title "..." --body-file - <<'BODY'
+### File and line
+
+nps/src/steps/linear.cc:214
+
+### Failure scenario
+
+...
+BODY
+~~~
+
+The task form is the one that is not a finding. It is an assignment, and filing it starts nothing: the claude label is what hands it over, which is also why filing a finding no longer wakes an agent.
+
 Labels come in three groups. Take one from the first, one from the second, and as many from the third as are true.
 
 | Group | Labels |
