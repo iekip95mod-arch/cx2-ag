@@ -130,10 +130,15 @@ jobs:
             ARM cross toolchain is not installed here, so the device stages are not yours to reach
             and the verdict says so.
 
-            The suite is RED on main for five failures that are nothing to do with any branch you
-            will see: two vector_components golden rows and three criterion 4 invariant rows, all
-            from issue #4. Establish that baseline on the base commit before you judge the branch,
-            and hold the branch to "the same five and no others". A sixth is the branch's.
+            Establish the baseline on the base commit before you judge the branch, and hold the
+            branch to the number you measured rather than to a number written down here. Do not
+            take a count from this prompt. The line that used to sit here named five known
+            failures, they were fixed by issue #4, and a reviewer reading it afterwards would have
+            been told to accept five failures that no longer exist. Measure, then compare.
+
+            git worktree add is how you get that baseline without disturbing the branch you are
+            judging. Check out the base commit into a directory under .Internal/workspaces/, build
+            and run there, and keep the branch tree for the branch.
 
             Finish by posting a review with gh pr review, --approve or --request-changes. A review
             that only lists findings is not an approval, and the merge gate reads the approval rather
@@ -152,6 +157,13 @@ jobs:
           # The read-only gh lines are repeated from .claude/settings.json rather than inherited.
           # Measured on run 34696181673: with this flag set, gh pr view and gh issue list were both
           # refused, so the list here replaces that file rather than adding to it.
+          #
+          # fetch, worktree, checkout and merge-base are here because a reviewer with none of them
+          # cannot reach the base commit, and a baseline is half of what a review is. Run
+          # 34702887258 is the evidence: it gave up after six minutes saying checkout and worktree
+          # add were refused, tried to rebuild main in place with git apply -R, and posted no
+          # verdict at all. None of the four can publish anything, and the checkout above is already
+          # fetch-depth 0, so the base commit is present and only the spelling was missing.
           claude_args: |
             --max-turns 80
-            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
+            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git checkout:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
