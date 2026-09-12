@@ -5,9 +5,11 @@ import { reviewState, waitForReview } from './wait-for-review.mjs';
 const repository = 'iekip95mod-arch/cx2-ag';
 const sha = 'a'.repeat(40);
 const run = (id, extra = {}) => ({ id, head_sha: sha, pull_requests: [{ number: 85 }], status: 'completed', conclusion: 'success', ...extra });
-function fixture(runs, { current = { head: { sha }, state: 'open', draft: false }, jobs = [{ name: 'review-approved', status: 'completed', conclusion: 'success' }] } = {}) {
+const approval = (id = 1, extra = {}) => ({ id, commit_id: sha, state: 'APPROVED', user: { login: 'github-actions[bot]', type: 'Bot' }, ...extra });
+function fixture(runs, { current = { head: { sha, ref: 'codex/review-gate' }, labels: [], state: 'open', draft: false }, jobs = [{ name: 'review-approved', status: 'completed', conclusion: 'success' }], reviews = [approval()] } = {}) {
   return async endpoint => {
     if (endpoint.endsWith('/pulls/85')) return current;
+    if (endpoint.endsWith('/pulls/85/reviews?per_page=100')) return [reviews];
     if (endpoint.includes('/workflows/')) return [{ workflow_runs: runs }];
     assert.match(endpoint, /\/actions\/runs\/\d+\/jobs\?filter=latest&per_page=100$/);
     return [{ jobs }];
@@ -44,4 +46,21 @@ test('pending review waits, completed approval releases and missing review times
 });
 test('API errors fail closed', async () => {
   await assert.rejects(reviewState(async () => { throw Error('API unavailable'); }, repository, 85, sha), /API unavailable/);
+});
+test('dismissed and superseded approvals cannot release CodeQL', async () => {
+  for (const state of ['DISMISSED', 'CHANGES_REQUESTED', 'COMMENTED']) {
+    await assert.rejects(reviewState(fixture([run(1)], { reviews: [approval(1, { state })] }), repository, 85, sha));
+    await assert.rejects(reviewState(fixture([run(1)], { reviews: [approval(2, { state }), approval(1)] }), repository, 85, sha));
+  }
+  assert.equal(await reviewState(fixture([run(1)], { reviews: [approval(2), approval(1, { state: 'CHANGES_REQUESTED' })] }), repository, 85, sha), 'approved');
+});
+test('only the selected provider bot can approve the current revision', async () => {
+  for (const reviews of [[], [approval(1, { commit_id: 'b'.repeat(40) })], [approval(1, { user: { login: 'claude[bot]', type: 'Bot' } })], [approval(1, { user: { login: 'github-actions[bot]', type: 'User' } })]]) {
+    await assert.rejects(reviewState(fixture([run(1)], { reviews }), repository, 85, sha));
+  }
+  for (const [ref, labels, bot] of [['claude/fix', [], 'claude[bot]'], ['codex/fix', [{ name: 'claude-review' }], 'claude[bot]'], ['claude/fix', [{ name: 'codex-review' }], 'github-actions[bot]']]) {
+    const current = { head: { sha, ref }, state: 'open', labels };
+    assert.equal(await reviewState(fixture([run(1)], { current, reviews: [approval(1, { user: { login: bot, type: 'Bot' } })] }), repository, 85, sha), 'approved');
+  }
+  await assert.rejects(reviewState(fixture([run(1)], { current: { head: { sha, ref: 'codex/fix' }, state: 'open', labels: [{ name: 'claude-review' }, { name: 'codex-review' }] } }), repository, 85, sha));
 });

@@ -14,6 +14,13 @@ export async function reviewState(read, repository, pr, sha) {
   const jobs = await read(`${prefix}/actions/runs/${latest.id}/jobs?filter=latest&per_page=100`, true);
   const approval = jobs.flatMap(page => page.jobs).find(job => job.name === 'review-approved');
   if (approval?.status !== 'completed' || approval.conclusion !== 'success') throw Error('The review approval gate did not pass');
+  const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
+  if (labels.length > 1) throw Error('Keep only the selected provider review label');
+  const provider = labels[0] ?? (current.head.ref.startsWith('codex/') ? 'codex-review' : 'claude-review');
+  const bot = provider === 'codex-review' ? 'github-actions[bot]' : 'claude[bot]';
+  const reviews = await read(`${prefix}/pulls/${pr}/reviews?per_page=100`, true);
+  const latestReview = reviews.flat().filter(review => review.commit_id === sha && review.user.login === bot && review.user.type === 'Bot').sort((a, b) => b.id - a.id)[0];
+  if (latestReview?.state !== 'APPROVED') throw Error('The selected reviewer no longer approves this PR revision');
   return 'approved';
 }
 

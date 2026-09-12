@@ -233,7 +233,7 @@ jobs:
   # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
   # the analysis an empty database and the job would still pass.
   review-ready:
-    needs: fast
+    needs: [fast, full, emulator]
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions:

@@ -20,7 +20,7 @@ end
 codeql = jobs.fetch('codeql')
 failures << 'CodeQL must wait for every execution gate and reviewer approval' unless Array(codeql['needs']).sort == ['emulator', 'fast', 'full', 'review-ready'] && codeql['if'].nil?
 review = jobs.fetch('review-ready')
-failures << 'Review readiness must follow fast without bypassing failed approval' unless Array(review['needs']) == ['fast'] && review['if'].nil? && !review['continue-on-error']
+failures << 'Review readiness must follow execution without bypassing failed approval' unless Array(review['needs']).sort == ['emulator', 'fast', 'full'] && review['if'].nil? && !review['continue-on-error']
 failures << 'Review readiness must use a read-only token' unless review['permissions'] == { 'contents' => 'read', 'actions' => 'read', 'pull-requests' => 'read' }
 gate = review.fetch('steps').find { |step| step['run'] == 'node .github/scripts/wait-for-review.mjs' }
 failures << 'Review readiness must target the PR head and number' unless gate && gate.dig('env', 'PR_NUMBER') == '${{ github.event.pull_request.number }}' && gate.dig('env', 'PR_HEAD_SHA') == '${{ github.event.pull_request.head.sha }}' && !gate.key?('if') && !gate['continue-on-error']
