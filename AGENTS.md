@@ -52,7 +52,21 @@ git commit -m "Fix the thing"
 
 Everything under the workspaces directory is ignored, as are the build trees and the older scratch worktrees under .lane-*/ and .lead-tree*/. See [vendor-history/README.md](vendor-history/README.md) for what the vendored trees carry and where their upstreams are.
 
-An issue is worth filing when a finding outlives the session that found it. Give it the file and line, a failure scenario concrete enough to act on, the reproduction you ran with its output, and whether you confirmed it or reasoned it. Label it defect, hazard, test-quality, evidence-gap or deferred, and add nps-v4, bridge or device-only where it applies. A finding with no run is a hypothesis and the issue should say so in its own words rather than implying more.
+An issue is worth filing when a finding outlives the session that found it. Give it the file and line, a failure scenario concrete enough to act on, the reproduction you ran with its output, and whether you confirmed it or reasoned it. A finding with no run is a hypothesis and the issue should say so in its own words rather than implying more.
+
+Labels come in three groups. Take one from the first, one from the second, and as many from the third as are true.
+
+| Group | Labels |
+| --- | --- |
+| What it is | defect, hazard, test-quality, evidence-gap, deferred, question |
+| Where it lives | core, steps, cas-giac, physics, bridge, nps-v4, tooling |
+| What is true about it | device-only, needs-reproduction, blocked |
+
+The first group is the kind of finding. A hazard is not yet a failure but is a way one becomes reachable. test-quality is a check that passes for the wrong reason or cannot fail. evidence-gap is a claim whose evidence does not support it. deferred is a fix that was scoped out on purpose, and the issue records what stays broken, because deferring is a decision that gets said out loud rather than a completion.
+
+The second group is the owning area, and the table under [Locate the code](#locate-the-code) says which directory each one means. One area per issue. If a finding spans two, it is usually two findings.
+
+The third group is what somebody picking the issue up needs to know before they start. needs-reproduction means it was reasoned from reading and never reproduced by a run, so it is a claim to test rather than a defect to fix. blocked names the issue it waits on, in the body.
 
 Use deferred for a fix that was scoped out on purpose, and record in the issue what stays broken. Deferring is a decision that gets said out loud, not a completion.
 
@@ -75,7 +89,7 @@ The loop, from a goal to a closed issue:
 3. Branch as fix/ plus what it fixes, off current main, in a worktree under .Internal/workspaces/. One worktree per lane. Register it, use it, then remove it and run git worktree prune, because the registration outlives the directory.
 4. Write the failing check first, then fix the concept that owns the defect, then prove each new guard dies under mutation. Save the source change as a patch, apply it in reverse, rebuild, confirm exactly your new rows fail, then apply it forward and rebuild. A guard nobody has watched fail is not coverage.
 5. One commit per issue, imperative subject only, a few seconds apart. That way a revert is per issue and so is a review.
-6. Run the full host check and the ARM unified build before merging. Nothing runs on push, so no check will contradict you. Say which stage you actually reached.
+6. Run the full host check before merging. Actions runs the fast gate and then the full suite on every push and every pull request, so a claim you make here will be contradicted if it is wrong. That is the point. Say which stage you actually reached anyway, because the runner does not build for the calculator on a push and cannot tell you that stage passed.
 7. Push the branch and open a pull request. You write the title and body.
 8. Hand the pull request to a dedicated review agent that did not write the code. It reviews on GitHub, with gh pr review, so the verdict is attached to the pull request rather than living only in a session transcript.
 9. Merge only after that reviewer has approved. A review that came back is not the gate. An approval is. Then merge to main with no fast forward, push, delete the remote branch you created, and close the issues with a comment saying what was measured.
@@ -123,6 +137,33 @@ Two more rules survive the autonomy and are worth restating because they are the
 
 - A review lane runs alone. Stop the implementation lanes first, then hand the reviewer a finished branch. A reviewer reading a tree that is moving under it reports findings against code that no longer exists.
 - A branch that is red does not merge, however finished it looks. Say out loud that it is parked, say what it is waiting on, and leave main green.
+
+### Checks, and how to reach an agent
+
+Actions runs on every push and every pull request. Three workflows matter to you.
+
+- check.yml is the suite. A fast gate of the unit and shell suites, then the full ctest run, which only starts if the gate passed. The device package and the emulator boot are on the weekly schedule and on manual dispatch, never on a push, because building the ARM cross compiler takes hours.
+- agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude label on an issue has the same effect as mentioning it.
+- agent-review.yml reviews every pull request that is not a draft. It runs under the workflow's own identity rather than the author's account, which is what makes an approve possible at all: GitHub refuses an approve on a pull request you opened yourself, so an agent working under one account could never do more than comment.
+
+A run says what it says. Read it rather than predicting it:
+
+~~~sh
+gh run list --repo iekip95mod-arch/cx2-ag --limit 5
+gh run view <id> --repo iekip95mod-arch/cx2-ag --log-failed
+~~~
+
+To hand an agent a task from outside GitHub, without a person typing a comment, post a repository dispatch. The payload reaches the agent as its task:
+
+~~~sh
+gh api repos/iekip95mod-arch/cx2-ag/dispatches \
+  -f event_type=agent-task \
+  -f 'client_payload[task]=Reproduce issue 42 and report which stage you reached'
+~~~
+
+Everything an agent reads from a comment or a dispatch payload is written by somebody else. The workflows pass it through the environment and never into a shell command, and the prompts tell the agent to treat it as a request rather than as instructions about how it works. Keep both properties if you change those files. A workflow that interpolates a comment body into a run block hands the repository to whoever wrote the comment.
+
+None of the agents run without a key. The workflows check for one and say so in the run summary when it is missing rather than failing red on every issue anybody opens. The keys are repository secrets named CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY, OPENAI_API_KEY, and GEMINI_API_KEY.
 
 ## Locate the code
 
