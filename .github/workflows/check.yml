@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev \
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev \
             luajit libluajit-5.1-dev python3
 
       - name: Restore compiler cache
@@ -50,6 +50,12 @@ jobs:
           key: ccache-fast-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             ccache-fast-${{ runner.os }}-
+
+      # nps_hash_inputs treats the luna packager as a manifest input, at nps/CMakeLists.txt:249, and
+      # the SDK tracks its sources but gitignores the binary. Configure fails until a runner builds it.
+      - name: Build the luna packager
+        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
+        run: make -j"$(nproc)"
 
       - name: Configure
         run: |
@@ -95,7 +101,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev \
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev \
             luajit libluajit-5.1-dev python3 php-cli
 
       - name: Restore compiler cache
@@ -105,6 +111,10 @@ jobs:
           key: ccache-full-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             ccache-full-${{ runner.os }}-
+
+      - name: Build the luna packager
+        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
+        run: make -j"$(nproc)"
 
       - name: Configure
         run: |
@@ -141,7 +151,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             ninja-build cmake ccache libgmp-dev libmpfr-dev python3 \
-            build-essential texinfo bison flex wget
+            build-essential texinfo bison flex wget zlib1g-dev
 
       # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
       # is paid once and then reused until that script changes.
@@ -156,6 +166,10 @@ jobs:
         if: steps.toolchain.outputs.cache-hit != 'true'
         working-directory: vendor/ndl-src/ndl-sdk/toolchain
         run: ./build_toolchain.sh
+
+      - name: Build the luna packager
+        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
+        run: make -j"$(nproc)"
 
       - name: Configure
         run: |
