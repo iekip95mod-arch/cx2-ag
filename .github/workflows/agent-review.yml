@@ -27,21 +27,30 @@ jobs:
   select-reviewer:
     if: >-
       github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
       pull-requests: read
     outputs:
       reviewer: ${{ steps.reviewer.outputs.reviewer }}
       requested: ${{ steps.reviewer.outputs.requested }}
       before: ${{ steps.before.outputs.ids }}
+      app_id: ${{ steps.identity.outputs.app_id }}
+      secret_name: ${{ steps.identity.outputs.secret_name }}
+      login: ${{ steps.identity.outputs.login }}
+      user_id: ${{ steps.identity.outputs.user_id }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.user.type == 'User' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
           persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Require a trusted PR author
+        run: node .github/scripts/wait-for-review.mjs --trust-author
       - name: Test reviewer selection
         run: |
           ruby .github/scripts/test-review-routing.rb
@@ -91,12 +100,17 @@ jobs:
           echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
           echo "requested=$requested" >> "$GITHUB_OUTPUT"
 
+      - name: Reserve the reviewer identity
+        id: identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROVIDER: ${{ steps.reviewer.outputs.reviewer }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/bot-identities.mjs allocate --provider "$PROVIDER" --role reviewer --pr "$PR"
+
   review:
     needs: select-reviewer
-    # A draft is not finished, and reviewing a moving tree is the failure the review lane exists to
-    # avoid. A label event fires for every label, so only the one that means this starts a run. The
-    # bot test is for the dependabot pull requests: the action refuses a bot author anyway, so
-    # without it every action bump starts a job that installs half a toolchain and then declines.
+    # Metadata labels reuse the existing approval without starting another review.
     if: needs.select-reviewer.outputs.reviewer == 'claude' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
@@ -111,13 +125,12 @@ jobs:
         id: key
         env:
           OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          API: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -n "$OAUTH" ] || [ -n "$API" ]; then
+          if [ -n "$OAUTH" ]; then
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
             echo "have=false" >> "$GITHUB_OUTPUT"
-            echo "No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is set, so no review was posted." \
+            echo "No CLAUDE_CODE_OAUTH_TOKEN is set, so no review was posted." \
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -125,6 +138,24 @@ jobs:
         if: steps.key.outputs.have == 'true'
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authenticate the assigned reviewer
+        id: bot
+        if: steps.key.outputs.have == 'true'
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ needs.select-reviewer.outputs.app_id }}
+          private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Verify the reviewer App identity
+        if: steps.key.outputs.have == 'true'
+        env:
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
+        run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
 
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
@@ -208,7 +239,10 @@ jobs:
         uses: anthropics/claude-code-action@56cf60fde42f7b19c3abfd5c9c48b69a1288461f
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ steps.bot.outputs.token }}
+          bot_id: ${{ needs.select-reviewer.outputs.user_id }}
+          bot_name: ${{ needs.select-reviewer.outputs.login }}
+          allowed_bots: ${{ github.event.pull_request.user.type == 'Bot' && github.event.pull_request.user.login || '' }}
           track_progress: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -404,13 +438,25 @@ jobs:
           codex exec --sandbox workspace-write -c approval_policy='"never"' \
             --ephemeral --output-schema "$RUNNER_TEMP/review-schema.json" \
             --output-last-message "$RUNNER_TEMP/codex-review.json" - < "$RUNNER_TEMP/review-prompt.txt"
+      - name: Authenticate the assigned reviewer
+        id: bot
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ needs.select-reviewer.outputs.app_id }}
+          private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
       - name: Publish the review for the reviewed commit
+        id: publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
         run: |
+          test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
           test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"
           jq -e '(.verdict == "APPROVED" or .verdict == "CHANGES_REQUESTED") and (.body | type == "string" and length > 0)' "$RUNNER_TEMP/codex-review.json" > /dev/null
           jq --arg sha "$HEAD_SHA" '{commit_id: $sha, event: (if .verdict == "APPROVED" then "APPROVE" else "REQUEST_CHANGES" end), body: .body}' "$RUNNER_TEMP/codex-review.json" > "$RUNNER_TEMP/review-request.json"
@@ -422,34 +468,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read
       pull-requests: read
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.user.type == 'User' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
       - name: Require a fresh approval from the selected reviewer
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REVIEWER: ${{ needs.select-reviewer.outputs.reviewer }}
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
           CLAUDE_RESULT: ${{ needs.review.result }}
           CODEX_RESULT: ${{ needs.codex-review.result }}
           SELECT_RESULT: ${{ needs.select-reviewer.result }}
           REVIEW_REQUESTED: ${{ needs.select-reviewer.outputs.requested }}
-        run: |
-          test "$SELECT_RESULT" = success
-          case "$REVIEWER" in
-            claude) bot='claude[bot]'; provider_result=$CLAUDE_RESULT ;;
-            codex) bot='github-actions[bot]'; provider_result=$CODEX_RESULT ;;
-            *) exit 1 ;;
-          esac
-          case "$REVIEW_REQUESTED" in
-            true) test "$provider_result" = success ;;
-            false) BEFORE='[]' ;;
-            *) exit 1 ;;
-          esac
-          test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"
-          gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews" | jq -e \
-            --arg sha "$HEAD_SHA" --arg bot "$bot" --argjson before "$BEFORE" \
-            '[.[][] | select(.commit_id == $sha and .user.login == $bot and .user.type == "Bot") | select(.id as $id | $before | index($id) | not)] | sort_by(.id) | last | .state == "APPROVED"'
+        run: node .github/scripts/wait-for-review.mjs --approval-gate

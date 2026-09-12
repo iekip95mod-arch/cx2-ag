@@ -64,11 +64,31 @@ puts "#{fixtures.length} credential cases passed"
 
 worker = workflow.fetch('jobs').fetch('respond')
 claim = worker.fetch('steps').find { |step| step['id'] == 'worker' }
-raise 'Issue work must use the scoped publishing token' unless claim.fetch('env').fetch('GH_TOKEN') == '${{ secrets.CODEX_GITHUB_TOKEN }}'
+raise 'Issue work must use the scoped publishing token' unless claim.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot-token.outputs.token }}'
 raise 'Issue work must claim its branch before running Codex' unless claim.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs'
 execution = worker.fetch('steps').find { |step| step['name'] == 'Run Codex with saved login' }
 raise 'Codex must inherit its publishing credential' unless execution.fetch('run').include?('shell_environment_policy.ignore_default_excludes=true')
 raise 'Codex must run inside its assigned checkout' unless execution.fetch('run').include?('--cd "$WORKER_DIRECTORY"')
-raise 'General responses must not receive publishing credentials' unless execution.fetch('env').fetch('GH_TOKEN') == "${{ steps.worker.outputs.issue && secrets.CODEX_GITHUB_TOKEN || '' }}"
+raise 'General responses must not receive publishing credentials' unless execution.fetch('env').fetch('GH_TOKEN') == "${{ steps.worker.outputs.issue && steps.bot-token.outputs.token || '' }}"
 raise 'Default Actions token must remain read-only for contents' unless worker.fetch('permissions').fetch('contents') == 'read'
-puts '6 worker credential contracts passed'
+%w[agent-codex.yml agent.yml].each do |name|
+  executor = YAML.load_file(File.join(root, '.github/workflows', name))
+  jobs = executor.fetch('jobs')
+  allocator = jobs.fetch('allocate')
+  raise "#{name}: lease allocation needs isolated contents write" unless allocator.fetch('permissions').fetch('contents') == 'write'
+  raise "#{name}: default token reaches the model job with contents write" unless jobs.fetch('respond').fetch('permissions').fetch('contents') == 'read'
+  steps = jobs.fetch('respond').fetch('steps')
+  mint = steps.find { |step| step['id'] == 'bot-token' }
+  raise "#{name}: token must be limited to this repository" unless mint.fetch('with').fetch('repositories') == '${{ github.event.repository.name }}'
+  raise "#{name}: wrong private key source" unless mint.fetch('with').fetch('private-key') == '${{ secrets[needs.allocate.outputs.secret_name] }}'
+  bootstrap = steps.find { |step| step['id'] == 'worker' }
+  raise "#{name}: bootstrap must validate minted App slug" unless bootstrap.fetch('env').fetch('BOT_APP_SLUG') == '${{ steps.bot-token.outputs.app-slug }}'
+  raise "#{name}: publication recovery is missing" unless steps.any? { |step| step['run'].to_s.include?('publish-worker-pr.mjs') }
+end
+claude = YAML.load_file(File.join(root, '.github/workflows/agent.yml'))
+claude_step = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }
+raise 'Claude must publish using its leased App' unless claude_step.fetch('with').fetch('github_token') == '${{ steps.bot-token.outputs.token }}'
+raise 'Claude must use its named bot commit identity' unless claude_step.fetch('with').fetch('bot_name') == '${{ needs.allocate.outputs.login }}' && claude_step.fetch('with').fetch('bot_id') == '${{ needs.allocate.outputs.user_id }}'
+raise 'Claude must use subscription OAuth without API billing' if File.read(File.join(root, '.github/workflows/agent.yml')).include?('ANTHROPIC_API_KEY')
+raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
+puts '22 worker credential contracts passed'

@@ -9,16 +9,25 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 job = workflow.fetch('jobs').fetch('review-approved')
 raise 'Approval gate must run when dependencies fail or skip' unless job.fetch('if') == '${{ always() }}'
 raise 'Approval gate must wait for selection and both reviewers' unless job.fetch('needs').sort == ['codex-review', 'review', 'select-reviewer']
-gate = job.fetch('steps').first.fetch('run')
+gate_step = job.fetch('steps').find { |step| step['name'] == 'Require a fresh approval from the selected reviewer' }
+gate = gate_step.fetch('run')
+raise 'Approval gate must execute the shared lease verifier' unless gate == 'node .github/scripts/wait-for-review.mjs --approval-gate'
+raise 'Approval lookup needs the durable lease' unless job.fetch('permissions').fetch('contents') == 'read'
 %w[review codex-review].each do |name|
   raise 'Ordinary labels must not spend a review' unless workflow.fetch('jobs').fetch(name).fetch('if').include?("needs.select-reviewer.outputs.requested == 'true'")
 end
 raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("'metadata' || 'requested'")
 raise 'Review cancellation must be isolated by PR' unless workflow.fetch('concurrency').fetch('group').include?('${{ github.event.pull_request.number }}')
-approval = { id: 2, commit_id: 'reviewed-sha', user: { login: 'github-actions[bot]', type: 'Bot' }, state: 'APPROVED' }
+roster = JSON.parse(File.read(File.join(root, '.github/scripts/bot-identities.json')))
+roster.each_with_index { |identity, index| identity.merge!('appId' => index + 100, 'userId' => index + 200, 'clientId' => "Iv1.fixture#{index}") }
+codex = roster.find { |identity| identity['provider'] == 'codex' && identity['role'] == 'reviewer' }
+claude = roster.find { |identity| identity['provider'] == 'claude' && identity['role'] == 'reviewer' }
+reviewed_sha = 'a' * 40
+approval = { id: 2, commit_id: reviewed_sha, user: { login: codex.fetch('login'), id: codex.fetch('userId'), type: 'Bot' }, state: 'APPROVED' }
 fixtures = [
   ['codex', 'codex', 'reviewed-sha', [approval], 'success', true],
-  ['claude', 'claude', 'reviewed-sha', [approval.merge(user: { login: 'claude[bot]', type: 'Bot' })], 'success', true],
+  ['linked-branch', 'codex', 'reviewed-sha', [approval], 'success', true],
+  ['claude', 'claude', 'reviewed-sha', [approval.merge(user: { login: claude.fetch('login'), id: claude.fetch('userId'), type: 'Bot' })], 'success', true],
   ['wrong-provider', 'claude', 'reviewed-sha', [approval], 'success', false],
   ['no-review', 'codex', 'reviewed-sha', [], 'success', false],
   ['old-review', 'codex', 'reviewed-sha', [approval.merge(id: 1)], 'success', false],
@@ -26,6 +35,10 @@ fixtures = [
   ['new-push', 'codex', 'newer-sha', [approval], 'success', false],
   ['changes-requested', 'codex', 'reviewed-sha', [approval, approval.merge(id: 3, state: 'CHANGES_REQUESTED')], 'success', false],
   ['failed-reviewer', 'codex', 'reviewed-sha', [approval], 'failure', false],
+  ['legacy-bot', 'codex', 'reviewed-sha', [approval.merge(user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' })], 'success', false],
+  ['wrong-bot-id', 'codex', 'reviewed-sha', [approval.merge(user: { login: codex.fetch('login'), id: 999, type: 'Bot' })], 'success', false],
+  ['human-lookalike', 'codex', 'reviewed-sha', [approval.merge(user: { login: codex.fetch('login'), id: codex.fetch('userId'), type: 'User' })], 'success', false],
+  ['executor-review', 'codex', 'reviewed-sha', [approval.merge(user: { login: roster.first.fetch('login'), id: roster.first.fetch('userId'), type: 'Bot' })], 'success', false],
   ['unknown-provider', 'unknown', 'reviewed-sha', [approval], 'success', false]
 ]
 %w[failure skipped cancelled].each do |selection_status|
@@ -44,15 +57,33 @@ run_directory = Dir.mktmpdir('run-', workspace)
 fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expected, selection_status, requested|
   directory = File.join(run_directory, name)
   FileUtils.mkdir_p(directory)
+  scripts = File.join(directory, '.github/scripts')
+  FileUtils.mkdir_p(scripts)
+  %w[wait-for-review.mjs bot-identities.mjs].each { |file| FileUtils.cp(File.join(root, '.github/scripts', file), scripts) }
+  File.write(File.join(scripts, 'bot-identities.json'), roster.to_json)
+  identity = reviewer == 'claude' ? claude : codex
+  branch = name == 'linked-branch' ? 'codex/named-bot-identities' : "#{reviewer}/issue-42"
+  assignment = { key: "#{reviewer}/reviewer/issue-42", provider: reviewer, role: 'reviewer', issue: 42, pr: 84, branch: branch, slug: identity.fetch('slug'), released: false }
+  encoded = [{ version: 1, assignments: [assignment] }.to_json].pack('m0')
+  File.write(File.join(directory, 'state.json'), { sha: 'state-sha', content: encoded }.to_json)
+  File.write(File.join(directory, 'pull.json'), { state: 'open', draft: false, labels: [], user: { login: 'author', id: 10, type: 'User' }, head: { sha: current_sha == 'reviewed-sha' ? reviewed_sha : 'b' * 40, ref: branch, repo: { full_name: 'iekip95mod-arch/cx2-ag' } } }.to_json)
+  File.write(File.join(directory, 'graphql.json'), { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 42, repository: { nameWithOwner: 'iekip95mod-arch/cx2-ag' } }], pageInfo: { hasNextPage: false } } } } } }.to_json)
   File.write(File.join(directory, 'reviews.json'), [reviews].to_json)
   gh = File.join(directory, 'gh')
   File.write(gh, <<~SH)
     #!/bin/bash
     set -euo pipefail
-    if [ "$*" = "api repos/repository/pulls/84 --jq .head.sha" ]; then
-      printf '%s\n' "$CURRENT_SHA"
-    elif [ "$*" = "api --paginate --slurp repos/repository/pulls/84/reviews" ]; then
+    if [ "$*" = "api repos/iekip95mod-arch/cx2-ag/pulls/84" ]; then
+      cat "$FIXTURE_DIR/pull.json"
+    elif [ "$*" = "api repos/iekip95mod-arch/cx2-ag/issues/42" ]; then
+      printf '%s\n' '{}'
+    elif [ "$*" = "api repos/iekip95mod-arch/cx2-ag/contents/assignments.json?ref=bot-assignments" ]; then
+      cat "$FIXTURE_DIR/state.json"
+    elif [ "$*" = "api --paginate --slurp repos/iekip95mod-arch/cx2-ag/pulls/84/reviews?per_page=100" ]; then
       cat "$FIXTURE_DIR/reviews.json"
+    elif [ "$*" = "api graphql --method POST --input -" ]; then
+      ruby -rjson -e 'request = JSON.parse(STDIN.read); abort unless request.fetch("query").start_with?("query(") && request.fetch("variables").fetch("number") == 84'
+      cat "$FIXTURE_DIR/graphql.json"
     else
       exit 1
     fi
@@ -60,13 +91,33 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
   File.chmod(0o700, gh)
   environment = {
     'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'FIXTURE_DIR' => directory,
-    'REVIEWER' => reviewer, 'CURRENT_SHA' => current_sha, 'HEAD_SHA' => 'reviewed-sha',
+    'REVIEWER' => reviewer, 'PR_HEAD_SHA' => reviewed_sha,
     'BEFORE' => '[1]', 'CLAUDE_RESULT' => provider_status, 'CODEX_RESULT' => provider_status,
     'SELECT_RESULT' => selection_status || 'success',
     'REVIEW_REQUESTED' => requested || 'true',
-    'REPO' => 'repository', 'PR' => '84'
+    'GITHUB_REPOSITORY' => 'iekip95mod-arch/cx2-ag', 'PR_NUMBER' => '84', 'GITHUB_EVENT_NAME' => 'pull_request'
   }
-  _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', gate, unsetenv_others: true)
-  raise "#{name}: incorrect approval gate result" unless status.success? == expected
+  _stdout, stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', gate, unsetenv_others: true, chdir: directory)
+  raise "#{name}: incorrect approval gate result: #{stderr}" unless status.success? == expected
 end
 puts "#{fixtures.length} approval gate cases passed"
+
+executor = roster.find { |identity| identity['role'] == 'executor' }
+trusted_bot = { login: executor.fetch('login'), id: executor.fetch('userId'), type: 'Bot' }
+trust_fixtures = [
+  ['executor', trusted_bot, 'NONE', 'iekip95mod-arch/cx2-ag', true],
+  ['owner', { login: 'owner', type: 'User' }, 'OWNER', 'iekip95mod-arch/cx2-ag', true],
+  ['wrong-id', trusted_bot.merge(id: 999), 'NONE', 'iekip95mod-arch/cx2-ag', false],
+  ['outside-bot', trusted_bot.merge(login: 'dependabot[bot]'), 'COLLABORATOR', 'iekip95mod-arch/cx2-ag', false],
+  ['outside-human', { login: 'outside', type: 'User' }, 'NONE', 'iekip95mod-arch/cx2-ag', false],
+  ['fork', trusted_bot, 'NONE', 'other/repository', false]
+]
+trust_script = File.join(run_directory, 'codex', '.github/scripts/wait-for-review.mjs')
+trust_fixtures.each do |name, user, association, repository, expected|
+  event = File.join(run_directory, "trust-#{name}.json")
+  File.write(event, { pull_request: { head: { repo: { full_name: repository } }, user: user, author_association: association } }.to_json)
+  environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event, 'GITHUB_REPOSITORY' => 'iekip95mod-arch/cx2-ag' }
+  _stdout, stderr, status = Open3.capture3(environment, 'node', trust_script, '--trust-author', unsetenv_others: true)
+  raise "#{name}: incorrect author trust result: #{stderr}" unless status.success? == expected
+end
+puts "#{trust_fixtures.length} author trust entrypoint cases passed"
