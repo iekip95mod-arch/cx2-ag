@@ -181,7 +181,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh') }}
+          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
 
       # The bridge suite is the one thing the host build cannot reach on its own. Enabling LuaJIT
       # takes configure into nps/CMakeLists.txt:1208, and two lines later it wants the luna binary
@@ -199,7 +199,7 @@ jobs:
             exit 0
           fi
           want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1)
+            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh | shasum -a 256 | cut -d' ' -f1)
           if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "The committed toolchain is stale, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
@@ -286,8 +286,10 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The last three are for MPFI rather than for the compiler. Its archive is a gitlab snapshot
+      # with a configure.ac and no configure, so the build script has to generate one.
       - name: Install prerequisites
-        run: brew install ccache gmp mpfr libmpc texinfo bison flex
+        run: brew install ccache gmp mpfr libmpc texinfo bison flex autoconf automake libtool
 
       # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
       # is paid once and then reused until that script changes.
@@ -296,7 +298,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh') }}
+          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
 
       # The Actions cache evicts an entry nothing has touched for a week, and the schedule above runs
       # weekly, so the cache is one missed run away from a rebuild that takes the best part of half
@@ -315,7 +317,7 @@ jobs:
             exit 0
           fi
           want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1)
+            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh | shasum -a 256 | cut -d' ' -f1)
           if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
             echo "used=false" >> "$GITHUB_OUTPUT"
             echo "The committed toolchain was built from different scripts, so it was ignored." \
@@ -376,12 +378,22 @@ jobs:
           export CPATH="$incs${CPATH:+:$CPATH}"
           ./build_toolchain.sh
 
-      # GMP for the calculator, not for the host. nps/CMakeLists.txt:336 reads it straight out of the
-      # toolchain prefix, so it belongs to the toolchain rather than beside it, and packaging the
-      # prefix below carries it along.
-      - name: Cross build GMP into the toolchain prefix
-        if: steps.toolchain.outputs.cache-hit != 'true' && steps.unpack.outputs.used != 'true'
-        run: ./vendor/deps/build-gmp.sh
+      # Three calculator libraries, not host ones. nps/CMakeLists.txt:249 and :336 read them straight
+      # out of the toolchain prefix, so they belong to the toolchain rather than beside it, and
+      # packaging the prefix below carries them along. Configure stops on a missing libmpfi.a before
+      # it compiles anything, so all three have to be here.
+      #
+      # Keyed on the libraries rather than on the cache, because a cache entry made before this step
+      # existed restores a prefix with a compiler and no libraries, and a condition asking whether
+      # the cache hit would skip the very step that entry is missing.
+      - name: Cross build GMP, MPFR and MPFI into the toolchain prefix
+        run: |
+          lib=vendor/ndl-src/ndl-sdk/toolchain/install/lib
+          [ -f "$lib/libgmp.a" ] || ./vendor/deps/build-gmp.sh
+          if [ ! -f "$lib/libmpfr.a" ] || [ ! -f "$lib/libmpfi.a" ]; then
+            ./vendor/deps/build-mpfr-mpfi.sh
+          fi
+          ls -l "$lib"/libgmp.a "$lib"/libmpfr.a "$lib"/libmpfi.a
 
       # What gets committed. Downloading this artifact and putting the two files in vendor/toolchain
       # is how the committed toolchain is refreshed after either build script changes.
@@ -396,7 +408,8 @@ jobs:
           du -sh "$prefix"
           tar -c -C "$prefix" . | zstd -T0 -19 -o "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
           shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh | shasum -a 256 | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
+            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh \
+            | shasum -a 256 | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
           ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-darwin-arm64.tar.zst"
 
       - uses: actions/upload-artifact@v7
