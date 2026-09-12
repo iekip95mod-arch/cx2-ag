@@ -6,7 +6,10 @@ require 'yaml'
 
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
-gate = workflow.fetch('jobs').fetch('review-approved').fetch('steps').first.fetch('run')
+job = workflow.fetch('jobs').fetch('review-approved')
+raise 'Approval gate must run when dependencies fail or skip' unless job.fetch('if') == '${{ always() }}'
+raise 'Approval gate must wait for selection and both reviewers' unless job.fetch('needs').sort == ['codex-review', 'review', 'select-reviewer']
+gate = job.fetch('steps').first.fetch('run')
 approval = { id: 2, commit_id: 'reviewed-sha', user: { login: 'github-actions[bot]', type: 'Bot' }, state: 'APPROVED' }
 fixtures = [
   ['codex', 'codex', 'reviewed-sha', [approval], 'success', true],
@@ -20,10 +23,13 @@ fixtures = [
   ['failed-reviewer', 'codex', 'reviewed-sha', [approval], 'failure', false],
   ['unknown-provider', 'unknown', 'reviewed-sha', [approval], 'success', false]
 ]
+%w[failure skipped cancelled].each do |selection_status|
+  fixtures << ["selection-#{selection_status}", 'codex', 'reviewed-sha', [approval], 'success', false, selection_status]
+end
 workspace = File.join(root, '.Internal/workspaces/review-approval-tests')
 FileUtils.mkdir_p(workspace)
 run_directory = Dir.mktmpdir('run-', workspace)
-fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expected|
+fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expected, selection_status|
   directory = File.join(run_directory, name)
   FileUtils.mkdir_p(directory)
   File.write(File.join(directory, 'reviews.json'), [reviews].to_json)
@@ -44,6 +50,7 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
     'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'FIXTURE_DIR' => directory,
     'REVIEWER' => reviewer, 'CURRENT_SHA' => current_sha, 'HEAD_SHA' => 'reviewed-sha',
     'BEFORE' => '[1]', 'CLAUDE_RESULT' => provider_status, 'CODEX_RESULT' => provider_status,
+    'SELECT_RESULT' => selection_status || 'success',
     'REPO' => 'repository', 'PR' => '84'
   }
   _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', gate, unsetenv_others: true)

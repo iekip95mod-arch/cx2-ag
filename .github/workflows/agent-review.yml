@@ -413,7 +413,7 @@ jobs:
 
   review-approved:
     needs: [select-reviewer, review, codex-review]
-    if: ${{ !cancelled() && needs.select-reviewer.result == 'success' }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -430,7 +430,9 @@ jobs:
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
           CLAUDE_RESULT: ${{ needs.review.result }}
           CODEX_RESULT: ${{ needs.codex-review.result }}
+          SELECT_RESULT: ${{ needs.select-reviewer.result }}
         run: |
+          test "$SELECT_RESULT" = success
           case "$REVIEWER" in
             claude) bot='claude[bot]'; test "$CLAUDE_RESULT" = success ;;
             codex) bot='github-actions[bot]'; test "$CODEX_RESULT" = success ;;
