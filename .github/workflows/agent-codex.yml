@@ -7,6 +7,10 @@ name: agent-codex
 # twice on purpose.
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/agent-codex.yml
+      - .github/scripts/test-codex-auth.rb
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -22,6 +26,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-auth:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Test subscription credential handling
+        run: ruby .github/scripts/test-codex-auth.rb
+
   respond:
     # The repository is public, so anyone can comment. Only people who could push here can spend the
     # key, and the body has to name Codex rather than one of the others.
@@ -62,8 +79,8 @@ jobs:
               echo "have=true"
             } >> "$GITHUB_OUTPUT"
           else
-            echo "::error::Set CODEX_AUTH_JSON to the saved ChatGPT subscription login."
-            exit 1
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "CODEX_AUTH_JSON is not set, so Codex did not run." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - uses: actions/checkout@v7

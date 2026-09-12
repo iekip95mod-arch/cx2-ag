@@ -204,12 +204,12 @@ Everything an agent reads from a comment or a dispatch payload is written by som
 
 None of the agents run without credentials. The workflows check first and say so in the run summary when they are missing, rather than failing red on every issue anybody opens. Each agent takes something different, and the differences are not cosmetic.
 
-All three take a subscription sign in, and each takes a key instead if you would rather. The sign in is preferred and is what the workflow picks when both are present.
+Codex uses subscription sign in only. Claude and Gemini also accept API keys, with subscription sign in preferred when both are present.
 
 | Agent | Sign in | Key | Where the sign in comes from |
 | --- | --- | --- | --- |
 | Claude | CLAUDE_CODE_OAUTH_TOKEN | ANTHROPIC_API_KEY | claude setup-token |
-| Codex | CODEX_AUTH_JSON | OPENAI_API_KEY | ~/.codex/auth.json, after codex login |
+| Codex | CODEX_AUTH_JSON | Not used | ~/.codex/auth.json, after codex login |
 | Gemini | GEMINI_OAUTH_CREDS | GEMINI_API_KEY | ~/.gemini/oauth_creds.json, after gemini signs in |
 
 ~~~sh
@@ -218,11 +218,11 @@ gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
 gh secret set GEMINI_OAUTH_CREDS < ~/.gemini/oauth_creds.json
 ~~~
 
-Only the Claude one is settled, because the action has an input built for it. The other two arrive the way their CLI stores them, which works because neither action overwrites the credential file: Codex is pointed at a home directory holding the auth.json, and Gemini reads the one under HOME while the action only ever writes the project's own .gemini directory.
+Claude's action accepts its subscription token directly. Codex runs its CLI with a private home directory holding auth.json. The GitHub-hosted subscription smoke test passed on 2026-09-12. Missing Codex credentials skip with a summary. Configured credentials that are malformed or contain an API key fail visibly.
 
-Both of those are untested here, and the Codex one has a reason to doubt it. That action's README says a key must be supplied and it routes model calls through a local proxy holding that key, while a sign in auth.json carries no key at all. If it fails, the key is the documented route. Say which one you used when you report a run.
+Gemini reads its saved sign in under HOME. Its subscription execution remains unverified here. Say which authentication method actually ran when reporting a result.
 
-A sign in expires and a key does not, so a copy taken once goes stale and the secret has to be replaced. That is the trade, and it is the only one between them.
+Saved sign ins can expire or be invalidated. These jobs do not save refreshed credentials back to repository secrets, so replace a stale secret after signing in again. The successful smoke test does not establish future token renewal.
 
 Nothing breaks while these are unset. Each workflow checks first and writes a line into the run summary saying it did not run.
 
