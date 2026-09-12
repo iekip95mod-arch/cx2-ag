@@ -59,6 +59,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The action refuses to run when this file differs from the copy on the default branch, which
+      # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
+      # pull request that edits this file cannot be reviewed by it. What made that dangerous is
+      # that the action declines by skipping: run 34704880051 posted no review, exited success, and
+      # showed up in the rollup as "review SUCCESS", which is a green check over a review that never
+      # happened. Say it out loud and go red instead, so the branch is routed to a reviewer by hand
+      # rather than merged on a check that means nothing.
+      - name: Refuse to look like a review that did not happen
+        if: steps.key.outputs.have == 'true'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mine=.github/workflows/agent-review.yml
+          if git show "$BASE:$mine" > /tmp/base-review.yml 2>/dev/null &&
+             cmp -s /tmp/base-review.yml "$mine"; then
+            exit 0
+          fi
+          {
+            echo "This pull request changes $mine, so the review action will decline to run."
+            echo "It requires this file to match the default branch, and it declines by skipping,"
+            echo "which would otherwise report success with no review posted."
+            echo "Review this branch with an agent that did not write it, by hand, before merging."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
       # A reviewer that cannot build is a reviewer that reads, which AGENTS.md says is not a review.
       # Same set the full job installs.
       - name: Install prerequisites
