@@ -13,10 +13,12 @@ on:
   schedule:
     - cron: "17 4 * * 1"
 
-# One run per ref. A second push to the same branch kills the first rather than queueing behind it,
-# which is what stops a busy agent from spending every runner on results nobody will read.
+# One run per ref per event. A second push to the same branch kills the first rather than queueing
+# behind it, which is what stops a busy agent from spending every runner on results nobody will read.
+# The event name is in the group because push, schedule and dispatch on main all resolve to the same
+# ref, and without it an ordinary push cancels the two hour device build it happened to overlap.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -40,8 +42,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev \
-            luajit libluajit-5.1-dev python3
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3
 
       - name: Restore compiler cache
         uses: actions/cache@v4
@@ -50,12 +51,6 @@ jobs:
           key: ccache-fast-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             ccache-fast-${{ runner.os }}-
-
-      # nps_hash_inputs treats the luna packager as a manifest input, at nps/CMakeLists.txt:249, and
-      # the SDK tracks its sources but gitignores the binary. Configure fails until a runner builds it.
-      - name: Build the luna packager
-        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
-        run: make -j"$(nproc)"
 
       - name: Configure
         run: |
@@ -68,17 +63,18 @@ jobs:
       - name: Build
         run: cmake --build nps/build/host --parallel
 
-      # A suite that is not registered is silently not run, and -R reports success over the two that
-      # were. luax_host went missing this way when the runner had luajit but not its headers.
-      - name: Check all three suites are registered
+      # A suite that is not registered is silently not run, and -R reports success over whichever
+      # ones were. This caught luax_host going missing when the runner had luajit but not its
+      # headers. The bridge suite is not here: it needs luajit, and enabling luajit pulls the ARM
+      # cross toolchain into configure, which is the opposite of fast. It runs in full instead.
+      - name: Check both suites are registered
         run: |
-          found=$(ctest --test-dir nps/build/host -N -R '^(unit|luax_host|ui_smoke_v4)$' \
-                  | grep -c "Test *#")
+          found=$(ctest --test-dir nps/build/host -N -R '^(unit|ui_smoke_v4)$' | grep -c "Test *#")
           echo "registered: $found"
-          test "$found" -eq 3
+          test "$found" -eq 2
 
-      - name: Unit, bridge and shell suites
-        run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|luax_host|ui_smoke_v4)$'
+      - name: Unit and shell suites
+        run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|ui_smoke_v4)$'
 
       - name: Cache statistics
         if: always()
@@ -101,8 +97,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev \
-            luajit libluajit-5.1-dev python3 php-cli
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli
 
       - name: Restore compiler cache
         uses: actions/cache@v4
@@ -111,10 +106,6 @@ jobs:
           key: ccache-full-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             ccache-full-${{ runner.os }}-
-
-      - name: Build the luna packager
-        working-directory: vendor/ndl-src/ndl-sdk/tools/luna
-        run: make -j"$(nproc)"
 
       - name: Configure
         run: |

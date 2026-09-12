@@ -1,0 +1,100 @@
+name: agent-review
+
+# The review gate AGENTS.md describes, run by a reviewer that did not write the code.
+#
+# This also settles the problem that made the gate awkward to record. GitHub refuses an approve on a
+# pull request you opened yourself, so an agent working under one account could never do more than
+# comment. A review posted from here comes from the workflow's own identity rather than from the
+# author's account, so the approve lands and the verdict is machine-readable.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+# A push that supersedes the branch supersedes the review of it. There is no value in finishing a
+# review of a diff that has already been replaced.
+concurrency:
+  group: agent-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # A draft is not finished, and reviewing a moving tree is the failure the review lane exists to
+    # avoid.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: read
+      id-token: write
+    steps:
+      - name: Decide whether a key is configured
+        id: key
+        env:
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$OAUTH" ] || [ -n "$API" ]; then
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is set, so no review was posted." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.have == 'true'
+        with:
+          fetch-depth: 0
+
+      # A reviewer that cannot build is a reviewer that reads, which AGENTS.md says is not a review.
+      # Same set the fast job installs.
+      - name: Install prerequisites
+        if: steps.key.outputs.have == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3 php-cli
+
+      - name: Review the pull request
+        if: steps.key.outputs.have == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            Review this pull request. Read the review sections of AGENTS.md first and hold the diff
+            to them.
+
+            Your scope is the diff and the issues it claims to close. Nothing else. Judge whether each
+            commit fixes what its issue describes, whether the guards hold, and whether the change
+            broke something that used to work.
+
+            Two questions are always in scope because both are about the diff by definition.
+
+            Did every piece of new behavior arrive with a test? Do not take the author's word that a
+            guard was watched failing. Revert the source change, rebuild, and see which checks go red.
+            If reverting the fix leaves the suite green, the guard is decoration and that blocks the
+            approval.
+
+            Did this change write something that already existed? Name the thing that should have
+            been used and where it lives.
+
+            Anything you find that would still have been true if this branch had never been written
+            is pre-existing. File it with gh issue create, name the issue number in your review under
+            a heading saying these are separate, and do not hold the branch up over it. Withholding an
+            approval over something outside the diff is the same failure as approving a broken change.
+
+            Build and run rather than read. The host commands are in AGENTS.md. Say in your verdict
+            which stages ran: host build, host suite, ARM build, emulator, handheld. A stage nobody
+            reached is a stage the verdict says nobody reached.
+
+            Finish by posting a review with gh pr review, --approve or --request-changes. A review
+            that only lists findings is not an approval, and the merge gate reads the approval rather
+            than the prose.
+          claude_args: |
+            --max-turns 80
