@@ -7,6 +7,11 @@ require 'yaml'
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+%w[agent agent-codex agent-gemini].each do |name|
+  worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
+  expected = "#{name}-" + '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}'
+  raise "#{name}: work must be isolated by issue or PR" unless worker.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+end
 fixtures = [
   ['opened', 'codex/change', [], nil, 'codex'],
   ['opened', 'agent/change', [], nil, 'claude'],
@@ -16,7 +21,10 @@ fixtures = [
   ['labeled', 'codex/change', ['claude-review', 'codex-review'], 'claude-review', 'claude'],
   ['labeled', 'agent/change', ['claude-review', 'codex-review'], 'codex-review', 'codex'],
   ['opened', 'codex/change', ['claude-review', 'codex-review'], nil, nil],
-  ['labeled', 'codex/change', [], 'unrelated', nil]
+  ['labeled', 'codex/change', [], 'unrelated', 'codex'],
+  ['labeled', 'agent/change', ['codex-review'], 'tooling', 'codex'],
+  ['labeled', 'codex/change', ['claude-review'], 'tooling', 'claude'],
+  ['labeled', 'codex/change', ['claude-review', 'codex-review'], 'tooling', nil]
 ]
 workspace = File.join(root, '.Internal/workspaces/review-routing-tests')
 FileUtils.mkdir_p(workspace)
@@ -31,7 +39,8 @@ fixtures.each_with_index do |(action, branch, labels, requested_label, expected)
   environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file }
   _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', selection, unsetenv_others: true)
   if expected
-    raise "case #{index}: wrong reviewer" unless status.success? && File.read(output_file) == "reviewer=#{expected}\n"
+    requested = action != 'labeled' || ['claude-review', 'codex-review'].include?(requested_label)
+    raise "case #{index}: wrong reviewer or review request" unless status.success? && File.read(output_file) == "reviewer=#{expected}\nrequested=#{requested}\n"
   else
     raise "case #{index}: invalid request accepted" if status.success? || !File.read(output_file).empty?
   end

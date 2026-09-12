@@ -10,6 +10,11 @@ job = workflow.fetch('jobs').fetch('review-approved')
 raise 'Approval gate must run when dependencies fail or skip' unless job.fetch('if') == '${{ always() }}'
 raise 'Approval gate must wait for selection and both reviewers' unless job.fetch('needs').sort == ['codex-review', 'review', 'select-reviewer']
 gate = job.fetch('steps').first.fetch('run')
+%w[review codex-review].each do |name|
+  raise 'Ordinary labels must not spend a review' unless workflow.fetch('jobs').fetch(name).fetch('if').include?("needs.select-reviewer.outputs.requested == 'true'")
+end
+raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("'metadata' || 'requested'")
+raise 'Review cancellation must be isolated by PR' unless workflow.fetch('concurrency').fetch('group').include?('${{ github.event.pull_request.number }}')
 approval = { id: 2, commit_id: 'reviewed-sha', user: { login: 'github-actions[bot]', type: 'Bot' }, state: 'APPROVED' }
 fixtures = [
   ['codex', 'codex', 'reviewed-sha', [approval], 'success', true],
@@ -26,10 +31,17 @@ fixtures = [
 %w[failure skipped cancelled].each do |selection_status|
   fixtures << ["selection-#{selection_status}", 'codex', 'reviewed-sha', [approval], 'success', false, selection_status]
 end
+fixtures.concat([
+  ['ordinary-label-approved', 'codex', 'reviewed-sha', [approval.merge(id: 1)], 'skipped', true, 'success', 'false'],
+  ['ordinary-label-unapproved', 'codex', 'reviewed-sha', [], 'skipped', false, 'success', 'false'],
+  ['ordinary-label-changes-requested', 'codex', 'reviewed-sha', [approval, approval.merge(id: 3, state: 'CHANGES_REQUESTED')], 'skipped', false, 'success', 'false'],
+  ['ordinary-label-stale', 'codex', 'newer-sha', [approval], 'skipped', false, 'success', 'false'],
+  ['ordinary-label-wrong-provider', 'claude', 'reviewed-sha', [approval], 'skipped', false, 'success', 'false']
+])
 workspace = File.join(root, '.Internal/workspaces/review-approval-tests')
 FileUtils.mkdir_p(workspace)
 run_directory = Dir.mktmpdir('run-', workspace)
-fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expected, selection_status|
+fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expected, selection_status, requested|
   directory = File.join(run_directory, name)
   FileUtils.mkdir_p(directory)
   File.write(File.join(directory, 'reviews.json'), [reviews].to_json)
@@ -51,6 +63,7 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
     'REVIEWER' => reviewer, 'CURRENT_SHA' => current_sha, 'HEAD_SHA' => 'reviewed-sha',
     'BEFORE' => '[1]', 'CLAUDE_RESULT' => provider_status, 'CODEX_RESULT' => provider_status,
     'SELECT_RESULT' => selection_status || 'success',
+    'REVIEW_REQUESTED' => requested || 'true',
     'REPO' => 'repository', 'PR' => '84'
   }
   _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', gate, unsetenv_others: true)
