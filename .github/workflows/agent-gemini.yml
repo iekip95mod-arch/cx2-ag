@@ -106,7 +106,7 @@ jobs:
         with:
           # Empty when Code Assist is in use. The action warns if it is given both, and a sign in
           # that silently falls back to a key is the kind of thing nobody notices until the bill.
-          gemini_api_key: ${{ steps.key.outputs.code_assist == 'true' && '' || secrets.GEMINI_API_KEY }}
+          gemini_api_key: ${{ steps.key.outputs.code_assist != 'true' && secrets.GEMINI_API_KEY || '' }}
           use_gemini_code_assist: ${{ steps.key.outputs.code_assist }}
           prompt: ${{ env.GEMINI_PROMPT }}
 
