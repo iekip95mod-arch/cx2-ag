@@ -860,7 +860,10 @@ do
                                          box, items))
     end
     check(#registered_menu <= 15, "the palette holds at most 15 tool boxes")
-check(entries == 182, "the full-text reader joins every retained entry: " .. entries .. " of 182")
+    -- An exact count rather than a floor, because the failure worth catching is an entry going
+    -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
+    -- this number, which is the trade and not an oversight.
+    check(entries == 182, "the palette holds every retained entry: " .. entries .. " of 182")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
