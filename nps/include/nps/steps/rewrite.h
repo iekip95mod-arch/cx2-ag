@@ -59,15 +59,12 @@ struct RewriteResult {
 RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, RewriteGoal goal,
                       const Budget &budget = Budget(), Backend *giac = nullptr);
 
-// Every repeated factor written as the power it is, recorded as one step when there was anything to
-// gather. *out is the expression to carry on with, unchanged when there was nothing, and false means
-// the meter stopped rather than that nothing matched.
+// Every repeated factor written as the power it is, recorded as one step. *out is the expression to
+// carry on with, and false means the meter stopped rather than that nothing matched.
 //
-// Shared rather than private to the rewrite goals because the canonical form deliberately leaves
-// x * x as a product of two factors, so every engine that needs x * x and x^2 to be one form has to
-// ask for it. A base whose exponent is not a positive whole number is left alone, which is what
-// keeps x * x^-1 the product it is written as, along with the non-zero condition that product
-// carries.
+// Shared because the canonical form deliberately leaves x * x as a product, so any engine needing
+// x * x and x^2 to be one form has to ask. A negative exponent is left alone, which is what keeps
+// x * x^-1 the product it is written as, along with the non-zero condition it carries.
 bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent, const char *phase,
                              Meter &meter, NodeId expression, NodeId *out);
 

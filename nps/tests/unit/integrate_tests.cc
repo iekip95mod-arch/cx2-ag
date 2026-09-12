@@ -599,11 +599,8 @@ void run_integrate_tests(TestSink &t) {
         t.check(s.steps == 0, "leaving nothing in the record");
     }
     {
-        // A product whose factors are powers of one base is that base to the sum of the exponents,
-        // so the power rule answers it and the product router never sees it. The canonical form
-        // leaves x * x as a product, so this has to be a recorded rewrite rather than a comparison:
-        // asserting the answer alone passes for a gather that never reached the integrand the
-        // derivative check compares against, which is what "solved and verified" below catches.
+        // The status check is the one that dies if the gather never reaches the integrand the
+        // derivative check compares against, which the answer alone would not catch.
         struct Gathered {
             const char *input;
             const char *expected;
@@ -631,6 +628,16 @@ void run_integrate_tests(TestSink &t) {
         }
     }
     {
+        // The key sorts as well as gathers, and sin(x)*x sorts into a different node, so the rule
+        // used to claim a power had been written where nothing had been combined.
+        Integrated s = run("sin(x)*x", "x");
+        t.check(!uses_rule("sin(x)*x", "x", "alg.gather-powers"),
+                "reordering a product's factors is not a gathering step");
+        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
+                "and a product with nothing repeated is still refused either way round");
+        t.check(s.steps == 0, "leaving nothing in the record");
+    }
+    {
         Integrated s = run("sin(x)*sin(x)", "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
                 "a repeated factor with a base no rule can substitute for is still refused");
@@ -638,9 +645,7 @@ void run_integrate_tests(TestSink &t) {
                 "and the refusal names the base rather than integration by parts");
     }
     {
-        // x * x^-1 is 1 away from zero and undefined at it. Gathering it would write x^0, which
-        // carries no condition, so the negative exponent is left as the factor it is and the
-        // non-zero condition the integrand states survives with it.
+        // Gathering this would write x^0, which carries no condition, so the restriction would go.
         Arena arena;
         Derivation d;
         const NodeId e = parse(arena, "x*x^-1").root;
