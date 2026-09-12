@@ -23,16 +23,6 @@ require_pin() {
         fail "vendored toolchain pin for $1 is not $2"
 }
 
-require_stamp() {
-    local stamp=$1
-    local expected=$2
-    local actual
-    require_file "toolchain/$stamp"
-    actual=$(<"$sdk/toolchain/$stamp")
-    [ "$actual" = "$expected" ] ||
-        fail "installed toolchain stamp $stamp is $actual, expected $expected"
-}
-
 script_dir=$(cd -P -- "${0%/*}" 2>/dev/null && pwd) || fail "cannot locate the script directory"
 project_dir=$(cd -P -- "$script_dir/.." 2>/dev/null && pwd) || fail "cannot locate the project directory"
 [ -r "$project_dir/cmake/toolchains/ndl-arm926ej-s.cmake" ] ||
@@ -100,10 +90,25 @@ for file in "${files[@]}"; do
     require_file "$file"
 done
 
-require_stamp .built_binutils binutils-2.44
-require_stamp .built_gcc_step1 gcc-14.2.0
-require_stamp .built_newlib newlib-4.5.0.20241231
-require_stamp .built_gcc_step2 gcc-14.2.0
+# The four .built_ stamps used to stand here. They record that build_toolchain.sh ran on this
+# machine, which stopped being the only way to get a prefix once one was committed to the
+# repository, and a prefix that arrives unpacked carries none of them. Every claim they made is
+# available from the prefix itself: binutils from arm-none-eabi-ld below, both GCC passes from
+# arm-none-eabi-gcc below and from libstdc++.a above, which only the second pass produces, and
+# newlib from the header it installs. The snapshot date is not recoverable from an installed tree,
+# so the pin above is what carries it.
+newlib_header=toolchain/install/arm-none-eabi/include/_newlib_version.h
+newlib_expected=4.5.0
+require_file "$newlib_header"
+newlib_version=''
+while read -r directive name value; do
+    [ "$directive" = '#define' ] && [ "$name" = _NEWLIB_VERSION ] || continue
+    value=${value#\"}
+    newlib_version=${value%\"}
+    break
+done < "$sdk/$newlib_header"
+[ "$newlib_version" = "$newlib_expected" ] ||
+    fail "installed newlib is ${newlib_version:-unreadable}, expected $newlib_expected"
 
 ndl_path=$sdk/bin:$sdk/toolchain/install/bin:$PATH
 reported_sdk=$(PATH="$ndl_path" "$sdk/bin/nspire-tools" path 2>/dev/null) ||
@@ -186,7 +191,7 @@ fi
 printf 'bootstrap-ndl: revision %s\n' "$revision"
 printf 'bootstrap-ndl: binutils 2.44\n'
 printf 'bootstrap-ndl: gcc %s\n' "$gcc_version"
-printf 'bootstrap-ndl: newlib 4.5.0.20241231\n'
+printf 'bootstrap-ndl: newlib %s, from the newlib-4.5.0.20241231 pin\n' "$newlib_version"
 printf 'bootstrap-ndl: gdb 16.2 (%s)\n' "$gdb_state"
 printf 'bootstrap-ndl: target %s\n' "$target"
 printf 'bootstrap-ndl: flags -Os -marm -fno-exceptions -fno-rtti\n'
