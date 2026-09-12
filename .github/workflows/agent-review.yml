@@ -65,10 +65,20 @@ jobs:
         if: steps.key.outputs.have == 'true'
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
-        run: brew install ccache gmp php
+        run: |
+          brew install ccache gmp php
+          # Published here rather than written into the step below, because the prefix is brew's to
+          # report and not ours to spell.
+          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
 
       - name: Review the pull request
         if: steps.key.outputs.have == 'true'
+        # The reviewer runs a single allowed command per stage, so anything a command needs from the
+        # shell has to reach it as an environment variable rather than as an export it cannot
+        # perform. PKG_CONFIG_PATH comes from the install step above, because nps/CMakeLists.txt:345
+        # asks pkg-config for gmp=6.3.0 exactly and brew keeps that file off the default search path.
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
         # v1 as of this commit. See agent.yml for why these are pinned by digest.
         uses: anthropics/claude-code-action@56cf60fde42f7b19c3abfd5c9c48b69a1288461f
         with:
@@ -101,12 +111,43 @@ jobs:
             a heading saying these are separate, and do not hold the branch up over it. Withholding an
             approval over something outside the diff is the same failure as approving a broken change.
 
-            Build and run rather than read. The host commands are in AGENTS.md. Say in your verdict
-            which stages ran: host build, host suite, ARM build, emulator, handheld. A stage nobody
-            reached is a stage the verdict says nobody reached.
+            Build and run rather than read. Say in your verdict which stages ran: host build, host
+            suite, ARM build, emulator, handheld. A stage nobody reached is a stage the verdict says
+            nobody reached.
+
+            These four are what you have, and the spellings are exact. Anything else, including a
+            bare nps_host, an export or two commands joined by an ampersand, will be refused, so do
+            not spend turns discovering that.
+
+              cmake -S nps -B nps/build/host -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DNDL_SDK=$PWD/vendor/ndl-src/ndl-sdk -DGIAC_ROOT=$PWD/vendor/khi-src
+              cmake --build nps/build/host --parallel
+              ctest --test-dir nps/build/host --output-on-failure
+              ctest --test-dir nps/build/host --output-on-failure -R '^unit$'
+
+            ctest is how you read the suite, rather than running the binary, because the fixtures it
+            manages are part of what the suite means. Reverting a change to watch its guard fail is
+            git apply -R against a patch you made with git diff, and git apply to put it back. The
+            ARM cross toolchain is not installed here, so the device stages are not yours to reach
+            and the verdict says so.
+
+            The suite is RED on main for five failures that are nothing to do with any branch you
+            will see: two vector_components golden rows and three criterion 4 invariant rows, all
+            from issue #4. Establish that baseline on the base commit before you judge the branch,
+            and hold the branch to "the same five and no others". A sixth is the branch's.
 
             Finish by posting a review with gh pr review, --approve or --request-changes. A review
             that only lists findings is not an approval, and the merge gate reads the approval rather
-            than the prose.
+            than the prose. If you cannot reach a stage you needed, say which command was refused and
+            what it was for, and request changes rather than approving on a reading.
+          # Without this the reviewer has only the read-only set in .claude/settings.json, which the
+          # action restores from the base branch, and every cmake, ctest and gh call it makes comes
+          # back needing an approval nobody on a runner can give. It read the diff and declined to
+          # approve, which is the one thing the merge gate cannot accept.
+          #
+          # Spelled as prefixes rather than as a mode, so the two forms AGENTS.md warns about stay
+          # out: cmake -E environment prints every variable in the process, and this job is handed a
+          # credential, on a public repository, into a log anybody can read. ctest -S runs a script.
+          # Neither matches a prefix below.
           claude_args: |
             --max-turns 80
+            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git rev-parse:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue create:*),Read,Grep,Glob"
