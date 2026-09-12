@@ -36,11 +36,16 @@ concurrency:
 
 jobs:
   respond:
-    # A label event fires for every label, and only one of them means this. Without the guard,
-    # tagging an issue defect or bridge would start a run.
+    # Two guards in one expression. A label event fires for every label and only one of them means
+    # this, so tagging an issue defect or bridge must not start a run. A comment is the other way
+    # in, and this job holds contents write, so the commenter has to be somebody the repository
+    # already trusts rather than anybody who can type. The Codex and Gemini lanes check the same
+    # list. Dispatch needs neither check, because sending one already takes write access.
     if: >-
-      github.event_name != 'issues' ||
-      github.event.label.name == 'claude'
+      (github.event_name == 'issues' && github.event.label.name == 'claude') ||
+      github.event_name == 'repository_dispatch' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
