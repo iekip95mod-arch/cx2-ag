@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, chmodSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { parseArgs } from 'node:util';
 
 const execute = promisify(execFile);
+const stateDirectories = new WeakMap();
 const repository = 'iekip95mod-arch/cx2-ag';
 export const eventTypes = ['workflow_run', 'pull_request_review', 'pull_request'];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,6 +23,7 @@ export function openState(filename) {
     CREATE TABLE IF NOT EXISTS cursor (singleton INTEGER PRIMARY KEY CHECK(singleton=1), id INTEGER NOT NULL);
     INSERT OR IGNORE INTO cursor VALUES(1, 0);`);
   if (filename !== ':memory:') chmodSync(filename, 0o600);
+  stateDirectories.set(db, filename === ':memory:' ? join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'github-events', 'cx2-ag') : dirname(resolve(filename)));
   return db;
 }
 
@@ -109,8 +111,7 @@ export async function deliver(db, events, queue, now = Date.now()) {
     if (db.prepare('SELECT thread FROM wakeups WHERE thread=?').get(thread)) continue;
     const group = pendingGroup(db, thread, subscriptions);
     if (!group.events.length) continue;
-    const bridge = join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'github-events', 'cx2-ag', 'bridge.mjs');
-    const command = `node ${JSON.stringify(bridge)} consume --thread ${thread}`;
+    const command = [process.execPath, fileURLToPath(import.meta.url), 'consume', '--state', stateDirectories.get(db), '--thread', thread].map(argument => `'${argument.replaceAll("'", "'\\''")}'`).join(' ');
     db.prepare('INSERT INTO wakeups VALUES(?, 0)').run(thread);
     try { await queue(thread, `${notification(group.events, [...group.prs])}\nWhen this queued wake-up starts your turn, run ${command} to consume later events. Repeat while more is true. Do not consume it while this message is still queued.`); }
     catch { db.prepare('DELETE FROM wakeups WHERE thread=? AND confirmed=0').run(thread); failed++; continue; }

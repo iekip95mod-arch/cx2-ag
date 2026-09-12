@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { openState, subscribe, deliver } from './bridge.mjs';
 import * as bridge from './bridge.mjs';
 
@@ -185,4 +186,36 @@ test('startup retries an interrupted queue attempt without clearing confirmed wa
   assert.deepEqual(queued, [second]);
   assert.equal(db.prepare('SELECT confirmed FROM wakeups WHERE thread=?').get(first).confirmed, 1);
   db.close();
+});
+
+test('the queued consume command drains the exact custom state directory', async () => {
+  const directory = mkdtempSync(join(process.env.TEST_WORKSPACE, 'custom-state-'));
+  const state = join(directory, "inbox with spaces and 'quotes' $literal");
+  const defaultHome = join(directory, 'default');
+  const defaultState = join(defaultHome, 'github-events', 'cx2-ag');
+  mkdirSync(state, { recursive: true });
+  mkdirSync(defaultState, { recursive: true });
+  writeFileSync(join(defaultState, 'bridge.mjs'), readFileSync(new URL('./bridge.mjs', import.meta.url)));
+  const previousHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = defaultHome;
+  const db = openState(join(state, 'state.sqlite'));
+  const currentTime = Date.now();
+  try {
+    subscribe(db, first, 84, ['workflow_run'], currentTime - 1);
+    const queued = [];
+    const recent = id => ({ ...event(id), received: currentTime });
+    await deliver(db, [recent(1)], async (...args) => queued.push(args), currentTime);
+    await deliver(db, [recent(2)], async (...args) => queued.push(args), currentTime);
+    const command = queued[0][1].match(/When this queued wake-up starts your turn, run (.+) to consume later events\./)[1];
+    const consumed = JSON.parse(execFileSync('/bin/sh', ['-c', command], { encoding: 'utf8' }));
+    assert.match(consumed.message, /pull\/84/);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM pending').get().count, 0);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM wakeups').get().count, 0);
+    await deliver(db, [recent(3)], async (...args) => queued.push(args), currentTime);
+    assert.equal(queued.length, 2);
+  } finally {
+    db.close();
+    if (previousHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousHome;
+  }
 });
