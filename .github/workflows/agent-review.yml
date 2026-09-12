@@ -66,14 +66,27 @@ jobs:
       # showed up in the rollup as "review SUCCESS", which is a green check over a review that never
       # happened. Say it out loud and go red instead, so the branch is routed to a reviewer by hand
       # rather than merged on a check that means nothing.
+      # Against the default branch rather than against the base commit. The two are the same for a
+      # pull request onto main and differ for one stacked on another branch, where a base comparison
+      # would pass and the action would still decline.
       - name: Refuse to look like a review that did not happen
         if: steps.key.outputs.have == 'true'
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          DEFAULT: ${{ github.event.pull_request.base.repo.default_branch }}
         run: |
           mine=.github/workflows/agent-review.yml
-          if git show "$BASE:$mine" > /tmp/base-review.yml 2>/dev/null &&
-             cmp -s /tmp/base-review.yml "$mine"; then
+          theirs="$RUNNER_TEMP/default-branch-agent-review.yml"
+          # Its own branch, because a read that failed and a file that differs are different facts
+          # and the message below only tells the truth about the second.
+          if ! git show "origin/$DEFAULT:$mine" > "$theirs" 2>/dev/null; then
+            {
+              echo "Could not read $mine from origin/$DEFAULT, so whether the review action will"
+              echo "run is unknown, and unknown is not a review. Check the default branch name and"
+              echo "that the checkout fetched it."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if cmp -s "$theirs" "$mine"; then
             exit 0
           fi
           {
@@ -140,9 +153,10 @@ jobs:
             suite, ARM build, emulator, handheld. A stage nobody reached is a stage the verdict says
             nobody reached.
 
-            These four are what you have, and the spellings are exact. Anything else, including a
-            bare nps_host, an export or two commands joined by an ampersand, will be refused, so do
-            not spend turns discovering that.
+            Every command is matched against an allowed prefix, so a bare nps_host, an export, or
+            two commands joined by an ampersand will be refused. There is no cd either, so write
+            every path from the branch root rather than moving into a directory. These spellings
+            are exact, and they are all of them, so do not spend turns discovering the rest.
 
               cmake -S nps -B nps/build/host -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DNDL_SDK=$PWD/vendor/ndl-src/ndl-sdk -DGIAC_ROOT=$PWD/vendor/khi-src
               cmake --build nps/build/host --parallel
@@ -151,19 +165,33 @@ jobs:
 
             ctest is how you read the suite, rather than running the binary, because the fixtures it
             manages are part of what the suite means. Reverting a change to watch its guard fail is
-            git apply -R against a patch you made with git diff, and git apply to put it back. The
-            ARM cross toolchain is not installed here, so the device stages are not yours to reach
-            and the verdict says so.
+            git apply -R against a patch you made with git diff, and git apply to put it back.
+
+            The device stages are not yours to reach, so the verdict says nobody reached them. That
+            is not a standing fact about the project, it is this job: the install step above takes
+            ccache, gmp and php and never unpacks the cross toolchain. If you change that step,
+            change this line with it.
 
             Establish the baseline on the base commit before you judge the branch, and hold the
-            branch to the number you measured rather than to a number written down here. Do not
-            take a count from this prompt. The line that used to sit here named five known
-            failures, they were fixed by issue #4, and a reviewer reading it afterwards would have
-            been told to accept five failures that no longer exist. Measure, then compare.
+            branch to what you measured rather than to anything written down here. Do not take a
+            count from this prompt. The line that used to sit here named five known failures, issue
+            #4 fixed them, and a reviewer reading it afterwards would have been told to accept five
+            failures that no longer exist.
 
-            git worktree add is how you get that baseline without disturbing the branch you are
-            judging. Check out the base commit into a directory under .Internal/workspaces/, build
-            and run there, and keep the branch tree for the branch.
+            Compare the failing set rather than the size of it. Some suites do not run on this
+            runner at all for want of host Lua, so two different sets can tally to the same number.
+
+            A worktree is how you get that baseline without disturbing the branch you are judging.
+            It takes the base commit directly, so no checkout is needed, and the build is spelled
+            from the branch root because there is no cd:
+
+              git worktree add .Internal/workspaces/baseline <the base sha>
+              cmake -S .Internal/workspaces/baseline/nps -B .Internal/workspaces/baseline/nps/build/host -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DNDL_SDK=$PWD/vendor/ndl-src/ndl-sdk -DGIAC_ROOT=$PWD/vendor/khi-src
+              cmake --build .Internal/workspaces/baseline/nps/build/host --parallel
+              ctest --test-dir .Internal/workspaces/baseline/nps/build/host --output-on-failure
+
+            NDL_SDK and GIAC_ROOT stay pointed at the branch tree on purpose. Both sides should
+            build against the same dependency, so that nps is the only thing that differs.
 
             Finish by posting a review with gh pr review, --approve or --request-changes. A review
             that only lists findings is not an approval, and the merge gate reads the approval rather
@@ -183,12 +211,16 @@ jobs:
           # Measured on run 34696181673: with this flag set, gh pr view and gh issue list were both
           # refused, so the list here replaces that file rather than adding to it.
           #
-          # fetch, worktree, checkout and merge-base are here because a reviewer with none of them
-          # cannot reach the base commit, and a baseline is half of what a review is. Run
-          # 34702887258 is the evidence: it gave up after six minutes saying checkout and worktree
-          # add were refused, tried to rebuild main in place with git apply -R, and posted no
-          # verdict at all. None of the four can publish anything, and the checkout above is already
-          # fetch-depth 0, so the base commit is present and only the spelling was missing.
+          # fetch, worktree and merge-base are here because a reviewer with none of them cannot
+          # reach the base commit, and a baseline is half of what a review is. Run 34702887258 is
+          # the evidence: it gave up after six minutes saying checkout and worktree add were
+          # refused, tried to rebuild main in place with git apply -R, and posted no verdict at all.
+          # None of the three can publish anything, and the checkout above is already fetch-depth 0,
+          # so the base commit is present and only the spelling was missing.
+          #
+          # checkout is deliberately not among them, though that run asked for it. git worktree add
+          # takes the base commit directly, and git checkout -- . would silently discard the
+          # git apply -R the reviewer uses to watch a guard fail.
           claude_args: |
             --max-turns 80
-            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git checkout:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
+            --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
