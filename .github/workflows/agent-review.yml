@@ -24,9 +24,12 @@ concurrency:
 jobs:
   review:
     # A draft is not finished, and reviewing a moving tree is the failure the review lane exists to
-    # avoid. A label event fires for every label, so only the one that means this starts a run.
+    # avoid. A label event fires for every label, so only the one that means this starts a run. The
+    # bot test is for the dependabot pull requests: the action refuses a bot author anyway, so
+    # without it every action bump starts a job that installs half a toolchain and then declines.
     if: >-
       github.event.pull_request.draft == false &&
+      github.event.pull_request.user.type != 'Bot' &&
       (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
     runs-on: ubuntu-latest
     timeout-minutes: 45

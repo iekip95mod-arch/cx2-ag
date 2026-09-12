@@ -1,0 +1,14 @@
+# The four agent workflows pin their third-party actions to a commit rather than a tag, because a
+# tag is a name the owner can move and those steps are handed a credential. A pin that nobody
+# updates goes stale instead, which is the other half of the same problem. This opens a pull request
+# when one of them moves, with the release notes attached, so the choice to take it is a choice.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - tooling
+    commit-message:
+      prefix: ""
