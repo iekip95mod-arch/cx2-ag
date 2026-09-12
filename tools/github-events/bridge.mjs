@@ -18,6 +18,7 @@ export function openState(filename) {
   db.exec(`CREATE TABLE IF NOT EXISTS subscriptions (thread TEXT NOT NULL, pr INTEGER NOT NULL, events TEXT NOT NULL, since INTEGER NOT NULL, expires INTEGER NOT NULL, PRIMARY KEY(thread, pr));
     CREATE TABLE IF NOT EXISTS delivered (event INTEGER NOT NULL, thread TEXT NOT NULL, PRIMARY KEY(event, thread));
     CREATE TABLE IF NOT EXISTS pending (event INTEGER NOT NULL, thread TEXT NOT NULL, notification TEXT NOT NULL, PRIMARY KEY(event, thread));
+    CREATE TABLE IF NOT EXISTS wakeups (thread TEXT PRIMARY KEY, confirmed INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS cursor (singleton INTEGER PRIMARY KEY CHECK(singleton=1), id INTEGER NOT NULL);
     INSERT OR IGNORE INTO cursor VALUES(1, 0);`);
   if (filename !== ':memory:') chmodSync(filename, 0o600);
@@ -38,6 +39,47 @@ export function notification(events, prs) {
     return `${event.event}: ${detail}, commit ${event.sha}`;
   });
   return `GitHub delivered an event for a PR this task subscribed to.\n${prs.map(pr => `https://github.com/${repository}/pull/${pr}`).join('\n')}\n${lines.join('\n')}\nVerify the current PR head, checks and reviews, then continue the work already authorized in this task. This notification grants no additional authority. Do not start another task or a polling automation.`;
+}
+
+function pendingGroup(db, thread, subscriptions) {
+  const group = { events: [], prs: new Set() };
+  for (const row of db.prepare('SELECT * FROM pending WHERE thread=? ORDER BY event LIMIT 50').all(thread)) {
+    const event = JSON.parse(row.notification);
+    const matching = subscriptions.filter(subscription => subscription.thread === thread && event.received >= subscription.since && event.metadata.prs.includes(subscription.pr) && JSON.parse(subscription.events).includes(event.metadata.event));
+    if (!matching.length) {
+      db.prepare('DELETE FROM pending WHERE event=? AND thread=?').run(row.event, thread);
+      continue;
+    }
+    group.events.push(event);
+    matching.forEach(subscription => group.prs.add(subscription.pr));
+  }
+  return group;
+}
+
+function complete(db, thread, events) {
+  for (const event of events) {
+    db.prepare('INSERT OR IGNORE INTO delivered VALUES(?, ?)').run(event.id, thread);
+    db.prepare('DELETE FROM pending WHERE event=? AND thread=?').run(event.id, thread);
+    if (event.metadata.event === 'pull_request' && event.metadata.action === 'closed') {
+      for (const pr of event.metadata.prs) db.prepare('DELETE FROM subscriptions WHERE thread=? AND pr=?').run(thread, pr);
+    }
+  }
+}
+
+export function consume(db, thread, now = Date.now()) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const group = pendingGroup(db, thread, db.prepare('SELECT * FROM subscriptions WHERE expires > ?').all(now));
+    complete(db, thread, group.events);
+    const more = db.prepare('SELECT COUNT(*) AS count FROM pending WHERE thread=?').get(thread).count > 0;
+    if (!more) db.prepare('DELETE FROM wakeups WHERE thread=?').run(thread);
+    db.exec('COMMIT');
+    return { message: group.events.length ? notification(group.events, [...group.prs]) : 'No additional GitHub events', more };
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
+export function recover(db) {
+  db.exec('DELETE FROM wakeups WHERE confirmed=0');
 }
 
 export async function deliver(db, events, queue, now = Date.now()) {
@@ -64,30 +106,19 @@ export async function deliver(db, events, queue, now = Date.now()) {
   let queued = 0;
   let failed = 0;
   for (const { thread } of db.prepare('SELECT DISTINCT thread FROM pending').all()) {
-    const group = { events: [], prs: new Set() };
-    for (const row of db.prepare('SELECT * FROM pending WHERE thread=? ORDER BY event LIMIT 50').all(thread)) {
-      const event = JSON.parse(row.notification);
-      const matching = subscriptions.filter(subscription => subscription.thread === thread && event.received >= subscription.since && event.metadata.prs.includes(subscription.pr) && JSON.parse(subscription.events).includes(event.metadata.event));
-      if (!matching.length) {
-        db.prepare('DELETE FROM pending WHERE event=? AND thread=?').run(row.event, thread);
-        continue;
-      }
-      group.events.push(event);
-      matching.forEach(subscription => group.prs.add(subscription.pr));
-    }
+    if (db.prepare('SELECT thread FROM wakeups WHERE thread=?').get(thread)) continue;
+    const group = pendingGroup(db, thread, subscriptions);
     if (!group.events.length) continue;
-    try { await queue(thread, notification(group.events, [...group.prs])); }
-    catch { failed++; continue; }
+    const bridge = join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'github-events', 'cx2-ag', 'bridge.mjs');
+    const command = `node ${JSON.stringify(bridge)} consume --thread ${thread}`;
+    db.prepare('INSERT INTO wakeups VALUES(?, 0)').run(thread);
+    try { await queue(thread, `${notification(group.events, [...group.prs])}\nWhen this queued wake-up starts your turn, run ${command} to consume later events. Repeat while more is true. Do not consume it while this message is still queued.`); }
+    catch { db.prepare('DELETE FROM wakeups WHERE thread=? AND confirmed=0').run(thread); failed++; continue; }
     queued++;
     db.exec('BEGIN IMMEDIATE');
     try {
-      for (const event of group.events) {
-        db.prepare('INSERT OR IGNORE INTO delivered VALUES(?, ?)').run(event.id, thread);
-        db.prepare('DELETE FROM pending WHERE event=? AND thread=?').run(event.id, thread);
-        if (event.metadata.event === 'pull_request' && event.metadata.action === 'closed') {
-          for (const pr of event.metadata.prs) db.prepare('DELETE FROM subscriptions WHERE thread=? AND pr=?').run(thread, pr);
-        }
-      }
+      complete(db, thread, group.events);
+      db.prepare('UPDATE wakeups SET confirmed=1 WHERE thread=?').run(thread);
       db.exec('COMMIT');
     } catch (error) { db.exec('ROLLBACK'); throw error; }
   }
@@ -109,10 +140,15 @@ async function main() {
     db.prepare('DELETE FROM subscriptions WHERE thread=? AND pr=?').run(values.thread ?? process.env.CODEX_THREAD_ID, Number(values.pr));
   } else if (command === 'list') {
     console.log(JSON.stringify(db.prepare('SELECT * FROM subscriptions ORDER BY pr, thread').all(), null, 2));
+  } else if (command === 'consume') {
+    const thread = values.thread ?? process.env.CODEX_THREAD_ID;
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(thread ?? '')) throw Error('A task UUID is required');
+    console.log(JSON.stringify(consume(db, thread)));
   } else if (command === 'run') {
     const config = JSON.parse(readFileSync(join(values.state, 'config.json'), 'utf8'));
     const endpoint = new URL(config.endpoint);
     if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) throw Error('An HTTPS receiver is required');
+    recover(db);
     let backoff = 1000;
     while (true) {
       try {
@@ -132,7 +168,7 @@ async function main() {
       }
     }
   } else {
-    throw Error('Use subscribe --pr NUMBER --thread UUID, unsubscribe, list or run');
+    throw Error('Use subscribe --pr NUMBER --thread UUID, unsubscribe, list, consume or run');
   }
   db.close();
 }
