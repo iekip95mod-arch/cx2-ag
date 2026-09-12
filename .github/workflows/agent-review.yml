@@ -18,7 +18,7 @@ on:
 # A push that supersedes the branch supersedes the review of it. There is no value in finishing a
 # review of a diff that has already been replaced.
 concurrency:
-  group: agent-review-${{ github.event.pull_request.number }}
+  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }}
   cancel-in-progress: true
 
 jobs:
@@ -26,9 +26,7 @@ jobs:
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) &&
-      (github.event.action != 'labeled' ||
-       contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name))
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -36,6 +34,7 @@ jobs:
       pull-requests: read
     outputs:
       reviewer: ${{ steps.reviewer.outputs.reviewer }}
+      requested: ${{ steps.reviewer.outputs.requested }}
       before: ${{ steps.before.outputs.ids }}
     steps:
       - uses: actions/checkout@v7
@@ -62,9 +61,12 @@ jobs:
         shell: bash
         run: |
           action=$(jq -r '.action' "$GITHUB_EVENT_PATH")
-          if [ "$action" = labeled ]; then
-            label=$(jq -r '.label.name' "$GITHUB_EVENT_PATH")
-          else
+          requested=true
+          label=$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")
+          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ]; then
+            requested=false
+          fi
+          if [ "$action" != labeled ] || [ "$requested" = false ]; then
             labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
             if [ "$(printf '%s\n' "$labels" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
               echo "::error::Keep only the requesting agent's review label."
@@ -85,6 +87,7 @@ jobs:
             *) exit 1 ;;
           esac
           echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
 
   review:
     needs: select-reviewer
@@ -92,7 +95,7 @@ jobs:
     # avoid. A label event fires for every label, so only the one that means this starts a run. The
     # bot test is for the dependabot pull requests: the action refuses a bot author anyway, so
     # without it every action bump starts a job that installs half a toolchain and then declines.
-    if: needs.select-reviewer.outputs.reviewer == 'claude'
+    if: needs.select-reviewer.outputs.reviewer == 'claude' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
     permissions:
@@ -344,7 +347,7 @@ jobs:
 
   codex-review:
     needs: select-reviewer
-    if: needs.select-reviewer.outputs.reviewer == 'codex'
+    if: needs.select-reviewer.outputs.reviewer == 'codex' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
@@ -431,11 +434,17 @@ jobs:
           CLAUDE_RESULT: ${{ needs.review.result }}
           CODEX_RESULT: ${{ needs.codex-review.result }}
           SELECT_RESULT: ${{ needs.select-reviewer.result }}
+          REVIEW_REQUESTED: ${{ needs.select-reviewer.outputs.requested }}
         run: |
           test "$SELECT_RESULT" = success
           case "$REVIEWER" in
-            claude) bot='claude[bot]'; test "$CLAUDE_RESULT" = success ;;
-            codex) bot='github-actions[bot]'; test "$CODEX_RESULT" = success ;;
+            claude) bot='claude[bot]'; provider_result=$CLAUDE_RESULT ;;
+            codex) bot='github-actions[bot]'; provider_result=$CODEX_RESULT ;;
+            *) exit 1 ;;
+          esac
+          case "$REVIEW_REQUESTED" in
+            true) test "$provider_result" = success ;;
+            false) BEFORE='[]' ;;
             *) exit 1 ;;
           esac
           test "$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)" = "$HEAD_SHA"

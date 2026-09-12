@@ -16,7 +16,10 @@ fixtures = [
   ['labeled', 'codex/change', ['claude-review', 'codex-review'], 'claude-review', 'claude'],
   ['labeled', 'agent/change', ['claude-review', 'codex-review'], 'codex-review', 'codex'],
   ['opened', 'codex/change', ['claude-review', 'codex-review'], nil, nil],
-  ['labeled', 'codex/change', [], 'unrelated', nil]
+  ['labeled', 'codex/change', [], 'unrelated', 'codex'],
+  ['labeled', 'agent/change', ['codex-review'], 'tooling', 'codex'],
+  ['labeled', 'codex/change', ['claude-review'], 'tooling', 'claude'],
+  ['labeled', 'codex/change', ['claude-review', 'codex-review'], 'tooling', nil]
 ]
 workspace = File.join(root, '.Internal/workspaces/review-routing-tests')
 FileUtils.mkdir_p(workspace)
@@ -31,7 +34,8 @@ fixtures.each_with_index do |(action, branch, labels, requested_label, expected)
   environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file }
   _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', selection, unsetenv_others: true)
   if expected
-    raise "case #{index}: wrong reviewer" unless status.success? && File.read(output_file) == "reviewer=#{expected}\n"
+    requested = action != 'labeled' || ['claude-review', 'codex-review'].include?(requested_label)
+    raise "case #{index}: wrong reviewer or review request" unless status.success? && File.read(output_file) == "reviewer=#{expected}\nrequested=#{requested}\n"
   else
     raise "case #{index}: invalid request accepted" if status.success? || !File.read(output_file).empty?
   end
