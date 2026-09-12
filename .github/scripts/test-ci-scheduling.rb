@@ -6,6 +6,8 @@ workflow = YAML.load_file(ARGV.fetch(0, File.join(root, '.github/workflows/check
 events = workflow.fetch('on', workflow[true])
 jobs = workflow.fetch('jobs')
 failures = []
+failures << 'CI must use a read-only token by default' unless workflow['permissions'] == { 'contents' => 'read' }
+failures << 'CI cancellation must be isolated by ref and event' unless workflow['concurrency'] == { 'group' => '${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}', 'cancel-in-progress' => true }
 failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branches'] == ['main']
 failures << 'Pull requests must run CI' unless events.key?('pull_request')
 failures << 'Manual runs must remain available' unless events.key?('workflow_dispatch')
@@ -23,4 +25,4 @@ has_headless_tests = emulator_commands.any? do |command|
 end
 failures << 'Emulator must build and run its headless regression suites' unless has_headless_tests
 abort(failures.join("\n")) unless failures.empty?
-puts '9 CI scheduling contracts passed'
+puts '11 CI scheduling contracts passed'

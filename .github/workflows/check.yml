@@ -20,6 +20,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # One run per ref per event. A second push to the same branch kills the first rather than queueing
 # behind it, which is what stops a busy agent from spending every runner on results nobody will read.
 concurrency:

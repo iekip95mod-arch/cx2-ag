@@ -14,6 +14,7 @@ gate = job.fetch('steps').first.fetch('run')
   raise 'Ordinary labels must not spend a review' unless workflow.fetch('jobs').fetch(name).fetch('if').include?("needs.select-reviewer.outputs.requested == 'true'")
 end
 raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("'metadata' || 'requested'")
+raise 'Review cancellation must be isolated by PR' unless workflow.fetch('concurrency').fetch('group').include?('${{ github.event.pull_request.number }}')
 approval = { id: 2, commit_id: 'reviewed-sha', user: { login: 'github-actions[bot]', type: 'Bot' }, state: 'APPROVED' }
 fixtures = [
   ['codex', 'codex', 'reviewed-sha', [approval], 'success', true],

@@ -7,6 +7,11 @@ require 'yaml'
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+%w[agent agent-codex agent-gemini].each do |name|
+  worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
+  expected = "#{name}-" + '${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}'
+  raise "#{name}: work must be isolated by issue or PR" unless worker.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+end
 fixtures = [
   ['opened', 'codex/change', [], nil, 'codex'],
   ['opened', 'agent/change', [], nil, 'claude'],
