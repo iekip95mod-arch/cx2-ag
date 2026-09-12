@@ -4,7 +4,7 @@ import { reviewState, waitForReview } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const sha = 'a'.repeat(40);
-const run = (id, extra = {}) => ({ id, head_sha: sha, pull_requests: [{ number: 85 }], status: 'completed', conclusion: 'success', ...extra });
+const run = (id, extra = {}) => ({ id, display_title: 'Review PR #85 (requested)', head_sha: sha, pull_requests: [{ number: 85 }], status: 'completed', conclusion: 'success', ...extra });
 const approval = (id = 1, extra = {}) => ({ id, commit_id: sha, state: 'APPROVED', user: { login: 'github-actions[bot]', type: 'Bot' }, ...extra });
 function fixture(runs, { current = { head: { sha, ref: 'codex/review-gate' }, labels: [], state: 'open', draft: false }, jobs = [{ name: 'review-approved', status: 'completed', conclusion: 'success' }], reviews = [approval()] } = {}) {
   return async endpoint => {
@@ -46,6 +46,13 @@ test('pending review waits, completed approval releases and missing review times
 });
 test('API errors fail closed', async () => {
   await assert.rejects(reviewState(async () => { throw Error('API unavailable'); }, repository, 85, sha), /API unavailable/);
+});
+test('metadata-only runs cannot supersede the requested review attempt', async () => {
+  const metadata = extra => run(2, { display_title: 'Review PR #85 (metadata)', ...extra });
+  assert.equal(await reviewState(fixture([run(1), metadata({ conclusion: 'failure' })]), repository, 85, sha), 'approved');
+  assert.equal(await reviewState(fixture([run(1), metadata({ status: 'in_progress', conclusion: null })]), repository, 85, sha), 'approved');
+  await assert.rejects(reviewState(fixture([run(1, { conclusion: 'failure' }), metadata({})]), repository, 85, sha));
+  assert.equal(await reviewState(fixture([metadata({})]), repository, 85, sha), 'pending');
 });
 test('dismissed and superseded approvals cannot release CodeQL', async () => {
   for (const state of ['DISMISSED', 'CHANGES_REQUESTED', 'COMMENTED']) {

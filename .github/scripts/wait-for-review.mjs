@@ -7,7 +7,7 @@ export async function reviewState(read, repository, pr, sha) {
   const current = await read(`${prefix}/pulls/${pr}`);
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
   const pages = await read(`${prefix}/actions/workflows/agent-review.yml/runs?head_sha=${sha}&event=pull_request&per_page=100`, true);
-  const runs = pages.flatMap(page => page.workflow_runs).filter(run => run.head_sha === sha && run.pull_requests.some(pull => pull.number === pr)).sort((a, b) => b.id - a.id);
+  const runs = pages.flatMap(page => page.workflow_runs).filter(run => run.head_sha === sha && run.pull_requests.some(pull => pull.number === pr) && run.display_title === `Review PR #${pr} (requested)`).sort((a, b) => b.id - a.id);
   if (!runs.length || runs.some(run => run.status !== 'completed')) return 'pending';
   const latest = runs[0];
   if (latest.conclusion !== 'success') throw Error('The current review workflow did not approve this PR');
