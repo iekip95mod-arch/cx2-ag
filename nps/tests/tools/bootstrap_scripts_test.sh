@@ -79,9 +79,6 @@ done
 # The tracked marker has to be a real file, because git refuses to add through a symlinked component.
 cp "$sdk/toolchain/build_toolchain.sh" "$fixture/toolchain/build_toolchain.sh" || exit 2
 ln -s "$sdk/toolchain/install" "$fixture/toolchain/install" || exit 2
-for stamp in .built_binutils .built_gcc_step1 .built_newlib .built_gcc_step2; do
-    ln -s "$sdk/toolchain/$stamp" "$fixture/toolchain/$stamp" || exit 2
-done
 git init -q "$fixture" || exit 2
 # The enclosing repository needs a commit, or rev-parse fails for its own reasons and the untracked
 # case below stops telling the two behaviors apart.
