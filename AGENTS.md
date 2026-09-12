@@ -246,10 +246,10 @@ On a pull request event the Claude action restores .claude, CLAUDE.md and .mcp.j
 | Ki V4 shell, menus, hints and rendering | nps/lua/nps_v4.lua |
 | Tests, fixtures and invariant checks | nps/tests |
 | Coverage, traceability and package integrity | nps/catalog, nps/tools and nps/CMakeLists.txt |
-| Active Giac fork | khi-src. giac-src is older reference material |
-| SDK and resident runtime | ndl-src |
-| Emulator | firebird-src |
-| Physical USB transport and command tools | libnspire-src and tools/nsptool |
+| Active Giac fork | vendor/khi-src. vendor/giac-src is older reference material |
+| SDK and resident runtime | vendor/ndl-src |
+| Emulator | vendor/firebird-src |
+| Physical USB transport and command tools | vendor/libnspire-src and tools/nsptool |
 | Resident key service | tools/keysvc |
 | Hidden document storage and runtime relocation | research/folder-hiding |
 

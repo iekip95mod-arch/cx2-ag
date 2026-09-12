@@ -31,19 +31,19 @@ This document describes implementation relationships. The [product requirements]
 | nps/benchmarks | Target probes, measurements and UI research artifacts |
 | docs | Product requirements and hardware debugger findings |
 | .Internal | Architecture notes, port history, platform notes, recovery guidance and planning material |
-| khi-src | Active KhiCAS/Giac fork used by the unified native module |
-| giac-src | Older Giac checkout retained for comparison. It is not the default unified dependency |
-| ndl-src | ndl runtime, SDK, syscall definitions, packaging tools and ARM toolchain |
-| firebird-src | Emulator core, headless frontend, debugger and emulated USB link |
-| libnspire-src | Physical USB and NavNet transport library |
+| vendor/khi-src | Active KhiCAS/Giac fork used by the unified native module |
+| vendor/giac-src | Older Giac checkout retained for comparison. It is not the default unified dependency |
+| vendor/ndl-src | ndl runtime, SDK, syscall definitions, packaging tools and ARM toolchain |
+| vendor/firebird-src | Emulator core, headless frontend, debugger and emulated USB link |
+| vendor/libnspire-src | Physical USB and NavNet transport library |
 | tools/nsptool | Physical-device CLI, persistent command session and host tests |
 | tools/keysvc | Resident key-event and restart service for the calculator |
 | research/folder-hiding | Standalone visible calculator, document storage and ndl relocation research |
-| deps | Sources and scripts for numeric dependencies such as GMP, MPFR and MPFI |
+| vendor/deps | Sources and scripts for numeric dependencies such as GMP, MPFR and MPFI |
 | images | Boot, flash and saved execution images. Preserve their provenance and backing relationships |
 | probe and smoke | Local diagnostic programs, packages and captured observations |
-| ndless-known-good, ndless-r2022 and khicas53 | Retained runtime or distribution material. Establish provenance before using it |
-| libnspire-install | Local transport installation output |
+| vendor/ndless-known-good, vendor/ndless-r2022 and vendor/khicas53 | Retained runtime or distribution material. Establish provenance before using it |
+| vendor/libnspire-install | Local transport installation output |
 | ipc | Local runtime communication area. Inspect its current contents before use |
 | .headcheck*, .lane-* and .lead-tree* | Alternate checkouts, build directories and coordination files |
 | device | Additional generated device build directory. Inspect its CMake cache before use |
@@ -210,8 +210,8 @@ Vector operations check frame, rank and dimensions before combining components. 
 | nps/include/nps/cas/giac_adapter.h | Operation requests, result tags and backend interface |
 | nps/src/cas/giac/giac_adapter.cc | Request validation, controlled command construction, response interpretation and accounting |
 | nps/src/cas/giac/giac_typed.cc | Conversion between native AST nodes and Giac gen objects, direct operations and differential checks |
-| khi-src/src/luabridge.cc | Bundled Giac entry used by the calculator shell and typed initialization |
-| khi-src/src/Makefile.ki | Calculator feature definitions and Giac object selection |
+| vendor/khi-src/src/luabridge.cc | Bundled Giac entry used by the calculator shell and typed initialization |
+| vendor/khi-src/src/Makefile.ki | Calculator feature definitions and Giac object selection |
 | nps/tools/giac-objs.mk | Query and isolated build rules for those objects |
 
 The adapter exposes a controlled set of operations. Validate requests before either string or typed dispatch. Exact, approximate, unevaluated, unsupported, malformed and resource results have different meanings. A usable backend expression is not automatically an independently verified derivation.
@@ -413,7 +413,7 @@ headcheck.sh builds an explicit commit in a separate worktree while using config
 
 ndl spans both the SDK used to compile and the runtime already resident on the calculator. Replacing a host tool or rebuilding an application does not replace the resident runtime.
 
-| Location under ndl-src | Responsibility |
+| Location under vendor/ndl-src | Responsibility |
 | --- | --- |
 | ndl-sdk/include | Public calculator and ndl interfaces |
 | ndl-sdk/libsyscalls | Syscall wrappers and ABI-sensitive calls |
@@ -441,12 +441,12 @@ The CX II handshake waits for the validated time exchange within one absolute de
 Run the transport checks from the workspace root with Python 3 and the libusb development package:
 
 ~~~sh
-python3 libnspire-src/tests/run_diagnostics_tests.py --sanitize
-python3 libnspire-src/tests/run_transport_tests.py --sanitize
-python3 libnspire-src/tests/run_file_tests.py --sanitize
-python3 libnspire-src/tests/run_service_tests.py --sanitize
-python3 libnspire-src/tests/run_key_tests.py --sanitize
-python3 libnspire-src/tests/run_screenshot_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_diagnostics_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_transport_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_file_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_service_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_key_tests.py --sanitize
+python3 vendor/libnspire-src/tests/run_screenshot_tests.py --sanitize
 python3 tools/nsptool/tests/session_test.py
 ~~~
 
@@ -454,7 +454,7 @@ These dependency checks build temporary host executables. They are separate from
 
 The per-user device lock coordinates cooperating nsptool clients. It does not coordinate every application that can own the USB interface. Inspect transport ownership when TI desktop software and a CLI compete for the calculator.
 
-libnspire-src/src/usb.c handles interface acquisition. init.c initializes connection state. cx2.cpp handles CX II packet framing, sequence acknowledgments, padding and checksums. raw.c carries raw service exchanges. An Invalid packet message can result from framing or checksum failure and does not by itself identify a key service installation problem.
+vendor/libnspire-src/src/usb.c handles interface acquisition. init.c initializes connection state. cx2.cpp handles CX II packet framing, sequence acknowledgments, padding and checksums. raw.c carries raw service exchanges. An Invalid packet message can result from framing or checksum failure and does not by itself identify a key service installation problem.
 
 On macOS, CX II connection setup reports USB configuration unavailable when libusb does not expose configuration 1. It closes the handle before claiming an interface or sending a handshake. The Darwin libusb configuration cache can differ from IORegistry, so a listed device alone does not establish a usable interface. Compare LIBUSB_DEBUG=4 connection output with the device's IORegistry properties before attributing this refusal to StepCAS or keysvc. This diagnostic leaves the existing refusal policy in place and does not reset or reconfigure the device.
 
@@ -464,7 +464,7 @@ keysvc-status sends only a version query. A transport acknowledgment does not pr
 
 The helper log records callback entry, read status and byte count, and version-query reply status. These checkpoints help distinguish a blocked read from a failed reply write. Missing records alone cannot establish a missing callback because log storage can also fail. These records contain no key text or packet contents.
 
-libnspire-src/src/services/key.c implements TiLP's standard OS key protocol on service 0x4042. nspire_send_key sends initialization and one packed key in the same session, waits for transport acknowledgments and closes through the shared completion path. It does not wait for an application reply. This path does not require keysvc or establish whether ndl is loaded.
+vendor/libnspire-src/src/services/key.c implements TiLP's standard OS key protocol on service 0x4042. nspire_send_key sends initialization and one packed key in the same session, waits for transport acknowledgments and closes through the shared completion path. It does not wait for an application reply. This path does not require keysvc or establish whether ndl is loaded.
 
 nsptool key-os sends supported taps and type-os sends supported ASCII text through that standard service. Both validate the complete request before opening USB. List available names with key-os --list. Help on CX II uses Ctrl+Trig. key-os help selects that event, while question-mark remains punctuation. The resident equivalent is key ctrl+trig. Held-key actions and restart remain separate keysvc operations. Neither backend retries a possibly applied action or automatically switches to the other backend after a failure. Inspect the screen before deciding what to do after an uncertain result.
 
@@ -503,7 +503,7 @@ clang -std=c11 -O2 -Wall -Wextra -Wpedantic -Werror \
 
 ## Firebird automation and saved state
 
-| Source under firebird-src | Responsibility |
+| Source under vendor/firebird-src | Responsibility |
 | --- | --- |
 | headless/main.cpp | Command input, command markers, startup arguments and headless event handling |
 | core/debug.cpp | Debugger commands and pause/resume decisions |
