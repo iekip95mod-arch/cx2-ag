@@ -45,7 +45,7 @@ jobs:
             ninja-build cmake ccache pkg-config libgmp-dev zlib1g-dev python3
 
       - name: Restore compiler cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-fast-${{ runner.os }}-${{ github.sha }}
@@ -137,7 +137,7 @@ jobs:
           make build-libndls build-tools -j"$(nproc)"
 
       - name: Restore compiler cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-full-${{ runner.os }}-${{ github.sha }}
@@ -195,7 +195,7 @@ jobs:
       # is paid once and then reused until that script changes.
       - name: Restore the cross toolchain
         id: toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh') }}
