@@ -103,6 +103,11 @@ jobs:
       - name: Count the reviews already on this pull request
         id: before
         if: steps.key.outputs.have == 'true'
+        # Named rather than left to the default, which is bash -e without pipefail, so a gh call
+        # that fails hands its exit status to awk and awk prints 0 over no input. A zero here is
+        # the dangerous direction: the count after would then beat it and pass an older review off
+        # as a new one.
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -249,7 +254,12 @@ jobs:
       # So ask the question the gate actually cares about, which is not whether the action ran. A
       # review either exists on the pull request or it does not, and that is one API call.
       - name: Refuse a green check over a review that was not posted
-        if: always() && steps.key.outputs.have == 'true' && steps.mine.outcome == 'success'
+        # Not always(), which also fires on a job somebody canceled, and a canceled review is not a
+        # review that was withheld.
+        if: >-
+          !cancelled() && steps.key.outputs.have == 'true' &&
+          steps.mine.outcome == 'success'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -264,7 +274,8 @@ jobs:
           {
             echo "The review step finished without posting a review: $BEFORE before, $after after."
             echo "A green check here would tell the merge gate a review happened, so this is red."
-            echo "The job log says how far the reviewer reached. Ask again with the claude-review"
-            echo "label once whatever stopped it is fixed."
+            echo "The job log says how far the reviewer reached. Once whatever stopped it is fixed,"
+            echo "take the claude-review label off and put it back, because adding a label that is"
+            echo "already there fires nothing."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
