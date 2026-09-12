@@ -4257,6 +4257,49 @@ end
 
 do
     (function()
+    local create, refused = D2Editor.newRichText, nil
+    D2Editor.newRichText = function()
+        local editor = create()
+        local set_font = editor.setFontSize
+        editor.setFontSize = function(self, size)
+            if size and not ({[7]=true, [9]=true, [10]=true, [11]=true, [12]=true, [16]=true, [24]=true})[size] then
+                refused = size
+                error("unsupported handheld editor font " .. tostring(size))
+            end
+            return set_font(self, size)
+        end
+        return editor
+    end
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    env.addME("x", "x+1")
+    env.fsize = 12
+    -- The stub raises on a size the handheld would reject, so the walk is protected and the
+    -- refusal is reported as a failed check rather than as an abandoned run.
+    local climbed, fell = {}, {}
+    local climbing = pcall(function()
+        for _ = 1, 4 do env.fontUp() climbed[#climbed + 1] = env.fsize end
+    end)
+    check(climbing and table.concat(climbed, ",") == "16,24,24,24",
+          "Increase Font Size reaches the largest accepted size and stops there: " ..
+          table.concat(climbed, ",") .. " refused=" .. tostring(refused))
+    env.fsize = 24
+    local falling = pcall(function()
+        for _ = 1, 7 do env.fontDown() fell[#fell + 1] = env.fsize end
+    end)
+    check(falling and table.concat(fell, ",") == "16,12,11,10,9,7,7",
+          "Decrease Font Size reaches the smallest accepted size and stops there: " ..
+          table.concat(fell, ",") .. " refused=" .. tostring(refused))
+    env.fsize = 13
+    local stepped = pcall(env.fontDown)
+    check(stepped and env.fsize == 12, "a font size off the accepted ladder steps onto it rather than past it")
+    check(not refused, "every size the font menu hands the editor is one the handheld accepts")
+    D2Editor.newRichText = create
+    end)()
+end
+
+do
+    (function()
     local module = copyModule()
     local error_text = string.rep("long error context ", 40) .. "ERROR_TAIL"
     module.walkthrough = function() return nil, error_text end

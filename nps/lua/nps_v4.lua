@@ -2118,14 +2118,26 @@ function applyFontSizeChange()
 	end
 end
 
-function fontDown()
-	fsize = fsize > 6 and (fsize - 1) or fsize
-	applyFontSizeChange()
-end
+do
+	local SHELL_FONTS = { 7, 9, 10, 11, 12, 16, 24 }
 
-function fontUp()
-	fsize = fsize < 30 and (fsize + 1) or fsize
-	applyFontSizeChange()
+	function fontDown()
+		local chosen = SHELL_FONTS[1]
+		for _, size in ipairs(SHELL_FONTS) do
+			if size < fsize then chosen = size end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
+
+	function fontUp()
+		local chosen = SHELL_FONTS[#SHELL_FONTS]
+		for index = #SHELL_FONTS, 1, -1 do
+			if SHELL_FONTS[index] > fsize then chosen = SHELL_FONTS[index] end
+		end
+		fsize = chosen
+		applyFontSizeChange()
+	end
 end
 
 -- The palette is registered for the whole document, so the menu key opens it over the viewer too,
