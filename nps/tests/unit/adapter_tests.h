@@ -2,7 +2,9 @@
 #define NPS_TEST_ADAPTER_TESTS_H
 
 #include <cstddef>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nps/steps/derivation.h"
@@ -47,6 +49,9 @@ struct TestSink {
     std::vector<std::string> groups_run;
     // The running total as each group opened, so a tally can be taken by subtraction afterwards.
     std::vector<int> group_opened_at;
+    // How many times each check sentence ran, keyed by group. A group whose total differs between
+    // two platforms parted somewhere inside it, and only a per-sentence tally says where.
+    std::map<std::pair<std::string, std::string>, int> label_counts;
     std::string group;
 
     // Called once per group by the runner, so a test body cannot label its evidence wrongly.
@@ -58,12 +63,14 @@ struct TestSink {
 
     void check(bool cond, const std::string &what) {
         ++checks;
+        count_label(what);
         if (!cond)
             failures.push_back(what);
     }
 
     void equal(const std::string &got, const std::string &want, const std::string &what) {
         ++checks;
+        count_label(what);
         if (got != want)
             failures.push_back(what + "\n      got  " + got + "\n      want " + want);
     }
@@ -81,6 +88,8 @@ struct TestSink {
     }
 
   private:
+    void count_label(const std::string &what) { ++label_counts[{group, what}]; }
+
     void record_evidence(const char *requirement, bool passed, const std::string &what) {
         Evidence e;
         e.requirement = requirement;

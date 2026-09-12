@@ -132,17 +132,28 @@ jobs:
         working-directory: nps
         env:
           NPS_GROUP_COUNTS: 1
+          NPS_CHECK_LABELS: 1
           NPS_EVIDENCE: ""
         run: |
           ./build/host/nps_host > tally.txt 2>&1 || true
           grep '^nps group:' tally.txt
           grep '^nps: ' tally.txt
+          grep '^nps label:' tally.txt > labels.txt
           {
             echo '```'
             grep '^nps group:' tally.txt
             grep '^nps: ' tally.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Four thousand lines, so it goes to an artifact rather than the summary. Diff it against the
+      # same file from a macOS run and the divergent checks name themselves.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: linux-check-labels
+          path: nps/labels.txt
+          if-no-files-found: warn
 
   # Everything ctest knows about.
   # Gated on the fast suite. If the quick suites are already red, the full run would only report the

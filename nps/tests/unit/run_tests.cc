@@ -884,6 +884,12 @@ int main_body() {
                    next - sink.group_opened_at[i]);
         }
     }
+    // One step finer than the group tally, for when the group is known and the sentence is not.
+    if (const char *labels = std::getenv("NPS_CHECK_LABELS"); labels && labels[0] != '\0') {
+        for (const auto &entry : sink.label_counts)
+            printf("nps label: %d\t%s\t%s\n", entry.second, entry.first.first.c_str(),
+                   entry.first.second.c_str());
+    }
     printf("nps: %d checks, %zu failed\n", sink.checks, sink.failures.size());
     for (const std::string &f : sink.failures)
         printf("  FAIL %s\n", f.c_str());
