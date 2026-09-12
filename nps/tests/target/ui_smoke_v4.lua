@@ -6847,6 +6847,9 @@ do
         { "solved but unchecked", "EXACT + UNCHECKED", nil, { "CHECK FAILED" } },
         { "partially solved", "EXACT + UNCHECKED", nil, { "CHECK FAILED" } },
         { "conditionally solved", "EXACT + CONDITIONAL", true, { "UNCHECKED", "CHECK FAILED" } },
+        -- agrees true on purpose. That is what a bridge cross-check leaves behind, and it is the
+        -- arm that would have let this status fall through the last branch reading as verified.
+        { "solved and corroborated", "EXACT + CORROBORATED", true, { "UNCHECKED", "CHECK FAILED" } },
     }) do
         env.steps.result.status, env.steps.result.agrees = case[1], case[3]
         for _ = 1, 3 do env.on.paint(gc) end
