@@ -9,11 +9,15 @@
 !CLAUDE.md
 !GEMINI.md
 
-# The same global ignore hides /.claude/ everywhere. The settings there are the agent contract in
-# executable form, so they travel with the repository like the instruction files above do. A
-# directory has to be un-ignored before anything inside it can be, which is why both lines are here.
+# The same global ignore hides /.claude/ and /.codex/ everywhere. The settings there are the agent
+# contract in executable form, so they travel with the repository like the instruction files above
+# do. A directory has to be un-ignored before anything inside it can be, which is why each one
+# takes two lines. .codex/config.toml was tracked before the global rule existed, so it went on
+# being committed while git add refused it, which is the confusing half of this.
 !/.claude/
 !/.claude/settings.json
+!/.codex/
+!/.codex/config.toml
 
 # Host tooling. nsptool under here is what the nspire MCP invokes, so this does not move. Anchored
 # to the root: a bare tools/ matches at any depth and silently swallowed nps/tools/, which cost two
