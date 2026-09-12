@@ -144,7 +144,13 @@ Actions runs on every push and every pull request. Three workflows matter to you
 
 - check.yml is the suite. A fast gate of the unit and shell suites, then the full ctest run, which only starts if the gate passed. The device package and the emulator boot are on the weekly schedule and on manual dispatch, never on a push, because building the ARM cross compiler takes hours.
 - agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude label on an issue has the same effect as mentioning it.
-- agent-review.yml reviews every pull request that is not a draft. It runs under the workflow's own identity rather than the author's account, which is what makes an approve possible at all: GitHub refuses an approve on a pull request you opened yourself, so an agent working under one account could never do more than comment.
+- agent-review.yml reviews a pull request when it is opened, taken out of draft, or labeled claude-review. It runs under the workflow's own identity rather than the author's account, which is what makes an approve possible at all: GitHub refuses an approve on a pull request you opened yourself, so an agent working under one account could never do more than comment.
+
+Every one of those triggers is somebody asking, and that is deliberate. The agents run on a subscription rather than on metered runners, so a trigger that fires without being asked spends something real.
+
+Two places this was nearly got wrong, both worth knowing before you add a trigger. Opening an issue does not wake anything, because filing a finding so it outlives the session is the most common thing that happens here and none of those want an agent. And a push to a pull request branch does not restart the review, because a branch under repair gets several pushes and each one would review a diff that is about to change. Ask for the second review with the label when the branch is ready for it.
+
+If you add a trigger, ask what happens when it fires fifty times in an afternoon, because at some point it will.
 
 A run says what it says. Read it rather than predicting it:
 

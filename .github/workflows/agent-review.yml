@@ -7,9 +7,13 @@ name: agent-review
 # comment. A review posted from here comes from the workflow's own identity rather than from the
 # author's account, so the approve lands and the verdict is machine-readable.
 
+# Not on synchronize. A branch under repair gets several pushes and each one would start a full
+# review of a diff that is about to change again, which spends a subscription to read work in
+# progress. The review happens when the branch is offered: opened, or taken out of draft, or asked
+# for again by putting the claude-review label on it after a fix.
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, ready_for_review, labeled]
 
 # A push that supersedes the branch supersedes the review of it. There is no value in finishing a
 # review of a diff that has already been replaced.
@@ -20,8 +24,10 @@ concurrency:
 jobs:
   review:
     # A draft is not finished, and reviewing a moving tree is the failure the review lane exists to
-    # avoid.
-    if: github.event.pull_request.draft == false
+    # avoid. A label event fires for every label, so only the one that means this starts a run.
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

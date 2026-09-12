@@ -9,15 +9,17 @@ name: agent
 #
 # The action decides what to do from the event, so all three land in one job.
 
+# Every trigger here is somebody asking. Opening an issue is not asking: filing a finding so it
+# outlives the session is the most common thing that happens in this repository, and waking an agent
+# on each one spends a subscription on work nobody requested. Add the label when you want it picked
+# up.
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  pull_request_review:
-    types: [submitted]
   repository_dispatch:
     types: [agent-task]
   workflow_dispatch:
@@ -34,6 +36,11 @@ concurrency:
 
 jobs:
   respond:
+    # A label event fires for every label, and only one of them means this. Without the guard,
+    # tagging an issue defect or bridge would start a run.
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.label.name == 'claude'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
