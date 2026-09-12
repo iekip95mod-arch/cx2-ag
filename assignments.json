@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "assignments": [
+    {
+      "key": "codex/reviewer/issue-90",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 90,
+      "pr": 91,
+      "branch": "codex/named-bot-identities",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
+    }
+  ]
+}
