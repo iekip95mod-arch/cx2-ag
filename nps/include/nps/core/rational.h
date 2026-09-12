@@ -501,9 +501,9 @@ inline bool rounded_text(const Rational &value, unsigned digits, std::string *ou
 // exists to stop: a rounding that disagrees and one whose text could not be read are different
 // answers, and a single bool made every caller guess which it had.
 //
-// Unreadable has two producers in the text. It is not a decimal numeral, or it carries fewer
-// written digits than the caller asked to compare at, so there is no last place to measure against.
-// A value with a zero denominator reaches it too, which is a caller that built one, not a numeral.
+// Unreadable has two producers in the text. It is not a decimal numeral, or its declared place is
+// past the widest a unit is built for, which no printer here reaches and a caller can still ask
+// for. A value with a zero denominator reaches it too, which is a caller that built one.
 enum class HalfPlace { Within, Outside, Unreadable };
 
 inline const char *half_place_name(HalfPlace outcome) {
@@ -517,31 +517,19 @@ inline const char *half_place_name(HalfPlace outcome) {
 
 namespace detail {
 
-// The last place of a written numeral, as an exact value.
-inline bool mpq_last_place_unit(mpq_ptr out, const std::string &text, unsigned digits) {
-    const size_t point = text.find('.');
-    unsigned long exponent = 0;
-    bool fractional = false;
-    if (point != std::string::npos) {
-        exponent = static_cast<unsigned long>(text.size() - point - 1);
-        fractional = true;
-    } else {
-        size_t written = text.size();
-        if (!text.empty() && text.front() == '-')
-            --written;
-        if (written < digits)
-            return false;
-        exponent = static_cast<unsigned long>(written - digits);
-    }
-    // Bounded by the text rather than by int64, for the same reason the scanner above is.
-    if (exponent > text.size())
+// One unit in a decimal place, as an exact value. The ceiling bounds the work rather than the
+// representation, and sits far above any place a numeral built from an int64 Rational can carry.
+inline bool mpq_decimal_place_unit(mpq_ptr out, int32_t place) {
+    constexpr int64_t kWidestComparablePlace = 1024;
+    const int64_t magnitude = place < 0 ? -static_cast<int64_t>(place) : place;
+    if (magnitude > kWidestComparablePlace)
         return false;
 
     Mpz power;
-    mpz_pow10(power.get(), exponent);
+    mpz_pow10(power.get(), static_cast<unsigned long>(magnitude));
     Mpz one;
     mpz_set_ui(one.get(), 1);
-    if (fractional) {
+    if (place < 0) {
         mpq_set_num(out, one.get());
         mpq_set_den(out, power.get());
     } else {
@@ -552,8 +540,7 @@ inline bool mpq_last_place_unit(mpq_ptr out, const std::string &text, unsigned d
     return true;
 }
 
-// Twice the error against one unit in the last place, which is the whole comparison. One copy,
-// because the two callers differ only in how they arrive at the unit.
+// Twice the error against one unit in the last place, which is the whole comparison.
 inline HalfPlace half_place_compare(mpq_srcptr exact, mpq_srcptr reported, mpq_srcptr unit) {
     Mpq error;
     mpq_sub(error.get(), exact, reported);
@@ -563,19 +550,6 @@ inline HalfPlace half_place_compare(mpq_srcptr exact, mpq_srcptr reported, mpq_s
 }
 
 }  // namespace detail
-
-inline HalfPlace rounded_within_half_place(const Rational &exact, const std::string &text,
-                                           unsigned digits) {
-    detail::Mpq reported_value;
-    detail::Mpq unit_value;
-    detail::Mpq exact_value;
-    if (!detail::mpq_from_text(reported_value.get(), text, text.size()) ||
-        !detail::mpq_last_place_unit(unit_value.get(), text, digits) ||
-        !detail::mpq_set_rational(exact_value.get(), exact)) {
-        return HalfPlace::Unreadable;
-    }
-    return detail::half_place_compare(exact_value.get(), reported_value.get(), unit_value.get());
-}
 
 }
 

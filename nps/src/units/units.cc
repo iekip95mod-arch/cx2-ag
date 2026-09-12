@@ -875,14 +875,14 @@ HalfPlace precision_rounding_valid(const Rational &exact, const std::string &rep
         !detail::mpq_set_rational(exact_value.get(), exact)) {
         return HalfPlace::Unreadable;
     }
-    // The unit comes from the declared place rather than from the text, which is what separates
-    // this from rounded_within_half_place. The comparison itself is shared.
-    Rational unit;
-    if (!decimal_place_unit(precision.last_significant_decimal_place, &unit))
-        return HalfPlace::Unreadable;
+    // The unit comes from the declared place, and is built exact rather than through a Rational,
+    // so the comparison reaches every place a printer can write instead of stopping where int64
+    // does. Narrowing the reported value the same way refused correct roundings once already.
     detail::Mpq unit_value;
-    if (!detail::mpq_set_rational(unit_value.get(), unit))
+    if (!detail::mpq_decimal_place_unit(unit_value.get(),
+                                        precision.last_significant_decimal_place)) {
         return HalfPlace::Unreadable;
+    }
     return detail::half_place_compare(exact_value.get(), reported_value.get(), unit_value.get());
 }
 

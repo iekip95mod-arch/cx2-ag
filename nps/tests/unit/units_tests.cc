@@ -433,9 +433,7 @@ void run_units_tests(TestSink &t) {
                                        &report) &&
                     report == "0.000000000000000001",
                 "the smallest supported negative decimal place rounds exactly");
-        // The two share decimal_place_unit, so the printer can never reach a place the comparison
-        // refuses. Pinned at both ends, since a ceiling raised on one side only would let the engine
-        // publish a rounding it could not read back.
+        // The comparison reaches past the printer, so nothing is published it cannot read back.
         t.check(precision_rounding_valid(Rational{1, INT64_C(1000000000000000000)}, report,
                                          decimal_place) == HalfPlace::Within,
                 "and the comparison reaches that place too rather than calling it unreadable");
@@ -656,6 +654,30 @@ void run_units_tests(TestSink &t) {
         t.check(precision_rounding_valid(ceiling, "9223372036854775910", at_place(1)) ==
                     HalfPlace::Outside,
                 "and a wrong one that wide is still caught");
+
+        // The same narrowing one field over. The unit was a Rational too, so a place past the
+        // eighteenth came back unreadable even though the printer had just written one.
+        Rational thirtieth;
+        thirtieth.num = 1;
+        thirtieth.den = 30;
+        t.check(precision_rounding_valid(thirtieth, "0.0333333333333333333", at_place(-19)) ==
+                    HalfPlace::Within,
+                "a rounding finer than a Rational unit reaches is compared rather than refused");
+        t.check(precision_rounding_valid(thirtieth, "0.0333333333333333334", at_place(-19)) ==
+                    HalfPlace::Outside,
+                "and a wrong one that fine is still caught");
+        t.check(precision_rounding_valid(thirtieth, "0.0333333333333333333", at_place(-2000)) ==
+                    HalfPlace::Unreadable,
+                "while a place past the widest unit this builds is a comparison that never ran");
+
+        // A carry leaves the declared place one finer than the text, and the place the value was
+        // rounded at is the one the check has to use.
+        Rational carried;
+        carried.num = INT64_C(900000000000000000);
+        carried.den = INT64_C(9000000000000000001);
+        t.check(precision_rounding_valid(carried, "0.100000000000000000", at_place(-19)) ==
+                    HalfPlace::Within,
+                "a carry past the eighteenth place is checked at the place it rounded at");
 
         // The three ways there is nothing to compare, told apart from a disagreement.
         t.check(precision_rounding_valid(third, "", at_place(-2)) == HalfPlace::Unreadable,
@@ -884,6 +906,51 @@ void run_units_tests(TestSink &t) {
         t.check(checked == HalfPlace::Within,
                 "and the comparison that allowed it comes back with the text, so the caller is not "
                 "left inferring it from a bool that also means the arithmetic ran out of room");
+    }
+
+    {
+        // Density rounds by digit count and checks at the declared place, so the two have to agree
+        // wherever the printer can write. A swept pair rather than a row, because the places that
+        // came apart were the ones nobody picks by hand.
+        const Rational candidates[] = {
+            Rational{1, 3},
+            Rational{2, 3},
+            Rational{1, 7},
+            Rational{1, 30},
+            Rational{1, 300},
+            Rational{1, 3000},
+            Rational{1, 30000},
+            Rational{1, 300000},
+            Rational{1, 3000000},
+            Rational{1, 30000000},
+            Rational{996, 100},
+            Rational{997, 1000},
+            Rational{1, 2},
+            Rational{7, 2},
+            Rational{1, 1000000},
+            Rational{INT64_C(9223372036854775807), 7},
+            Rational{1, INT64_C(1000000000000)},
+        };
+        int unchecked = 0;
+        int compared = 0;
+        for (const Rational &candidate : candidates) {
+            for (unsigned digits = 1; digits <= 18; ++digits) {
+                std::string reported;
+                if (!rounded_text(candidate, digits, &reported))
+                    continue;
+                if (reported == rational_text(candidate))
+                    continue;
+                Precision precision;
+                precision.kind = NumberKind::Measured;
+                precision.significant_digits = static_cast<uint16_t>(digits);
+                precision = precision_at_digits(candidate, precision);
+                ++compared;
+                if (precision_rounding_valid(candidate, reported, precision) != HalfPlace::Within)
+                    ++unchecked;
+            }
+        }
+        t.check(compared > 200 && unchecked == 0,
+                "every rounding the digit printer writes passes the check at its declared place");
     }
 
     t.equal(added(vector_of("m", 3, 4), vector_of("m", 1, 2)), "(4 i + 6 j) m",
