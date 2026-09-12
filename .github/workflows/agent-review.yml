@@ -1,4 +1,6 @@
 name: agent-review
+run-name: >-
+  Review PR #${{ github.event.pull_request.number }} (${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }})
 
 # The review gate AGENTS.md describes, run by a reviewer that did not write the code.
 #

@@ -1,0 +1,7 @@
+{
+  "name": "cx2-pr-event-receiver",
+  "private": true,
+  "type": "module",
+  "scripts": {"build": "node build.mjs", "test": "node --test receiver.test.mjs", "migrate": "drizzle-kit generate"},
+  "devDependencies": {"drizzle-kit": "0.31.4", "drizzle-orm": "0.44.5"}
+}

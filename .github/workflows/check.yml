@@ -50,6 +50,15 @@ jobs:
       - name: Verify CI dependency and emulator contracts
         run: ruby .github/scripts/test-ci-scheduling.rb
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Verify event authentication and task routing
+        env:
+          TEST_WORKSPACE: ${{ runner.temp }}
+        run: node --test tools/github-events/bridge.test.mjs tools/github-events/receiver/receiver.test.mjs .github/scripts/test-codeql-review.mjs
+
       # cmake, ninja, pkgconf, zstd and python3 ship on the image. gmp does not, and the version is
       # not a preference: nps/CMakeLists.txt:345 asks pkg-config for gmp=6.3.0 exactly, so a bump in
       # the formula breaks configure rather than degrading it.
@@ -223,8 +232,30 @@ jobs:
   # No ccache here, unlike every other job in this file. CodeQL extracts c-cpp by watching the
   # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
   # the analysis an empty database and the job would still pass.
-  codeql:
+  review-ready:
     needs: [fast, full, emulator]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Wait for the current PR reviewer to approve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/wait-for-review.mjs
+
+  codeql:
+    needs: [fast, full, emulator, review-ready]
     permissions:
       contents: read
       security-events: write

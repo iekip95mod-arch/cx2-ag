@@ -6,6 +6,8 @@ require 'yaml'
 
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
+classification = workflow.fetch('concurrency').fetch('group').delete_prefix('agent-review-${{ github.event.pull_request.number }}-')
+raise 'Review run names must identify requested and metadata runs by PR' unless workflow['run-name'] == 'Review PR #${{ github.event.pull_request.number }} (' + classification + ')'
 selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
 %w[agent agent-codex agent-gemini].each do |name|
   worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
