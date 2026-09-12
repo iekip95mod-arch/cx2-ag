@@ -310,11 +310,12 @@ no longer look identical.
 **The rounding step displayed a transformation with nothing verifying it.** MVP criterion 4 wants
 every displayed transformation to carry a passing typed verification. It now carries one: the
 reported value is within half a unit in the last place of the exact one, compared in exact integer
-arithmetic, with the unit read back from the printed text rather than taken from the routine that
-wrote it. A rounding that cannot be shown to be within that bound is not displayed at all and the
-exact value is reported instead. `rounded_within_half_place` is tested on values it should reject as
-well as ones it should accept. The step's `after` node is the decimal as written now, not the
-fraction 33/100 the action text did not mention.
+arithmetic, with the unit built from the place the value was rounded at rather than counted off the
+printed characters. A rounding that cannot be shown to be within that bound is not displayed at all
+and the exact value is reported instead. The predicate is precision_rounding_valid, which
+units_tests exercises on values it should reject as well as ones it should accept. The step's
+`after` node is the decimal as written now, not the fraction 33/100 the action text did not
+mention.
 
 **Iterative deepening was per branch rather than per route.** Each missing quantity got the full
 remaining depth, so a level-three search could build a route of five hops (four in practice, since

@@ -169,6 +169,49 @@ void test_quadratic_teaching(TestSink &t) {
     t.check(cases == 1 && r.solutions.size() == 1, "the zero solution is recorded only once");
 }
 
+// Each way this rule can run out of room, against the one way an equation can genuinely be the wrong
+// shape. The three refusals used to arrive as a claim that the input was not a pure quadratic, which
+// is what the bridge reads before deciding whether Giac is worth asking.
+void test_capacity_refusals_are_not_a_shape_claim(TestSink &t) {
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "9000000000*4000000000*x^2 = 1", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "resource exceeded",
+                "a coefficient too large to read is the arithmetic running out");
+        t.check(derivation_status_name(r.status) == std::string("resource limit reached"),
+                "with the status naming the limit");
+        t.check(r.solutions.empty(), "and no root is offered");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "x^2/2 + 9223372036854775807 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "resource exceeded",
+                "and so is a square that will not fit once the constant is divided across");
+        t.check(derivation_status_name(r.status) == std::string("resource limit reached"),
+                "under the same status");
+    }
+    {
+        Limits limits;
+        limits.max_nodes = 4;
+        Arena arena(limits);
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "x*x = 5", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "resource exceeded",
+                "an arena with no room for the squared term refuses as a limit rather than a shape");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "x^2 + x = 6", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "not a pure quadratic in the unknown",
+                "while a term of degree one is still a claim about the equation");
+        t.check(derivation_status_name(r.status) == std::string("unsupported"),
+                "under the unsupported status rather than a resource limit");
+    }
+}
+
 // PERF-008's branch limit landing inside a split, which derivation.h:246 names as the hazard the
 // counter exists to catch. A split whose second case is refused would leave the first standing with
 // siblings_exhaustive set, which is a complete-looking answer that is missing a root.
@@ -519,6 +562,7 @@ void run_quadratic_tests(TestSink &sink) {
     test_square_root_split(sink);
     test_quadratic_teaching(sink);
     test_branch_budget_inside_a_split(sink);
+    test_capacity_refusals_are_not_a_shape_claim(sink);
     test_substitution_out_of_exact_arithmetic(sink);
     test_completeness_predicate(sink);
     test_split_gates_fail_when_a_case_goes_missing(sink);
