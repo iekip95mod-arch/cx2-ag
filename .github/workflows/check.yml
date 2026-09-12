@@ -267,7 +267,7 @@ jobs:
           sha256sum build_toolchain.sh | cut -d' ' -f1 > "$RUNNER_TEMP/built-from.sha256"
           ls -l "$RUNNER_TEMP/ndl-arm-none-eabi-linux-x86_64.tar.zst"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.unpack.outputs.used != 'true'
         with:
           name: cross-toolchain
@@ -299,7 +299,7 @@ jobs:
 
       # The host suite's package integrity checks verify a built package against its sidecar, so a
       # run that produced one is the only run that can exercise them.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nspire-package
           path: |
