@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake:*)",
+      "Bash(ctest:*)",
+      "Bash(ninja:*)",
+      "Bash(ccache:*)",
+      "Bash(rg:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch:*)",
+      "Bash(git stash push:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh label:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
+    ],
+    "deny": [
+      "Bash(gh repo delete:*)",
+      "Bash(gh repo edit:*)",
+      "Bash(gh secret:*)",
+      "Bash(gh auth token:*)",
+      "Read(**/.env)",
+      "Read(**/*.pem)"
+    ]
+  }
+}
