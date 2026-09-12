@@ -501,9 +501,9 @@ inline bool rounded_text(const Rational &value, unsigned digits, std::string *ou
 // exists to stop: a rounding that disagrees and one whose text could not be read are different
 // answers, and a single bool made every caller guess which it had.
 //
-// Unreadable has two producers in the text. It is not a decimal numeral, or its declared place is
-// past the widest a unit is built for, which no printer here reaches and a caller can still ask
-// for. A value with a zero denominator reaches it too, which is a caller that built one.
+// Unreadable has two producers. The text is not a decimal numeral, or the declared place is past
+// the widest a unit is built for, which no printer here reaches and a caller can still ask for. A
+// value with a zero denominator reaches it too, which is a caller that built one.
 enum class HalfPlace { Within, Outside, Unreadable };
 
 inline const char *half_place_name(HalfPlace outcome) {

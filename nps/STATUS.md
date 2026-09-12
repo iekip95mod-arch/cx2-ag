@@ -313,10 +313,9 @@ reported value is within half a unit in the last place of the exact one, compare
 arithmetic, with the unit built from the place the value was rounded at rather than counted off the
 printed characters. A rounding that cannot be shown to be within that bound is not displayed at all
 and the exact value is reported instead. The predicate is precision_rounding_valid, which
-units_tests exercises on values it should reject as well as ones it should accept. The earlier
-text-derived predicate named here had no test of its own, which is why the sentence claiming it did
-has gone. The step's `after` node is the decimal as written now, not the fraction 33/100 the action
-text did not mention.
+units_tests exercises on values it should reject as well as ones it should accept. The step's
+`after` node is the decimal as written now, not the fraction 33/100 the action text did not
+mention.
 
 **Iterative deepening was per branch rather than per route.** Each missing quantity got the full
 remaining depth, so a level-three search could build a route of five hops (four in practice, since
