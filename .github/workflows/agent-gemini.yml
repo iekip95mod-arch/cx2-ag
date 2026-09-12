@@ -26,8 +26,10 @@ jobs:
        contains(github.event.comment.body, '@gemini'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Read on contents for the reason agent-codex.yml gives: this lane posts an answer and never
+    # pushes a branch.
     permissions:
-      contents: write
+      contents: read
       issues: write
       pull-requests: write
       id-token: write

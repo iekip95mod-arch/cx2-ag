@@ -31,8 +31,11 @@ jobs:
        contains(github.event.comment.body, '@codex'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Read on contents, because this lane answers rather than lands. Nothing below pushes a branch,
+    # so write would be a grant nobody spends, and a token scope is the one restriction here that is
+    # enforced rather than asked for.
     permissions:
-      contents: write
+      contents: read
       issues: write
       pull-requests: write
     steps:
