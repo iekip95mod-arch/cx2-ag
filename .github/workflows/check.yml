@@ -297,7 +297,7 @@ jobs:
       # The last three are for MPFI rather than for the compiler. Its archive is a gitlab snapshot
       # with a configure.ac and no configure, so the build script has to generate one.
       - name: Install prerequisites
-        run: brew install ccache gmp mpfr libmpc texinfo bison flex autoconf automake libtool
+        run: brew install ccache gmp mpfr libmpc texinfo bison flex autoconf automake libtool boost
 
       # The expensive step, and the reason this job is not a gate. Cached on the build script, so it
       # is paid once and then reused until that script changes.
@@ -396,8 +396,13 @@ jobs:
         working-directory: vendor/ndl-src/ndl-sdk
         run: |
           export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
+          # genzehn is a host tool and it includes boost/program_options.hpp. Its own makefile adds
+          # no include path for it, and clang does not search the brew prefix on its own, so
+          # without these two the build stops on a missing header after everything else linked.
+          export CPATH="$(brew --prefix boost)/include${CPATH:+:$CPATH}"
+          export LIBRARY_PATH="$(brew --prefix boost)/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
           make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
-          ls lib
+          ls lib bin/genzehn
 
       # Three calculator libraries, not host ones. nps/CMakeLists.txt:249 and :336 read them straight
       # out of the toolchain prefix, so they belong to the toolchain rather than beside it, and
