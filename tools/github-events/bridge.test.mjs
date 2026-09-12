@@ -20,6 +20,24 @@ test('routes only subscribed PRs and event types to each requesting task', async
   assert.equal(queued[1][0], second);
   assert.match(queued[0][1], /pull\/84/);
   assert.doesNotMatch(queued[0][1], /pull\/85/);
+  assert.deepEqual(queued[0][1].split('\n').filter(line => /^(workflow_run|pull_request_review):/.test(line)), [`workflow_run: check: success, commit ${'a'.repeat(40)}`]);
+  assert.deepEqual(queued[1][1].split('\n').filter(line => /^(workflow_run|pull_request_review):/.test(line)), [`pull_request_review: review approved, commit ${'a'.repeat(40)}`]);
+  assert.deepEqual(db.prepare('SELECT event, thread FROM delivered ORDER BY event, thread').all().map(row => ({ ...row })), [{ event: 1, thread: first }, { event: 3, thread: second }]);
+  db.close();
+});
+test('unrelated PRs and excluded event types queue nothing before a permitted review', async () => {
+  const db = openState(':memory:');
+  subscribe(db, first, 84, ['pull_request_review'], now);
+  const queued = [];
+  await deliver(db, [event(1, 85, { event: 'pull_request_review', review: 'approved' }), event(2)], async (...args) => queued.push(args), now + 2);
+  assert.deepEqual(queued, []);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM pending').get().count, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM delivered').get().count, 0);
+  await deliver(db, [event(3, 84, { event: 'pull_request_review', review: 'approved' })], async (...args) => queued.push(args), now + 2);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0][0], first);
+  assert.match(queued[0][1], /pull_request_review: review approved/);
+  assert.deepEqual(db.prepare('SELECT event FROM delivered').all().map(row => row.event), [3]);
   db.close();
 });
 test('offline backlog and cursor survive process restart', async () => {
