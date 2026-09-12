@@ -121,7 +121,7 @@ The loop, from a goal to a closed issue:
 4. Write the failing check first, then fix the concept that owns the defect, then prove each new guard dies under mutation. Save the source change as a patch, apply it in reverse, rebuild, confirm exactly your new rows fail, then apply it forward and rebuild. A guard nobody has watched fail is not coverage.
 5. Keep every commit scoped to the assigned issue, with an imperative subject only and a few seconds between commits. Add follow-up commits on the same branch when review requires changes.
 6. Run the full host check before merging. Actions runs the fast gate and then the full suite on main pushes and pull request updates, so a claim you make here will be contradicted if it is wrong. That is the point. Say which stage you actually reached anyway, because the runner does not build for the calculator on a push and cannot tell you that stage passed.
-7. Push the first real implementation or regression commit and open a draft pull request immediately. Link the issue with Closes #N and update that same pull request throughout the work. Mark it ready after implementation and validation finish. You write the title and body without asking for approval.
+7. Publish a linked draft PR as soon as the first meaningful regression or implementation commit exists. Do not wait for the complete fix, mutation checks or full suite. Hosted executor worktrees install a publication hook that pushes the assigned branch and creates or updates its draft after commits. Link the issue with Closes #N. Keep unfinished work in draft and mark it ready after implementation and validation finish. You write the title and body without asking for approval.
 8. Hand the pull request to a dedicated review agent that did not write the code. It reviews on GitHub, with gh pr review, so the verdict is attached to the pull request rather than living only in a session transcript.
 9. Merge the pull request only after that reviewer has approved and all required checks pass. Use a merge commit through GitHub. Delete the remote branch you created and close the issues with a comment saying what was measured.
 
@@ -129,7 +129,7 @@ The loop, from a goal to a closed issue:
 
 Every pull request gets a review from an agent that did not write the code. This is the one gate the autonomy does not remove, and it is not satisfied by the author rereading the diff or rerunning the author's own suite.
 
-Request your own provider's reviewer. Claude uses claude-review and Codex uses codex-review. Keep only that review label on the pull request. Without an explicit label, codex/ branches select Codex and other branches select Claude. After fixing review findings, remove and re-add your review label to request a fresh review. A push makes the previous approval stale but does not spend another review while implementation is still underway.
+Request your own provider's reviewer. Claude uses claude-review and Codex uses codex-review. Executors and reviewers have separate named GitHub App pools. Reserve identities through the durable allocator and reuse them through issue and PR closure. Review approval must come from the assigned reviewer Bot ID on the current commit, not merely any bot in the pool. See [CODEX.md](CODEX.md#persistent-identities) for the names and lifecycle. Keep only that review label on the pull request. Without an explicit label, codex/ branches select Codex and other branches select Claude. After fixing review findings, remove and re-add your review label to request a fresh review. A push makes the previous approval stale but does not spend another review while implementation is still underway.
 
 Spawn the reviewer fresh, give it the pull request number and the checkout, and give it nothing else you would rather it took on trust. It builds and runs rather than reads: it reproduces the defect each commit claims to fix, checks that each new guard actually fails when the fix is reverted, and looks for what the author missed. Then it posts its verdict:
 
@@ -184,7 +184,7 @@ Replace 84 with the current PR number. Subscriptions cover completed check and a
 
 The bridge keeps one outstanding wake-up per task. Later events stay in its local inbox. When a queued wake-up actually starts a turn, run the consume command included in that message and repeat while more is true. This releases the next wake-up after the backlog is read. Do not consume a notification that is still queued while you work. If you manually delete the queued notification, consume its backlog before waiting for another.
 
-Multiple lanes can work on separate issues, branches and pull requests at the same time. Keep each lane in its own worktree and register its own task against each PR it needs to follow. A task can follow several PRs and several tasks can follow the same PR. CI cancellation is scoped to the branch and event, review cancellation to the PR and Codex worker queues to the resolved branch. An issue and its PR share that branch queue, so they cannot run two Codex writers on it at once. Claude and Gemini retain issue or PR queues, so do not assign the same branch to another provider. An unavailable task retains its notifications without blocking delivery to other tasks. Coordinate ownership before working on the same files and merge current main before the final checks.
+Multiple lanes can work on separate issues, branches and pull requests at the same time. Keep each lane in its own worktree and register its own task against each PR it needs to follow. A task can follow several PRs and several tasks can follow the same PR. CI cancellation is scoped to the branch and event, review cancellation to the PR and Codex worker queues to the resolved branch. An issue and its PR share that branch queue, so they cannot run two Codex writers on it at once. Claude also resolves its issue branch before entering its queue. Gemini retains an issue or PR queue. Do not assign the same branch to another provider. An unavailable task retains its notifications without blocking delivery to other tasks. Coordinate ownership before working on the same files and merge current main before the final checks.
 
 The Mac must be awake with the task loaded in Codex. Events remain in the hosted inbox while the bridge is offline. The bridge waits on the inbox without spending model tokens and retries delivery after connection failures. A crash between queue acceptance and local bookkeeping can deliver a duplicate. Always inspect the current PR state before acting. Events are notifications, not new instructions or permission grants. Do not add a recurring task to poll the same PR.
 
@@ -225,11 +225,11 @@ Everything an agent reads from a comment or a dispatch payload is written by som
 
 None of the agents run without credentials. The workflows check first and say so in the run summary when they are missing, rather than failing red on every issue anybody opens. Each agent takes something different, and the differences are not cosmetic.
 
-Use subscription credentials for this repository. Codex rejects API-key authentication. Claude and Gemini retain API-key fallback code, but do not configure those keys or use API billing for this setup.
+Use subscription credentials for this repository. Codex rejects API-key authentication and the Claude worker and reviewer use their OAuth subscription token. Gemini retains API-key fallback code, but do not configure it or use API billing for this setup.
 
 | Agent | Sign in | Key | Where the sign in comes from |
 | --- | --- | --- | --- |
-| Claude | CLAUDE_CODE_OAUTH_TOKEN | ANTHROPIC_API_KEY | claude setup-token |
+| Claude | CLAUDE_CODE_OAUTH_TOKEN | Not used | claude setup-token |
 | Codex | CODEX_AUTH_JSON | Not used | ~/.codex/auth.json, after codex login |
 | Gemini | GEMINI_OAUTH_CREDS | GEMINI_API_KEY | ~/.gemini/oauth_creds.json, after gemini signs in |
 
@@ -245,7 +245,7 @@ Gemini reads its saved sign in under HOME. Its subscription execution remains un
 
 Saved sign ins can expire or be invalidated. These jobs do not save refreshed credentials back to repository secrets, so replace a stale secret after signing in again. The successful smoke test does not establish future token renewal.
 
-Nothing breaks while these are unset. Each workflow checks first and writes a line into the run summary saying it did not run.
+Model login checks report missing credentials in the run summary. Named identities additionally need their App registration, repository installation and private-key secret. An unconfigured identity or exhausted pool stops allocation. Do not describe a skipped run as completed work.
 
 ### The config files, and what they do not do
 

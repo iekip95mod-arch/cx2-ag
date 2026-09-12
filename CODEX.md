@@ -24,27 +24,42 @@ gh workflow run agent-codex.yml --repo iekip95mod-arch/cx2-ag --ref main \
 
 The codex issue label also starts a worker. An @codex comment from an owner, member or collaborator resumes work on its issue or PR. Opening an issue alone starts nothing. Manual dispatch without issue_number is a general response and receives no publishing credential.
 
-The preparation script assigns the publishing account to the issue and records the branch and run in a comment. The GitHub assignee is that account, not a separate Codex bot identity. A new issue uses codex/issue-N from current main. An existing owned branch is resumed without rewriting history. Merge current main into an older branch before final validation.
+The preparation script reserves a named executor identity and records its branch and run on the issue. GitHub rejects the installed custom App bots as native assignees, so a worker label and durable claim show ownership instead. A new issue uses codex/issue-N from current main. Resume an owned branch without rewriting history and merge current main before final validation.
 
 Closed issues, another account's assignment, Claude-labelled issues, unclaimed existing branches and foreign or differently authored PRs are rejected. An owned PR resolves to its existing codex/ branch. Issue and PR requests share a queue keyed by that branch, and the worker verifies the branch again before claiming it. This serializes Codex writers only. Do not dispatch another provider onto the same branch. GitHub concurrency is not a durable task backlog, so check pending run status before assuming every request will execute.
 
-After the first real commit, push and open a draft PR with Closes #N in its body. Keep using that PR. Follow-up review fixes belong on the same branch.
+The first meaningful regression or implementation commit triggers publication: push the assigned branch and open a linked draft PR with Closes #N in its body. Do not wait for the complete repair, mutation checks or full host suite. GitHub requires a branch diff before it can open a PR. The worktree publication hook checks the assigned branch and updates the same draft on later commits. A publication failure leaves the commit intact and must be retried without creating another commit or PR.
+
+## Persistent identities
+
+| Pool | Names |
+| --- | --- |
+| Codex executors | Amber, Birch, Cedar, Flint, Maple, Willow |
+| Claude executors | Atlas, Comet, Ember, Nova, Orion, Vega |
+| Codex reviewers | Aegis, Beacon, Compass, Harbor, Lantern, Prism |
+| Claude reviewers | Anchor, Cairn, Delta, Echo, Grove, Summit |
+
+The trusted catalogue is .github/scripts/bot-identities.json. Each entry maps a provider and role to an App ID, numeric Bot user ID and private-key secret name. Unconfigured entries cannot run. Executor logins use cx2-ag-PROVIDER-NAME[bot] and reviewers use cx2-ag-PROVIDER-review-NAME[bot].
+
+The bot-assignments branch stores durable claims. Allocation uses the file's current SHA to prevent simultaneous runs from taking the same slot. Retries and resumed PR work reuse the saved identity. A slot becomes available only after its linked issue and all associated PRs close. A full pool refuses new work rather than borrowing another live worker's identity. Closing a task does not rename or delete its bot, so historical comments and commits retain their author.
+
+Executor and reviewer pools are separate. The reviewer uses the same model provider as the executor, with a different GitHub identity. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
 
 ## Credentials
 
 | Secret | Purpose |
 | --- | --- |
 | CODEX_AUTH_JSON | Saved Codex subscription login for model execution |
-| CODEX_GITHUB_TOKEN | Repository-scoped GitHub identity for issue claims, branches, pushes and PRs |
-| GITHUB_TOKEN | Automatic Actions token for read-only routing and workflow replies |
+| CX2_AG_*_PRIVATE_KEY | Private key for one named executor or reviewer GitHub App |
+| GITHUB_TOKEN | Automatic Actions token for trusted routing and durable identity allocation |
 
-CODEX_GITHUB_TOKEN is a GitHub credential, not a model API key. Its fine-grained permissions are Actions read, Contents write, Issues write, Pull requests write, Workflows write and implicit Metadata read, restricted to cx2-ag. The installed token expires on 2026-10-12. Replace it before then and update this date with its replacement.
+Named workers mint short-lived installation tokens for cx2-ag from their assigned App's private key. Executor Apps can write contents, issues, PRs and workflows. Reviewer Apps can read contents and publish issues and reviews, but cannot push code. The App credentials change GitHub attribution only. Codex continues using CODEX_AUTH_JSON and Claude uses CLAUDE_CODE_OAUTH_TOKEN for subscription model execution. The former personal CODEX_GITHUB_TOKEN is not the named workers' publishing identity.
 
 The worker restores CODEX_AUTH_JSON into a private temporary Codex home and rejects API-key authentication. General responses receive no publishing token. Hosted implementation runs expose the publishing token to git and gh so their pushes and PR events can trigger CI. Never print credentials or commit them. Refreshed subscription credentials are not written back to repository secrets, so replace an expired login explicitly.
 
 ## Review and merge
 
-Stop editing before marking the PR ready and applying codex-review. Keep only the selected provider's review label. Claude requests claude-review and Codex requests codex-review. An independent reviewer publishes its verdict on the current PR commit. The author cannot satisfy the approval gate with a self-review or comment.
+Stop editing before marking the PR ready and applying codex-review. Keep only the selected provider's review label. Claude requests claude-review and Codex requests codex-review. A separately leased reviewer from the requesting provider's pool publishes its verdict on the current PR commit. The approval gates verify that exact reviewer's login and numeric Bot ID against its lease and the trusted catalogue. The author cannot satisfy the approval gate with a self-review or comment.
 
 Fast must succeed before full and emulator start. CodeQL waits for fast, full, emulator and the current selected review approval. A failed review blocks CodeQL. New commits stale the prior approval. After fixing findings, remove and re-add codex-review. If CI already failed while waiting for review, rerun its failed jobs after approval on the same commit.
 
@@ -73,6 +88,6 @@ The Mac must be awake and the destination task available. Offline events remain 
 
 ## Validation and current limits
 
-Worker tests exercise branch ownership, issue and PR queue aliases, assignments and startup against isolated local Git repositories and a controlled GitHub CLI. Hosted run 34721406158 verified subscription execution, issue 20 assignment, branch creation and an authenticated push with no new commits. A real implementation PR remains the publication check until the first issue worker opens one.
+Worker tests exercise ownership, issue and PR aliases, identity leases and startup against isolated Git repositories and controlled GitHub responses. The previous personal-token workers opened PRs 87, 88 and 89 for issues 51, 42 and 20. That proves the previous publishing setup. App registration and successful token creation alone do not prove a named worker has opened and updated its own PR.
 
 Claude worker preparation failed at its turn limit with permission denials. Gemini subscription execution remains unverified. Do not describe either as healthy from the existence of its workflow alone.
