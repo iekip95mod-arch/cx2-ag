@@ -395,6 +395,7 @@ void run_determinant_tests(TestSink &t) {
         {"[[9223372036854775807,0,0,0],[0,9223372036854775807,0,0],[0,0,9223372036854775807,0],[0,0,0,9223372036854775807]]",
          "[[9223372036854775807,0,0,0],[0,9223372036854775807,0,0],[0,0,9223372036854775807,0],[0,0,0,9223372036854775807]]",
          "7237005577332262210834635695349653859421902880380109739573089701262786560001", {}, 0},
+        {"[[-9223372036854775808]]", "[[-9223372036854775808]]", "-9223372036854775808", {}, 0},
     };
     for (const Fixture &fixture : fixtures) {
         Arena arena;
@@ -423,9 +424,12 @@ void run_determinant_tests(TestSink &t) {
         }
         t.check(derivation.context.problem_family_id == "matrix.det.rational" &&
                 derivation.context.requested_method == "det" &&
-                derivation.context.resource_policy.find("matrix-cell-bits<=63") != std::string::npos &&
+                derivation.context.resource_policy.find(
+                    "matrix-cell-numerator=-9223372036854775808..9223372036854775807") != std::string::npos &&
+                derivation.context.resource_policy.find(
+                    "matrix-cell-denominator=1..9223372036854775807") != std::string::npos &&
                 derivation.context.resource_policy.find("determinant-factor-bits<=4096") != std::string::npos,
-                "determinant context distinguishes cell admission from the GMP factor policy");
+                "determinant context records the asymmetric rational cell envelope and GMP factor policy");
         invariants::Pass pass;
         std::vector<std::string> failures;
         pass.walk(arena, derivation, false, false, &failures);
@@ -507,8 +511,8 @@ void run_determinant_tests(TestSink &t) {
                 derivation.all_verified_from(0) && derivation.size() <= maximum,
                 "step exhaustion withholds determinant and preserves only completed verified prefix");
     }
-    static_assert(kMatrixCellValueBits == std::numeric_limits<int64_t>::digits);
-    constexpr size_t factors_within_limit = kMatrixDeterminantFactorBits / kMatrixCellValueBits;
+    constexpr size_t factors_within_limit =
+        kMatrixDeterminantFactorBits / std::numeric_limits<int64_t>::digits;
     for (size_t cycles : {factors_within_limit, factors_within_limit + 1}) {
         Arena arena;
         Derivation derivation;

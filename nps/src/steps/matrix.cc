@@ -314,9 +314,14 @@ struct Run final : MatrixRowSink {
         context.branch_convention = "exact rational row operations";
         context.detail_projection = "standard";
         context.resource_policy = budget_policy(meter.budget());
-        if (determinant)
-            context.resource_policy += " matrix-cell-bits<=" + std::to_string(kMatrixCellValueBits) +
-                " determinant-factor-bits<=" + std::to_string(kMatrixDeterminantFactorBits);
+        if (determinant) {
+            context.resource_policy += " matrix-cell-numerator=" +
+                std::to_string(kMatrixCellNumeratorMinimum) + ".." +
+                std::to_string(kMatrixCellNumeratorMaximum) + " matrix-cell-denominator=" +
+                std::to_string(kMatrixCellDenominatorMinimum) + ".." +
+                std::to_string(kMatrixCellDenominatorMaximum) + " determinant-factor-bits<=" +
+                std::to_string(kMatrixDeterminantFactorBits);
+        }
         context.derivation_status = result.status;
         derivation.context = make_context(context);
         derivation.context.problem_family_envelope_version = "1";

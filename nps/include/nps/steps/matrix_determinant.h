@@ -8,8 +8,11 @@
 
 namespace nps {
 
-// Cell admission and the repeated row-factor ledger have different numeric envelopes.
-inline constexpr size_t kMatrixCellValueBits = std::numeric_limits<int64_t>::digits;
+// Cell admission follows canonical Rational bounds while the repeated factor ledger uses GMP.
+inline constexpr int64_t kMatrixCellNumeratorMinimum = std::numeric_limits<int64_t>::min();
+inline constexpr int64_t kMatrixCellNumeratorMaximum = std::numeric_limits<int64_t>::max();
+inline constexpr int64_t kMatrixCellDenominatorMinimum = 1;
+inline constexpr int64_t kMatrixCellDenominatorMaximum = std::numeric_limits<int64_t>::max();
 inline constexpr size_t kMatrixDeterminantFactorBits = 4096;
 
 VerificationRecord verify_matrix_determinant_factor(const Arena &arena,
