@@ -1690,32 +1690,51 @@ evalstr = false
 
 histME1 = {}
 histME2 = {}
+local HISTORY_MAX_ENTRIES = 50
+
+local function removeHistoryAt(index)
+	local first, second = histME1[index], histME2[index]
+	if not first or not second or not steps.histText[index] then return false end
+	destroyD2Editor(first.editor)
+	destroyD2Editor(second.editor)
+	theView:remove(first)
+	theView:remove(second)
+	table.remove(histME1, index)
+	table.remove(histME2, index)
+	table.remove(steps.histText, index)
+	return true
+end
 
 function addME(expr, res)
 	local mee = MathEditor(theView, border, border, 50, 30, "")
 	mee.readOnly = true
 	mee.historyExpression = expr
-	table.insert(histME1, mee)
 	mee:setHConstraints("left", border)
 	mee.editor:setSizeChangeListener(function(editor, w, h)
 		return resizeME(editor, w, h)
 	end)
 	mee.editor:setReadOnly(true)
-	theView:add(mee)
 
-	local mer = MathEditor(theView, border, border, 50, 30, "")
+	local allocated, mer = pcall(MathEditor, theView, border, border, 50, 30, "")
+	if not allocated then
+		destroyD2Editor(mee.editor)
+		error(mer, 0)
+	end
 	mer.result = true
 	mer.readOnly = true
 	mer.historyExpression = res
-	table.insert(histME2, mer)
 	mer:setHConstraints("right", scrWidth - sbv.x + border)
 	mer.editor:setSizeChangeListener(function(editor, w, h)
 		return resizeMEpar(editor, w, h)
 	end)
 	mer.editor:setReadOnly(true)
-	theView:add(mer)
-	-- Ki V4: the text behind the editors, so a save can carry the history.
+
+	table.insert(histME1, mee)
+	table.insert(histME2, mer)
 	table.insert(steps.histText, { expr, res })
+	theView:add(mee)
+	theView:add(mer)
+	if #histME1 > HISTORY_MAX_ENTRIES then removeHistoryAt(1) end
 	reposME()
 end
 
@@ -1778,13 +1797,7 @@ function backSpaceHandler(widget)
 		end
 	end
 	if f > 0 then
-		destroyD2Editor(histME1[f].editor)
-		destroyD2Editor(histME2[f].editor)
-		theView:remove(histME1[f])
-		theView:remove(histME2[f])
-		table.remove(histME1, f)
-		table.remove(histME2, f)
-		table.remove(steps.histText, f)
+		removeHistoryAt(f)
 		reposME()
 	end
 end
@@ -4770,6 +4783,7 @@ function on.restore(saved)
 		local pending = {}
 		for _, pair in ipairs(saved.history) do
 			if type(pair) == "table" and type(pair[1]) == "string" and type(pair[2]) == "string" then
+				if #pending == HISTORY_MAX_ENTRIES then table.remove(pending, 1) end
 				pending[#pending + 1] = { pair[1], pair[2] }
 			end
 		end
