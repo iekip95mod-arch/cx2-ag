@@ -186,6 +186,32 @@ void run_vector_components_tests(TestSink &t) {
     {
         Arena arena;
         Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "an exact equivalent-zero magnitude refuses a polar direction");
+        t.check(backend.commands.size() == 3 &&
+                    backend.commands[2].find("simplify") == 0 &&
+                    backend.commands[2].find("pi") != std::string::npos &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "an unclassified magnitude gets an independent zero check before atan2");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
         SequenceBackend backend({"0.004", "0", "0.0", "0", "0", "0.0"});
         VectorExpr input;
         input.x = parsed(arena, "0.004");

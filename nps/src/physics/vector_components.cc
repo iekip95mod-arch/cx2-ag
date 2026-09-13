@@ -798,8 +798,27 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
                                             why, verification_failed);
     }
     Rational simplified_magnitude;
-    if (evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude) &&
-        rational_equal(simplified_magnitude, {0, 1}))
+    const bool rational_magnitude =
+        evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude);
+    bool zero_magnitude = rational_magnitude && rational_equal(simplified_magnitude, {0, 1});
+    if (!rational_magnitude) {
+        Request classify;
+        classify.op = Op::IsZero;
+        classify.target = magnitude;
+        NodeId classified;
+        ResultTag tag;
+        if (!adapter_value(arena, adapter, meter, classify, &classified, &tag, &why))
+            return meter.stopped()
+                       ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                                input.unit, input.precision, output_unit, why)
+                       : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                            input.frame, input.unit, input.precision, output_unit,
+                                            why, false);
+        Rational zero_classification;
+        zero_magnitude = evaluate_rational(arena, classified, no_symbols, &zero_classification) &&
+                         rational_equal(zero_classification, {0, 1});
+    }
+    if (zero_magnitude)
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
                              input.precision, output_unit,
                              "the zero vector has no defined direction");
