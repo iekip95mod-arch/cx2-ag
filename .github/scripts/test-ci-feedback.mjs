@@ -37,16 +37,29 @@ test('failed CI resumes both providers on the same issue even while the PR is dr
   }
 });
 
-test('draft and pending-review gates do not dispatch repair workers', async () => {
-  for (const provider of ['codex', 'claude']) for (const draft of [false, true]) {
+test('draft review gates do not dispatch repair workers', async () => {
+  for (const provider of ['codex', 'claude']) {
     const f = fixture(provider);
-    f.pr.draft = draft;
+    f.pr.draft = true;
     f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = { total_count: 4, jobs: [
       { name: 'fast', conclusion: 'success' }, { name: 'full', conclusion: 'success' },
       { name: 'emulator', conclusion: 'success' }, { name: 'review-ready', conclusion: 'failure' }
     ] };
     assert.equal(await dispatchCiFeedback(f.options, f.api), false);
     assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
+test('a ready review gate failure without a reviewer assignment resumes the executor', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = {
+      total_count: 1,
+      jobs: [{ name: 'review-ready', conclusion: 'failure' }],
+    };
+
+    assert.equal(await dispatchCiFeedback(f.options, f.api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST').length, 1);
   }
 });
 
