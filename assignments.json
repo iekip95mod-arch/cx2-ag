@@ -291,6 +291,16 @@
       "branch": "codex/issue-26",
       "slug": "cx2-ag-codex-review-beacon",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-35",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 35,
+      "pr": 108,
+      "branch": "codex/issue-35",
+      "slug": "cx2-ag-codex-review-compass",
+      "released": false
     }
   ]
 }
