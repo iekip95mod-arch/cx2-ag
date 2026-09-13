@@ -35,6 +35,7 @@ raise 'Claude review must use the assigned GitHub identity' unless claude.fetch(
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
 raise 'Claude must invoke the disclosed model and effort' unless claude.fetch('claude_args').include?('--model ${{ env.REVIEW_MODEL }}') && claude.fetch('claude_args').include?('--effort ${{ env.REVIEW_EFFORT }}')
 raise 'Claude must only allow the verified requesting executor' unless claude.fetch('allowed_bots') == '${{ needs.select-reviewer.outputs.allowed_bots }}'
+raise 'Claude built-in progress would duplicate the persistent reviewer status' unless claude.fetch('track_progress') == false
 selection = workflow.fetch('jobs').fetch('select-reviewer')
 raise 'Review execution must use verified assignment metadata' unless selection.fetch('outputs').fetch('allowed_bots') == '${{ steps.identity.outputs.allowed_bots }}'
 raise 'Review execution must validate the assignment event' unless selection.fetch('steps').find { |step| step['id'] == 'identity' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-assignment'

@@ -236,7 +236,7 @@ jobs:
           bot_id: ${{ needs.select-reviewer.outputs.user_id }}
           bot_name: ${{ needs.select-reviewer.outputs.login }}
           allowed_bots: ${{ needs.select-reviewer.outputs.allowed_bots }}
-          track_progress: true
+          track_progress: false
           prompt: |
             ${{ env.AGENT_TIME_BUDGET }}
             REPO: ${{ github.repository }}

@@ -6,6 +6,12 @@ function modelDescription(model) {
     : model;
 }
 
+function workflowCoordinates(body) {
+  const match = body.match(/Workflow: https:\/\/github\.com\/iekip95mod-arch\/cx2-ag\/actions\/runs\/([1-9][0-9]*)\/attempts\/([1-9][0-9]*)/);
+  if (!match) throw Error('Invalid existing progress workflow');
+  return { run: BigInt(match[1]), attempt: BigInt(match[2]) };
+}
+
 function progressBody({ role, login, model, effort, repository, run, attempt, phase, detail, previous = '' }) {
   const sameAttempt = previous.includes(`Workflow: https://github.com/${repository}/actions/runs/${run}/attempts/${attempt}`);
   const executing = ['running', 'publishing', 'succeeded'].includes(phase) || sameAttempt && previous.includes('- [x] Agent execution started');
@@ -47,6 +53,11 @@ export async function publishProgress(options, api) {
   }
   if (matching.length > 1) throw Error('Multiple progress comments exist for this identity and role');
   if (!matching[0] && options.updateOnly) return false;
+  if (matching[0]) {
+    const previous = workflowCoordinates(matching[0].body);
+    const stale = previous.run > BigInt(run) || previous.run === BigInt(run) && previous.attempt > BigInt(attempt);
+    if (stale) return matching[0];
+  }
   const body = progressBody({ ...options, previous: matching[0]?.body });
   if (matching[0]?.body === body) return matching[0];
   if (matching[0]) return api('PATCH', `repos/${repository}/issues/comments/${matching[0].id}`, { body });

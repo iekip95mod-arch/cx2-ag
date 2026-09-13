@@ -50,6 +50,13 @@ test('a status update only edits a comment owned by the exact bot ID', async () 
   await assert.rejects(publishProgress({ ...base, phase: 'running', detail: '@codex wake up' }, f.api), /controlled text/);
 });
 
+test('an owned progress comment with invalid workflow metadata fails closed', async () => {
+  const marker = '<!-- cx2-agent-progress:executor:cx2-ag-codex-amber[bot] -->';
+  const f = fixture([{ id: 5, body: marker, user: { login: base.login, id: base.userId, type: 'Bot' } }]);
+  await assert.rejects(publishProgress({ ...base, phase: 'running' }, f.api), /Invalid existing progress workflow/);
+  assert.equal(f.writes.length, 0);
+});
+
 test('terminal recovery never creates a status that did not start', async () => {
   const f = fixture();
   assert.equal(await publishProgress({ ...base, phase: 'cancelled', updateOnly: true }, f.api), false);
@@ -69,4 +76,22 @@ test('a new workflow attempt resets lifecycle checkmarks', async () => {
   assert.match(f.comments[0].body, /\[ \] Agent execution started/);
   assert.match(f.comments[0].body, /\[ \] Publishing result/);
   assert.match(f.comments[0].body, /actions\/runs\/124\/attempts\/2/);
+});
+
+test('an older workflow run or attempt cannot replace newer progress', async () => {
+  const f = fixture();
+  await publishProgress({ ...base, run: 200, attempt: 1, phase: 'running' }, f.api);
+  await publishProgress({ ...base, run: 201, attempt: 1, phase: 'queued' }, f.api);
+  const writesAfterNewRun = f.writes.length;
+  await publishProgress({ ...base, run: 200, attempt: 1, phase: 'cancelled' }, f.api);
+  assert.equal(f.writes.length, writesAfterNewRun);
+  assert.match(f.comments[0].body, /Status: \*\*Queued\*\*/);
+  assert.match(f.comments[0].body, /actions\/runs\/201\/attempts\/1/);
+
+  await publishProgress({ ...base, run: 201, attempt: 2, phase: 'running' }, f.api);
+  const writesAfterNewAttempt = f.writes.length;
+  await publishProgress({ ...base, run: 201, attempt: 1, phase: 'cancelled' }, f.api);
+  assert.equal(f.writes.length, writesAfterNewAttempt);
+  assert.match(f.comments[0].body, /Status: \*\*Running\*\*/);
+  assert.match(f.comments[0].body, /actions\/runs\/201\/attempts\/2/);
 });

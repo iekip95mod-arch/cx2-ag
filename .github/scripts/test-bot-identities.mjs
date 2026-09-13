@@ -167,6 +167,27 @@ test('an open linked PR on another branch keeps the closed issue lease', async (
   assert.equal(first.login, third.login);
 });
 
+test('an open linked PR on a second GraphQL page keeps the closed issue lease', async () => {
+  const github = fixture();
+  const first = await allocateIdentity(options(20), github.api, roster);
+  github.ticket(20).state = 'closed';
+  const cursors = [];
+  const api = (method, endpoint, body) => {
+    if (method !== 'POST' || endpoint !== 'graphql' || !body.query.includes('closedByPullRequestsReferences')) return github.api(method, endpoint, body);
+    cursors.push(body.variables.cursor);
+    const secondPage = body.variables.cursor === 'linked-page-2';
+    return { data: { repository: { issue: { closedByPullRequestsReferences: {
+      totalCount: 101,
+      nodes: secondPage ? [{ state: 'OPEN' }] : Array.from({ length: 100 }, () => ({ state: 'MERGED' })),
+      pageInfo: { hasNextPage: !secondPage, endCursor: secondPage ? null : 'linked-page-2' },
+    } } } } };
+  };
+  const second = await allocateIdentity(options(42), api, roster);
+  assert.notEqual(second.login, first.login);
+  assert.deepEqual(cursors, [null, 'linked-page-2']);
+  assert.equal((await readAssignment(options(20), github.api, roster)).login, first.login);
+});
+
 test('executor and reviewer pools are separate while provider ownership is exclusive', async () => {
   const github = fixture();
   const executor = await allocateIdentity(options(20), github.api, roster);
