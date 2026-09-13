@@ -8,30 +8,37 @@ const base = {
   effort: 'high', run: 123, attempt: 1, detail: 'Working on the assigned branch.'
 };
 
-function fixture(comments = []) {
+function fixture(comments = [], identity = base) {
   const writes = [];
-  const starts = new Map();
   const api = async (method, endpoint, body) => {
     const attempt = /\/actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(endpoint);
-    if (attempt) return { run_started_at: new Date(starts.get(`${attempt[1]}:${attempt[2]}`) ?? Number(attempt[1]) * 1000).toISOString() };
+    if (attempt) return { run_started_at: new Date(Number(attempt[1]) * 1000).toISOString() };
     if (method === 'GET') return comments;
     writes.push({ method, endpoint, body });
-    if (method === 'POST') comments.push({ id: 10, body: body.body, user: { login: base.login, id: base.userId, type: 'Bot' } });
-    if (method === 'PATCH') comments[0].body = body.body;
-    return comments[0];
+    if (method === 'POST') {
+      const comment = { id: 10 + comments.length, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+      comments.push(comment);
+      return comment;
+    }
+    const comment = comments.find(comment => endpoint.endsWith(`/comments/${comment.id}`));
+    assert.ok(comment);
+    comment.body = body.body;
+    return comment;
   };
-  return { comments, writes, api, starts };
+  return { comments, writes, api };
 }
 
-test('a later retry of an older run replaces completed newer-run progress', async () => {
+test('a later retry of an older run preserves completed newer-run progress', async () => {
   const f = fixture();
   await publishProgress({ ...base, run: 201, phase: 'succeeded' }, f.api);
-  f.starts.set('200:2', 202000);
+  const completed = f.comments[0].body;
   await publishProgress({ ...base, run: 200, attempt: 2, phase: 'running' }, f.api);
-  assert.match(f.comments[0].body, /Status: \*\*Running\*\*/);
-  assert.match(f.comments[0].body, /actions\/runs\/200\/attempts\/2/);
+  assert.equal(f.comments.length, 2);
+  assert.equal(f.comments[0].body, completed);
+  assert.match(f.comments[1].body, /Status: \*\*Running\*\*/);
+  assert.match(f.comments[1].body, /actions\/runs\/200\/attempts\/2/);
   await publishProgress({ ...base, run: 201, phase: 'succeeded' }, f.api);
-  assert.match(f.comments[0].body, /actions\/runs\/200\/attempts\/2/);
+  assert.equal(f.writes.length, 2);
 });
 
 test('one executor comment records the complete lifecycle and final failure', async () => {
@@ -76,6 +83,8 @@ test('terminal recovery never creates a status that did not start', async () => 
   assert.equal(await publishProgress({ ...base, phase: 'cancelled', updateOnly: true }, f.api), false);
   assert.equal(f.writes.length, 0);
   await publishProgress({ ...base, phase: 'running' }, f.api);
+  assert.equal(await publishProgress({ ...base, run: 124, phase: 'cancelled', updateOnly: true }, f.api), false);
+  assert.equal(f.writes.length, 1);
   await publishProgress({ ...base, phase: 'cancelled', updateOnly: true }, f.api);
   assert.match(f.comments[0].body, /Status: \*\*Cancelled\*\*/);
   assert.match(f.comments[0].body, /\[x\] Agent execution started/);
@@ -86,26 +95,64 @@ test('a new workflow attempt resets lifecycle checkmarks', async () => {
   const f = fixture();
   await publishProgress({ ...base, phase: 'succeeded' }, f.api);
   await publishProgress({ ...base, run: 124, attempt: 2, phase: 'queued' }, f.api);
-  assert.match(f.comments[0].body, /Status: \*\*Queued\*\*/);
-  assert.match(f.comments[0].body, /\[ \] Agent execution started/);
-  assert.match(f.comments[0].body, /\[ \] Publishing result/);
-  assert.match(f.comments[0].body, /actions\/runs\/124\/attempts\/2/);
+  assert.equal(f.comments.length, 2);
+  assert.match(f.comments[0].body, /Status: \*\*Completed\*\*/);
+  assert.match(f.comments[1].body, /Status: \*\*Queued\*\*/);
+  assert.match(f.comments[1].body, /\[ \] Agent execution started/);
+  assert.match(f.comments[1].body, /\[ \] Publishing result/);
+  assert.match(f.comments[1].body, /actions\/runs\/124\/attempts\/2/);
 });
 
-test('an older workflow run or attempt cannot replace newer progress', async () => {
+test('overlapping runs and retries update only their own progress comment', async () => {
   const f = fixture();
   await publishProgress({ ...base, run: 200, attempt: 1, phase: 'running' }, f.api);
   await publishProgress({ ...base, run: 201, attempt: 1, phase: 'queued' }, f.api);
   const writesAfterNewRun = f.writes.length;
   await publishProgress({ ...base, run: 200, attempt: 1, phase: 'cancelled' }, f.api);
-  assert.equal(f.writes.length, writesAfterNewRun);
-  assert.match(f.comments[0].body, /Status: \*\*Queued\*\*/);
-  assert.match(f.comments[0].body, /actions\/runs\/201\/attempts\/1/);
+  assert.equal(f.writes.length, writesAfterNewRun + 1);
+  assert.match(f.comments[0].body, /Status: \*\*Cancelled\*\*/);
+  assert.match(f.comments[1].body, /Status: \*\*Queued\*\*/);
+  assert.match(f.comments[1].body, /actions\/runs\/201\/attempts\/1/);
 
   await publishProgress({ ...base, run: 201, attempt: 2, phase: 'running' }, f.api);
   const writesAfterNewAttempt = f.writes.length;
   await publishProgress({ ...base, run: 201, attempt: 1, phase: 'cancelled' }, f.api);
-  assert.equal(f.writes.length, writesAfterNewAttempt);
-  assert.match(f.comments[0].body, /Status: \*\*Running\*\*/);
-  assert.match(f.comments[0].body, /actions\/runs\/201\/attempts\/2/);
+  assert.equal(f.writes.length, writesAfterNewAttempt + 1);
+  assert.equal(f.comments.length, 3);
+  assert.match(f.comments[1].body, /Status: \*\*Cancelled\*\*/);
+  assert.match(f.comments[2].body, /Status: \*\*Running\*\*/);
+  assert.match(f.comments[2].body, /actions\/runs\/201\/attempts\/2/);
+});
+
+test('both reviewer providers preserve earlier run comments', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const reviewer = { ...base, role: 'reviewer', login: `cx2-ag-${provider}-review-aegis[bot]`, userId: 200 };
+    const f = fixture([], reviewer);
+    await publishProgress({ ...reviewer, phase: 'succeeded' }, f.api);
+    const previous = f.comments[0].body;
+    await publishProgress({ ...reviewer, run: 124, phase: 'running' }, f.api);
+    await publishProgress({ ...reviewer, run: 124, phase: 'failed' }, f.api);
+    assert.equal(f.comments.length, 2);
+    assert.equal(f.comments[0].body, previous);
+    assert.match(f.comments[1].body, /Status: \*\*Failed\*\*/);
+  }
+});
+
+test('legacy comments match exact attempt numbers and omitted attempt defaults to one', async () => {
+  const f = fixture();
+  await publishProgress({ ...base, attempt: 10, phase: 'succeeded' }, f.api);
+  await publishProgress({ ...base, attempt: undefined, phase: 'running' }, f.api);
+  await publishProgress({ ...base, phase: 'failed' }, f.api);
+  assert.equal(f.comments.length, 2);
+  assert.match(f.comments[0].body, /Status: \*\*Completed\*\*/);
+  assert.match(f.comments[1].body, /attempts\/1$/);
+  assert.match(f.comments[1].body, /Status: \*\*Failed\*\*/);
+});
+
+test('duplicate comments for the same attempt fail without changing history', async () => {
+  const f = fixture();
+  await publishProgress({ ...base, phase: 'running' }, f.api);
+  f.comments.push({ ...f.comments[0], id: 20 });
+  await assert.rejects(publishProgress({ ...base, phase: 'succeeded' }, f.api), /Multiple progress comments/);
+  assert.equal(f.writes.length, 1);
 });
