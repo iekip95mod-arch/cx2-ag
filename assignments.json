@@ -191,6 +191,16 @@
       "branch": "codex/issue-100",
       "slug": "cx2-ag-codex-review-beacon",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-99",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 99,
+      "pr": 101,
+      "branch": "codex/issue-99",
+      "slug": "cx2-ag-codex-review-compass",
+      "released": false
     }
   ]
 }
