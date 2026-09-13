@@ -6,8 +6,9 @@ on:
     types: [opened, ready_for_review, labeled]
 
 concurrency:
-  group: agent-review-request-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }}
-  cancel-in-progress: true
+  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'assignment-metadata' || 'requested' }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   assign:

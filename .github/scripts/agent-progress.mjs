@@ -55,7 +55,14 @@ export async function publishProgress(options, api) {
   if (!matching[0] && options.updateOnly) return false;
   if (matching[0]) {
     const previous = workflowCoordinates(matching[0].body);
-    const stale = previous.run > BigInt(run) || previous.run === BigInt(run) && previous.attempt > BigInt(attempt);
+    let stale = previous.run === BigInt(run) && previous.attempt > BigInt(attempt);
+    if (previous.run !== BigInt(run)) {
+      const currentRun = await api('GET', `repos/${repository}/actions/runs/${run}/attempts/${attempt}`);
+      const previousRun = await api('GET', `repos/${repository}/actions/runs/${previous.run}/attempts/${previous.attempt}`);
+      const currentStart = Date.parse(currentRun.run_started_at), previousStart = Date.parse(previousRun.run_started_at);
+      if (!Number.isFinite(currentStart) || !Number.isFinite(previousStart)) throw Error('Invalid progress attempt start');
+      stale = currentStart < previousStart || currentStart === previousStart && previous.run > BigInt(run);
+    }
     if (stale) return matching[0];
   }
   const body = progressBody({ ...options, previous: matching[0]?.body });

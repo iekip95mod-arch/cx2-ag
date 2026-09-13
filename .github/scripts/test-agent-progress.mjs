@@ -10,15 +10,29 @@ const base = {
 
 function fixture(comments = []) {
   const writes = [];
+  const starts = new Map();
   const api = async (method, endpoint, body) => {
+    const attempt = /\/actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(endpoint);
+    if (attempt) return { run_started_at: new Date(starts.get(`${attempt[1]}:${attempt[2]}`) ?? Number(attempt[1]) * 1000).toISOString() };
     if (method === 'GET') return comments;
     writes.push({ method, endpoint, body });
     if (method === 'POST') comments.push({ id: 10, body: body.body, user: { login: base.login, id: base.userId, type: 'Bot' } });
     if (method === 'PATCH') comments[0].body = body.body;
     return comments[0];
   };
-  return { comments, writes, api };
+  return { comments, writes, api, starts };
 }
+
+test('a later retry of an older run replaces completed newer-run progress', async () => {
+  const f = fixture();
+  await publishProgress({ ...base, run: 201, phase: 'succeeded' }, f.api);
+  f.starts.set('200:2', 202000);
+  await publishProgress({ ...base, run: 200, attempt: 2, phase: 'running' }, f.api);
+  assert.match(f.comments[0].body, /Status: \*\*Running\*\*/);
+  assert.match(f.comments[0].body, /actions\/runs\/200\/attempts\/2/);
+  await publishProgress({ ...base, run: 201, phase: 'succeeded' }, f.api);
+  assert.match(f.comments[0].body, /actions\/runs\/200\/attempts\/2/);
+});
 
 test('one executor comment records the complete lifecycle and final failure', async () => {
   const f = fixture();

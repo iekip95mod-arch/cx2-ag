@@ -118,7 +118,7 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   }
   const existing = reviews.find(review => review.body?.includes(marker));
   if (existing) return existing;
-  const verdict = reviews.filter(review => !before.includes(review.id) && ['APPROVED', 'CHANGES_REQUESTED'].includes(review.state)).sort((a, b) => b.id - a.id)[0];
+  const verdict = reviews.filter(review => !before.includes(review.id) && (['APPROVED', 'CHANGES_REQUESTED'].includes(review.state) || (review.state === 'COMMENTED' && review.body?.includes('<!-- review-blocked -->')))).sort((a, b) => b.id - a.id)[0];
   if (!verdict) throw Error('No fresh formal verdict exists to disclose');
   return api('PUT', `repos/${repository}/pulls/${pr}/reviews/${verdict.id}`, { body: `${verdict.body}\n\n${disclosure}\n\n${marker}` });
 }

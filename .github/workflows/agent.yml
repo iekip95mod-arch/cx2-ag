@@ -168,6 +168,7 @@ jobs:
         run: node .github/scripts/agent-deadline.mjs
 
       - name: Show executor model startup
+        id: start
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -175,7 +176,8 @@ jobs:
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Run the agent
-        if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
+        id: execute
+        if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           CLAUDE_BRANCH: ${{ steps.worker.outputs.branch }}
@@ -207,6 +209,9 @@ jobs:
             while the PR is still draft, then mark it ready. For repaired ready PRs, remove and re-add
             claude-review only after fixes and validation. An approval continuation with unchanged code
             must finish allowed merge checks without requesting another review or reapplying labels.
+            You may resolve merge conflicts on this issue branch. Fetch and merge origin/main,
+            preserve both changes' intent, inspect every conflict, and rerun affected tests.
+            Push the merge commit to this same branch and request a fresh review afterward.
             Report host, emulator and physical-device evidence separately.
             Include configured model ${{ env.WORKER_MODEL }} and configured effort ${{ env.WORKER_EFFORT }}
             in your final result. Label model aliases as selectors, without inventing a resolved version.
@@ -220,7 +225,7 @@ jobs:
             --dangerously-skip-permissions
 
       - name: Show executor publication
-        if: steps.worker.outputs.issue
+        if: steps.worker.outputs.issue && steps.execute.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           PROGRESS_PHASE: publishing
@@ -239,7 +244,7 @@ jobs:
           cat "$RUNNER_TEMP/claude-general-reply.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure the first commit has a linked draft PR
-        if: always() && steps.worker.outputs.issue
+        if: always() && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         working-directory: ${{ steps.worker.outputs.directory }}
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -249,5 +254,5 @@ jobs:
         if: always() && steps.worker.outputs.issue && steps.bot-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
+          PROGRESS_PHASE: ${{ job.status == 'cancelled' && 'cancelled' || job.status == 'failure' && 'failed' || steps.execute.outcome == 'success' && 'succeeded' || 'cancelled' }}
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
