@@ -10,9 +10,52 @@ const roster = [
   { provider: 'claude', role: 'reviewer', slug: 'cx2-claude-review-amber', login: 'cx2-claude-review-amber[bot]', userId: 201, appId: 302, clientId: 'Iv1.review-fixture' },
   { provider: 'codex', role: 'executor', login: 'cx2-codex-amber[bot]', userId: 100, appId: 300, clientId: 'Iv1.fixture' }
 ];
-const options = { roster, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
+const options = { roster, providerLookup: async () => undefined, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
 const reviewState = (read, repository, pr, sha, overrides = options) => checkReview(read, repository, pr, sha, overrides);
 const waitForReview = (read, repository, pr, sha, sleep, attempts) => wait(read, repository, pr, sha, sleep, attempts, options);
+
+test('finished reviewers clear their request and identity labels without erasing a later request', async () => {
+  for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
+    for (const renewed of [false, true]) {
+      const labels = [`${identity.provider}-review`, `reviewer:${identity.slug}`, 'worker:assigned'];
+      const deleted = [];
+      const current = { state: 'open', head: { sha, ref: `${identity.provider}/issue-42`, repo: { full_name: repository } }, labels: labels.map(name => ({ name })) };
+      const api = async (method, endpoint) => {
+        if (method === 'DELETE') { deleted.push(decodeURIComponent(endpoint.split('/').at(-1))); return []; }
+        if (endpoint.includes('/comments?')) return [];
+        if (endpoint.includes('/attempts/')) return { run_started_at: '2026-09-13T12:00:00Z' };
+        if (endpoint.includes('/events?')) return labels.map(name => ({ event: 'labeled', label: { name }, created_at: renewed && name.endsWith('-review') ? '2026-09-13T12:01:00Z' : '2026-09-13T11:59:00Z' }));
+        return current;
+      };
+      await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], { ...options, model: 'test-model', effort: 'high', phase: 'succeeded' });
+      assert.deepEqual(deleted, renewed ? [] : labels.slice(0, 2));
+      deleted.length = 0;
+      current.head.sha = 'b'.repeat(40);
+      await reviewRuntime.clearReviewLabels(api, repository, 85, sha, identity, '100', '1');
+      assert.deepEqual(deleted, []);
+    }
+  }
+});
+
+test('a completed custom-branch review retains its leased provider after label cleanup', async () => {
+  for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
+    const current = { state: 'open', draft: false, head: { sha, ref: 'feature/manual-issue', repo: { full_name: repository } }, user: { login: 'owner', id: 1 }, labels: [{ name: `${identity.provider}-review` }, { name: `reviewer:${identity.slug}` }] };
+    const lease = { key: `${identity.provider}/reviewer/issue-42`, role: 'reviewer', provider: identity.provider, issue: 42, pr: 85, branch: current.head.ref, slug: identity.slug, released: false };
+    const api = async (method, endpoint) => {
+      if (method === 'DELETE') { current.labels = current.labels.filter(label => label.name !== decodeURIComponent(endpoint.split('/').at(-1))); return []; }
+      if (endpoint.includes('/contents/assignments.json')) return { content: Buffer.from(JSON.stringify({ version: 1, assignments: [lease] })).toString('base64') };
+      if (endpoint.includes('/reviews?')) return [{ id: 2, state: 'APPROVED', commit_id: sha, user: { type: 'Bot', login: identity.login, id: identity.userId } }];
+      if (endpoint.includes('/comments?') || endpoint.includes('/events?')) return [];
+      if (endpoint.includes('/attempts/')) return { run_started_at: '2026-09-13T12:00:00Z' };
+      return current;
+    };
+    const configured = { ...options, providerLookup: undefined, model: 'test-model', effort: 'high', phase: 'succeeded' };
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], configured);
+    assert.deepEqual(current.labels, []);
+    assert.equal(await approvalState(endpoint => api('GET', endpoint), repository, 85, sha, { ...configured, provider: identity.provider }), 'approved');
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], configured);
+  }
+});
 
 test('GitHub API reads close child stdin before waiting for completion', async () => {
   let finish;
@@ -262,8 +305,8 @@ test('the exact leased reviewer ID is required and writers cannot self-approve',
     { login: roster[0].login, id: roster[0].userId, type: 'User' },
     { login: roster[2].login, id: roster[2].userId, type: 'Bot' }
   ]) await assert.rejects(reviewState(fixture([run(1)], { reviews: [approval(1, { user })] }), repository, 85, sha));
-  await assert.rejects(reviewState(fixture([run(1)]), repository, 85, sha, { roster, assignment: async () => roster[2] }));
-  await assert.rejects(reviewState(fixture([run(1)]), repository, 85, sha, { roster, assignment: async () => { throw Error('No lease'); } }), /No lease/);
+  await assert.rejects(reviewState(fixture([run(1)]), repository, 85, sha, { ...options, assignment: async () => roster[2] }));
+  await assert.rejects(reviewState(fixture([run(1)]), repository, 85, sha, { ...options, assignment: async () => { throw Error('No lease'); } }), /No lease/);
   const current = { head: { sha, ref: 'codex/fix' }, labels: [], state: 'open', user: { login: roster[0].login, id: roster[0].userId } };
   await assert.rejects(reviewState(fixture([run(1)], { current }), repository, 85, sha), /own work/);
 });

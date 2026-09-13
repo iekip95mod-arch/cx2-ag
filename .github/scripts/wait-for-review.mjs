@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { publishProgress } from './agent-progress.mjs';
-import { findIdentity, loadRoster } from './bot-identities.mjs';
+import { assignedReviewProvider, findIdentity, loadRoster } from './bot-identities.mjs';
 
 export async function executeGhApi(execute, args, body) {
   const pending = execute('gh', args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
@@ -29,6 +29,14 @@ export function reviewProvider(current) {
   const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
   if (labels.length > 1) throw Error('Keep only the selected provider review label');
   return labels[0]?.replace('-review', '') ?? (current.head.ref.startsWith('codex/') ? 'codex' : 'claude');
+}
+
+async function selectedProvider(read, repository, pr, current, options = {}) {
+  const fallback = reviewProvider(current);
+  if (current.labels.some(label => ['codex-review', 'claude-review'].includes(label.name))) return fallback;
+  const lookup = options.providerLookup ?? assignedReviewProvider;
+  const provider = await lookup({ repository, pr, branch: current.head.ref }, (method, endpoint, body) => read(endpoint, false, body), options.roster);
+  return provider ?? fallback;
 }
 
 export function trustedAuthor(current, repository, roster) {
@@ -59,7 +67,7 @@ export async function trustedRequester(read, repository, event, actor, actorId, 
   if (current.head.repo?.full_name !== repository || sender?.login !== actor || sender?.id !== Number(actorId) || !Number.isSafeInteger(sender?.id) || sender.id < 1) throw Error('The review requester does not match the event actor');
   if (sender.type === 'User') return '';
   if (sender.type !== 'Bot') throw Error('Unknown review requester type');
-  const identity = await assignedIdentity(read, repository, current.number, reviewProvider(current), 'executor', options);
+  const identity = await assignedIdentity(read, repository, current.number, await selectedProvider(read, repository, current.number, current, options), 'executor', options);
   if (identity.login !== sender.login || identity.userId !== sender.id) throw Error('Only the assigned executor can request a bot review');
   return identity.login;
 }
@@ -68,7 +76,7 @@ export async function trustedAssignment(read, repository, event, actor, actorId,
   if (event.action !== 'labeled' || !event.label?.name?.startsWith('reviewer:')) throw Error('A reviewer assignment label is required');
   const current = await read(`repos/${repository}/pulls/${event.pull_request.number}`);
   if (current.head.repo?.full_name !== repository || current.head.sha !== event.pull_request.head.sha || current.state !== 'open' || current.draft) throw Error('The assigned PR revision is no longer reviewable');
-  const identity = await assignedIdentity(read, repository, event.pull_request.number, reviewProvider(current), 'reviewer', options);
+  const identity = await assignedIdentity(read, repository, event.pull_request.number, await selectedProvider(read, repository, event.pull_request.number, current, options), 'reviewer', options);
   const sender = event.sender;
   if (sender?.type !== 'Bot' || sender.login !== identity.login || sender.id !== identity.userId || actor !== identity.login || Number(actorId) !== identity.userId) throw Error('Only the assigned reviewer App can deliver a review assignment');
   const label = `reviewer:${identity.slug}`;
@@ -81,16 +89,40 @@ export async function dispatchReview(api, repository, pr, sha, appSlug, options 
   const read = (endpoint, paginate, body) => api(body ? 'POST' : 'GET', endpoint, body);
   const current = await read(`repos/${repository}/pulls/${pr}`);
   if (current.head.repo?.full_name !== repository || current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('The review request is superseded, closed or draft');
-  const identity = await assignedIdentity(read, repository, pr, reviewProvider(current), 'reviewer', options);
+  const identity = await assignedIdentity(read, repository, pr, await selectedProvider(read, repository, pr, current, options), 'reviewer', options);
   if (identity.slug !== appSlug) throw Error('The routing token does not belong to the assigned reviewer');
   const label = `reviewer:${identity.slug}`;
   const endpoint = `repos/${repository}/labels/${encodeURIComponent(label)}`;
   if (!await api('GET', endpoint, undefined, true)) await api('POST', `repos/${repository}/labels`, { name: label, description: 'Assigned reviewer identity', color: '8250df' });
   if (current.labels.some(entry => entry.name === label)) await api('DELETE', `repos/${repository}/issues/${pr}/labels/${encodeURIComponent(label)}`);
   const latest = await read(`repos/${repository}/pulls/${pr}`);
-  if (latest.head.sha !== sha || latest.state !== 'open' || latest.draft || reviewProvider(latest) !== identity.provider) throw Error('The PR changed before reviewer assignment');
+  if (latest.head.sha !== sha || latest.state !== 'open' || latest.draft || await selectedProvider(read, repository, pr, latest, options) !== identity.provider) throw Error('The PR changed before reviewer assignment');
   await api('POST', `repos/${repository}/issues/${pr}/labels`, { labels: [label] });
   return identity;
+}
+
+export async function clearReviewLabels(api, repository, pr, sha, identity, runId, attempt) {
+  const endpoint = `repos/${repository}/issues/${pr}`;
+  const current = await api('GET', `repos/${repository}/pulls/${pr}`);
+  if (current.head.sha !== sha) return;
+  const labels = [`${identity.provider}-review`, `reviewer:${identity.slug}`];
+  if (!current.labels.some(label => labels.includes(label.name))) return;
+  const run = await api('GET', `repos/${repository}/actions/runs/${runId}/attempts/${attempt}`);
+  const started = Date.parse(run.run_started_at);
+  if (!Number.isFinite(started)) throw Error('Review cleanup requires a known workflow start');
+  const events = [];
+  for (let page = 1; ; page++) {
+    const batch = await api('GET', `${endpoint}/events?per_page=100&page=${page}`);
+    events.push(...batch.filter(event => event.event === 'labeled' && labels.includes(event.label?.name)));
+    if (batch.length < 100) break;
+    if (page === 10) throw Error('Review label history exceeds the lookup limit');
+  }
+  if (events.some(event => !Number.isFinite(Date.parse(event.created_at)) || Date.parse(event.created_at) >= started)) return;
+  const latest = await api('GET', `repos/${repository}/pulls/${pr}`);
+  if (latest.head.sha !== sha) return;
+  for (const label of labels) {
+    if (latest.labels.some(entry => entry.name === label)) await api('DELETE', `${endpoint}/labels/${encodeURIComponent(label)}`, undefined, true);
+  }
 }
 
 export async function publishReviewNote(api, repository, pr, sha, appSlug, runId, attempt, mode, before, options = {}) {
@@ -100,12 +132,14 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   const read = (endpoint, paginate, body) => api(body ? 'POST' : 'GET', endpoint, body);
   const current = await read(`repos/${repository}/pulls/${pr}`);
   if (current.head.repo?.full_name !== repository || (mode !== 'final' && (current.head.sha !== sha || current.state !== 'open' || current.draft))) throw Error('The review revision is no longer current');
-  const identity = await assignedIdentity(read, repository, pr, reviewProvider(current), 'reviewer', options);
+  const identity = await assignedIdentity(read, repository, pr, await selectedProvider(read, repository, pr, current, options), 'reviewer', options);
   if (identity.slug !== appSlug) throw Error('The publishing App is not the assigned reviewer');
   if (mode !== 'disclosure') {
     const phase = mode === 'queued' ? 'queued' : mode === 'progress' ? 'running' : mode === 'publishing' ? 'publishing' : options.phase;
-    return publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase,
+    const progress = await publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase,
       detail: mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' }, api);
+    if (mode === 'final') await clearReviewLabels(api, repository, pr, sha, identity, runId, attempt);
+    return progress;
   }
   const marker = `<!-- review-${mode}:${runId}:${attempt} -->`;
   const alias = identity.provider === 'claude' && ['opus', 'sonnet', 'haiku', 'fable', 'opusplan'].includes(model) ? ' (alias, resolved model unverified)' : '';
@@ -135,7 +169,7 @@ export async function publishQueuedReview(api, repository, pr, sha, appSlug, log
 export async function approvalState(read, repository, pr, sha, options = {}) {
   const current = await read(`repos/${repository}/pulls/${pr}`);
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
-  const provider = reviewProvider(current);
+  const provider = await selectedProvider(read, repository, pr, current, options);
   if (options.provider && options.provider !== provider) throw Error('The selected reviewer changed');
   const identity = await assignedIdentity(read, repository, pr, provider, 'reviewer', options);
   if (current.user?.id === identity.userId || current.user?.login === identity.login) throw Error('The PR author cannot review its own work');

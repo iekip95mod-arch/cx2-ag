@@ -107,6 +107,8 @@ raise 'Default Actions token must remain read-only for contents' unless worker.f
   raise "#{name}: skipped execution must not publish a result" unless publishing.fetch('if').include?("steps.execute.outcome == 'success'")
   prompt = name == 'agent-codex.yml' ? steps.find { |step| step['name'] == 'Assemble the prompt' }.fetch('run') : model.fetch('with').fetch('prompt')
   raise "#{name}: executors need conflict recovery instructions" unless ['resolve merge conflicts', 'merge origin/main', 'rerun affected tests', 'request a fresh review'].all? { |text| prompt.include?(text) }
+  raise "#{name}: executors must close verified review threads" unless ['unresolved review threads', 'commit and test evidence', 'resolveReviewThread', 'confirm isResolved', 'unverified finding'].all? { |text| prompt.include?(text) }
+  raise "#{name}: executors must refresh their branch before review and merge" unless prompt.include?('Fetch origin/main before requesting review and before attempting a merge')
 end
 claude = YAML.load_file(File.join(root, '.github/workflows/agent.yml'))
 claude_step = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }

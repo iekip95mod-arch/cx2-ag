@@ -212,6 +212,12 @@ jobs:
             You may resolve merge conflicts on this issue branch. Fetch and merge origin/main,
             preserve both changes' intent, inspect every conflict, and rerun affected tests.
             Push the merge commit to this same branch and request a fresh review afterward.
+            Fetch origin/main before requesting review and before attempting a merge.
+            If your branch is behind, merge origin/main into it, resolve conflicts and rerun affected tests.
+            Read all unresolved review threads through GraphQL, including paginated results.
+            After verifying each fix, reply as the executor with its commit and test evidence,
+            then call resolveReviewThread for that thread and confirm isResolved is true.
+            Do not resolve an unverified finding or an unanswered question. Recheck unresolved threads before merge.
             Report host, emulator and physical-device evidence separately.
             Include configured model ${{ env.WORKER_MODEL }} and configured effort ${{ env.WORKER_EFFORT }}
             in your final result. Label model aliases as selectors, without inventing a resolved version.

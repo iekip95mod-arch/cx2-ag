@@ -148,6 +148,17 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   if (branch && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
 }
 
+export async function assignedReviewProvider({ repository, pr, branch }, api, roster = loadRoster()) {
+  if (repository !== repositoryName || !Number.isSafeInteger(pr) || pr < 1 || typeof branch !== 'string' || !branch) throw Error('Invalid reviewer provider target');
+  const state = await readState(repository, api);
+  const canonical = /^(codex|claude)\/issue-([1-9][0-9]*)$/.exec(branch);
+  const matches = state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer' && assignment.branch === branch &&
+    (assignment.pr === pr || (!assignment.pr && canonical && assignment.issue === Number(canonical[2]))));
+  if (matches.length > 1) throw Error('Multiple active reviewers claim this PR');
+  if (!matches.length) return undefined;
+  return findIdentity(roster, `${matches[0].slug}[bot]`, matches[0].provider, 'reviewer').provider;
+}
+
 export async function readAssignment(options, api, roster = loadRoster()) {
   const target = await resolveTarget(options, api);
   const state = await readState(options.repository, api);

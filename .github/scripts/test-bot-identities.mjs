@@ -4,11 +4,29 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, findIdentity, loadRoster, readAssignment, resolveTarget } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
 const options = (issue, provider = 'codex', role = 'executor') => ({ repository, provider, role, issue });
+
+test('reviewer provider lookup uses only this PR active lease and rejects ambiguity', async () => {
+  const f = fixture();
+  const identity = roster.find(bot => bot.provider === 'codex' && bot.role === 'reviewer');
+  const lease = { key: 'codex/reviewer/issue-42', provider: 'codex', role: 'reviewer', issue: 42, pr: 85, branch: 'feature/manual', slug: identity.slug, released: false };
+  const target = { repository, pr: 85, branch: lease.branch };
+  f.assignments = [lease];
+  assert.equal(await assignedReviewProvider(target, f.api, roster), 'codex');
+  for (const change of [{ released: true }, { pr: 86 }, { branch: 'feature/other' }]) {
+    f.assignments = [{ ...lease, ...change }];
+    assert.equal(await assignedReviewProvider(target, f.api, roster), undefined);
+  }
+  const other = roster.find(bot => bot.provider === 'claude' && bot.role === 'reviewer');
+  f.assignments = [lease, { ...lease, provider: 'claude', key: 'claude/reviewer/issue-42', slug: other.slug }];
+  await assert.rejects(assignedReviewProvider(target, f.api, roster), /Multiple active reviewers/);
+  f.assignments = [{ ...lease, pr: null, branch: 'codex/issue-42' }];
+  assert.equal(await assignedReviewProvider({ ...target, branch: 'codex/issue-42' }, f.api, roster), 'codex');
+});
 
 function fixture() {
   const tickets = new Map();
