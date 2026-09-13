@@ -270,7 +270,7 @@
       "pr": null,
       "branch": "codex/issue-65",
       "slug": "cx2-ag-codex-maple",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-65",
@@ -280,7 +280,7 @@
       "pr": 106,
       "branch": "codex/issue-65",
       "slug": "cx2-ag-codex-review-aegis",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-26",
@@ -330,6 +330,16 @@
       "pr": null,
       "branch": "codex/issue-110",
       "slug": "cx2-ag-codex-willow",
+      "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-110",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 110,
+      "pr": 111,
+      "branch": "codex/issue-110",
+      "slug": "cx2-ag-codex-review-aegis",
       "released": false
     }
   ]
