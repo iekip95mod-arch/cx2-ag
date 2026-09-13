@@ -107,6 +107,24 @@ bool deep_printing() {
 }
 
 void test_shapes() {
+    {
+        Arena arena;
+        const NodeId x = arena.symbol("x");
+        const NodeId invalid = arena.nary(Kind::Invalid, {});
+        const NodeId nested = arena.binary(Kind::Add, x, invalid);
+        const NodeId valid = arena.binary(Kind::Add, x, x);
+        check(!arena.failed() && nested != kNoNode, "invalid printer fixture reaches the emitter");
+        for (auto printer : {print, print_giac, print_math}) {
+            equal(printer(arena, x), "x", "printers preserve a valid symbol");
+            equal(printer(arena, valid), printer == print_giac ? "(x+x)" : "(x + x)",
+                  "printers preserve valid operands and their existing spelling");
+            for (NodeId id : {kNoNode, static_cast<NodeId>(arena.node_count()),
+                              kNoNode - 1, invalid})
+                check(printer(arena, id).empty(), "printers refuse invalid roots with empty output");
+            check(printer(arena, nested).empty(),
+                  "printers refuse an invalid operand without returning partial text");
+        }
+    }
 #if defined(__unix__) || defined(__APPLE__)
     pthread_attr_t attributes;
     const int initialized = pthread_attr_init(&attributes);

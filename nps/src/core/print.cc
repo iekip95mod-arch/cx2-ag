@@ -59,9 +59,7 @@ bool emit(const Arena &arena, NodeId id, std::string &out, bool giac, bool math 
         const ChildView children = arena.children(node);
         switch (node.kind) {
             case Kind::Invalid:
-                if (giac)
-                    return false;
-                break;
+                return false;
             case Kind::Integer:
             case Kind::Decimal:
             case Kind::Symbol:
