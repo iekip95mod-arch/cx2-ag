@@ -231,6 +231,16 @@
       "branch": "codex/issue-26",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-35",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 35,
+      "pr": null,
+      "branch": "codex/issue-35",
+      "slug": "cx2-ag-codex-birch",
+      "released": false
     }
   ]
 }
