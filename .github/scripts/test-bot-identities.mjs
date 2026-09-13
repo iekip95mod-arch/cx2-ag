@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget, selectReviewProvider } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
@@ -24,6 +24,12 @@ test('reviewer provider lookup uses only this PR active lease and rejects ambigu
   const other = roster.find(bot => bot.provider === 'claude' && bot.role === 'reviewer');
   f.assignments = [lease, { ...lease, provider: 'claude', key: 'claude/reviewer/issue-42', slug: other.slug }];
   await assert.rejects(assignedReviewProvider(target, f.api, roster), /Multiple active reviewers/);
+  for (const selected of [identity, other, identity]) {
+    await selectReviewProvider({ ...target, login: selected.login }, f.api, roster);
+    assert.equal(await assignedReviewProvider(target, f.api, roster), selected.provider);
+    assert.equal(f.assignments.filter(assignment => assignment.selectedReview).length, 1);
+    assert.equal(f.assignments.filter(assignment => !assignment.released).length, 2);
+  }
   f.assignments = [{ ...lease, pr: null, branch: 'codex/issue-42' }];
   assert.equal(await assignedReviewProvider({ ...target, branch: 'codex/issue-42' }, f.api, roster), 'codex');
 });

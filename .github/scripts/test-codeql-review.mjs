@@ -41,9 +41,12 @@ test('a completed custom-branch review retains its leased provider after label c
   for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
     const current = { state: 'open', draft: false, head: { sha, ref: 'feature/manual-issue', repo: { full_name: repository } }, user: { login: 'owner', id: 1 }, labels: [{ name: `${identity.provider}-review` }, { name: `reviewer:${identity.slug}` }] };
     const lease = { key: `${identity.provider}/reviewer/issue-42`, role: 'reviewer', provider: identity.provider, issue: 42, pr: 85, branch: current.head.ref, slug: identity.slug, released: false };
-    const api = async (method, endpoint) => {
+    const previous = roster.find(bot => bot.role === 'reviewer' && bot.provider !== identity.provider);
+    let assignments = [{ ...lease, provider: previous.provider, key: `${previous.provider}/reviewer/issue-42`, slug: previous.slug }, lease];
+    const api = async (method, endpoint, body) => {
       if (method === 'DELETE') { current.labels = current.labels.filter(label => label.name !== decodeURIComponent(endpoint.split('/').at(-1))); return []; }
-      if (endpoint.includes('/contents/assignments.json')) return { content: Buffer.from(JSON.stringify({ version: 1, assignments: [lease] })).toString('base64') };
+      if (method === 'PUT') { assignments = JSON.parse(Buffer.from(body.content, 'base64').toString()).assignments; return {}; }
+      if (endpoint.includes('/contents/assignments.json')) return { sha: 'lease-revision', content: Buffer.from(JSON.stringify({ version: 1, assignments })).toString('base64') };
       if (endpoint.includes('/reviews?')) return [{ id: 2, state: 'APPROVED', commit_id: sha, user: { type: 'Bot', login: identity.login, id: identity.userId } }];
       if (endpoint.includes('/comments?') || endpoint.includes('/events?')) return [];
       if (endpoint.includes('/attempts/')) return { run_started_at: '2026-09-13T12:00:00Z' };
@@ -55,6 +58,26 @@ test('a completed custom-branch review retains its leased provider after label c
     assert.equal(await approvalState(endpoint => api('GET', endpoint), repository, 85, sha, { ...configured, provider: identity.provider }), 'approved');
     await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], configured);
   }
+});
+
+test('failed label cleanup records a failed lifecycle instead of completed work', async () => {
+  const identity = roster[0];
+  const current = { state: 'open', draft: false, head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [{ name: 'codex-review' }] };
+  const comments = [];
+  const api = async (method, endpoint, body) => {
+    if (endpoint.includes('/events?')) throw Error('Cleanup unavailable');
+    if (endpoint.includes('/attempts/')) return { run_started_at: '2026-09-13T12:00:00Z' };
+    if (method === 'GET' && endpoint.includes('/comments?')) return comments;
+    if (method === 'GET') return current;
+    const comment = { id: 10, body: body.body, user: { type: 'Bot', id: identity.userId, login: identity.login } };
+    comments[0] = comment;
+    return comment;
+  };
+  const configured = { ...options, model: 'test-model', effort: 'high', phase: 'succeeded' };
+  await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'progress', [], configured);
+  await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], configured), /Cleanup unavailable/);
+  assert.match(comments[0].body, /Status: \*\*Failed\*\*/);
+  assert.doesNotMatch(comments[0].body, /Status: \*\*Completed\*\*/);
 });
 
 test('GitHub API reads close child stdin before waiting for completion', async () => {

@@ -148,13 +148,36 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   if (branch && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
 }
 
+function reviewerMatches(state, pr, branch) {
+  const canonical = /^(codex|claude)\/issue-([1-9][0-9]*)$/.exec(branch);
+  return state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer' && assignment.branch === branch &&
+    (assignment.pr === pr || (!assignment.pr && canonical && assignment.issue === Number(canonical[2]))));
+}
+
+export async function selectReviewProvider({ repository, pr, branch, login }, api, roster = loadRoster()) {
+  if (repository !== repositoryName || !Number.isSafeInteger(pr) || pr < 1 || typeof branch !== 'string' || !branch) throw Error('Invalid reviewer provider target');
+  const identity = findIdentity(roster, login, undefined, 'reviewer');
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const state = await readState(repository, api);
+    const matches = reviewerMatches(state, pr, branch);
+    if (!matches.some(assignment => assignment.slug === identity.slug)) throw Error('The reviewer has no active lease for this PR');
+    if (matches.length === 1) return;
+    for (const assignment of matches) assignment.selectedReview = assignment.slug === identity.slug;
+    try {
+      await api('PUT', `repos/${repository}/contents/${assignmentPath}`, { message: 'Record the selected reviewer', branch: assignmentBranch, sha: state.sha, content: Buffer.from(JSON.stringify({ version: 1, assignments: state.assignments }, null, 2) + '\n').toString('base64') });
+      return;
+    } catch (error) { if (error.status !== 409 || attempt === 7) throw error; }
+  }
+}
+
 export async function assignedReviewProvider({ repository, pr, branch }, api, roster = loadRoster()) {
   if (repository !== repositoryName || !Number.isSafeInteger(pr) || pr < 1 || typeof branch !== 'string' || !branch) throw Error('Invalid reviewer provider target');
   const state = await readState(repository, api);
-  const canonical = /^(codex|claude)\/issue-([1-9][0-9]*)$/.exec(branch);
-  const matches = state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer' && assignment.branch === branch &&
-    (assignment.pr === pr || (!assignment.pr && canonical && assignment.issue === Number(canonical[2]))));
-  if (matches.length > 1) throw Error('Multiple active reviewers claim this PR');
+  let matches = reviewerMatches(state, pr, branch);
+  if (matches.length > 1) {
+    matches = matches.filter(assignment => assignment.selectedReview === true);
+    if (matches.length !== 1) throw Error('Multiple active reviewers claim this PR');
+  }
   if (!matches.length) return undefined;
   return findIdentity(roster, `${matches[0].slug}[bot]`, matches[0].provider, 'reviewer').provider;
 }

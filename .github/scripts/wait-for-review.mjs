@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { publishProgress } from './agent-progress.mjs';
-import { assignedReviewProvider, findIdentity, loadRoster } from './bot-identities.mjs';
+import { assignedReviewProvider, findIdentity, loadRoster, selectReviewProvider } from './bot-identities.mjs';
 
 export async function executeGhApi(execute, args, body) {
   const pending = execute('gh', args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
@@ -20,7 +20,7 @@ export async function requestGitHub(request, token, method, endpoint, body, miss
     signal: AbortSignal.timeout(30000)
   });
   if (missing && response.status === 404) return null;
-  if (!response.ok) throw Error(`GitHub API ${method} ${endpoint} failed with ${response.status}`);
+  if (!response.ok) throw Object.assign(Error(`GitHub API ${method} ${endpoint} failed with ${response.status}`), { status: response.status });
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }
@@ -101,7 +101,7 @@ export async function dispatchReview(api, repository, pr, sha, appSlug, options 
   return identity;
 }
 
-export async function clearReviewLabels(api, repository, pr, sha, identity, runId, attempt) {
+export async function clearReviewLabels(api, repository, pr, sha, identity, runId, attempt, options = {}) {
   const endpoint = `repos/${repository}/issues/${pr}`;
   const current = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (current.head.sha !== sha) return;
@@ -120,6 +120,7 @@ export async function clearReviewLabels(api, repository, pr, sha, identity, runI
   if (events.some(event => !Number.isFinite(Date.parse(event.created_at)) || Date.parse(event.created_at) >= started)) return;
   const latest = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (latest.head.sha !== sha) return;
+  if (!/^(codex|claude)\/issue-[1-9][0-9]*$/.test(latest.head.ref)) await selectReviewProvider({ repository, pr, branch: latest.head.ref, login: identity.login }, api, options.roster);
   for (const label of labels) {
     if (latest.labels.some(entry => entry.name === label)) await api('DELETE', `${endpoint}/labels/${encodeURIComponent(label)}`, undefined, true);
   }
@@ -136,9 +137,14 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   if (identity.slug !== appSlug) throw Error('The publishing App is not the assigned reviewer');
   if (mode !== 'disclosure') {
     const phase = mode === 'queued' ? 'queued' : mode === 'progress' ? 'running' : mode === 'publishing' ? 'publishing' : options.phase;
-    const progress = await publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase,
-      detail: mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' }, api);
-    if (mode === 'final') await clearReviewLabels(api, repository, pr, sha, identity, runId, attempt);
+    let cleanupError;
+    if (mode === 'final') {
+      try { await clearReviewLabels(api, repository, pr, sha, identity, runId, attempt, options); }
+      catch (error) { cleanupError = error; }
+    }
+    const progress = await publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase: cleanupError ? 'failed' : phase,
+      detail: cleanupError ? `Review label cleanup failed for commit ${sha}. The formal verdict is recorded separately.` : mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' }, api);
+    if (cleanupError) throw cleanupError;
     return progress;
   }
   const marker = `<!-- review-${mode}:${runId}:${attempt} -->`;
