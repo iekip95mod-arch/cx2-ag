@@ -749,9 +749,12 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     Rational exact_x;
     Rational exact_y;
     const std::vector<SymbolValue> no_symbols;
-    if (exact_magnitude == nullptr &&
-        evaluate_rational(arena, input.x, no_symbols, &exact_x) &&
-        evaluate_rational(arena, input.y, no_symbols, &exact_y) &&
+    const bool rational_x = evaluate_rational(arena, input.x, no_symbols, &exact_x);
+    const bool rational_y = evaluate_rational(arena, input.y, no_symbols, &exact_y);
+    const bool known_nonzero_component =
+        (rational_x && !rational_equal(exact_x, {0, 1})) ||
+        (rational_y && !rational_equal(exact_y, {0, 1}));
+    if (exact_magnitude == nullptr && rational_x && rational_y &&
         rational_equal(exact_x, {0, 1}) && rational_equal(exact_y, {0, 1}))
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
                              input.precision, output_unit,
@@ -801,7 +804,7 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     const bool rational_magnitude =
         evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude);
     bool zero_magnitude = rational_magnitude && rational_equal(simplified_magnitude, {0, 1});
-    if (!rational_magnitude) {
+    if (!rational_magnitude && !known_nonzero_component) {
         Request classify;
         classify.op = Op::IsZero;
         classify.target = magnitude;

@@ -234,6 +234,35 @@ void run_vector_components_tests(TestSink &t) {
                 "an inconclusive magnitude classification stops before approximation and atan2");
     }
 
+    for (const bool expression : {false, true}) {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"sqrt(2)", "0", "pi/4", "0"});
+        Vector input;
+        input.x = {1, 1};
+        input.y = {1, 1};
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        const VectorExpr expr = vector_expr_from_exact(arena, input);
+
+        const VectorComponentsResult result = expression
+            ? components_to_magnitude_angle(
+                  arena, derivation, expr, AngleUnit::Radians, backend)
+            : components_to_magnitude_angle(
+                  arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) ==
+                        print(arena, parsed(arena, "sqrt(2)")) &&
+                    print(arena, result.polar.angle) == print(arena, parsed(arena, "pi/4")),
+                "nonzero rational components retain an irrational exact polar result");
+        t.check(backend.commands.size() == 4 &&
+                    backend.commands[2].find("atan2") == 0 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a rational component proves an irrational magnitude is nonzero");
+    }
+
     {
         Arena arena;
         Derivation derivation;
