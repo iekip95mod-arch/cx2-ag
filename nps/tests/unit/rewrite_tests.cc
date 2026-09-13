@@ -396,12 +396,24 @@ void run_rewrite_tests(TestSink &t) {
         t.check(s.steps == 1, "leaving only the plan");
     }
     {
-        // Nothing here fits in an int64, so the fold has to decline rather than wrap.
-        Rewritten s = run("9223372036854775807 + 1", RewriteGoal::Simplify);
-        t.equal(rewrite_outcome_name(s.outcome), "unsupported form",
-                "a sum that outgrows exact integer arithmetic here stops rather than wraps");
+        Rewritten s = run("9223372036854775807x + x", RewriteGoal::Simplify);
+        t.equal(rewrite_outcome_name(s.outcome), "resource exceeded",
+                "coefficients that outgrow exact integer arithmetic report capacity exhaustion");
+        t.check(s.detail.find("coefficients grew") != std::string::npos,
+                "reaching the coefficient-addition refusal is explicit");
         t.equal(s.status, "resource limit reached",
                 "and says it ran out of arithmetic rather than out of rules");
+        t.check(s.expression.empty() && s.steps == 0, "offering no answer and no partial record");
+    }
+    {
+        Rewritten s =
+            run("9223372036854775807*2*x + y", RewriteGoal::Simplify);
+        t.equal(rewrite_outcome_name(s.outcome), "resource exceeded",
+                "an unreadable oversized term reports capacity exhaustion");
+        t.check(s.detail.find("a term grew") != std::string::npos,
+                "reaching the term-construction refusal is explicit");
+        t.equal(s.status, "resource limit reached",
+                "and does not turn exhausted arithmetic into an unsupported form");
         t.check(s.expression.empty() && s.steps == 0, "offering no answer and no partial record");
     }
 
