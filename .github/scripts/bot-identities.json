@@ -262,5 +262,137 @@
     "userId": 328539005,
     "login": "cx2-ag-claude-review-summit[bot]",
     "secretName": "CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "aurora",
+    "slug": "cx2-ag-claude-aurora",
+    "appId": 4934855,
+    "clientId": "Iv23livw3qUOyggHVCAb",
+    "userId": 328876551,
+    "login": "cx2-ag-claude-aurora[bot]",
+    "secretName": "CX2_AG_CLAUDE_AURORA_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "lyra",
+    "slug": "cx2-ag-claude-lyra",
+    "appId": 4934856,
+    "clientId": "Iv23li4hthlKNHqRNDs6",
+    "userId": 328876579,
+    "login": "cx2-ag-claude-lyra[bot]",
+    "secretName": "CX2_AG_CLAUDE_LYRA_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "meteor",
+    "slug": "cx2-ag-claude-meteor",
+    "appId": 4934857,
+    "clientId": "Iv23lidwVTp0yOH3OfuO",
+    "userId": 328876657,
+    "login": "cx2-ag-claude-meteor[bot]",
+    "secretName": "CX2_AG_CLAUDE_METEOR_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "nebula",
+    "slug": "cx2-ag-claude-nebula",
+    "appId": 4934858,
+    "clientId": "Iv23lilR7MPKD68lFbaT",
+    "userId": 328876695,
+    "login": "cx2-ag-claude-nebula[bot]",
+    "secretName": "CX2_AG_CLAUDE_NEBULA_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "pulsar",
+    "slug": "cx2-ag-claude-pulsar",
+    "appId": 4934860,
+    "clientId": "Iv23liZAfHmMlI07VjRK",
+    "userId": 328876760,
+    "login": "cx2-ag-claude-pulsar[bot]",
+    "secretName": "CX2_AG_CLAUDE_PULSAR_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "executor",
+    "name": "sirius",
+    "slug": "cx2-ag-claude-sirius",
+    "appId": 4934864,
+    "clientId": "Iv23livZC315a7PYs4UG",
+    "userId": 328876798,
+    "login": "cx2-ag-claude-sirius[bot]",
+    "secretName": "CX2_AG_CLAUDE_SIRIUS_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "aspen",
+    "slug": "cx2-ag-codex-aspen",
+    "appId": 4934835,
+    "clientId": "Iv23liqnpCVbxjRvMxMM",
+    "userId": 328875980,
+    "login": "cx2-ag-codex-aspen[bot]",
+    "secretName": "CX2_AG_CODEX_ASPEN_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "elm",
+    "slug": "cx2-ag-codex-elm",
+    "appId": 4934843,
+    "clientId": "Iv23li4IYiO546945WD6",
+    "userId": 328876170,
+    "login": "cx2-ag-codex-elm[bot]",
+    "secretName": "CX2_AG_CODEX_ELM_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "hazel",
+    "slug": "cx2-ag-codex-hazel",
+    "appId": 4934848,
+    "clientId": "Iv23livqDTHacv2ENGmG",
+    "userId": 328876298,
+    "login": "cx2-ag-codex-hazel[bot]",
+    "secretName": "CX2_AG_CODEX_HAZEL_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "juniper",
+    "slug": "cx2-ag-codex-juniper",
+    "appId": 4934849,
+    "clientId": "Iv23lipgrjmbHw0nAbIC",
+    "userId": 328876363,
+    "login": "cx2-ag-codex-juniper[bot]",
+    "secretName": "CX2_AG_CODEX_JUNIPER_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "oak",
+    "slug": "cx2-ag-codex-oak",
+    "appId": 4934850,
+    "clientId": "Iv23liDBCRdMJyHtGysH",
+    "userId": 328876415,
+    "login": "cx2-ag-codex-oak[bot]",
+    "secretName": "CX2_AG_CODEX_OAK_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "executor",
+    "name": "pine",
+    "slug": "cx2-ag-codex-pine",
+    "appId": 4934853,
+    "clientId": "Iv23linSiOqDLI4ngRm7",
+    "userId": 328876468,
+    "login": "cx2-ag-codex-pine[bot]",
+    "secretName": "CX2_AG_CODEX_PINE_PRIVATE_KEY"
   }
 ]
