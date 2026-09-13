@@ -63,7 +63,7 @@ const IntegrityIdentifier kIntegrityIdentifiers[] = {
     {"giac.sources-config", "sha256", NPS_MANIFEST_GIAC_HASH},
 #endif
 #if NPS_MANIFEST_HAS_SIDECAR
-    {"artifact.package", "external-sha256-sidecar", NPS_MANIFEST_SIDECAR},
+    {"artifact.package", "runtime-sha256-sidecar", NPS_MANIFEST_SIDECAR},
 #endif
 #if NPS_MANIFEST_HAS_UI_SIDECAR
     {"ui.document", "external-sha256-sidecar", NPS_MANIFEST_UI_SIDECAR},
