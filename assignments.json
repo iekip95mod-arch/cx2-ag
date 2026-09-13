@@ -561,6 +561,16 @@
       "branch": "codex/issue-77",
       "slug": "cx2-ag-codex-aspen",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-38",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 38,
+      "pr": null,
+      "branch": "codex/issue-38",
+      "slug": "cx2-ag-codex-elm",
+      "released": false
     }
   ]
 }
