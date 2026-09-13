@@ -228,6 +228,7 @@ inline Budget remaining_budget(const Budget &budget, const Meter &meter) {
     Budget nested = budget;
     nested.max_rewrites = remaining(budget.max_rewrites, meter.rewrites());
     nested.max_steps = remaining(budget.max_steps, meter.steps());
+    nested.max_branches = remaining(budget.max_branches, meter.branches());
     nested.max_backend_calls = remaining(budget.max_backend_calls, meter.backend_calls());
     return nested;
 }
@@ -240,6 +241,10 @@ inline bool charge(Meter &meter, const Cost &cost) {
     }
     for (size_t count = 0; count < cost.steps; ++count) {
         if (!meter.step())
+            return false;
+    }
+    for (size_t count = 0; count < cost.branches; ++count) {
+        if (!meter.branch())
             return false;
     }
     for (size_t count = 0; count < cost.backend_calls; ++count) {
