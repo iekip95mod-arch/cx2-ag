@@ -50,6 +50,25 @@ test('draft and pending-review gates do not dispatch repair workers', async () =
   }
 });
 
+test('a ready review gate failure without a terminal verdict resumes the executor', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    const reviewer = loadRoster().find(bot => bot.provider === provider && bot.role === 'reviewer');
+    const path = `repos/${f.repository}/contents/assignments.json?ref=bot-assignments`;
+    const assignment = JSON.parse(Buffer.from(f.responses[path].content, 'base64').toString());
+    assignment.assignments.push({ key: `${provider}/reviewer/issue-42`, provider, role: 'reviewer', issue: 42, pr: 90, branch: f.pr.head.ref, slug: reviewer.slug, released: false });
+    f.responses[path].content = Buffer.from(JSON.stringify(assignment)).toString('base64');
+    f.responses[`repos/${f.repository}/pulls/90/reviews?per_page=100&page=1`] = [];
+    f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = {
+      total_count: 1,
+      jobs: [{ name: 'review-ready', conclusion: 'failure' }],
+    };
+
+    assert.equal(await dispatchCiFeedback(f.options, f.api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST').length, 1);
+  }
+});
+
 test('successful, superseded, foreign and worker-generated failures never dispatch', async () => {
   for (const change of [
     f => { f.ci.conclusion = 'success'; },

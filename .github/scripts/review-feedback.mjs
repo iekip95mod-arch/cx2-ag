@@ -203,7 +203,7 @@ async function rejectedReviewGate(repository, ci, pr, provider, issue, api, rost
       if (!latest || submitted > latest.submitted || (submitted === latest.submitted && review.id > latest.id)) latest = { id: review.id, submitted, state: blocked ? 'BLOCKED' : review.state };
     }
     if (reviews.length < 100) {
-      if (!latest) return true;
+      if (!latest) return false;
       if (pr.draft && latest.state === 'APPROVED') return true;
       if (latest?.state === 'BLOCKED') return true;
       return latest?.state === 'CHANGES_REQUESTED' && await alreadyDelivered(repository, latest.id, run, 1, api);
