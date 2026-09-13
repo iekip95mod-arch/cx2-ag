@@ -25,18 +25,32 @@ export function normalize(event, body) {
   if (body?.repository?.full_name !== repository) return null;
   if (event === 'workflow_run') {
     const run = body.workflow_run;
-    const workflow = ['check', 'agent-review'].find(name => run?.path === `.github/workflows/${name}.yml`);
+    const failedCi = run?.event === 'pull_request' && run.head_repository?.full_name === repository && ['failure', 'timed_out', 'action_required', 'startup_failure'].includes(run.conclusion);
+    const workflow = ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback', 'agent-review-discussion'].find(name => run?.path === `.github/workflows/${name}.yml`) ?? (failedCi ? /^\.github\/workflows\/([a-zA-Z0-9_-]+)\.ya?ml$/.exec(run.path ?? '')?.[1] : undefined);
     if (body.action !== 'completed' || !workflow) return null;
     if (!shaPattern.test(run.head_sha) || !number(run.id)) return null;
     if (!['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure'].includes(run.conclusion)) return null;
+    if (workflow === 'agent-review-discussion' && ['success', 'neutral', 'skipped'].includes(run.conclusion)) return null;
     const prs = [...new Set((run.pull_requests ?? []).map(pr => pr.number).filter(number))];
     if (!prs.length) return null;
     return { repository, event, action: body.action, prs, sha: run.head_sha, workflow, conclusion: run.conclusion, run: run.id };
   }
   const pr = body.pull_request;
   if (!number(pr?.number) || !shaPattern.test(pr?.head?.sha)) return null;
+  if (event === 'pull_request_review_comment' && body.action === 'created') {
+    const comment = body.comment;
+    const question = /^<!-- cx2-review-answer:([1-9][0-9]*) -->\r?\n/.exec(comment?.body ?? '');
+    if (!question || !number(Number(question[1])) || !number(comment.id) || !number(comment.in_reply_to_id)) return null;
+    if (comment.user?.type !== 'Bot' || !/^cx2-ag-(codex|claude)-review-[a-z]+\[bot\]$/.test(comment.user.login) || !number(comment.user.id)) return null;
+    if (body.sender?.id !== comment.user.id || body.sender.login !== comment.user.login || body.sender.type !== 'Bot') return null;
+    return { repository, event, action: body.action, prs: [pr.number], sha: pr.head.sha, comment: comment.id, question: Number(question[1]), reviewer: comment.user.login };
+  }
   if (event === 'pull_request_review' && ['submitted', 'dismissed'].includes(body.action)) {
     const state = body.review?.state?.toLowerCase();
+    const security = body.review?.user;
+    if (body.action === 'submitted' && state === 'commented' && number(body.review.id) && security?.type === 'Bot' && security.login === 'github-advanced-security[bot]' && security.id === 62310815 && body.sender?.id === security.id && body.sender.login === security.login && body.sender.type === 'Bot') {
+      return { repository, event, action: body.action, prs: [pr.number], sha: pr.head.sha, review: 'security_alerts' };
+    }
     if (!['approved', 'changes_requested', 'dismissed'].includes(state)) return null;
     return { repository, event, action: body.action, prs: [pr.number], sha: pr.head.sha, review: state };
   }

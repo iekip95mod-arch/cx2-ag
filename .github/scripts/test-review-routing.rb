@@ -8,18 +8,24 @@ root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 classification = workflow.fetch('concurrency').fetch('group').delete_prefix('agent-review-${{ github.event.pull_request.number }}-')
 raise 'Review run names must identify requested and metadata runs by PR' unless workflow['run-name'] == 'Review PR #${{ github.event.pull_request.number }} (' + classification + ')'
-selection = workflow.fetch('jobs').fetch('select-reviewer').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml'))
+selection = request.fetch('jobs').fetch('assign').fetch('steps').find { |step| step['id'] == 'reviewer' }.fetch('run')
+raise 'Only assignment labels can trigger review execution' unless (workflow['on'] || workflow[true]).fetch('pull_request').fetch('types') == ['labeled'] && workflow.fetch('jobs').fetch('select-reviewer').fetch('if').include?("startsWith(github.event.label.name, 'reviewer:')")
+raise 'Review selection must be read-only' unless workflow.fetch('jobs').fetch('select-reviewer').fetch('permissions').values.all? { |value| value == 'read' }
+raise 'Assignment labels must not loop into another assignment' unless request.fetch('jobs').fetch('assign').fetch('if').include?("contains(fromJSON('[\"claude-review\", \"codex-review\"]'), github.event.label.name)")
+raise 'Assignment must not run either model' if request.fetch('jobs').values.flat_map { |job| job.fetch('steps') }.any? { |step| step.fetch('uses', '').include?('claude-code-action') || step.fetch('run', '').include?('codex exec') }
 %w[agent agent-codex agent-gemini].each do |name|
   worker = YAML.load_file(File.join(root, ".github/workflows/#{name}.yml"))
-  if name == 'agent-codex'
+  if ['agent-codex', 'agent'].include?(name)
+    provider = name == 'agent-codex' ? 'codex' : 'claude'
     response = worker.fetch('jobs').fetch('respond')
-    expected = 'agent-codex-${{ needs.resolve.outputs.branch || github.run_id }}'
-    raise 'Codex issue and PR aliases must share their branch queue' unless response.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
-    raise 'Resolve ownership before starting a Codex worker' unless response.fetch('needs') == 'resolve'
+    expected = "agent-#{provider}-" + '${{ needs.resolve.outputs.branch || github.run_id }}'
+    raise 'Issue and PR aliases must share their branch queue' unless response.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+    raise 'Resolve and allocate ownership before starting a worker' unless response.fetch('needs').sort == ['allocate', 'resolve']
     resolver = worker.fetch('jobs').fetch('resolve')
     raise 'Ownership resolution must be read-only' unless resolver.fetch('permissions').values.all? { |value| value == 'read' }
     step = resolver.fetch('steps').find { |entry| entry['id'] == 'target' }
-    raise 'Execute the ownership resolver' unless step.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs --resolve'
+    raise 'Execute the ownership resolver' unless step.fetch('run').include?('node .github/scripts/prepare-codex-worker.mjs --resolve')
     raise 'Publish the resolved branch queue' unless resolver.fetch('outputs').fetch('branch') == '${{ steps.target.outputs.branch }}'
     claim = response.fetch('steps').find { |entry| entry['id'] == 'worker' }
     raise 'Recheck the branch after entering its queue' unless claim.fetch('env').fetch('EXPECTED_BRANCH') == '${{ needs.resolve.outputs.branch }}'

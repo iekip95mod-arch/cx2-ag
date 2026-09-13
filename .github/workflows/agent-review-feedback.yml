@@ -1,0 +1,53 @@
+name: agent-review-feedback
+run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || format('Review feedback {0}', github.event.review.id) }}
+
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    workflows: [check, agent-codex, agent-review, agent-review-request]
+    types: [completed]
+
+concurrency:
+  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  continue-executor:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+       contains(fromJSON('["failure", "timed_out", "action_required", "startup_failure"]'), github.event.workflow_run.conclusion)) ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.review.state == 'approved' || github.event.review.state == 'changes_requested' ||
+       (github.event.review.state == 'commented' && github.event.review.user.type == 'Bot' &&
+        github.event.review.user.login == 'github-advanced-security[bot]' && github.event.review.user.id == 62310815)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Check whether feedback is installed on main
+        id: installed
+        run: |
+          if [ -f .github/scripts/review-feedback.mjs ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Review feedback starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Dispatch the assigned executor
+        if: steps.installed.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEGACY_OWNER: iekip95mod-arch
+        run: node .github/scripts/review-feedback.mjs
