@@ -96,10 +96,10 @@ function fixture() {
   return { api, calls, ticket, pull, branches, get assignments() { return assignments; }, set assignments(value) { assignments = value; revision++; }, get revision() { return revision; }, get collisionCount() { return collisionCount; }, set conflicts(value) { conflicts = value; }, set user(value) { userOverride = value; }, set links(value) { links = value; }, set linkedOpenPrs(value) { linkedOpenPrs = value; } };
 }
 
-test('the catalogue contains six distinct identities per provider and role', () => {
-  assert.equal(roster.length, 24);
-  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, 6);
-  assert.equal(new Set(roster.map(identity => identity.login)).size, 24);
+test('the catalogue contains twelve executors and six reviewers per provider', () => {
+  assert.equal(roster.length, 36);
+  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, role === 'executor' ? 12 : 6);
+  assert.equal(new Set(roster.map(identity => identity.login)).size, 36);
   assert.throws(() => findIdentity(roster, 'unknown[bot]'), /Unknown/);
   assert.throws(() => findIdentity(roster, roster[0].login, 'claude', 'executor'), /Unknown/);
   assert.throws(() => findIdentity([{ ...roster[0], appId: null }], roster[0].login), /unconfigured/);
@@ -135,12 +135,27 @@ test('issue and PR aliases reuse the original identity without another write', a
   assert.equal(github.revision, 1);
 });
 
-test('six occupied slots reject a seventh without altering assignments', async () => {
-  const github = fixture();
-  for (let issue = 1; issue <= 6; issue++) await allocateIdentity(options(issue), github.api, roster);
-  await assert.rejects(allocateIdentity(options(7), github.api, roster), /All six codex executor bots are occupied/);
-  assert.equal(github.assignments.length, 6);
-  assert.equal(github.revision, 6);
+test('twelve executor slots per provider retain ownership and reject overflow', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const github = fixture();
+    const workers = [];
+    for (let issue = 1; issue <= 12; issue++) workers.push(await allocateIdentity({ ...options(issue), provider }, github.api, roster));
+    assert.equal(new Set(workers.map(worker => worker.login)).size, 12);
+    for (let issue = 1; issue <= 12; issue++) assert.equal((await allocateIdentity({ ...options(issue), provider }, github.api, roster)).login, workers[issue - 1].login);
+    await assert.rejects(allocateIdentity({ ...options(13), provider }, github.api, roster), new RegExp(`All 12 ${provider} executor bots are occupied`));
+    assert.equal(github.assignments.length, 12);
+    assert.equal(github.revision, 12);
+  }
+});
+
+test('reviewer pools remain limited to six identities per provider', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const github = fixture();
+    for (let issue = 1; issue <= 6; issue++) await allocateIdentity(options(issue, provider, 'reviewer'), github.api, roster);
+    await assert.rejects(allocateIdentity(options(7, provider, 'reviewer'), github.api, roster), new RegExp(`All 6 ${provider} reviewer bots are occupied`));
+    assert.equal(github.assignments.length, 6);
+    assert.equal(github.revision, 6);
+  }
 });
 
 test('a closed issue keeps its identity until every branch PR closes, including later pages', async () => {
