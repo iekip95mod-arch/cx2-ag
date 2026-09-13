@@ -444,6 +444,39 @@ void test_budgets() {
           "the stride poll observes a later cancellation");
     check(state.calls == 2 && meter.cost().rewrites == 64,
           "and accounts for the rewrite that observed it");
+
+    Budget shared;
+    shared.max_rewrites = 2;
+    shared.max_steps = 2;
+    shared.max_branches = 2;
+    shared.max_backend_calls = 2;
+    Meter parent(shared);
+    check(parent.rewrite() && parent.step() && parent.branch() && parent.backend_call(),
+          "a parent can spend one unit from every nested-work limit");
+    const Budget nested = remaining_budget(shared, parent);
+    check(nested.max_rewrites == 1 && nested.max_steps == 1 && nested.max_branches == 1 &&
+              nested.max_backend_calls == 1,
+          "a nested budget receives the remainder of all four work limits");
+
+    Cost nested_cost;
+    nested_cost.rewrites = 1;
+    nested_cost.steps = 1;
+    nested_cost.branches = 1;
+    nested_cost.backend_calls = 1;
+    check(charge(parent, nested_cost), "nested work fitting every remainder is charged");
+    const Cost combined = parent.cost();
+    check(combined.rewrites == 2 && combined.steps == 2 && combined.branches == 2 &&
+              combined.backend_calls == 2,
+          "charging combines all four nested work counters");
+
+    Budget one_branch;
+    one_branch.max_branches = 1;
+    Meter exhausted(one_branch);
+    Cost two_branches;
+    two_branches.branches = 2;
+    check(!charge(exhausted, two_branches) && exhausted.halt() == Halt::BranchLimit &&
+              exhausted.branches() == 2,
+          "charging branch work preserves the meter's terminal limit semantics");
 }
 
 void test_rejections() {
