@@ -181,6 +181,16 @@
       "branch": "codex/issue-100",
       "slug": "cx2-ag-codex-cedar",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-100",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 100,
+      "pr": 102,
+      "branch": "codex/issue-100",
+      "slug": "cx2-ag-codex-review-beacon",
+      "released": false
     }
   ]
 }
