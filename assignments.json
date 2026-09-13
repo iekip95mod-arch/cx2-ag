@@ -71,6 +71,16 @@
       "branch": "codex/issue-20",
       "slug": "cx2-ag-codex-review-compass",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-51",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 51,
+      "pr": 87,
+      "branch": "codex/issue-51",
+      "slug": "cx2-ag-codex-review-harbor",
+      "released": false
     }
   ]
 }
