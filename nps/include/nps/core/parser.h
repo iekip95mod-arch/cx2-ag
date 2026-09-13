@@ -20,7 +20,8 @@ struct ParseResult {
 };
 
 // Requires one name token spanning the input, including no surrounding whitespace.
-bool is_identifier(const std::string &input);
+bool is_identifier(const std::string &input,
+                   size_t max_input_bytes = Limits{}.max_input_bytes);
 std::string normalize_identifier(const std::string &input);
 ParseResult parse(Arena &arena, const std::string &input);
 

@@ -494,7 +494,8 @@ class Parser {
 
 }  // namespace
 
-bool is_identifier(const std::string &input) {
+bool is_identifier(const std::string &input, size_t max_input_bytes) {
+    if (input.size() > max_input_bytes) return false;
     Lexer lexer(input);
     const Token token = lexer.next();
     return token.kind == Tok::Name && token.start == 0 && token.end == input.size();
