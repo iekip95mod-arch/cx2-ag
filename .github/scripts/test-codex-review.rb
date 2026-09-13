@@ -38,6 +38,9 @@ raise 'Review execution must use verified assignment metadata' unless selection.
 raise 'Review execution must validate the assignment event' unless selection.fetch('steps').find { |step| step['id'] == 'identity' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-assignment'
 raise 'Review execution must not allocate identities' if selection.fetch('steps').any? { |step| step.fetch('run', '').include?(' allocate ') }
 request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml')).fetch('jobs').fetch('assign')
+trust = request.fetch('steps').index { |step| step['name'] == 'Require a trusted PR author' }
+trusted_checkout = request.fetch('steps').index { |step| step['name'] == 'Check out the trusted PR revision' }
+raise 'Assignment must load bot-authored changes only after base-branch author verification' unless trust && trusted_checkout && trust < trusted_checkout && request.fetch('steps')[trusted_checkout].fetch('with').fetch('ref') == '${{ github.event.pull_request.head.sha }}'
 raise 'Validate the requester before reserving a reviewer' unless request.fetch('steps').index { |step| step['id'] == 'requester' } < request.fetch('steps').index { |step| step['id'] == 'identity' }
 raise 'Execute the requester verifier' unless request.fetch('steps').find { |step| step['id'] == 'requester' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-requester'
 queued = request.fetch('steps').find { |step| step['name'] == 'Show queued reviewer work' }

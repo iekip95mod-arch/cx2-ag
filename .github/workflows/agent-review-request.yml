@@ -30,6 +30,11 @@ jobs:
           node-version: "24"
       - name: Require a trusted PR author
         run: node .github/scripts/wait-for-review.mjs --trust-author
+      - name: Check out the trusted PR revision
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
       - name: Select the requesting agent's reviewer
         id: reviewer
         shell: bash
