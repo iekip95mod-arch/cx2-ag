@@ -48,11 +48,13 @@ raise 'Execute the requester verifier' unless request.fetch('steps').find { |ste
 queued = request.fetch('steps').find { |step| step['name'] == 'Show queued reviewer work' }
 dispatch = request.fetch('steps').find { |step| step['name'] == 'Deliver the reviewer assignment' }
 raise 'Reviewer assignment needs room for progress publication and delivery' unless request.fetch('timeout-minutes') >= 10
-raise 'Assignment must publish queued progress with the reviewer App token' unless queued&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && queued.fetch('run') == 'node .github/scripts/wait-for-review.mjs --review-queued'
+raise 'Assignment must publish queued progress with the reviewer App token' unless queued&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && queued.fetch('run').include?('node .github/scripts/wait-for-review.mjs --review-queued')
+raise 'Assignment must bootstrap safely from a base branch without progress support' unless queued.fetch('run').include?('grep -Fq -- "--review-queued"')
 raise 'Assignment must dispatch with the reviewer App token' unless dispatch&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && dispatch.fetch('run') == 'node .github/scripts/wait-for-review.mjs --dispatch-review'
 raise 'Assignment must queue progress before producing the real label event' unless request.fetch('steps').index(queued) < request.fetch('steps').index(dispatch)
 assignment_final = request.fetch('steps').find { |step| step['name'] == 'Record failed reviewer assignment' }
-raise 'Reviewer assignment must close unsuccessful queued progress' unless assignment_final && assignment_final.fetch('if').include?('always()') && assignment_final.fetch('if').include?("job.status != 'success'") && assignment_final.fetch('run') == 'node .github/scripts/wait-for-review.mjs --review-final'
+raise 'Reviewer assignment must close unsuccessful queued progress' unless assignment_final && assignment_final.fetch('if').include?('always()') && assignment_final.fetch('if').include?("job.status != 'success'") && assignment_final.fetch('run').include?('node .github/scripts/wait-for-review.mjs --review-final')
+raise 'Assignment cleanup must tolerate a base branch without progress support' unless assignment_final.fetch('run').include?('grep -Fq -- "--review-final"')
 raise 'Reviewer assignment failure must use the assigned identity' unless assignment_final.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
 expected_phase = "${{ job.status == 'failure' && 'failed' || job.status }}"
 raise 'Assignment failure is not translated to the progress phase' unless assignment_final.fetch('env').fetch('PROGRESS_PHASE') == expected_phase

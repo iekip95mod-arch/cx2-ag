@@ -106,7 +106,12 @@ jobs:
           REVIEW_USER_ID: ${{ steps.identity.outputs.user_id }}
           REVIEW_MODEL: ${{ steps.reviewer.outputs.model }}
           REVIEW_EFFORT: ${{ steps.reviewer.outputs.effort }}
-        run: node .github/scripts/wait-for-review.mjs --review-queued
+        run: |
+          if grep -Fq -- "--review-queued" .github/scripts/wait-for-review.mjs; then
+            node .github/scripts/wait-for-review.mjs --review-queued
+          else
+            echo "Queued reviewer progress activates after this workflow change reaches the base branch." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Deliver the reviewer assignment
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
@@ -124,4 +129,7 @@ jobs:
           REVIEW_MODEL: ${{ steps.reviewer.outputs.model }}
           REVIEW_EFFORT: ${{ steps.reviewer.outputs.effort }}
           PROGRESS_PHASE: ${{ job.status == 'failure' && 'failed' || job.status }}
-        run: node .github/scripts/wait-for-review.mjs --review-final
+        run: |
+          if grep -Fq -- "--review-final" .github/scripts/wait-for-review.mjs; then
+            node .github/scripts/wait-for-review.mjs --review-final
+          fi
