@@ -14,6 +14,12 @@ on:
       - .github/scripts/prepare-codex-auth.sh
       - .github/scripts/prepare-codex-worker.mjs
       - .github/scripts/test-codex-worker.mjs
+      - .github/scripts/publish-worker-pr.mjs
+      - .github/scripts/fixtures/codex-worker-gh.mjs
+      - .github/scripts/bot-identities.mjs
+      - .github/scripts/bot-identities.json
+      - .github/scripts/test-bot-identities.mjs
+      - .github/workflows/agent.yml
   issues:
     types: [labeled]
   issue_comment:
@@ -47,7 +53,7 @@ jobs:
         with:
           node-version: "24"
       - name: Test issue claiming and publishing contracts
-        run: node --test .github/scripts/test-codex-worker.mjs
+        run: node --test .github/scripts/test-codex-worker.mjs .github/scripts/test-bot-identities.mjs
 
   resolve:
     # The repository is public, so anyone can comment. Only people who could push here can spend the
@@ -78,18 +84,53 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/prepare-codex-worker.mjs --resolve
 
-  respond:
+  allocate:
     needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    outputs:
+      app_id: ${{ steps.lease.outputs.app_id }}
+      secret_name: ${{ steps.lease.outputs.secret_name }}
+      login: ${{ steps.lease.outputs.login }}
+      user_id: ${{ steps.lease.outputs.user_id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Reserve the executor identity
+        id: lease
+        if: needs.resolve.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number || inputs.issue_number }}
+          LEGACY_OWNER: iekip95mod-arch
+        run: node .github/scripts/bot-identities.mjs allocate --provider codex --role executor --issue "$NUMBER"
+
+  respond:
+    needs: [resolve, allocate]
     concurrency:
       group: agent-codex-${{ needs.resolve.outputs.branch || github.run_id }}
       cancel-in-progress: false
     runs-on: macos-latest
     timeout-minutes: 30
+    env:
+      WORKER_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
+      WORKER_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
+      AGENT_JOB_TIMEOUT_MINUTES: 30
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
+      issues: read
+      pull-requests: read
     steps:
+      - name: Capture the job start
+        run: echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -106,11 +147,26 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Authenticate the leased executor App
+        id: bot-token
+        if: steps.key.outputs.have == 'true' && needs.allocate.outputs.app_id != ''
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ needs.allocate.outputs.app_id }}
+          private-key: ${{ needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_AMBER_PRIVATE_KEY' && secrets.CX2_AG_CODEX_AMBER_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_BIRCH_PRIVATE_KEY' && secrets.CX2_AG_CODEX_BIRCH_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_CEDAR_PRIVATE_KEY' && secrets.CX2_AG_CODEX_CEDAR_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_FLINT_PRIVATE_KEY' && secrets.CX2_AG_CODEX_FLINT_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_MAPLE_PRIVATE_KEY' && secrets.CX2_AG_CODEX_MAPLE_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CODEX_WILLOW_PRIVATE_KEY' && secrets.CX2_AG_CODEX_WILLOW_PRIVATE_KEY || '' }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: Claim the issue and prepare its branch
         id: worker
         if: steps.key.outputs.have == 'true' && (github.event.issue.number || github.event.pull_request.number || inputs.issue_number)
         env:
-          GH_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          BOT_LOGIN: ${{ needs.allocate.outputs.login }}
+          BOT_USER_ID: ${{ needs.allocate.outputs.user_id }}
+          BOT_APP_SLUG: ${{ steps.bot-token.outputs.app-slug }}
+          BOT_PROVIDER: codex
+          LEGACY_OWNER: iekip95mod-arch
           EXPECTED_BRANCH: ${{ needs.resolve.outputs.branch }}
         run: node .github/scripts/prepare-codex-worker.mjs
 
@@ -121,6 +177,14 @@ jobs:
         run: |
           brew install ccache gmp php
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+
+      - name: Install Codex CLI
+        if: steps.key.outputs.have == 'true'
+        run: npm install -g @openai/codex@0.154.0
+
+      - name: Calculate the remaining agent budget
+        if: steps.key.outputs.have == 'true'
+        run: node .github/scripts/agent-deadline.mjs
 
       # The comment is written by a person and reaches the prompt as a file rather than as shell
       # text, so nothing in it can become a command.
@@ -133,6 +197,7 @@ jobs:
           BRANCH: ${{ steps.worker.outputs.branch }}
         run: |
           {
+            printf '%s\n' "$AGENT_TIME_BUDGET"
             echo "Read AGENTS.md before anything else. It is the working agreement for this"
             echo "repository. Work under .Internal/workspaces/, ship tests in the same commit as the"
             echo "code they cover, reach for what already exists before writing your own, and prove"
@@ -148,10 +213,14 @@ jobs:
               echo "GitHub CLI authentication is configured. You may commit, push your branch,"
               echo "open or update its PR and enable protected auto-merge without asking permission."
               echo "Use one branch and one ongoing PR for this issue. Open a draft PR after the"
-              echo "first commit, then update that same PR. Do not combine issues or open duplicate PRs."
-              echo "Mark it ready and request codex-review only after implementation stops."
+              echo "first meaningful commit, before full tests. The post-commit hook pushes and opens it."
+              echo "The draft must link Closes #$ISSUE. Update that same PR, never combine issues."
+              echo "If publication fails, retry the publication helper, not the commit."
+              echo "After implementation and validation, apply codex-review while still draft, then mark ready."
               echo "Do not approve your own PR, bypass required checks, force-push or push main."
-              echo "After review fixes, remove and re-add codex-review for a fresh review."
+              echo "For repaired ready PRs, remove and re-add codex-review only after fixes and validation."
+              echo "An approval continuation with unchanged code must finish merge checks without requesting"
+              echo "another review or reapplying review labels."
               cat "$RUNNER_TEMP/codex-issue.json"
             fi
             echo
@@ -161,22 +230,29 @@ jobs:
             printf '%s\n' "${COMMENT:-$MANUAL}"
           } > "$RUNNER_TEMP/codex-prompt.txt"
 
-      - name: Install Codex CLI
-        if: steps.key.outputs.have == 'true'
-        run: npm install -g @openai/codex@0.154.0
-
       - name: Run Codex with saved login
         if: steps.key.outputs.have == 'true'
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
-          GH_TOKEN: ${{ steps.worker.outputs.issue && secrets.CODEX_GITHUB_TOKEN || '' }}
+          GH_TOKEN: ${{ steps.worker.outputs.issue && steps.bot-token.outputs.token || '' }}
           WORKER_DIRECTORY: ${{ steps.worker.outputs.directory || github.workspace }}
           SANDBOX_MODE: ${{ steps.worker.outputs.issue && 'danger-full-access' || 'workspace-write' }}
         run: |
           codex login status
-          codex exec --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
+          if [ -n "$GH_TOKEN" ]; then
+            node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+          fi
+          printf 'Configured model: %s\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
+          codex exec --model "$WORKER_MODEL" -c "model_reasoning_effort=\"$WORKER_EFFORT\"" --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
             -c shell_environment_policy.ignore_default_excludes=true \
             --ephemeral --output-last-message "$RUNNER_TEMP/codex-reply.md" - < "$RUNNER_TEMP/codex-prompt.txt"
+
+      - name: Ensure the first commit has a linked draft PR
+        if: always() && steps.worker.outputs.issue
+        working-directory: ${{ steps.worker.outputs.directory }}
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: node "$GITHUB_WORKSPACE/.github/scripts/publish-worker-pr.mjs" "$RUNNER_TEMP/worker-publication.json"
 
       - name: Show the reply
         if: steps.key.outputs.have == 'true'
@@ -193,6 +269,11 @@ jobs:
           steps.key.outputs.have == 'true' &&
           steps.worker.outputs.issue
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           NUMBER: ${{ steps.worker.outputs.issue }}
-        run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/codex-reply.md"
+        run: |
+          {
+            printf 'Configured model: %s\nConfigured effort: %s\n\n' "$WORKER_MODEL" "$WORKER_EFFORT"
+            cat "$RUNNER_TEMP/codex-reply.md"
+          } > "$RUNNER_TEMP/codex-published-reply.md"
+          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/codex-published-reply.md"

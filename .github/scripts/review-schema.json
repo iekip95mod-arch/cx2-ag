@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED"] },
+    "body": { "type": "string" },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "side": { "type": "string", "enum": ["LEFT", "RIGHT"] },
+          "body": { "type": "string" }
+        },
+        "required": ["path", "line", "side", "body"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["verdict", "body", "comments"],
+  "additionalProperties": false
+}

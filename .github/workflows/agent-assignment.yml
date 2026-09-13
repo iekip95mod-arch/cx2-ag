@@ -1,0 +1,46 @@
+name: agent-assignment
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, reopened]
+
+concurrency:
+  group: executor-assignment-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  assign-executor:
+    if: >-
+      github.repository == 'iekip95mod-arch/cx2-ag' &&
+      github.event.sender.type == 'Bot' &&
+      (github.event_name == 'issue_comment' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Check whether assignment routing is installed on main
+        id: installed
+        run: |
+          if [ -f .github/scripts/assign-executor.mjs ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Native assignment routing starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Assign the verified executor
+        if: steps.installed.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+          LEGACY_OWNER: iekip95mod-arch
+        run: node .github/scripts/assign-executor.mjs
