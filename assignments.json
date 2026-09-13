@@ -10,6 +10,17 @@
       "branch": "codex/named-bot-identities",
       "slug": "cx2-ag-codex-review-aegis",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-90",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 90,
+      "pr": 91,
+      "branch": "codex/named-bot-identities",
+      "legacyOwner": "iekip95mod-arch",
+      "slug": "cx2-ag-codex-amber",
+      "released": false
     }
   ]
 }
