@@ -2463,6 +2463,8 @@ steps = {
 	visibleSteps = {},
 	active = false,
 	status = nil,
+	recordStatus = nil,
+	statusResult = nil,
 	histText = {},
 	pendingHistory = nil,
 	pendingExpression = nil,
@@ -2934,6 +2936,8 @@ local function prepareWalkthrough(r)
 	steps.scroll = 0
 	steps.view = "list"
 	steps.status = walkthroughStatus(r)
+	steps.recordStatus = steps.status
+	steps.statusResult = r
 end
 
 --------------------------------------------------------------------- two-dimensional display
@@ -3365,7 +3369,8 @@ end
 
 function openSteps()
 	if not steps.result then return end
-	steps.status = walkthroughStatus(steps.result)
+	steps.status = steps.statusResult == steps.result and steps.recordStatus
+	               or walkthroughStatus(steps.result)
 	setViewer(steps)
 end
 
@@ -3479,6 +3484,10 @@ function stepsSetProgression(value)
 		steps.status = "walkthrough: " .. value .. " from the next solve"
 	else
 		steps.status = value == "hint" and "walkthrough: hint, Tab reveals" or "walkthrough: full"
+	end
+	if steps.result then
+		steps.recordStatus = steps.status
+		steps.statusResult = steps.result
 	end
 	platform.window:invalidate()
 	return steps.status
@@ -4477,6 +4486,8 @@ local function revealNextStep()
 	steps.focus = nextStep
 	steps.stepScroll = 0
 	steps.status = walkthroughStatus(r)
+	steps.recordStatus = steps.status
+	steps.statusResult = r
 end
 
 -- Detail views scroll independently of the selected native step.
