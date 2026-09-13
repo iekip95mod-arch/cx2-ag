@@ -175,7 +175,7 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         }
         command.variable_name = arena.text(command.variable);
     } else {
-        if (!is_identifier(default_variable)) {
+        if (!is_identifier(default_variable, arena.limits().max_input_bytes)) {
             command.detail = "the default variable must be a single identifier without whitespace";
             return command;
         }
