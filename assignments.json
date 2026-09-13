@@ -531,6 +531,16 @@
       "branch": "codex/issue-17",
       "slug": "cx2-ag-codex-cedar",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-48",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 48,
+      "pr": null,
+      "branch": "codex/issue-48",
+      "slug": "cx2-ag-codex-flint",
+      "released": false
     }
   ]
 }
