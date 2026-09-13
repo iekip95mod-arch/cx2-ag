@@ -19,7 +19,8 @@ Read only the relevant sections of [docs/codebase-map.md](docs/codebase-map.md) 
 - Reproduce a suspected defect before declaring it confirmed. Add a regression that fails before the repair, fix the owning concept and rerun relevant checks.
 - New code arrives with its tests in the same commit. Not afterwards, not in a follow-up issue. See [Tests come with the code](#tests-come-with-the-code).
 - Coordinate file ownership across parallel work. Review after implementation stops. Do not review a moving tree or review your own change as independent verification.
-- Report host, emulator and physical-device evidence separately. A build or accepted command proves only that stage.
+- Physical handheld runs are outside this repository workflow. Use host checks and emulator validation, with relevant ARM package builds. Do not request hardware access, wait for a physical run or treat its absence as a review finding, unchecked requirement or merge blocker.
+- Report host, package build and emulator evidence separately. Headless emulator regressions do not prove TI OS boot or StepCAS package loading. Report missing in-scope emulator coverage honestly without substituting a physical-device requirement.
 - Read nested instructions before touching a dependency or research application. These rules supplement the user's global instructions.
 
 ## GitHub workflow
@@ -144,7 +145,7 @@ gh pr review <number> --repo iekip95mod-arch/cx2-ag --approve --body "..."
 gh pr review <number> --repo iekip95mod-arch/cx2-ag --request-changes --body "..."
 ~~~
 
-If GitHub refuses an approval because the pull request belongs to the same account, preserve the verdict as a comment and request the corresponding GitHub reviewer workflow. A comment alone does not satisfy the protected merge gate. Say in the body which stages ran: host build, host suite, ARM build, emulator, handheld. A stage nobody reached is a stage the body says nobody reached.
+If GitHub refuses an approval because the pull request belongs to the same account, preserve the verdict as a comment and request the corresponding GitHub reviewer workflow. A comment alone does not satisfy the protected merge gate. Say which applicable stages ran: host build, host suite, ARM package build and emulator. Physical handheld testing is outside scope and does not belong in an unfinished validation checklist.
 
 Nothing merges without an approval. Silence is not an approval, a review that only lists findings is not an approval, and a reviewer that ran out of budget partway through has not approved anything. If the reviewer requests changes, the branch goes back to an implementation lane and then back to a reviewer, however small the change was. The reviewer never fixes what it found, because an agent that repairs its own findings is no longer independent of them.
 
@@ -212,7 +213,7 @@ The main CI runs on main pushes, pull request updates and manual dispatch. These
 
 Fast host checks, the headless emulator and Codex, Claude and Gemini executors run on Ubuntu 24.04. Routing, reviewer discussion, approval gates and CodeQL also run on Ubuntu. Keep platform-independent work off macOS so it does not consume the account's five concurrent macOS slots.
 
-The full bridge suite and both hosted reviewers retain macos-latest because bridge verification consumes the committed Darwin ARM toolchain. They also retain macOS host coverage. Ubuntu jobs install system build tools, GMP and Lua 5.1 through apt. They do not install LuaJIT or unpack that Darwin archive. Report Linux host verification separately from macOS bridge, ARM package and handheld evidence. A move of those remaining jobs requires a Linux-compatible bridge toolchain, not just a runner label change.
+The full bridge suite and both hosted reviewers retain macos-latest because bridge verification consumes the committed Darwin ARM toolchain. They also retain macOS host coverage. Ubuntu jobs install system build tools, GMP and Lua 5.1 through apt. They do not install LuaJIT or unpack that Darwin archive. Report Linux host verification separately from macOS bridge, ARM package and emulator evidence. A move of those remaining jobs requires a Linux-compatible bridge toolchain, not just a runner label change.
 
 - check.yml runs fast first, then full and emulator in parallel after fast succeeds. CodeQL waits for all three to succeed and for the current PR reviewer to approve. A failed review prevents CodeQL from starting. After a successful review retry on the same commit, rerun the failed CI jobs to release CodeQL. Main pushes and manual runs do not wait for a PR review. Emulator builds Firebird headless and runs its regression suites without TI images. It does not establish TI OS boot or StepCAS package loading. The linux-parity and device jobs have been removed.
 - agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude or codex label on an issue selects that provider. Codex implementation runs claim the issue and prepare its branch before the model starts. See [CODEX.md](CODEX.md) for dispatch, credentials and resume instructions.
@@ -387,7 +388,7 @@ Three tests that look like coverage and are not. Watch for all three in your own
 - A test whose subject never moves. If the fixture, the golden file or the recorded value would satisfy the assertion whatever the code did, the assertion is about the fixture.
 - A guard nobody has watched fail. Revert the code, rebuild, confirm exactly your new checks fail and nothing else does, then restore it. If reverting the change leaves the suite green, the test is not testing the change.
 
-The device is not part of this. Host build and host suite are what a commit can claim. An ARM build proves it compiles and links, nothing more, and emulator or handheld evidence is a separate stage that gets reported separately or not at all.
+An ARM build proves compilation and linking. Report host tests and emulator execution separately. Physical handheld runs are outside scope and are not a verification gate.
 
 ## Prefer what already exists
 
@@ -418,9 +419,7 @@ None of this licenses pulling something in for its own sake. A dependency alread
 
 ## Device and research work
 
-Physical uploads, key events, restarts and file moves change external state. Keep them within the user's authorized task. Do not replay an action after a transport failure when its application is unknown.
-
-The autonomy above stops at the USB cable. One handheld is shared by every lane, so exactly one agent drives it at a time and that agent is the session lead. If you are a teammate, ask the lead rather than reaching for the device or the emulator yourself, and never assume an earlier session left the device in the state your instructions describe.
+Run calculator validation through the emulator. Do not upload to a physical handheld, send it key events, restart it or ask the maintainer to perform a hardware run. Use an isolated emulator instance and preserve other workers' sessions and retained images.
 
 keysvc acknowledges before applying events. Host tools, emulator input and the resident key service are different mechanisms. Verify visible effects when claiming UI behavior.
 

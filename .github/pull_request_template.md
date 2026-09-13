@@ -8,7 +8,6 @@ Nothing runs on push here, so no check will contradict this. Delete the lines yo
 - Sanitizer build
 - ARM compile and package
 - Emulator
-- Physical device
 
 Paste the command and its output rather than describing it.
 

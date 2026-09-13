@@ -34,12 +34,11 @@ body:
     id: stage
     attributes:
       label: Which stage did you reach
-      description: A build proves only that it compiled. Say what you actually observed.
+      description: A build proves only that it compiled. Emulator is the final device stage. Say what you actually observed.
       options:
         - Host build and test
         - ARM compile only
         - Emulator
-        - Physical device
         - Not run, reasoned from the source
     validations:
       required: true
