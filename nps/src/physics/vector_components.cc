@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "nps/core/context.h"
+#include "nps/core/evaluate.h"
 
 namespace nps {
 namespace {
@@ -745,6 +746,20 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
         plan, "pre.vector-components.dimensions-preserved", VerificationOutcome::Passed,
         dimension_observed);
 
+    Rational exact_x;
+    Rational exact_y;
+    const std::vector<SymbolValue> no_symbols;
+    const bool rational_x = evaluate_rational(arena, input.x, no_symbols, &exact_x);
+    const bool rational_y = evaluate_rational(arena, input.y, no_symbols, &exact_y);
+    const bool known_nonzero_component =
+        (rational_x && !rational_equal(exact_x, {0, 1})) ||
+        (rational_y && !rational_equal(exact_y, {0, 1}));
+    if (exact_magnitude == nullptr && rational_x && rational_y &&
+        rational_equal(exact_x, {0, 1}) && rational_equal(exact_y, {0, 1}))
+        return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
+                             input.precision, output_unit,
+                             "the zero vector has no defined direction");
+
     Adapter adapter(arena, backend);
     const NodeId two = arena.integer("2");
     const NodeId sum = arena.binary(
@@ -772,23 +787,11 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
             return conversion_failure(
                 derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                 input.precision, output_unit, "Giac did not verify the exact magnitude", true);
-        if (approximate) {
-            Request numeric;
-            numeric.op = Op::Approximate;
-            numeric.target = magnitude;
-            if (!adapter_value(arena, adapter, meter, numeric, &magnitude, &tag, &why))
-                return meter.stopped()
-                           ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
-                                    input.unit, input.precision, output_unit, why)
-                           : conversion_failure(derivation, mark, meter, budget, model, direction,
-                                                input.frame, input.unit, input.precision, output_unit,
-                                                why, false);
-        }
     } else {
         Request simplify;
         simplify.op = Op::Simplify;
         simplify.target = magnitude_formula;
-        if (!checked_value(arena, adapter, meter, simplify, magnitude_formula, approximate,
+        if (!checked_value(arena, adapter, meter, simplify, magnitude_formula, false,
                            &magnitude, &why, &verification_failed))
             return meter.stopped()
                        ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
@@ -796,6 +799,50 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
                        : conversion_failure(derivation, mark, meter, budget, model, direction,
                                             input.frame, input.unit, input.precision, output_unit,
                                             why, verification_failed);
+    }
+    Rational simplified_magnitude;
+    const bool rational_magnitude =
+        evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude);
+    bool zero_magnitude = rational_magnitude && rational_equal(simplified_magnitude, {0, 1});
+    if (!rational_magnitude && !known_nonzero_component) {
+        // A simplified proposition distinguishes proven zero, proven nonzero and an undecided form.
+        Request classify;
+        classify.op = Op::IsZero;
+        classify.target = arena.binary(Kind::Equals, magnitude, arena.integer("0"));
+        NodeId classified;
+        ResultTag tag;
+        if (!adapter_value(arena, adapter, meter, classify, &classified, &tag, &why))
+            return meter.stopped()
+                       ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                                input.unit, input.precision, output_unit, why)
+                       : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                            input.frame, input.unit, input.precision, output_unit,
+                                            why, false);
+        Rational zero_classification;
+        if (!evaluate_rational(arena, classified, no_symbols, &zero_classification) ||
+            (!rational_equal(zero_classification, {0, 1}) &&
+             !rational_equal(zero_classification, {1, 1})))
+            return conversion_failure(
+                derivation, mark, meter, budget, model, direction, input.frame, input.unit,
+                input.precision, output_unit, "Giac did not classify the exact magnitude", true);
+        zero_magnitude = rational_equal(zero_classification, {1, 1});
+    }
+    if (zero_magnitude)
+        return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
+                             input.precision, output_unit,
+                             "the zero vector has no defined direction");
+    if (approximate) {
+        Request numeric;
+        numeric.op = Op::Approximate;
+        numeric.target = magnitude;
+        ResultTag tag;
+        if (!adapter_value(arena, adapter, meter, numeric, &magnitude, &tag, &why))
+            return meter.stopped()
+                       ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                                input.unit, input.precision, output_unit, why)
+                       : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                            input.frame, input.unit, input.precision, output_unit,
+                                            why, false);
     }
     // The one zero check in this file whose two operands come from two engines: the magnitude is a
     // native rational and Giac only judged it, so disagreement is detectable and the word holds.

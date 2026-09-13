@@ -97,6 +97,293 @@ bool cancel_now(void *) { return true; }
 }  // namespace
 
 void run_vector_components_tests(TestSink &t) {
+    for (const AngleUnit unit : {AngleUnit::Radians, AngleUnit::Degrees}) {
+        for (const bool measured : {false, true}) {
+            for (const bool expression : {false, true}) {
+                Arena arena;
+                Derivation derivation;
+                SequenceBackend backend(std::vector<std::string>(10, "0"));
+                Vector input;
+                input.x = {0, 1};
+                input.y = {0, 1};
+                input.frame.name = "lab";
+                input.unit.text = "m";
+                input.unit.dimension = {1, 0, 0};
+                input.unit.scale = {1, 1};
+                if (measured) {
+                    input.precision.kind = NumberKind::Measured;
+                    input.precision.significant_digits = 3;
+                }
+                VectorExpr expr = vector_expr_from_exact(arena, input);
+                expr.x = parsed(arena, "1-1");
+                expr.y = parsed(arena, "0*2");
+                const VectorComponentsResult result = expression
+                    ? components_to_magnitude_angle(arena, derivation, expr, unit, backend)
+                    : components_to_magnitude_angle(arena, derivation, input, unit, backend);
+                t.check(result.outcome == VectorComponentsOutcome::InvalidInput &&
+                            result.status == DerivationStatus::InvalidInput &&
+                            result.detail == "the zero vector has no defined direction" &&
+                            !result.has_polar && result.polar.angle == kNoNode,
+                        "zero vectors refuse a defined polar direction in either angle unit");
+                t.check(backend.commands.size() == (expression ? 0u : 1u) &&
+                            !has_rule(derivation, "vec.polar.direction") &&
+                            !has_obligation(derivation,
+                                            "obl.vector-components.quadrant-direction") &&
+                            derivation.context.derivation_status == DerivationStatus::InvalidInput,
+                        "zero vectors stop before atan2 and quadrant evidence or approximation");
+            }
+        }
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.0", "0", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "0.0-0.0");
+        input.y = parsed(arena, "0.0*2");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "measured decimal expressions refuse a direction for the zero vector");
+        t.check(backend.commands.empty() &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "exactly evaluable decimal zero components stop before backend direction work");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.0", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0.0*2");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "symbolic exact-zero expressions refuse a polar direction");
+        t.check(backend.commands.size() == 2 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a verified symbolic zero magnitude stops before approximation and atan2");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0", "1", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "an exact equivalent-zero magnitude refuses a polar direction");
+        t.check(backend.commands.size() == 3 &&
+                    backend.commands[2].find("simplify") == 0 &&
+                    backend.commands[2].find("pi") != std::string::npos &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "an unclassified magnitude gets an independent zero check before atan2");
+    }
+
+    for (const char *classification : {"pi-pi", "2"}) {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0", classification, "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::VerificationFailed &&
+                    result.status == DerivationStatus::VerificationFailed && !result.has_polar &&
+                    result.detail == "Giac did not classify the exact magnitude",
+                "an equivalent-zero classification cannot stand as nonzero evidence");
+        t.check(backend.commands.size() == 3 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "an inconclusive magnitude classification stops before approximation and atan2");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        Budget budget;
+        budget.max_backend_calls = 2;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend, budget);
+        t.check(result.outcome == VectorComponentsOutcome::ResourceExceeded &&
+                    result.status == DerivationStatus::ResourceLimitReached && !result.has_polar &&
+                    backend.commands.size() == 2,
+                "a classifier blocked by the backend budget reports resource exhaustion");
+        t.check(derivation.size() != 0 && derivation.all_verified_from(0) &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "classifier exhaustion retains only the verified derivation prefix");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::BackendFailure &&
+                    result.status == DerivationStatus::DependencyUnavailable && !result.has_polar &&
+                    backend.commands.size() == 3,
+                "a classifier backend refusal remains a dependency failure");
+        t.check(derivation.size() == 0 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "classifier backend failure rolls back partial polar work");
+    }
+
+    for (const bool expression : {false, true}) {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"sqrt(2)", "0", "pi/4", "0"});
+        Vector input;
+        input.x = {1, 1};
+        input.y = {1, 1};
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        const VectorExpr expr = vector_expr_from_exact(arena, input);
+
+        const VectorComponentsResult result = expression
+            ? components_to_magnitude_angle(
+                  arena, derivation, expr, AngleUnit::Radians, backend)
+            : components_to_magnitude_angle(
+                  arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) ==
+                        print(arena, parsed(arena, "sqrt(2)")) &&
+                    print(arena, result.polar.angle) == print(arena, parsed(arena, "pi/4")),
+                "nonzero rational components retain an irrational exact polar result");
+        t.check(backend.commands.size() == 4 &&
+                    backend.commands[2].find("atan2") == 0 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a rational component proves an irrational magnitude is nonzero");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"sqrt(2)", "0", "0", "0", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "sqrt(2)");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) ==
+                        print(arena, parsed(arena, "sqrt(2)")) &&
+                    print(arena, result.polar.angle) == "0",
+                "nonzero exact symbolic components retain a polar result");
+        t.check(backend.commands.size() == 5 &&
+                    backend.commands[2].find("sqrt") != std::string::npos &&
+                    backend.commands[2].find("=") != std::string::npos &&
+                    backend.commands[3].find("atan2") == 0 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a symbolic nonzero magnitude is classified before direction reconstruction");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.004", "0", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "0.004");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 1;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) == "0.0",
+                "a nonzero exact magnitude remains directional after final approximation");
+        t.check(backend.commands.size() == 6 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "final approximate zero does not trigger exact zero-vector refusal");
+    }
+
+    for (const bool vertical : {false, true}) {
+        Arena arena;
+        Derivation derivation;
+        const std::string angle = vertical ? "pi/2" : "0";
+        SequenceBackend backend({"0", angle, "0"});
+        Vector input;
+        input.x = {vertical ? 0 : 1, 1};
+        input.y = {vertical ? 1 : 0, 1};
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.has_polar && print(arena, result.polar.magnitude) == "1" &&
+                    print(arena, result.polar.angle) == print(arena, parsed(arena, angle)) &&
+                    backend.commands.size() == 3 &&
+                    has_rule(derivation, "vec.polar.direction") &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a single zero component retains its defined axis direction and quadrant record");
+    }
+
     {
         Arena arena;
         Derivation derivation;
