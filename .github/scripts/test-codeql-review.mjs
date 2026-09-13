@@ -80,15 +80,23 @@ test('failed label cleanup records a failed lifecycle instead of completed work'
   assert.doesNotMatch(comments[0].body, /Status: \*\*Completed\*\*/);
 });
 
-test('GitHub API reads close child stdin before waiting for completion', async () => {
+test('GitHub API reads do not touch stdin after the child has exited', async () => {
+  const pending = Object.assign(Promise.resolve({ stdout: '{"ok":true}' }), {
+    child: { stdin: { end() { throw Object.assign(Error('write EPIPE'), { code: 'EPIPE' }); } } }
+  });
+  const result = await executeGhApi(() => pending, ['api', 'repos/example/project']);
+  assert.deepEqual(result, { ok: true });
+});
+
+test('GitHub API writes serialize request bodies and close child stdin', async () => {
   let finish;
   let input;
   const pending = Object.assign(new Promise(resolve => { finish = resolve; }), {
     child: { stdin: { end(value) { input = value; finish({ stdout: '{"ok":true}' }); } } }
   });
-  const result = await executeGhApi(() => pending, ['api', 'repos/example/project']);
+  const result = await executeGhApi(() => pending, ['api', 'graphql', '--method', 'POST', '--input', '-'], { query: 'query { viewer { login } }' });
   assert.deepEqual(result, { ok: true });
-  assert.equal(input, '');
+  assert.equal(input, '{"query":"query { viewer { login } }"}');
 });
 
 test('review publication uses bounded direct API requests', async () => {
