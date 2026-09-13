@@ -11,6 +11,7 @@ namespace {
 class CalculusBackend : public Backend {
   public:
     std::vector<std::string> replies;
+    std::vector<std::string> expected_commands;
     std::vector<std::string> commands;
     ResultTag interrupt = ResultTag::Exact;
     size_t interrupt_from = 0;
@@ -20,11 +21,21 @@ class CalculusBackend : public Backend {
         out->tag = interrupt;
         return true;
     }
-    bool eval(const std::string &command, std::string *out, std::string *) override {
+    bool eval(const std::string &command, std::string *out, std::string *error) override {
+        const size_t index = commands.size();
         commands.push_back(command);
-        if (commands.size() > replies.size()) return false;
-        *out = replies[commands.size() - 1];
+        if (!expected_commands.empty() &&
+            (index >= expected_commands.size() || command != expected_commands[index])) {
+            *error = "unexpected backend request";
+            return false;
+        }
+        if (index >= replies.size()) return false;
+        *out = replies[index];
         return true;
+    }
+    bool complete() const {
+        return !expected_commands.empty() && commands == expected_commands &&
+               commands.size() == replies.size();
     }
 };
 }
@@ -52,21 +63,44 @@ void run_calculus_tests(TestSink &t) {
                      render_derivation(arena, derivation));
     }
     struct Example { const char *command; const char *answer; };
-    struct PrimitiveFixture { const char *name; const char *command; const char *answer; };
+    struct PrimitiveFixture {
+        const char *name;
+        const char *command;
+        const char *answer;
+        std::vector<std::string> backend_commands;
+    };
     for (const auto &fixture : {
-             PrimitiveFixture{"defint_logarithm_affine", "int(ln(2*x+1),x,0,1/2)", "ln(2)-1/2"},
-             PrimitiveFixture{"defint_logarithm_reversed", "int(ln(x),x,2,1)", "1-2*ln(2)"},
-             PrimitiveFixture{"defint_square_root_endpoint", "int(sqrt(1-2*x),x,-3/2,1/2)", "8/3"}}) {
+             PrimitiveFixture{
+                 "defint_logarithm_affine", "int(ln(2*x+1),x,0,1/2)", "ln(2)-1/2",
+                 {"simplify(((-1+((1+(2*x))*((1+(2*x)))^(-1))+ln((1+(2*x))))+"
+                  "(-(ln((1+(2*x)))))))",
+                  "integrate(ln(((2*x)+1)),x,0,(1*(2)^((-(1)))))",
+                  "simplify((((-1*(2)^(-1))+ln(2))+"
+                  "(-((ln(2)+(-((1*(2)^((-(1)))))))))))"}},
+             PrimitiveFixture{
+                 "defint_logarithm_reversed", "int(ln(x),x,2,1)", "1-2*ln(2)",
+                 {"simplify(((-1+(x*(x)^(-1))+ln(x))+(-(ln(x)))))",
+                  "integrate(ln(x),x,2,1)",
+                  "simplify(((-1+(-1*(-2+(2*ln(2)))))+(-((1+(-((2*ln(2)))))))))"}},
+             PrimitiveFixture{
+                 "defint_square_root_endpoint", "int(sqrt(1-2*x),x,-3/2,1/2)", "8/3",
+                 {"simplify(((-1*((-2*sqrt((1+(-2*x))))+"
+                  "(-1*(1+(-2*x))*(sqrt((1+(-2*x))))^(-1)))*(3)^(-1))+"
+                  "(-(sqrt((1+(-2*x)))))))",
+                  "integrate(sqrt((1+(-((2*x))))),x,((-(3))*(2)^((-(1)))),"
+                  "(1*(2)^((-(1)))))",
+                  "simplify(((8*(3)^(-1))+(-((8*(3)^((-(1))))))))"}}}) {
         Arena arena;
         Derivation derivation;
         derivation.request.original_expression = fixture.command;
         CalculusBackend backend;
         backend.replies = {"0", fixture.answer, "0"};
+        backend.expected_commands = fixture.backend_commands;
         const CalculusResult result = calculus_walkthrough(arena, derivation,
             parse_command(arena, fixture.command, "x"), Budget(), &backend);
         t.check(result.status == DerivationStatus::SolvedAndVerified && result.value != kNoNode,
                 "elementary integral golden records verified endpoints and a final answer");
-        t.check(backend.commands.size() == 3 && result.backend_compared && result.agrees,
+        t.check(backend.complete() && result.backend_compared && result.agrees,
                 "elementary integral golden records the primitive identity and independent definite-integral comparison");
         const std::string answer = result.value == kNoNode ? "" : print(arena, result.value);
         check_golden(t, fixture.name, "problem: " + std::string(fixture.command) + "\nresult: " + answer + "\n" +
