@@ -10,6 +10,10 @@ unsigned nps_test_msgbox_reply = 1;
 #include "../../src/platform/nspire/lua_module.cc"
 #undef main
 
+static_assert(!cross_check_allowed(nps::IntegrateOutcome::Cancelled));
+static_assert(!cross_check_allowed(nps::IntegrateOutcome::ResourceExceeded));
+static_assert(cross_check_allowed(nps::IntegrateOutcome::UnsupportedForm));
+
 lua_State *nl_lua_getstate() { return nullptr; }
 
 // Declared in the module itself rather than in os.h, so the stub belongs here to match it.
