@@ -1439,6 +1439,9 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME resident_exit COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/lint-resident-exit.sh")
     set_tests_properties(resident_exit PROPERTIES ENVIRONMENT "NDL_SDK=${NPS_NDL_SDK};CPATH=${NPS_UI_LINT_CPATH}")
     add_test(NAME clang_tidy COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/tidy.sh")
+    add_test(NAME lua_bridge_prologue COMMAND "${Python3_EXECUTABLE}"
+             "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/lua_bridge_prologue_test.py"
+             "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc")
     add_test(NAME corpus_audit COMMAND "${Python3_EXECUTABLE}"
              "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/corpus_audit_test.py" "${NPS_CORPUS_AUDIT}")
 
