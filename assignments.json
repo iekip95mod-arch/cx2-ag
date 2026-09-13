@@ -91,6 +91,16 @@
       "branch": "codex/issue-92",
       "slug": "cx2-ag-codex-maple",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-92",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 92,
+      "pr": 93,
+      "branch": "codex/issue-92",
+      "slug": "cx2-ag-codex-review-lantern",
+      "released": false
     }
   ]
 }
