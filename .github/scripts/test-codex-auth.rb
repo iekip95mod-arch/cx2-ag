@@ -120,6 +120,11 @@ task_form = YAML.load_file(File.join(root, '.github/ISSUE_TEMPLATE/task.yml'))
 stage = task_form.fetch('body').find { |field| field['id'] == 'stage' }.fetch('attributes')
 raise 'Task stage description must identify emulator as the final device stage' unless stage.fetch('description').include?('Emulator is the final device stage')
 raise 'Task stage options must end at emulator' unless stage.fetch('options').last == 'Emulator' && !stage.fetch('options').include?('Physical device')
+pull_request_template = File.read(File.join(root, '.github/pull_request_template.md'))
+raise 'Pull request validation stages must end at emulator' if pull_request_template.include?('Physical device')
+defect_form = YAML.load_file(File.join(root, '.github/ISSUE_TEMPLATE/defect.yml'))
+defect_stage = defect_form.fetch('body').find { |field| field['id'] == 'stage' }.fetch('attributes')
+raise 'Defect report stages must not include physical devices' if defect_stage.fetch('options').include?('Physical device')
 claude = YAML.load_file(File.join(root, '.github/workflows/agent.yml'))
 claude_step = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }
 raise 'Claude must publish using its leased App' unless claude_step.fetch('with').fetch('github_token') == '${{ steps.bot-token.outputs.token }}'
