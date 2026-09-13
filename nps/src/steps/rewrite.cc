@@ -27,9 +27,6 @@ struct Context {
     bool failed = false;
     std::string detail;
     RewriteOutcome outcome = RewriteOutcome::UnsupportedForm;
-    // Set when exact arithmetic ran out rather than when a form had no rule. Both stop the rewrite
-    // and they are different things to report, which is the distinction linear.cc already draws.
-    bool overflowed = false;
 };
 
 void refuse(Context &ctx, RewriteOutcome outcome, const std::string &why) {
@@ -519,13 +516,12 @@ bool collect_like_terms(Context &ctx, NodeId *expression, const std::string &goa
         const NodeId after = rewrite_once(a, *expression, collect_here, &st,
                                           Descend::OutermostFirst, &path, &what);
         if (st.overflowed) {
-            ctx.overflowed = true;
-            refuse(ctx, RewriteOutcome::UnsupportedForm,
+            refuse(ctx, RewriteOutcome::ResourceExceeded,
                    "the coefficients grew past what exact integer arithmetic here can hold");
             return false;
         }
         if (st.unbuildable) {
-            refuse(ctx, RewriteOutcome::UnsupportedForm,
+            refuse(ctx, RewriteOutcome::ResourceExceeded,
                    "a term grew past what exact integer arithmetic here can hold");
             return false;
         }
@@ -1421,7 +1417,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
                                            : ctx.detail;
         result.status =
             result.outcome == RewriteOutcome::VerificationFailed ? DerivationStatus::VerificationFailed
-            : result.outcome == RewriteOutcome::ResourceExceeded || ctx.overflowed
+            : result.outcome == RewriteOutcome::ResourceExceeded
                 ? DerivationStatus::ResourceLimitReached
                 : DerivationStatus::Unsupported;
         result.cost = meter.cost();
