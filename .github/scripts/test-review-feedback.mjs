@@ -36,6 +36,42 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
   return { executor, reviewer, pr, review, issue, assignments, responses, event, calls, api, options: { repository, event, run: 100, attempt: 1 } };
 }
 
+function securityFixture(provider = 'codex') {
+  const f = fixture(provider, 'COMMENTED');
+  f.review.user = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
+  f.event.review = structuredClone(f.review);
+  f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`] = [{ id: 77, pull_request_review_id: 1234, commit_id: f.pr.head.sha, user: f.review.user, body: `CodeQL finding: https://github.com/${repository}/security/code-scanning/285` }];
+  return f;
+}
+
+test('CodeQL commented reviews resume both executors without granting review approval', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = securityFixture(provider);
+    assert.equal(await dispatchFeedback(f.options, f.api), true);
+    const sent = f.calls.filter(call => call.method === 'POST');
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.inputs.issue_number, '42');
+    assert.match(sent[0].body.inputs.task, /CodeQL/);
+    assert.match(sent[0].body.inputs.task, /reply in each/);
+    assert.match(sent[0].body.inputs.task, /Do not dismiss/);
+    assert.match(sent[0].body.inputs.task, /not an approval/);
+  }
+});
+
+test('security feedback rejects spoofed, empty, stale and unrelated comment reviews', async () => {
+  for (const change of [
+    f => { f.review.user.id++; f.event.review.user.id++; },
+    f => { f.review.user.login = 'other[bot]'; f.event.review.user.login = 'other[bot]'; },
+    f => { f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`] = []; },
+    f => { f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`][0].commit_id = 'b'.repeat(40); },
+    f => { f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`][0].body = 'Ordinary chatter'; },
+  ]) {
+    const f = securityFixture(); change(f);
+    assert.equal(await dispatchFeedback(f.options, f.api), false);
+    assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
 test('both providers dispatch the leased issue on trusted main for both formal verdicts', async () => {
   for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);
@@ -170,8 +206,8 @@ test('completed deliveries and successful earlier attempts are deduplicated, fai
   }
 });
 
-function entryFixture(provider, state) {
-  const f = fixture(provider, state);
+function entryFixture(provider, state, security = false) {
+  const f = security ? securityFixture(provider) : fixture(provider, state);
   const workspace = fileURLToPath(new URL('../../.Internal/workspaces/', import.meta.url));
   mkdirSync(workspace, { recursive: true });
   const root = mkdtempSync(join(workspace, 'review-feedback-'));
@@ -185,6 +221,18 @@ function entryFixture(provider, state) {
   writeFileSync(env.FEEDBACK_FIXTURE, JSON.stringify(config));
   return { ...f, root, config, env, execute: () => spawnSync(process.execPath, [fileURLToPath(new URL('./review-feedback.mjs', import.meta.url))], { cwd: root, env, encoding: 'utf8' }), calls: () => existsSync(config.log) ? readFileSync(config.log, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [] };
 }
+
+test('actual CLI dispatches verified CodeQL findings for both providers', () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = entryFixture(provider, 'COMMENTED', true);
+    const execution = f.execute();
+    assert.equal(execution.status, 0, execution.stderr);
+    const sent = f.calls().filter(call => call.args[2] === 'POST');
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].body.inputs.task, /CodeQL/);
+    assert.equal(sent[0].body.inputs.issue_number, '42');
+  }
+});
 
 test('actual CLI entry dispatches exact workflows and JSON inputs for both providers', () => {
   for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {

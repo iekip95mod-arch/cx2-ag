@@ -28,6 +28,33 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
   return { options, responses, calls, api };
 }
 
+test('CI continuations acknowledge on their PR and skip already recovered runs', async () => {
+  const f = fixture();
+  const head = 'a'.repeat(40);
+  f.options.task = `Continue the existing issue lease and branch for PR #90, CI run 77, attempt 1, head ${head}.`;
+  const ci = { id: 77, run_attempt: 1, head_sha: head, head_repository: { full_name: repository }, event: 'pull_request', status: 'completed', conclusion: 'failure' };
+  f.responses[`repos/${repository}/actions/runs/77`] = ci;
+  assert.equal(await announceWorker(f.options, f.api), true);
+  assert.match(f.calls.find(call => call.method === 'POST').body.body, /Beginning to investigate the failed jobs/);
+  ci.conclusion = 'success';
+  assert.equal(await announceWorker(f.options, f.api), false);
+});
+
+test('both executors acknowledge verified CodeQL findings on the PR', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider, 'COMMENTED');
+    const review = f.responses[`repos/${repository}/pulls/90/reviews/1234`];
+    review.user = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
+    f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`] = [{ id: 77, pull_request_review_id: 1234, commit_id: review.commit_id, user: review.user, body: `https://github.com/${repository}/security/code-scanning/285` }];
+    assert.equal(await announceWorker(f.options, f.api), true);
+    const sent = f.calls.filter(call => call.method === 'POST');
+    assert.equal(sent[0].endpoint, `repos/${repository}/issues/90/comments`);
+    assert.match(sent[0].body.body, /Beginning to investigate CodeQL/);
+    review.user.id++;
+    assert.equal(await announceWorker(f.options, f.api), false);
+  }
+});
+
 test('both executors acknowledge the review with the configured model, effort and review link', async () => {
   for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);

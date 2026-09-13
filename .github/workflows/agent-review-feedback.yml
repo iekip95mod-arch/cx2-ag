@@ -1,19 +1,26 @@
 name: agent-review-feedback
-run-name: Review feedback ${{ github.event.review.id }}
+run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || format('Review feedback {0}', github.event.review.id) }}
 
 on:
   pull_request_review:
     types: [submitted]
+  workflow_run:
+    workflows: [check, agent-codex, agent-review, agent-review-request]
+    types: [completed]
 
 concurrency:
-  group: review-feedback-${{ github.event.review.id }}
+  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id }}
   cancel-in-progress: false
 
 jobs:
   continue-executor:
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.review.state == 'approved' || github.event.review.state == 'changes_requested')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
+       contains(fromJSON('["failure", "timed_out", "action_required", "startup_failure"]'), github.event.workflow_run.conclusion)) ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.review.state == 'approved' || github.event.review.state == 'changes_requested' ||
+       (github.event.review.state == 'commented' && github.event.review.user.type == 'Bot' &&
+        github.event.review.user.login == 'github-advanced-security[bot]' && github.event.review.user.id == 62310815)))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

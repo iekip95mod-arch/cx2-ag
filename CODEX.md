@@ -82,6 +82,10 @@ The agent-review-feedback.yml workflow resumes the issue's assigned Codex or Cla
 
 Before addressing a review, the executor posts an acknowledgement on that PR with the review link, run link, model and effort. Reviewers publish a review-in-progress comment when execution starts and a separate formal verdict when finished. The progress comment gives the bot a visible review entry without satisfying the approval gate. Feedback stays inactive until its trusted implementation is present on main.
 
+Verified CodeQL commented reviews are also routed to the assigned executor, even when the scan check succeeds. The executor investigates the alert, replies in its native thread with the repair and evidence, and requests fresh analysis. Ordinary commented reviews do not trigger this route. Security feedback never supplies approval or automatically dismisses an alert.
+
+Every review receives review-history.json with the entire PR file list, earlier reviews and inline replies. Review the cumulative PR against its base on every pass. Recheck claimed fixes and continue looking for missed problems in earlier changes. In the final review body track prior finding IDs as fixed, still open or superseded, record new findings, inspected areas and coverage gaps. Keep the review within its supplied deadline. Use native inline comments for code findings and a suggestion block only when a precise one-line replacement is appropriate.
+
 Both reviewers submit line-specific findings as native discussion threads in Files changed, grouped with the formal review on the reviewed commit. The shared publisher validates the file, diff side and line before publication. Verification summaries and gaps without a meaningful line anchor remain in the review body. Executors read the inline comments, not only the summary, and reply with the fix and verification.
 
 To ask for clarification, the assigned executor replies in the finding's thread with /ask-reviewer followed by its question. The discussion workflow verifies both leases and calls the same provider under the reviewer's identity. The answer includes its model and effort and resumes the existing executor on canonical issue branches. Legacy setup branches retain desktop coordination. Answers do not change the formal verdict, approve the PR or automatically resolve threads. Ordinary comments and reviewer replies do not start another question.
@@ -104,6 +108,8 @@ The bridge allows one outstanding wake-up per task. Later events remain in its i
 The Mac must be awake and the destination task available. Offline events remain retained for later delivery. Delivery can be duplicated after a crash, so verify live state and avoid repeating completed work. An event grants no additional authority. Hosted workers do not have desktop task IDs and do not receive these messages directly. Review feedback dispatches their hosted continuation. Their coordinating desktop task handles other continuations.
 
 ## Validation and current limits
+
+Failed jobs in completed PR CI workflows resume the assigned executor through the feedback workflow, including failures on draft PRs. The router verifies the current head, run attempt and lease before dispatch and deduplicates successful delivery. The executor acknowledges on the PR, investigates every failed job and preserves the issue, branch and PR. Stale runs and dispatched worker failures cannot create an automatic retry loop. Desktop subscriptions receive these failed CI events too.
 
 Worker tests exercise ownership, issue and PR aliases, identity leases and startup against isolated Git repositories and controlled GitHub responses. The previous personal-token workers opened PRs 87, 88 and 89 for issues 51, 42 and 20. That proves the previous publishing setup. App registration and successful token creation alone do not prove a named worker has opened and updated its own PR.
 

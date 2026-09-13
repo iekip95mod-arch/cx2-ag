@@ -8,9 +8,13 @@ root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 %w[review codex-review].each do |name|
   steps = workflow.fetch('jobs').fetch(name).fetch('steps')
+  history = steps.find { |step| step['name'] == 'Prepare cumulative review history' }
+  raise 'Reviewers need prior findings on the exact head' unless history && history.fetch('run') == 'node .github/scripts/review-history.mjs' && history.fetch('env').fetch('HEAD_SHA') == '${{ github.event.pull_request.head.sha }}'
+  prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('with').fetch('prompt') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
+  raise 'Every review must cover the full PR and track earlier findings' unless prompt.include?('entire cumulative PR') && prompt.include?('review-history.json') && prompt.include?('superseded') && prompt.include?('suggestion block')
   token = steps.find { |step| step['id'] == 'bot' }
   raise 'Reviewers must mint their assigned App token' unless token.fetch('uses').start_with?('actions/create-github-app-token@')
-  raise 'Reviewer token must use its leased App and secret' unless token.fetch('with').fetch('app-id') == '${{ needs.select-reviewer.outputs.app_id }}' && token.fetch('with').fetch('private-key') == '${{ secrets[needs.select-reviewer.outputs.secret_name] }}'
+  raise 'Reviewer token must use its leased App and secret' unless token.fetch('with').fetch('app-id') == '${{ needs.select-reviewer.outputs.app_id }}' && token.fetch('with').fetch('private-key').include?('needs.select-reviewer.outputs.secret_name == ') && !token.fetch('with').fetch('private-key').include?('secrets[')
   raise 'Reviewer token must target only this repository' unless token.fetch('with').fetch('repositories') == '${{ github.event.repository.name }}'
   raise 'Model execution must not create assignment events' if steps.any? { |step| step.fetch('run', '').include?('--dispatch-review') || step.fetch('run', '').include?('--add-label') }
   model_step = steps.index { |step| step['name'] == (name == 'review' ? 'Review the pull request' : 'Review with subscription login') }
@@ -75,3 +79,13 @@ schema = JSON.parse(File.read(File.join(root, '.github/scripts/review-schema.jso
 raise 'Review output must include inline comments' unless schema.fetch('required').include?('comments')
 raise 'Inline findings require native diff coordinates' unless schema.dig('properties', 'comments', 'items', 'required').sort == %w[body line path side]
 puts 'Codex configured model and effort invocation passed'
+
+feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
+feedback_events = feedback['on'] || feedback[true]
+covered = feedback_events.fetch('workflow_run').fetch('workflows')
+Dir.glob(File.join(root, '.github/workflows/*.yml')).each do |path|
+  candidate = YAML.load_file(path)
+  events = candidate['on'] || candidate[true]
+  next unless events.is_a?(Hash) && events.key?('pull_request')
+  raise "Failed CI feedback does not cover #{candidate['name']}" unless covered.include?(candidate['name'])
+end

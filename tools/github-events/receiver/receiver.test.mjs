@@ -60,6 +60,21 @@ test('storage errors reject delivery for redelivery', async () => {
   assert.equal((await worker.fetch(request(), env)).status, 503);
 });
 
+test('any failed PR workflow wakes subscribers without looping on worker failures', () => {
+  const delivery = { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, path: '.github/workflows/new-ci-check.yml', event: 'pull_request', head_repository: repository, conclusion: 'failure', pull_requests: [{ number: 84 }] } };
+  assert.equal(normalize('workflow_run', delivery)?.workflow, 'new-ci-check');
+  for (const change of [{ event: 'workflow_dispatch' }, { conclusion: 'success' }, { head_repository: { full_name: 'other/repo' } }]) assert.equal(normalize('workflow_run', { ...delivery, workflow_run: { ...delivery.workflow_run, ...change } }), null);
+});
+
+test('CodeQL comment reviews wake subscribers without being treated as approvals', () => {
+  const bot = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
+  const delivery = { ...review, sender: bot, review: { id: 75, state: 'commented', user: bot } };
+  assert.equal(normalize('pull_request_review', delivery)?.review, 'security_alerts');
+  assert.equal(normalize('pull_request_review', { ...delivery, sender: { ...bot, id: 1 } }), null);
+  assert.equal(normalize('pull_request_review', { ...delivery, review: { ...delivery.review, user: { ...bot, id: 1 } } }), null);
+  assert.equal(normalize('pull_request_review', { ...delivery, action: 'dismissed' }), null);
+});
+
 test('review answers retain only routing metadata and ignore ordinary discussion', async () => {
   const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
   const bot = { login: 'cx2-ag-codex-review-aegis[bot]', id: 328534539, type: 'Bot' };

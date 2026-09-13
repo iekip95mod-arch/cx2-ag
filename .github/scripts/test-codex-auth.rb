@@ -80,7 +80,7 @@ raise 'Default Actions token must remain read-only for contents' unless worker.f
   steps = jobs.fetch('respond').fetch('steps')
   mint = steps.find { |step| step['id'] == 'bot-token' }
   raise "#{name}: token must be limited to this repository" unless mint.fetch('with').fetch('repositories') == '${{ github.event.repository.name }}'
-  raise "#{name}: wrong private key source" unless mint.fetch('with').fetch('private-key') == '${{ secrets[needs.allocate.outputs.secret_name] }}'
+  raise "#{name}: wrong private key source" unless mint.fetch('with').fetch('private-key').include?('needs.allocate.outputs.secret_name == ') && !mint.fetch('with').fetch('private-key').include?('secrets[')
   bootstrap = steps.find { |step| step['id'] == 'worker' }
   raise "#{name}: bootstrap must validate minted App slug" unless bootstrap.fetch('env').fetch('BOT_APP_SLUG') == '${{ steps.bot-token.outputs.app-slug }}'
   raise "#{name}: publication recovery is missing" unless steps.any? { |step| step['run'].to_s.include?('publish-worker-pr.mjs') }
@@ -93,7 +93,7 @@ raise 'Claude must use subscription OAuth without API billing' if File.read(File
 raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
 raise 'Claude must allow only the internal Actions bot on dispatch' unless claude_step.fetch('with').fetch('allowed_bots') == "${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}"
 feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
-raise 'Feedback must only subscribe to submitted formal reviews' unless feedback.fetch(true) == { 'pull_request_review' => { 'types' => ['submitted'] } }
+raise 'Feedback must subscribe to submitted reviews and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
 feedback_job = feedback.fetch('jobs').fetch('continue-executor')
 raise 'Feedback must be able to dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'read', 'pull-requests' => 'read', 'actions' => 'write' }
 feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }

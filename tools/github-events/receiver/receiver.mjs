@@ -25,7 +25,8 @@ export function normalize(event, body) {
   if (body?.repository?.full_name !== repository) return null;
   if (event === 'workflow_run') {
     const run = body.workflow_run;
-    const workflow = ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback', 'agent-review-discussion'].find(name => run?.path === `.github/workflows/${name}.yml`);
+    const failedCi = run?.event === 'pull_request' && run.head_repository?.full_name === repository && ['failure', 'timed_out', 'action_required', 'startup_failure'].includes(run.conclusion);
+    const workflow = ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback', 'agent-review-discussion'].find(name => run?.path === `.github/workflows/${name}.yml`) ?? (failedCi ? /^\.github\/workflows\/([a-zA-Z0-9_-]+)\.ya?ml$/.exec(run.path ?? '')?.[1] : undefined);
     if (body.action !== 'completed' || !workflow) return null;
     if (!shaPattern.test(run.head_sha) || !number(run.id)) return null;
     if (!['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure'].includes(run.conclusion)) return null;
@@ -46,6 +47,10 @@ export function normalize(event, body) {
   }
   if (event === 'pull_request_review' && ['submitted', 'dismissed'].includes(body.action)) {
     const state = body.review?.state?.toLowerCase();
+    const security = body.review?.user;
+    if (body.action === 'submitted' && state === 'commented' && number(body.review.id) && security?.type === 'Bot' && security.login === 'github-advanced-security[bot]' && security.id === 62310815 && body.sender?.id === security.id && body.sender.login === security.login && body.sender.type === 'Bot') {
+      return { repository, event, action: body.action, prs: [pr.number], sha: pr.head.sha, review: 'security_alerts' };
+    }
     if (!['approved', 'changes_requested', 'dismissed'].includes(state)) return null;
     return { repository, event, action: body.action, prs: [pr.number], sha: pr.head.sha, review: state };
   }

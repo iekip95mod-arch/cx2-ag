@@ -126,7 +126,7 @@ jobs:
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         with:
           app-id: ${{ needs.allocate.outputs.app_id }}
-          private-key: ${{ secrets[needs.allocate.outputs.secret_name] }}
+          private-key: ${{ needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_ATLAS_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_ATLAS_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_COMET_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_COMET_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_EMBER_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_EMBER_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_NOVA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_NOVA_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_ORION_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_ORION_PRIVATE_KEY || needs.allocate.outputs.secret_name == 'CX2_AG_CLAUDE_VEGA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_VEGA_PRIVATE_KEY || '' }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
 

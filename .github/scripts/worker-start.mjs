@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readAssignment } from './bot-identities.mjs';
+import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
 
 export async function announceWorker({ context, task = '', model, effort, run }, api) {
   const { repository, issue, branch, login, legacyOwner = '' } = context;
@@ -12,22 +13,33 @@ export async function announceWorker({ context, task = '', model, effort, run },
   let number = issue;
   let acknowledgement = 'Starting the assigned executor run.';
   const reviewTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), review ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
-  if (reviewTarget) {
+  const ciTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), CI run ([1-9][0-9]*), attempt ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
+  if (ciTarget) {
+    const [, prNumber, ciId, attempt, head] = ciTarget;
+    const pr = await api('GET', `repos/${repository}/pulls/${prNumber}`);
+    const ci = await api('GET', `repos/${repository}/actions/runs/${ciId}`);
+    if (pr.state !== 'open' || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch || pr.head.sha !== head || ci.id !== Number(ciId) || ci.run_attempt !== Number(attempt) || ci.head_sha !== head || ci.head_repository?.full_name !== repository || ci.event !== 'pull_request' || ci.status !== 'completed' || !['failure', 'timed_out', 'action_required', 'startup_failure'].includes(ci.conclusion)) return false;
+    if (pr.user.login !== login && !(legacyOwner === 'iekip95mod-arch' && pr.user.login === legacyOwner)) throw Error('The CI PR belongs to another executor');
+    number = Number(prNumber);
+    acknowledgement = `Beginning to investigate the failed jobs in [CI run ${ciId}](https://github.com/${repository}/actions/runs/${ciId}/attempts/${attempt}) on head ${head}.`;
+  } else if (reviewTarget) {
     const [, prNumber, reviewId, head] = reviewTarget;
     const pr = await api('GET', `repos/${repository}/pulls/${prNumber}`);
     const review = await api('GET', `repos/${repository}/pulls/${prNumber}/reviews/${reviewId}`);
-    if (pr.state !== 'open' || pr.draft || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch || pr.head.sha !== head || review.commit_id !== head || !['APPROVED', 'CHANGES_REQUESTED'].includes(review.state)) return false;
+    const security = isSecurityReview(review);
+    if (pr.state !== 'open' || pr.draft || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch || pr.head.sha !== head || review.commit_id !== head || review.id !== Number(reviewId) || (!security && !['APPROVED', 'CHANGES_REQUESTED'].includes(review.state))) return false;
     if (pr.user.login !== login && !(legacyOwner === 'iekip95mod-arch' && pr.user.login === legacyOwner)) throw Error('The review PR belongs to another executor');
+    if (security && !await hasSecurityFindings(repository, prNumber, review, api)) return false;
     let reviewer;
     try {
-      reviewer = await readAssignment({ repository, provider: branch.split('/')[0], role: 'reviewer', issue }, api);
+      if (!security) reviewer = await readAssignment({ repository, provider: branch.split('/')[0], role: 'reviewer', issue }, api);
     } catch (error) {
       if (error.message === 'No active bot assignment for this target') return false;
       throw error;
     }
-    if (reviewer.branch !== branch || reviewer.issue !== issue || review.id !== Number(reviewId) || review.user?.type !== 'Bot' || review.user.login !== reviewer.login || review.user.id !== reviewer.userId) return false;
+    if (!security && (reviewer.branch !== branch || reviewer.issue !== issue || review.user?.type !== 'Bot' || review.user.login !== reviewer.login || review.user.id !== reviewer.userId)) return false;
     let latest;
-    for (let page = 1; page <= 10; page++) {
+    for (let page = 1; !security && page <= 10; page++) {
       const reviews = await api('GET', `repos/${repository}/pulls/${prNumber}/reviews?per_page=100&page=${page}`);
       if (!Array.isArray(reviews)) throw Error('Invalid PR review history');
       for (const candidate of reviews) {
@@ -39,10 +51,10 @@ export async function announceWorker({ context, task = '', model, effort, run },
       if (reviews.length < 100) break;
       if (page === 10) throw Error('PR review history exceeds the acknowledgement lookup limit');
     }
-    if (latest?.id !== review.id || latest.state !== review.state) return false;
+    if (!security && (latest?.id !== review.id || latest.state !== review.state)) return false;
     number = Number(prNumber);
     const link = `[review #${reviewId}](https://github.com/${repository}/pull/${prNumber}#pullrequestreview-${reviewId})`;
-    acknowledgement = review.state === 'CHANGES_REQUESTED' ? `Beginning to address ${link} on head ${head}.` : `Beginning the merge checks following ${link} on head ${head}.`;
+    acknowledgement = security ? `Beginning to investigate CodeQL findings in ${link} on head ${head}.` : review.state === 'CHANGES_REQUESTED' ? `Beginning to address ${link} on head ${head}.` : `Beginning the merge checks following ${link} on head ${head}.`;
   }
   const description = /^(opus|sonnet|haiku|opusplan|default)(\[1m\])?$/.test(model) ? `${model} (configured alias, resolved model unverified)` : model;
   const body = `${acknowledgement}\n\nConfigured model: ${description}\nConfigured effort: ${effort}\nExecutor: ${login}\nRun: https://github.com/${repository}/actions/runs/${run}`;
