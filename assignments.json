@@ -481,6 +481,16 @@
       "branch": "codex/issue-36",
       "slug": "cx2-ag-codex-review-harbor",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-46",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 46,
+      "pr": 117,
+      "branch": "codex/issue-46",
+      "slug": "cx2-ag-codex-review-lantern",
+      "released": false
     }
   ]
 }
