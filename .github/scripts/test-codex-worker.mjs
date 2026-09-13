@@ -147,6 +147,7 @@ function verifyCheckout(fixture, branch, sha) {
   assert.equal(fixture.git('-C', directory, 'rev-parse', '--abbrev-ref', '@{upstream}'), `origin/${branch}`);
   assert.equal(fixture.git('-C', directory, 'config', 'user.name'), bot.login);
   assert.equal(fixture.git('-C', directory, 'config', 'user.email'), '7+worker-amber[bot]@users.noreply.github.com');
+  assert.equal(JSON.parse(readFileSync(join(fixture.temporary, 'worker-publication.json'), 'utf8')).userId, bot.id);
   assert.equal(fixture.git('-C', directory, 'status', '--porcelain'), '');
   assert.equal(fixture.calls().filter(call => call.args.join(' ') === 'auth setup-git').length, 1);
   assert.equal((execution.stdout + execution.stderr).includes(fixture.env.GH_TOKEN), false);
