@@ -1,0 +1,68 @@
+name: Update issue branches
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  discover:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.branches.outputs.matrix }}
+      count: ${{ steps.branches.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - id: branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/update-branches.mjs --discover
+
+  update:
+    needs: discover
+    if: needs.discover.outputs.count != '0'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    concurrency:
+      group: agent-${{ matrix.provider }}-${{ matrix.branch }}
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - id: bot
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ matrix.app_id }}
+          private-key: ${{ matrix.secret_name == 'CX2_AG_CODEX_AMBER_PRIVATE_KEY' && secrets.CX2_AG_CODEX_AMBER_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CODEX_BIRCH_PRIVATE_KEY' && secrets.CX2_AG_CODEX_BIRCH_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CODEX_CEDAR_PRIVATE_KEY' && secrets.CX2_AG_CODEX_CEDAR_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CODEX_FLINT_PRIVATE_KEY' && secrets.CX2_AG_CODEX_FLINT_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CODEX_MAPLE_PRIVATE_KEY' && secrets.CX2_AG_CODEX_MAPLE_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CODEX_WILLOW_PRIVATE_KEY' && secrets.CX2_AG_CODEX_WILLOW_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_ATLAS_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_ATLAS_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_COMET_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_COMET_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_EMBER_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_EMBER_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_NOVA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_NOVA_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_ORION_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_ORION_PRIVATE_KEY || matrix.secret_name == 'CX2_AG_CLAUDE_VEGA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_VEGA_PRIVATE_KEY || '' }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Update the owned branch
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ matrix.pr }}
+          EXECUTOR_LOGIN: ${{ matrix.login }}
+        run: node .github/scripts/update-branches.mjs

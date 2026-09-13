@@ -59,7 +59,7 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
   FileUtils.mkdir_p(directory)
   scripts = File.join(directory, '.github/scripts')
   FileUtils.mkdir_p(scripts)
-  %w[wait-for-review.mjs bot-identities.mjs].each { |file| FileUtils.cp(File.join(root, '.github/scripts', file), scripts) }
+  %w[wait-for-review.mjs agent-progress.mjs bot-identities.mjs].each { |file| FileUtils.cp(File.join(root, '.github/scripts', file), scripts) }
   File.write(File.join(scripts, 'bot-identities.json'), roster.to_json)
   identity = reviewer == 'claude' ? claude : codex
   branch = name == 'linked-branch' ? 'codex/named-bot-identities' : "#{reviewer}/issue-42"

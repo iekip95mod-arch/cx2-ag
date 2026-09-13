@@ -143,6 +143,13 @@ jobs:
           LEGACY_OWNER: iekip95mod-arch
         run: node .github/scripts/prepare-codex-worker.mjs
 
+      - name: Show queued executor work
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: queued
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
         run: |
@@ -160,14 +167,16 @@ jobs:
         if: steps.key.outputs.have == 'true'
         run: node .github/scripts/agent-deadline.mjs
 
-      - name: Announce the executor configuration and review work
+      - name: Show executor model startup
         id: start
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: running
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Run the agent
+        id: execute
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
@@ -181,6 +190,7 @@ jobs:
           bot_id: ${{ needs.allocate.outputs.user_id }}
           bot_name: ${{ needs.allocate.outputs.login }}
           allowed_bots: ${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}
+          track_progress: false
           trigger_phrase: "@claude"
           label_trigger: claude
           branch_prefix: claude/
@@ -199,6 +209,15 @@ jobs:
             while the PR is still draft, then mark it ready. For repaired ready PRs, remove and re-add
             claude-review only after fixes and validation. An approval continuation with unchanged code
             must finish allowed merge checks without requesting another review or reapplying labels.
+            You may resolve merge conflicts on this issue branch. Fetch and merge origin/main,
+            preserve both changes' intent, inspect every conflict, and rerun affected tests.
+            Push the merge commit to this same branch and request a fresh review afterward.
+            Fetch origin/main before requesting review and before attempting a merge.
+            If your branch is behind, merge origin/main into it, resolve conflicts and rerun affected tests.
+            Read all unresolved review threads through GraphQL, including paginated results.
+            After verifying each fix, reply as the executor with its commit and test evidence,
+            then call resolveReviewThread for that thread and confirm isResolved is true.
+            Do not resolve an unverified finding or an unanswered question. Recheck unresolved threads before merge.
             Report host, emulator and physical-device evidence separately.
             Include configured model ${{ env.WORKER_MODEL }} and configured effort ${{ env.WORKER_EFFORT }}
             in your final result. Label model aliases as selectors, without inventing a resolved version.
@@ -210,6 +229,13 @@ jobs:
             --effort ${{ env.WORKER_EFFORT }}
             --max-turns 80
             --dangerously-skip-permissions
+
+      - name: Show executor publication
+        if: steps.worker.outputs.issue && steps.execute.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: publishing
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Answer an unassigned request
         if: steps.key.outputs.have == 'true' && needs.resolve.outputs.branch == ''
@@ -229,3 +255,10 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: node "$GITHUB_WORKSPACE/.github/scripts/publish-worker-pr.mjs" "$RUNNER_TEMP/worker-publication.json"
+
+      - name: Record the executor outcome
+        if: always() && steps.worker.outputs.issue && steps.bot-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: ${{ job.status == 'cancelled' && 'cancelled' || job.status == 'failure' && 'failed' || steps.execute.outcome == 'success' && 'succeeded' || 'cancelled' }}
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"

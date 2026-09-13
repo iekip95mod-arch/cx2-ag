@@ -40,7 +40,7 @@ export async function claimIssue({ repository, number, run, expectedBranch, prov
   if (!existingLabel) await api('POST', `repos/${repository}/labels`, { name: label, color: '5319e7', description: 'Executor identity reserved by the durable issue lease' });
   await api('POST', `repos/${repository}/issues/${issueNumber}/labels`, { labels: [label] });
   await api('POST', `repos/${repository}/issues/${issueNumber}/comments`, { body: `${identity.login} holds the ${provider} executor lease for this issue.\n\nExecutor lease: ${branch}\nBranch: ${branch}\nRun: https://github.com/${repository}/actions/runs/${run}\n\nThis worker owns this issue only. Its changes require an independent ${provider} review and all protected checks before merging.` });
-  return { branch, login: identity.login, email: `${identity.id}+${identity.login}@users.noreply.github.com`, issue, number: issueNumber };
+  return { branch, login: identity.login, userId: identity.id, email: `${identity.id}+${identity.login}@users.noreply.github.com`, issue, number: issueNumber };
 }
 
 async function main() {
@@ -76,7 +76,7 @@ async function main() {
   execFileSync('git', ['-C', directory, 'config', 'user.email', claim.email]);
   writeFileSync(join(process.env.RUNNER_TEMP, 'codex-issue.json'), JSON.stringify(claim.issue));
   const publication = join(process.env.RUNNER_TEMP, 'worker-publication.json');
-  writeFileSync(publication, JSON.stringify({ repository: process.env.GITHUB_REPOSITORY, issue: claim.number, branch: claim.branch, login: claim.login, title: claim.issue.title, directory, legacyOwner: process.env.LEGACY_OWNER ?? '' }));
+  writeFileSync(publication, JSON.stringify({ repository: process.env.GITHUB_REPOSITORY, issue: claim.number, branch: claim.branch, login: claim.login, userId: claim.userId, title: claim.issue.title, directory, legacyOwner: process.env.LEGACY_OWNER ?? '' }));
   const hooks = join(process.env.RUNNER_TEMP, 'worker-hooks');
   mkdirSync(hooks, { recursive: true });
   const quote = value => `'${value.replaceAll("'", "'\\''")}'`;
