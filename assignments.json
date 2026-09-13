@@ -501,6 +501,16 @@
       "branch": "codex/issue-119",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-119",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 119,
+      "pr": 120,
+      "branch": "codex/issue-119",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
