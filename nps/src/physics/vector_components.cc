@@ -797,7 +797,9 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
                                             input.frame, input.unit, input.precision, output_unit,
                                             why, verification_failed);
     }
-    if (literal_zero(arena, magnitude))
+    Rational simplified_magnitude;
+    if (evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude) &&
+        rational_equal(simplified_magnitude, {0, 1}))
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
                              input.precision, output_unit,
                              "the zero vector has no defined direction");

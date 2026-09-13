@@ -159,6 +159,54 @@ void run_vector_components_tests(TestSink &t) {
                 "exactly evaluable decimal zero components stop before backend direction work");
     }
 
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.0", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0.0*2");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "symbolic exact-zero expressions refuse a polar direction");
+        t.check(backend.commands.size() == 2 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a verified symbolic zero magnitude stops before approximation and atan2");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.004", "0", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "0.004");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 1;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) == "0.0",
+                "a nonzero exact magnitude remains directional after final approximation");
+        t.check(backend.commands.size() == 6 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "final approximate zero does not trigger exact zero-vector refusal");
+    }
+
     for (const bool vertical : {false, true}) {
         Arena arena;
         Derivation derivation;
