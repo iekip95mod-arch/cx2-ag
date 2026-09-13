@@ -1605,6 +1605,11 @@ r = nps.kinematics_local("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(giac_calls == 0 and r.result == "v = 17 m/s", "kinematics_local makes no Giac call")
 check(r.has_result == true, "local kinematics publishes has_result")
 check(r.rearranged == nil, "and records no rearrangement it had no way to check")
+r = nps.kinematics_local("find t; v = 6 m/s; v0 = 5 m/s; a = 0 m/s^2")
+check(giac_calls == 0 and r.outcome == "no solution" and r.solved == false and
+      r.has_result == true and r.result == nil and r.status == "solved and verified" and
+      type(r.steps) == "table" and #r.steps > 0,
+      "verified inconsistent kinematics publishes an empty result set")
 r = nps.integrate_local("x*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only refusal cannot become answer-only")
