@@ -311,6 +311,16 @@
       "branch": "codex/issue-39",
       "slug": "cx2-ag-codex-review-harbor",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-29",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 29,
+      "pr": 109,
+      "branch": "codex/issue-29",
+      "slug": "cx2-ag-codex-review-lantern",
+      "released": false
     }
   ]
 }
