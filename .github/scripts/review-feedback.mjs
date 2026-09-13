@@ -69,7 +69,8 @@ export async function dispatchFeedback({ repository, event, run, attempt = 1, le
     const reviews = await api('GET', `repos/${repository}/pulls/${number}/reviews?per_page=100&page=${page}`);
     if (!Array.isArray(reviews)) throw Error('Invalid PR review history');
     for (const candidate of reviews) {
-      if (candidate.commit_id !== pr.head.sha || candidate.user?.login !== reviewer.login || candidate.user.id !== reviewer.userId || candidate.user.type !== 'Bot' || !['APPROVED', 'CHANGES_REQUESTED'].includes(candidate.state)) continue;
+      const blocked = candidate.state === 'COMMENTED' && candidate.body?.includes('<!-- review-blocked -->');
+      if (candidate.commit_id !== pr.head.sha || candidate.user?.login !== reviewer.login || candidate.user.id !== reviewer.userId || candidate.user.type !== 'Bot' || (!blocked && !['APPROVED', 'CHANGES_REQUESTED'].includes(candidate.state))) continue;
       const submitted = Date.parse(candidate.submitted_at);
       if (!Number.isFinite(submitted) || !Number.isSafeInteger(candidate.id)) throw Error('Invalid formal review submission');
       if (!latest || submitted > latest.submitted || (submitted === latest.submitted && candidate.id > latest.id)) latest = { id: candidate.id, submitted, state: candidate.state };

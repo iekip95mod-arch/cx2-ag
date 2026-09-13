@@ -67,6 +67,16 @@ claim = worker.fetch('steps').find { |step| step['id'] == 'worker' }
 raise 'Issue work must use the scoped publishing token' unless claim.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot-token.outputs.token }}'
 raise 'Issue work must claim its branch before running Codex' unless claim.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs'
 execution = worker.fetch('steps').find { |step| step['name'] == 'Run Codex with saved login' }
+raise 'Codex must stop superseded issue work before model execution' unless execution.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+%w[agent-codex.yml agent.yml].each do |file|
+  steps = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch('respond').fetch('steps')
+  startup = steps.find { |step| step['id'] == 'start' }
+  raise 'Both workers must validate and acknowledge before execution' unless startup && startup.fetch('run').include?('worker-start.mjs')
+  publication = steps.find { |step| step['name'] == 'Ensure the first commit has a linked draft PR' }
+  raise 'Stale work must not publish from final cleanup' unless publication.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+  model = steps.find { |step| step['name'] == (file == 'agent.yml' ? 'Run the agent' : 'Run Codex with saved login') }
+  raise 'Both workers must honor startup validation' unless model.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+end
 raise 'Codex must inherit its publishing credential' unless execution.fetch('run').include?('shell_environment_policy.ignore_default_excludes=true')
 raise 'Codex must run inside its assigned checkout' unless execution.fetch('run').include?('--cd "$WORKER_DIRECTORY"')
 raise 'General responses must not receive publishing credentials' unless execution.fetch('env').fetch('GH_TOKEN') == "${{ steps.worker.outputs.issue && steps.bot-token.outputs.token || '' }}"

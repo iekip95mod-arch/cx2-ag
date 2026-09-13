@@ -80,10 +80,27 @@ test('a normal assigned run announces on its issue without pretending to handle 
   assert.equal(sent.body.body.includes('review #'), false);
 });
 
-test('closed, draft and stale review work never receives a start acknowledgement', async () => {
+test('draft repairs acknowledge but draft approvals cannot start merge work', async () => {
+  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+    const f = fixture(provider, state);
+    f.responses[`repos/${repository}/pulls/90`].draft = true;
+    assert.equal(await announceWorker(f.options, f.api), state === 'CHANGES_REQUESTED');
+  }
+});
+
+test('a newer blocked review prevents stale startup acknowledgement', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    const delivered = f.responses[`repos/${repository}/pulls/90/reviews/1234`];
+    f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...delivered, id: 1235, state: 'COMMENTED', body: '<!-- review-blocked -->', submitted_at: '2026-09-12T12:01:00Z' });
+    assert.equal(await announceWorker(f.options, f.api), false);
+    assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
+test('closed and stale review work never receives a start acknowledgement', async () => {
   for (const change of [
     f => { f.responses[`repos/${repository}/issues/42`].state = 'closed'; },
-    f => { f.responses[`repos/${repository}/pulls/90`].draft = true; },
     f => { f.responses[`repos/${repository}/pulls/90`].head.sha = 'b'.repeat(40); },
     f => { f.responses[`repos/${repository}/pulls/90/reviews/1234`].state = 'DISMISSED'; },
   ]) {
@@ -144,11 +161,17 @@ test('the actual entry point posts with configured metadata without printing its
   writeFileSync(event, JSON.stringify({ inputs: { task: f.options.task } }));
   writeFileSync(context, JSON.stringify(f.options.context));
   writeFileSync(config, JSON.stringify({ responses: f.responses, log }));
-  const env = { PATH: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, GH_TOKEN: 'executor-start-fixture-token', GITHUB_EVENT_PATH: event, GITHUB_RUN_ID: '123', WORKER_MODEL: 'opus', WORKER_EFFORT: 'high', FEEDBACK_FIXTURE: config };
+  const env = { PATH: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, GH_TOKEN: 'executor-start-fixture-token', GITHUB_EVENT_PATH: event, GITHUB_RUN_ID: '123', WORKER_MODEL: 'opus', WORKER_EFFORT: 'high', FEEDBACK_FIXTURE: config, GITHUB_OUTPUT: join(root, 'outputs') };
   const execution = spawnSync(process.execPath, [fileURLToPath(new URL('./worker-start.mjs', import.meta.url)), context], { env, encoding: 'utf8' });
   assert.equal(execution.status, 0, execution.stderr);
   const calls = readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(calls.filter(call => call.args[2] === 'POST').length, 1);
   assert.match(calls.at(-1).body.body, /Configured effort: high/);
   assert.equal((execution.stdout + execution.stderr).includes(env.GH_TOKEN), false);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, 'utf8'), 'proceed=true\n');
+  f.responses[`repos/${repository}/issues/42`].state = 'closed';
+  writeFileSync(config, JSON.stringify({ responses: f.responses, log }));
+  const stopped = spawnSync(process.execPath, [fileURLToPath(new URL('./worker-start.mjs', import.meta.url)), context], { env, encoding: 'utf8' });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, 'utf8'), 'proceed=true\nproceed=false\n');
 });

@@ -33,6 +33,22 @@ test('review history includes earlier files, findings and executor replies', asy
   assert.equal(history.ci[0].jobs[0].conclusion, 'success');
 });
 
+test('CI evidence excludes other heads, repositories and PRs and refuses missing jobs', async () => {
+  for (const change of [
+    run => { run.head_sha = 'c'.repeat(40); },
+    run => { run.head_repository.full_name = 'another/repository'; },
+    run => { run.pull_requests = [{ number: 90 }]; },
+    run => { run.event = 'workflow_dispatch'; },
+  ]) {
+    const f = fixture();
+    change(f.responses[`repos/${f.options.repository}/actions/workflows/check.yml/runs?head_sha=${f.options.head}&event=pull_request&per_page=100&page=1`].workflow_runs[0]);
+    assert.deepEqual((await reviewHistory(f.options, f.api)).ci, []);
+  }
+  const f = fixture();
+  f.responses[`repos/${f.options.repository}/actions/runs/12/attempts/2/jobs?per_page=100&page=1`].total_count = 2;
+  await assert.rejects(reviewHistory(f.options, f.api), /Incomplete CI/);
+});
+
 test('history paginates and refuses incomplete or superseded review snapshots', async () => {
   const f = fixture();
   f.responses[`${f.endpoint}/comments?per_page=100&page=1`] = Array.from({ length: 100 }, (_, id) => ({ id }));

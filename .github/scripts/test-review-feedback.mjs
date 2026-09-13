@@ -115,6 +115,15 @@ test('latest verdict lookup paginates and orders submissions rather than draft r
   assert.equal(f.calls.some(call => call.method === 'POST'), false);
 });
 
+test('a later blocked verdict prevents replaying an older rejection', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...f.review, id: 1235, state: 'COMMENTED', body: '<!-- review-blocked -->', submitted_at: '2026-09-12T12:01:00Z' });
+    assert.equal(await dispatchFeedback(f.options, f.api), false);
+    assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
 test('other reviewers, comments and other heads do not supersede the current formal verdict', async () => {
   const f = fixture();
   const later = { ...f.review, id: 1235, submitted_at: '2026-09-12T12:01:00Z' };

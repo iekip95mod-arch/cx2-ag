@@ -230,8 +230,15 @@ jobs:
             printf '%s\n' "${COMMENT:-$MANUAL}"
           } > "$RUNNER_TEMP/codex-prompt.txt"
 
+      - name: Announce the executor configuration and review work
+        id: start
+        if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+
       - name: Run Codex with saved login
-        if: steps.key.outputs.have == 'true'
+        if: steps.key.outputs.have == 'true' && (!steps.worker.outputs.issue || steps.start.outputs.proceed == 'true')
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
           GH_TOKEN: ${{ steps.worker.outputs.issue && steps.bot-token.outputs.token || '' }}
@@ -239,23 +246,20 @@ jobs:
           SANDBOX_MODE: ${{ steps.worker.outputs.issue && 'danger-full-access' || 'workspace-write' }}
         run: |
           codex login status
-          if [ -n "$GH_TOKEN" ]; then
-            node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
-          fi
           printf 'Configured model: %s\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
           codex exec --model "$WORKER_MODEL" -c "model_reasoning_effort=\"$WORKER_EFFORT\"" --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
             -c shell_environment_policy.ignore_default_excludes=true \
             --ephemeral --output-last-message "$RUNNER_TEMP/codex-reply.md" - < "$RUNNER_TEMP/codex-prompt.txt"
 
       - name: Ensure the first commit has a linked draft PR
-        if: always() && steps.worker.outputs.issue
+        if: always() && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         working-directory: ${{ steps.worker.outputs.directory }}
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: node "$GITHUB_WORKSPACE/.github/scripts/publish-worker-pr.mjs" "$RUNNER_TEMP/worker-publication.json"
 
       - name: Show the reply
-        if: steps.key.outputs.have == 'true'
+        if: steps.key.outputs.have == 'true' && (!steps.worker.outputs.issue || steps.start.outputs.proceed == 'true')
         run: |
           test -s "$RUNNER_TEMP/codex-reply.md"
           cat "$RUNNER_TEMP/codex-reply.md" >> "$GITHUB_STEP_SUMMARY"
@@ -267,7 +271,7 @@ jobs:
         # either number. Without the fallback the answer is produced and then dropped.
         if: >-
           steps.key.outputs.have == 'true' &&
-          steps.worker.outputs.issue
+          steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           NUMBER: ${{ steps.worker.outputs.issue }}
