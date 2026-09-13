@@ -51,6 +51,16 @@
       "branch": "codex/issue-20",
       "slug": "cx2-ag-codex-flint",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-42",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 42,
+      "pr": 88,
+      "branch": "codex/issue-42",
+      "slug": "cx2-ag-codex-review-beacon",
+      "released": false
     }
   ]
 }
