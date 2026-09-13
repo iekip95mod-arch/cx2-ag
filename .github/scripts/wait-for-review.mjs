@@ -12,6 +12,19 @@ export async function executeGhApi(execute, args, body) {
   return stdout.trim() ? JSON.parse(stdout) : null;
 }
 
+export async function requestGitHub(request, token, method, endpoint, body, missing = false) {
+  const response = await request(`https://api.github.com/${endpoint}`, {
+    method,
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'cx2-agent-progress', 'X-GitHub-Api-Version': '2022-11-28' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(30000)
+  });
+  if (missing && response.status === 404) return null;
+  if (!response.ok) throw Error(`GitHub API ${method} ${endpoint} failed with ${response.status}`);
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
 export function reviewProvider(current) {
   const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
   if (labels.length > 1) throw Error('Keep only the selected provider review label');
@@ -192,14 +205,7 @@ async function main() {
     appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));
     return;
   } else if (['--dispatch-review', '--review-queued', '--review-progress', '--review-publishing', '--review-disclosure', '--review-final'].some(mode => process.argv.includes(mode))) {
-    const api = async (method, endpoint, body, missing = false) => {
-      try {
-        return await executeGhApi(execute, ['api', '--method', method, endpoint, ...(body ? ['--input', '-'] : [])], body);
-      } catch (error) {
-        if (missing && /\(HTTP 404\)/.test(error.stderr ?? '')) return null;
-        throw error;
-      }
-    };
+    const api = (method, endpoint, body, missing = false) => requestGitHub(fetch, process.env.GH_TOKEN, method, endpoint, body, missing);
     if (!process.argv.includes('--dispatch-review')) {
       const mode = process.argv.includes('--review-queued') ? 'queued' : process.argv.includes('--review-progress') ? 'progress' : process.argv.includes('--review-publishing') ? 'publishing' : process.argv.includes('--review-final') ? 'final' : 'disclosure';
       if (mode === 'queued') {

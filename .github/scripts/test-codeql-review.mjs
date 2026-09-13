@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { approvalState, executeGhApi, publishQueuedReview, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
+import { approvalState, executeGhApi, publishQueuedReview, requestGitHub, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
 import * as reviewRuntime from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
@@ -23,6 +23,21 @@ test('GitHub API reads close child stdin before waiting for completion', async (
   const result = await executeGhApi(() => pending, ['api', 'repos/example/project']);
   assert.deepEqual(result, { ok: true });
   assert.equal(input, '');
+});
+
+test('review publication uses bounded direct API requests', async () => {
+  let target;
+  let options;
+  const result = await requestGitHub(async (url, init) => {
+    target = url;
+    options = init;
+    return { ok: true, status: 200, text: async () => '{"ok":true}' };
+  }, 'secret', 'GET', 'repos/example/project');
+  assert.deepEqual(result, { ok: true });
+  assert.equal(target, 'https://api.github.com/repos/example/project');
+  assert.equal(options.method, 'GET');
+  assert.equal(options.headers.Authorization, 'Bearer secret');
+  assert.ok(options.signal);
 });
 
 test('queued review progress reuses trusted assignment outputs without rereading the lease', async () => {
