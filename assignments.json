@@ -150,7 +150,7 @@
       "pr": null,
       "branch": "codex/issue-24",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-24",
@@ -160,7 +160,7 @@
       "pr": 98,
       "branch": "codex/issue-24",
       "slug": "cx2-ag-codex-review-aegis",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-99",
@@ -170,7 +170,7 @@
       "pr": null,
       "branch": "codex/issue-99",
       "slug": "cx2-ag-codex-birch",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-100",
@@ -200,6 +200,16 @@
       "pr": 101,
       "branch": "codex/issue-99",
       "slug": "cx2-ag-codex-review-compass",
+      "released": true
+    },
+    {
+      "key": "codex/executor/issue-103",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 103,
+      "pr": null,
+      "branch": "codex/issue-103",
+      "slug": "cx2-ag-codex-amber",
       "released": false
     }
   ]
