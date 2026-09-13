@@ -2665,6 +2665,7 @@ int kinematics_into(lua_State *L, bool cross) {
     set_field(L, "outcome", kinematics_outcome_name(r.outcome));
     set_field(L, "detail", detail);
     set_field(L, "solved", r.outcome == KinematicsOutcome::Solved);
+    set_field(L, "has_result", !answer.empty() || answer_only);
     set_field(L, "answer_only", answer_only);
     set_field(L, "status", derivation_status_name(status));
     set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));
