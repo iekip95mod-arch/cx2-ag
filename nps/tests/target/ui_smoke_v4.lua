@@ -5564,6 +5564,30 @@ do
     end)()
 end
 
+-- A solve opens its walkthrough before enterHandler records the row. That row is created after the
+-- overlay hid the existing editor set, so its own native visibility has to be cleared separately.
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    env.steps.result = fake_result
+    env.openSteps()
+    env.addME("overlay_input", "overlay_answer")
+    local input, answer = env.histME1[1], env.histME2[1]
+    check(env.steps.active and not input.editor.visible and not answer.editor.visible and
+          input.editor.x == -10000 and answer.editor.x == -10000,
+          "a history row created after Steps opens is hidden and parked under the overlay")
+    env.closeSteps()
+    env.on.paint(gc)
+    check(input.editor.visible and answer.editor.visible and input.editor.x >= 0 and answer.editor.x >= 0,
+          "closing Steps restores the newly recorded history row on screen")
+    env.theView:setFocus(answer)
+    env.on.enterKey()
+    check(env.fctEditor:getExpression() == "overlay_answer",
+          "the restored result row remains usable for recall")
+    end)()
+end
+
 do
     (function()
     for _, case in ipairs({
