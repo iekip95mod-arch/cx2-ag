@@ -69,7 +69,9 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.4 php python3
+            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 php python3
+          sudo update-alternatives --set lua-interpreter /usr/bin/lua5.1
+          lua -e 'assert(_VERSION == "Lua 5.1")'
 
       - name: Assemble the prompt
         if: steps.key.outputs.have == 'true'
