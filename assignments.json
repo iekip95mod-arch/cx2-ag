@@ -21,6 +21,16 @@
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-51",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 51,
+      "pr": null,
+      "branch": "codex/issue-51",
+      "slug": "cx2-ag-codex-birch",
+      "released": false
     }
   ]
 }
