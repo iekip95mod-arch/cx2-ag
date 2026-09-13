@@ -52,7 +52,7 @@ Coroutine<SolveTaskResult> SolveTask::run(TaskContext &context, SolveTask &owner
     co_await context.checkpoint();
     // Parsing is atomic under the arena input-byte, node and depth limits.
     NodeId equation = kNoNode;
-    if (owner.variable_.size() <= owner.arena_.limits().max_input_bytes && is_identifier(owner.variable_))
+    if (is_identifier(owner.variable_, owner.arena_.limits().max_input_bytes))
         equation = parse(owner.arena_, owner.working_.request.original_expression).root;
     owner.working_.context.normalized_problem_model = equation;
     co_await context.checkpoint();

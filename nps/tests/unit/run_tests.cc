@@ -592,6 +592,13 @@ void test_math001_categories() {
     check(infinity.ok() && print(arena, infinity.root) == "infinity" &&
               is_identifier("\xE2\x88\x9E") && normalize_identifier("\xE2\x88\x9E") == "infinity",
           "TI infinity spelling shares parser and identifier normalization");
+    Limits tight;
+    tight.max_input_bytes = 3;
+    check(is_identifier("abc", tight.max_input_bytes) &&
+              !is_identifier("abcd", tight.max_input_bytes) &&
+              is_identifier(std::string(Limits{}.max_input_bytes, 'x')) &&
+              !is_identifier(std::string(Limits{}.max_input_bytes + 1, 'x')),
+          "identifier validation retains names at the byte limit and rejects longer names");
     check(!parse(arena, "\xE2\x88").ok(), "an incomplete infinity code point is rejected");
     sink.evidence("MATH-001", all && same_constant,
                   "integers, exact rationals, decimals, variables, functions, powers, radicals, "

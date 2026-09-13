@@ -192,6 +192,13 @@ void run_command_tests(TestSink &t) {
                 "the default variable is one identifier, not an expression");
     }
     {
+        Limits limits;
+        limits.max_input_bytes = 7;
+        Arena arena(limits);
+        t.check(parse_command(arena, "diff(x)", "abcdefgh").status == CommandStatus::Invalid,
+                "the default variable honors the command arena input-byte limit");
+    }
+    {
         Arena arena;
         const Command command = parse_command(arena, std::string("diff(x\0,y)", 10), "x");
         t.check(command.status == CommandStatus::Invalid, "embedded NUL does not truncate a command");
