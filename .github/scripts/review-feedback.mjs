@@ -51,7 +51,17 @@ async function alreadyDelivered(repository, review, run, attempt, api, eventName
   throw Error('Feedback workflow history exceeds the lookup limit');
 }
 
-export async function dispatchFeedback({ repository, event, run, attempt = 1, legacyOwner = '', historyEventName = 'pull_request_review', historyTitle }, api, roster = loadRoster(), result = {}) {
+async function mergedSecurityDelivered(repository, number, review, run, attempt, api) {
+  for (const [eventName, title] of [
+    ['pull_request_review', `Review feedback ${review}`],
+    ['pull_request', `Merged security feedback ${number}`],
+  ]) {
+    if (await alreadyDelivered(repository, review, run, attempt, api, eventName, title, followUpDispatchStep)) return true;
+  }
+  return false;
+}
+
+export async function dispatchFeedback({ repository, event, run, attempt = 1, legacyOwner = '' }, api, roster = loadRoster(), result = {}) {
   if (repository !== repositoryName || event.repository?.full_name !== repository || event.action !== 'submitted') return false;
   if (!Number.isSafeInteger(run) || run < 1 || !Number.isSafeInteger(attempt) || attempt < 1) throw Error('A feedback run and attempt are required');
   if (legacyOwner && legacyOwner !== 'iekip95mod-arch') throw Error('Unknown legacy publishing owner');
@@ -73,7 +83,7 @@ export async function dispatchFeedback({ repository, event, run, attempt = 1, le
   if (ticket.pull_request || (!mergedSecurity && ticket.state !== 'open')) return false;
   if (security && !await hasSecurityFindings(repository, number, review, api)) return false;
   if (mergedSecurity) {
-    if (await alreadyDelivered(repository, review.id, run, attempt, api, historyEventName, historyTitle ?? `Review feedback ${review.id}`, followUpDispatchStep)) return false;
+    if (await mergedSecurityDelivered(repository, number, review.id, run, attempt, api)) return false;
     const knownExecutor = roster.some(bot => bot.provider === provider && bot.role === 'executor' && bot.login === pr.user?.login && bot.userId === pr.user?.id && pr.user?.type === 'Bot');
     if (!knownExecutor && pr.user?.login !== legacyOwner) return false;
     const current = await api('GET', `repos/${repository}/pulls/${number}`);
@@ -149,8 +159,6 @@ export async function dispatchMergedSecurityFeedback({ repository, event, run, a
     run,
     attempt,
     legacyOwner,
-    historyEventName: 'pull_request',
-    historyTitle: `Merged security feedback ${number}`,
   }, api, roster, result);
 }
 

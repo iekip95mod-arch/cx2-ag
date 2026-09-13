@@ -11,7 +11,7 @@ on:
     types: [completed]
 
 concurrency:
-  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id || github.event.pull_request.number }}
+  group: review-feedback-${{ github.event_name == 'workflow_run' && format('workflow-run-{0}', github.event.workflow_run.id) || format('pr-{0}', github.event.pull_request.number) }}
   cancel-in-progress: false
 
 jobs:

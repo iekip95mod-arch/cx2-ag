@@ -41,6 +41,7 @@ function securityFixture(provider = 'codex') {
   f.review.user = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
   f.event.review = structuredClone(f.review);
   f.responses[`repos/${repository}/pulls/90/reviews/1234/comments?per_page=100&page=1`] = [{ id: 77, pull_request_review_id: 1234, commit_id: f.pr.head.sha, user: f.review.user, body: `CodeQL finding: https://github.com/${repository}/security/code-scanning/285` }];
+  f.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request&per_page=100`] = { workflow_runs: [] };
   return f;
 }
 
@@ -151,9 +152,43 @@ test('merging a PR replays its current CodeQL review through durable recovery', 
   }
 });
 
+test('merged recovery deduplicates confirmed delivery across event types', async () => {
+  for (const provider of ['codex', 'claude']) for (const firstEvent of ['pull_request', 'pull_request_review']) {
+    const f = securityFixture(provider);
+    f.pr.state = 'closed';
+    f.pr.merged = true;
+    f.issue.state = 'closed';
+    f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [];
+    const api = async (method, endpoint, body) => {
+      if (method === 'POST' && endpoint === `repos/${repository}/issues`) {
+        f.calls.push({ method, endpoint, body });
+        const created = { number: 106, state: 'open', title: body.title, body: body.body };
+        f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [created];
+        return created;
+      }
+      return f.api(method, endpoint, body);
+    };
+    const mergedEvent = { action: 'closed', repository: { full_name: repository }, pull_request: structuredClone(f.pr) };
+    const first = firstEvent === 'pull_request'
+      ? dispatchMergedSecurityFeedback({ repository, event: mergedEvent, run: 100 }, api)
+      : dispatchFeedback(f.options, api);
+    assert.equal(await first, true);
+    const title = firstEvent === 'pull_request' ? 'Merged security feedback 90' : 'Review feedback 1234';
+    f.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=${firstEvent}&per_page=100`].workflow_runs = [{ id: 99, display_title: title }];
+    f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm follow-up dispatch', conclusion: 'success' }] }] };
+    const second = firstEvent === 'pull_request'
+      ? dispatchFeedback({ ...f.options, run: 101 }, api)
+      : dispatchMergedSecurityFeedback({ repository, event: mergedEvent, run: 101 }, api);
+    assert.equal(await second, false);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint === `repos/${repository}/issues`).length, 1);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint.endsWith('/dispatches')).length, 1);
+  }
+});
+
 test('feedback workflow can persist late CodeQL follow-up issues', () => {
   const workflow = readFileSync(new URL('../workflows/agent-review-feedback.yml', import.meta.url), 'utf8');
   assert.match(workflow, /pull_request:\n    types: \[closed\]/);
+  assert.match(workflow, /group: review-feedback-\$\{\{ github\.event_name == 'workflow_run' && format\('workflow-run-\{0\}', github\.event\.workflow_run\.id\) \|\| format\('pr-\{0\}', github\.event\.pull_request\.number\) \}\}/);
   assert.match(workflow, /permissions:\n      contents: read\n      issues: write\n      pull-requests: read\n      actions: write/);
   assert.match(workflow, /- name: Confirm follow-up dispatch\n        if: steps\.dispatch\.outputs\.dispatched == 'true' && steps\.dispatch\.outputs\.follow_up == 'true'/);
 });
