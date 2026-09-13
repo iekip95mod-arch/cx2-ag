@@ -156,3 +156,14 @@ test('duplicate comments for the same attempt fail without changing history', as
   await assert.rejects(publishProgress({ ...base, phase: 'succeeded' }, f.api), /Multiple progress comments/);
   assert.equal(f.writes.length, 1);
 });
+
+test('reviewer handoff completes assignment without claiming model execution', async () => {
+  const reviewer = { ...base, role: 'reviewer' };
+  const f = fixture();
+  await publishProgress({ ...reviewer, phase: 'queued' }, f.api);
+  await publishProgress({ ...reviewer, phase: 'handed-off', updateOnly: true }, f.api);
+  assert.equal(f.comments.length, 1);
+  assert.match(f.comments[0].body, /Status: \*\*Handed off\*\*/);
+  assert.match(f.comments[0].body, /\[x\] Assignment delivered/);
+  assert.doesNotMatch(f.comments[0].body, /\[x\] Agent execution started|\[x\] Publishing result|\[x\] Finished successfully/);
+});

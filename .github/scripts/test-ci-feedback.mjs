@@ -37,6 +37,19 @@ test('failed CI resumes both providers on the same issue even while the PR is dr
   }
 });
 
+test('draft and pending-review gates do not dispatch repair workers', async () => {
+  for (const provider of ['codex', 'claude']) for (const draft of [false, true]) {
+    const f = fixture(provider);
+    f.pr.draft = draft;
+    f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = { total_count: 4, jobs: [
+      { name: 'fast', conclusion: 'success' }, { name: 'full', conclusion: 'success' },
+      { name: 'emulator', conclusion: 'success' }, { name: 'review-ready', conclusion: 'failure' }
+    ] };
+    assert.equal(await dispatchCiFeedback(f.options, f.api), false);
+    assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
 test('successful, superseded, foreign and worker-generated failures never dispatch', async () => {
   for (const change of [
     f => { f.ci.conclusion = 'success'; },
