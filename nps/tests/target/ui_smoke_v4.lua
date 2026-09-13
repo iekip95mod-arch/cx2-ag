@@ -878,6 +878,20 @@ check(steps.progression == "hint", "the Steps palette enables hint progression b
 registered_menu[3][2][2]()
 check(steps.progression == "full", "and restores full progression without running a solver")
 
+do
+    local expected = { ["Increase Font Size"] = 16, ["Decrease Font Size"] = 12 }
+    check(fctEditor == nil and inited == false,
+          "the font palette regression runs before the first paint creates an editor")
+    for item = 2, #registered_menu[4] do
+        local entry = registered_menu[4][item]
+        if entry ~= "-" and expected[entry[1]] then
+            local survived, why = pcall(entry[2])
+            check(survived, entry[1] .. " declines safely before the first paint: " .. tostring(why))
+            check(fsize == expected[entry[1]], entry[1] .. " still selects its adjacent font size")
+        end
+    end
+end
+
 -- The OS checks the palette as it is registered, and a name that is defined later in the file
 -- is nil at that moment: "expected function in menu item 6 of tool box 1" on the emulator.
 for box = 1, #registered_menu do
