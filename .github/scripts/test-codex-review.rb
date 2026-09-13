@@ -12,6 +12,10 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
   raise 'Reviewers need prior findings on the exact head' unless history && history.fetch('run') == 'node .github/scripts/review-history.mjs' && history.fetch('env').fetch('HEAD_SHA') == '${{ github.event.pull_request.head.sha }}'
   prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('with').fetch('prompt') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
   raise 'Every review must cover the full PR and track earlier findings' unless prompt.include?('entire cumulative PR') && prompt.include?('review-history.json') && prompt.include?('superseded') && prompt.include?('suggestion block')
+  raise 'Reviewer environment blockers must not request code changes' unless prompt.include?('BLOCKED') && prompt.include?('CI evidence') && prompt.include?('review-prerequisites.log')
+  preparation = steps.find { |step| step['name'] == 'Prepare complete reviewer prerequisites' }
+  raise 'Both reviewers must prepare SDK and Lua before the model runs' unless preparation && preparation.fetch('run').include?('prepare-review.sh') && preparation['continue-on-error'] == true
+  raise 'Review history needs CI read permission without exposing a token to Codex' unless workflow.fetch('jobs').fetch(name).fetch('permissions')['actions'] == 'read'
   token = steps.find { |step| step['id'] == 'bot' }
   raise 'Reviewers must mint their assigned App token' unless token.fetch('uses').start_with?('actions/create-github-app-token@')
   raise 'Reviewer token must use its leased App and secret' unless token.fetch('with').fetch('app-id') == '${{ needs.select-reviewer.outputs.app_id }}' && token.fetch('with').fetch('private-key').include?('needs.select-reviewer.outputs.secret_name == ') && !token.fetch('with').fetch('private-key').include?('secrets[')

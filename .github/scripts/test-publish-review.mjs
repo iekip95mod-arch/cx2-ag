@@ -12,6 +12,19 @@ const files = [{ filename: 'nps/src/solve.cc', patch }];
 const head = 'a'.repeat(40);
 const inline = { path: files[0].filename, line: 11, side: 'RIGHT', body: '[P2] Preserve the refusal condition' };
 
+test('environment blockers publish a nonapproving review without code findings', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider, 'BLOCKED');
+    f.options.review.comments = [];
+    f.published.state = 'COMMENTED';
+    await publishReview(f.options, f.api);
+    assert.equal(f.calls.at(-1).body.event, 'COMMENT');
+    assert.match(f.calls.at(-1).body.body, /<!-- review-blocked -->/);
+    f.options.review.comments = [inline];
+    assert.throws(() => reviewRequest(f.options.review, files, head), /blocked review/i);
+  }
+});
+
 function fixture(provider = 'codex', verdict = 'CHANGES_REQUESTED') {
   const appSlug = `cx2-${provider}-reviewer`;
   const options = { repository, pr: 91, head, appSlug, login: `${appSlug}[bot]`, review: { verdict, body: 'Configured model and effort are recorded here.', comments: [{ ...inline }] } };

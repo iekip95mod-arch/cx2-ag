@@ -23,7 +23,7 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
     [`repos/${repository}/pulls/90/reviews?per_page=100&page=1`]: [review],
     [`repos/${repository}/issues/42`]: issue,
     [`repos/${repository}/contents/assignments.json?ref=bot-assignments`]: { sha: 'lease', content: Buffer.from(JSON.stringify({ version: 1, assignments })).toString('base64') },
-    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`]: { workflow_runs: [] },
+    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`]: { workflow_runs: [] },
   };
   const event = { action: 'submitted', repository: { full_name: repository }, pull_request: structuredClone(pr), review: structuredClone(review) };
   const calls = [];
@@ -132,7 +132,6 @@ test('unrelated, stale, unleased, self and foreign reviews never dispatch', asyn
     f => { f.event.repository.full_name = 'other/repo'; },
     f => { f.event.review.state = 'COMMENTED'; },
     f => { f.pr.state = 'closed'; },
-    f => { f.pr.draft = true; },
     f => { f.pr.head.repo.full_name = 'other/repo'; },
     f => { f.pr.head.ref = 'gemini/issue-42'; },
     f => { f.pr.head.sha = 'b'.repeat(40); },
@@ -154,6 +153,18 @@ test('unrelated, stale, unleased, self and foreign reviews never dispatch', asyn
   }
 });
 
+test('a rejected review still resumes the executor after a draft handoff', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    f.pr.draft = true;
+    assert.equal(await dispatchFeedback(f.options, f.api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST').length, 1);
+    const approval = fixture(provider, 'APPROVED');
+    approval.pr.draft = true;
+    assert.equal(await dispatchFeedback(approval.options, approval.api), false);
+  }
+});
+
 test('a newer PR head appearing during validation prevents dispatch', async () => {
   const f = fixture();
   let reads = 0;
@@ -170,7 +181,7 @@ test('an older successful dispatch outside the retry window cannot cause another
   const f = fixture();
   f.options.attempt = 12;
   for (let attempt = 1; attempt < 12; attempt++) {
-    f.responses[`repos/${repository}/actions/runs/100/attempts/${attempt}/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: attempt === 1 ? 'success' : 'failure' }] }] };
+    f.responses[`repos/${repository}/actions/runs/100/attempts/${attempt}/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: attempt === 1 ? 'success' : 'failure' }] }] };
   }
   await assert.rejects(dispatchFeedback(f.options, f.api), /attempt history exceeds/);
   assert.equal(f.calls.some(call => call.method === 'POST'), false);
@@ -178,17 +189,17 @@ test('an older successful dispatch outside the retry window cannot cause another
 
 test('successful deliveries on later history pages are not dispatched again', async () => {
   const f = fixture();
-  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`;
+  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`;
   f.responses[history] = { workflow_runs: Array.from({ length: 100 }, (_, id) => ({ id: 1000 + id, display_title: 'Unrelated review', conclusion: 'success' })) };
   f.responses[`${history}&page=2`] = { workflow_runs: [{ id: 99, display_title: 'Review feedback 1234', conclusion: 'success' }] };
-  f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: 'success' }] }] };
+  f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
   assert.equal(await dispatchFeedback(f.options, f.api), false);
   assert.equal(f.calls.some(call => call.method === 'POST'), false);
 });
 
 test('incomplete workflow history fails instead of assuming no prior delivery', async () => {
   const f = fixture();
-  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`;
+  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`;
   const batch = { workflow_runs: Array.from({ length: 100 }, (_, id) => ({ id: 1000 + id, display_title: 'Unrelated review', conclusion: 'success' })) };
   for (let page = 1; page <= 10; page++) f.responses[`${history}${page === 1 ? '' : `&page=${page}`}`] = batch;
   await assert.rejects(dispatchFeedback(f.options, f.api), /workflow history exceeds/);
@@ -197,15 +208,15 @@ test('incomplete workflow history fails instead of assuming no prior delivery', 
 
 test('completed deliveries and successful earlier attempts are deduplicated, failed attempts retry', async () => {
   const duplicate = fixture();
-  duplicate.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`].workflow_runs = [{ id: 99, display_title: 'Review feedback 1234', conclusion: 'success' }];
-  duplicate.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: 'success' }] }] };
+  duplicate.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`].workflow_runs = [{ id: 99, display_title: 'Review feedback 1234', conclusion: 'success' }];
+  duplicate.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
   assert.equal(await dispatchFeedback(duplicate.options, duplicate.api), false);
   duplicate.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`].jobs[0].steps[0].conclusion = 'skipped';
   assert.equal(await dispatchFeedback(duplicate.options, duplicate.api), true);
   for (const conclusion of ['success', 'failure']) {
     const f = fixture();
     f.options.attempt = 2;
-    f.responses[`repos/${repository}/actions/runs/100/attempts/1/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion }] }] };
+    f.responses[`repos/${repository}/actions/runs/100/attempts/1/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion }] }] };
     assert.equal(await dispatchFeedback(f.options, f.api), conclusion === 'failure');
   }
 });

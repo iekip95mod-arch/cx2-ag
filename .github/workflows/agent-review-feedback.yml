@@ -46,8 +46,12 @@ jobs:
             echo "Review feedback starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Dispatch the assigned executor
+        id: dispatch
         if: steps.installed.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LEGACY_OWNER: iekip95mod-arch
         run: node .github/scripts/review-feedback.mjs
+      - name: Confirm executor dispatch
+        if: steps.dispatch.outputs.dispatched == 'true'
+        run: echo "Executor dispatch was accepted by GitHub."

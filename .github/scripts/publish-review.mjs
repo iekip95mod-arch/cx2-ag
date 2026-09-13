@@ -35,7 +35,8 @@ export function diffAnchors(patch) {
 }
 
 export function reviewRequest(review, files, head) {
-  if (!review || !['APPROVED', 'CHANGES_REQUESTED'].includes(review.verdict) || typeof review.body !== 'string' || !review.body.trim() || !Array.isArray(review.comments) || review.comments.length > 100) throw Error('Invalid structured review');
+  if (!review || !['APPROVED', 'CHANGES_REQUESTED', 'BLOCKED'].includes(review.verdict) || typeof review.body !== 'string' || !review.body.trim() || !Array.isArray(review.comments) || review.comments.length > 100) throw Error('Invalid structured review');
+  if (review.verdict === 'BLOCKED' && review.comments.length) throw Error('A blocked review cannot hide code findings');
   const changed = new Map(files.map(file => [file.filename, file]));
   if (changed.size !== files.length || files.some(file => typeof file.filename !== 'string' || !file.filename)) throw Error('Invalid PR file listing');
   const patches = new Map();
@@ -45,7 +46,7 @@ export function reviewRequest(review, files, head) {
     if (!patches.get(comment.path).has(`${comment.side}:${comment.line}`)) throw Error('Inline review anchor is outside the PR diff');
     return { path: comment.path, line: comment.line, side: comment.side, body: comment.body };
   });
-  return { commit_id: head, event: review.verdict === 'APPROVED' ? 'APPROVE' : 'REQUEST_CHANGES', body: review.body, comments };
+  return { commit_id: head, event: review.verdict === 'APPROVED' ? 'APPROVE' : review.verdict === 'BLOCKED' ? 'COMMENT' : 'REQUEST_CHANGES', body: review.body + (review.verdict === 'BLOCKED' ? '\n\n<!-- review-blocked -->' : ''), comments };
 }
 
 export async function publishReview({ repository, pr, head, appSlug, login, review }, api) {
@@ -66,7 +67,7 @@ export async function publishReview({ repository, pr, head, appSlug, login, revi
   const request = reviewRequest(review, files, head);
   if (!currentHead(await api('GET', endpoint))) throw Error('PR changed before review publication');
   const published = await api('POST', `${endpoint}/reviews`, request);
-  if (!Number.isSafeInteger(published.id) || published.id < 1 || published.commit_id !== head || published.state !== review.verdict || published.user?.login !== login || published.user.type !== 'Bot') throw Error('Review may exist but GitHub did not confirm its expected identity, head and verdict. Inspect it before retrying.');
+  if (!Number.isSafeInteger(published.id) || published.id < 1 || published.commit_id !== head || published.state !== (review.verdict === 'BLOCKED' ? 'COMMENTED' : review.verdict) || published.user?.login !== login || published.user.type !== 'Bot') throw Error('Review may exist but GitHub did not confirm its expected identity, head and verdict. Inspect it before retrying.');
   return published;
 }
 
