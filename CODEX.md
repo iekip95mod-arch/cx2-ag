@@ -38,8 +38,8 @@ The first meaningful regression or implementation commit triggers publication: p
 
 | Pool | Names |
 | --- | --- |
-| Codex executors | Amber, Birch, Cedar, Flint, Maple, Willow |
-| Claude executors | Atlas, Comet, Ember, Nova, Orion, Vega |
+| Codex executors | Amber, Birch, Cedar, Flint, Maple, Willow, Aspen, Elm, Hazel, Juniper, Oak, Pine |
+| Claude executors | Atlas, Comet, Ember, Nova, Orion, Vega, Aurora, Lyra, Meteor, Nebula, Pulsar, Sirius |
 | Codex reviewers | Aegis, Beacon, Compass, Harbor, Lantern, Prism |
 | Claude reviewers | Anchor, Cairn, Delta, Echo, Grove, Summit |
 
@@ -47,7 +47,7 @@ The trusted catalogue is .github/scripts/bot-identities.json. Each entry maps a 
 
 The bot-assignments branch stores durable claims. Allocation uses the file's current SHA to prevent simultaneous runs from taking the same slot. Retries and resumed PR work reuse the saved identity. A slot becomes available only after its linked issue and all associated PRs close. A full pool refuses new work rather than borrowing another live worker's identity. Closing a task does not rename or delete its bot, so historical comments and commits retain their author.
 
-Executor and reviewer pools are separate. The reviewer uses the same model provider as the executor, with a different GitHub identity. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
+Each provider has twelve executor identities and six reviewer identities. The reviewer uses the same model provider as the executor, with a different GitHub identity. More executor identities do not increase subscription credits or GitHub runner limits. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
 
 A coordinator can reserve an executor for an existing noncanonical provider branch using an explicit legacy-owner migration. The PR must have that owner's authorship and link exactly one issue in this repository. The allocator preserves and revalidates the original issue, PR and branch. Hosted issue workers and automatic review feedback still require canonical issue branches. The desktop coordinator completes legacy setup PRs.
 

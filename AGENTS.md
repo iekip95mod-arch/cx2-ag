@@ -265,7 +265,7 @@ Gemini reads its saved sign in under HOME. Its subscription execution remains un
 
 Saved sign ins can expire or be invalidated. These jobs do not save refreshed credentials back to repository secrets, so replace a stale secret after signing in again. The successful smoke test does not establish future token renewal.
 
-Model login checks report missing credentials in the run summary. Named identities additionally need their App registration, repository installation and private-key secret. An unconfigured identity or exhausted pool stops allocation. Do not describe a skipped run as completed work.
+Model login checks report missing credentials in the run summary. Each provider has twelve executor identities and six reviewer identities. Named identities additionally need their App registration, repository installation and private-key secret. An unconfigured identity or exhausted pool stops allocation. Do not describe a skipped run as completed work.
 
 ### The config files, and what they do not do
 
