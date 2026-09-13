@@ -4316,6 +4316,48 @@ end
 
 do
     (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local create = D2Editor.newRichText
+    local allocations, first = 0, nil
+    D2Editor.newRichText = function()
+        allocations = allocations + 1
+        if allocations == 2 then error("history editor allocation failed", 0) end
+        first = create()
+        return first
+    end
+    local added = pcall(env.addME, "allocation input", "allocation result")
+    D2Editor.newRichText = create
+    check(not added, "a failed history editor allocation is reported")
+    check(#env.histME1 == 0 and #env.histME2 == 0 and #env.steps.histText == 0,
+          "a failed second history editor allocation leaves all three history arrays unchanged")
+    check(first and first.visible == false and first.x == -10000,
+          "the uncommitted first history editor is released after its partner allocation fails")
+
+    for index = 1, 55 do env.addME("input " .. index, "result " .. index) end
+    check(#env.histME1 == 50 and #env.histME2 == 50 and #env.steps.histText == 50,
+          "history retains a bounded number of paired editor rows")
+    check(env.steps.histText[1][1] == "input 6" and env.steps.histText[50][2] == "result 55",
+          "history eviction retains the newest entries in their existing order")
+
+    local saved = {}
+    for index = 1, 55 do saved[index] = { "saved " .. index, "answer " .. index } end
+    local restored = loadIsolated(copyModule())
+    restored.on.restore({ history = saved })
+    allocations = 0
+    D2Editor.newRichText = function() allocations = allocations + 1 return create() end
+    restored.on.paint(gc)
+    D2Editor.newRichText = create
+    check(allocations == 101 and #restored.histME1 == 50 and #restored.histME2 == 50,
+          "restore requests editors only for the bounded history window")
+    check(restored.steps.histText[1][1] == "saved 6" and
+          restored.steps.histText[50][2] == "answer 55",
+          "restore keeps the same newest-first eviction result as live history")
+    end)()
+end
+
+do
+    (function()
     local module = copyModule()
     local error_text = string.rep("long error context ", 40) .. "ERROR_TAIL"
     module.walkthrough = function() return nil, error_text end
