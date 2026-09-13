@@ -1,7 +1,7 @@
 {
   "type": "object",
   "properties": {
-    "verdict": { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED"] },
+    "verdict": { "type": "string", "enum": ["APPROVED", "CHANGES_REQUESTED", "BLOCKED"] },
     "body": { "type": "string" },
     "comments": {
       "type": "array",

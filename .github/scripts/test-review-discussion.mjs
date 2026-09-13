@@ -69,6 +69,20 @@ test('both providers answer old review roots on the snapshotted live head and re
   }
 });
 
+test('both providers answer clarification questions while repairs keep the PR draft', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = fixture(provider);
+    f.pr.draft = true;
+    const prepared = await inspectQuestion(f.options, f.api);
+    assert.equal(prepared.head, f.pr.head.sha);
+    assert.equal((await publishAnswer(f.options, prepared, 'Supply boundary evidence.', f.api)).in_reply_to_id, 100);
+    assert.equal(await dispatchAnswer(f.options, prepared, f.api), true);
+    assert.equal(f.pr.draft, true);
+    const sent = f.calls.find(call => call.endpoint.endsWith('/dispatches'));
+    assert.match(sent.body.inputs.task, /does not change the formal review verdict or authorize a merge/);
+  }
+});
+
 test('spoofed, edited, unrelated, stale and looping events cannot prepare an answer', async () => {
   for (const change of [
     f => { f.options.event.action = 'edited'; },
@@ -91,7 +105,6 @@ test('spoofed, edited, unrelated, stale and looping events cannot prepare an ans
     f => { f.pr.head.sha = 'c'.repeat(40); },
     f => { f.pr.head.repo.full_name = 'other/repo'; },
     f => { f.pr.state = 'closed'; },
-    f => { f.pr.draft = true; },
     f => { f.pr.user.id++; },
     f => { f.issue.state = 'closed'; },
     f => { f.assignments[0].released = true; },
