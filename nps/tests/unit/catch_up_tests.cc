@@ -46,6 +46,7 @@ struct Run {
     std::string context_family;
     std::string context_branch;
     std::string context_assumptions;
+    std::string plan_facts;
     size_t assumptions = 0;
     std::string report_evidence;
     std::string verifications;
@@ -73,6 +74,13 @@ Run run(const CatchUpProblem &input, const Budget &budget = Budget(),
             observed.rules += ' ';
         observed.rules += step.rule_id;
         observed.all_verified = observed.all_verified && step.verified();
+        if (const PlanPayload *plan = derivation.plan(static_cast<StepId>(index))) {
+            for (const std::string &fact : plan->matched_problem_facts) {
+                if (!observed.plan_facts.empty())
+                    observed.plan_facts += '\n';
+                observed.plan_facts += fact;
+            }
+        }
         if (step.rule_id == "physics.catch-up.significant-figures") {
             // The outcome ahead of the sentence, in verification_transcript's format. Without it a
             // passed check and a failed one carrying the same detail read identically here.
@@ -339,8 +347,8 @@ void run_catch_up_tests(TestSink &t) {
         t.check(contains(refused.result.detail, "nonlinear in time"),
                 "the unsupported motion explains why the selected solver does not apply");
         t.check(!contains(refused.context_assumptions,
-                          "first body acceleration is exact zero"),
-                "a refused nonzero acceleration is not recorded as an exact-zero assumption");
+                          "first body acceleration is zero"),
+                "a refused nonzero acceleration is not recorded as a zero assumption");
     }
     {
         CatchUpProblem input = reference_problem();
@@ -351,20 +359,31 @@ void run_catch_up_tests(TestSink &t) {
         t.equal(catch_up_outcome_name(solved.result.outcome), "solved",
                 "an exact zero acceleration reduces to the constant-velocity law");
         t.check(contains(solved.context_assumptions,
-                         "first body acceleration is exact zero on its active interval"),
+                         "first body acceleration is zero on its active interval"),
                 "a normalized exact zero acceleration is recorded as an active assumption");
     }
     {
         CatchUpProblem input = reference_problem();
         input.first.motion = CatchUpMotionModel::ConstantAcceleration;
         input.first.acceleration = quantity("0.0 m/s^2");
-        const Run refused = run(input);
-        t.equal(catch_up_outcome_name(refused.result.outcome),
-                "nonlinear motion unsupported",
-                "a measured zero does not establish an exact linear position law");
-        t.check(!contains(refused.context_assumptions,
-                          "first body acceleration is exact zero"),
-                "a refused measured zero is not recorded as an exact-zero assumption");
+        const Run solved = run(input);
+        t.equal(catch_up_outcome_name(solved.result.outcome), "solved",
+                "a measured zero acceleration still reduces to the constant-velocity law");
+        t.check(contains(solved.context_assumptions,
+                         "first body acceleration is zero on its active interval"),
+                "the measured zero acceleration is recorded without calling it exact");
+        t.check(!contains(solved.context_assumptions, "exact zero"),
+                "the measured zero acceleration is not upgraded to exact input");
+        t.check(contains(solved.plan_facts, "Atlas has zero acceleration"),
+                "the measured zero acceleration is recorded in the solution plan");
+        t.check(!contains(solved.plan_facts, "exact zero"),
+                "the solution plan does not upgrade measured zero acceleration to exact input");
+        t.check(solved.result.event_time.precision.kind == NumberKind::Measured &&
+                    solved.result.event_time.precision.significant_digits == 1,
+                "the event time retains the measured acceleration precision");
+        t.check(solved.result.event_position.precision.kind == NumberKind::Measured &&
+                    solved.result.event_position.precision.significant_digits == 1,
+                "the event position retains the measured acceleration precision");
     }
     {
         CatchUpProblem input = reference_problem();
