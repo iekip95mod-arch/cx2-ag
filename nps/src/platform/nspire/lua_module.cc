@@ -132,12 +132,20 @@ constexpr bool cross_check_allowed(DiffOutcome outcome) {
     return outcome != DiffOutcome::Cancelled && outcome != DiffOutcome::ResourceExceeded;
 }
 
+constexpr bool cross_check_allowed(IntegrateOutcome outcome) {
+    return outcome != IntegrateOutcome::Cancelled &&
+           outcome != IntegrateOutcome::ResourceExceeded;
+}
+
 static_assert(!cross_check_allowed(SolveOutcome::Cancelled));
 static_assert(!cross_check_allowed(SolveOutcome::ResourceExceeded));
 static_assert(cross_check_allowed(SolveOutcome::NotLinear));
 static_assert(!cross_check_allowed(DiffOutcome::Cancelled));
 static_assert(!cross_check_allowed(DiffOutcome::ResourceExceeded));
 static_assert(cross_check_allowed(DiffOutcome::UnsupportedForm));
+static_assert(!cross_check_allowed(IntegrateOutcome::Cancelled));
+static_assert(!cross_check_allowed(IntegrateOutcome::ResourceExceeded));
+static_assert(cross_check_allowed(IntegrateOutcome::UnsupportedForm));
 
 // Diagnostic instrumentation (raw memory reads, watchdog pokes, flash tracing) is off unless the
 // build says -DNPS_DIAG=1, which is what make DIAG=1 does.
@@ -2048,10 +2056,10 @@ int integrate_into(lua_State *L, bool cross) {
     d.context.normalized_expression = normalized_expression;
 
     CrossCheck c;
-    if (cross && r.particular != kNoNode)
+    if (cross && cross_check_allowed(r.outcome) && r.particular != kNoNode)
         c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular, arena.symbol(variable),
                     parsed.root, true, nullptr, backed ? &backend : nullptr);
-    else if (cross && answer_only_allowed(r.status))
+    else if (cross && cross_check_allowed(r.outcome) && answer_only_allowed(r.status))
         c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable), kNoNode,
                      true, nullptr, backed ? &backend : nullptr);
     const bool answer_only = answer_only_allowed(r.status) && c.has_answer;
