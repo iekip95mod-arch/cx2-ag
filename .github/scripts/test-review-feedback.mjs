@@ -453,6 +453,16 @@ test('actual CLI dispatches verified CodeQL findings for both providers', () => 
   }
 });
 
+test('actual CLI accepts workflow history larger than the default child output buffer', () => {
+  const f = entryFixture('codex', 'APPROVED');
+  const endpoint = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`;
+  f.config.responses[endpoint].padding = 'x'.repeat(1252702);
+  writeFileSync(f.env.FEEDBACK_FIXTURE, JSON.stringify(f.config));
+  const execution = f.execute();
+  assert.equal(execution.status, 0, execution.stderr);
+  assert.equal(f.calls().filter(call => call.args[2] === 'POST').length, 1);
+});
+
 test('actual CLI entry dispatches exact workflows and JSON inputs for both providers', () => {
   for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = entryFixture(provider, state);

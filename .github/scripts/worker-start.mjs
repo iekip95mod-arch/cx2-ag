@@ -3,17 +3,24 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readAssignment } from './bot-identities.mjs';
 import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
+import { publishProgress } from './agent-progress.mjs';
 
-export async function announceWorker({ context, task = '', model, effort, run }, api) {
-  const { repository, issue, branch, login, legacyOwner = '' } = context;
-  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude'].some(provider => branch === `${provider}/issue-${issue}`) || !/^[a-z0-9-]+\[bot\]$/.test(login)) throw Error('Invalid executor announcement target');
+export async function announceWorker({ context, task = '', model, effort, run, attempt = 1, phase = 'running' }, api) {
+  const { repository, issue, branch, login, userId, legacyOwner = '' } = context;
+  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude'].some(provider => branch === `${provider}/issue-${issue}`) || !/^[a-z0-9-]+\[bot\]$/.test(login) || !Number.isSafeInteger(userId) || userId < 1) throw Error('Invalid executor announcement target');
   if (!/^[a-zA-Z0-9_.:\[\]-]+$/.test(model) || !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort) || !/^[1-9][0-9]*$/.test(String(run))) throw Error('Configured model, effort and run are required');
+  const reviewTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), review ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
+  const ciTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), CI run ([1-9][0-9]*), attempt ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
+  if (['succeeded', 'failed', 'cancelled'].includes(phase)) {
+    const number = Number(ciTarget?.[1] ?? reviewTarget?.[1] ?? issue);
+    const result = await publishProgress({ repository, number, role: 'executor', login, userId, model, effort, run, attempt, phase,
+      detail: `Executor workflow ${phase} for ${branch}.`, updateOnly: true }, api);
+    return Boolean(result);
+  }
   const ticket = await api('GET', `repos/${repository}/issues/${issue}`);
   if (ticket.state !== 'open' || ticket.pull_request) return false;
   let number = issue;
   let acknowledgement = 'Starting the assigned executor run.';
-  const reviewTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), review ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
-  const ciTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), CI run ([1-9][0-9]*), attempt ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
   if (ciTarget) {
     const [, prNumber, ciId, attempt, head] = ciTarget;
     const pr = await api('GET', `repos/${repository}/pulls/${prNumber}`);
@@ -57,9 +64,7 @@ export async function announceWorker({ context, task = '', model, effort, run },
     const link = `[review #${reviewId}](https://github.com/${repository}/pull/${prNumber}#pullrequestreview-${reviewId})`;
     acknowledgement = security ? `Beginning to investigate CodeQL findings in ${link} on head ${head}.` : review.state === 'CHANGES_REQUESTED' ? `Beginning to address ${link} on head ${head}.` : `Beginning the merge checks following ${link} on head ${head}.`;
   }
-  const description = /^(opus|sonnet|haiku|opusplan|default)(\[1m\])?$/.test(model) ? `${model} (configured alias, resolved model unverified)` : model;
-  const body = `${acknowledgement}\n\nConfigured model: ${description}\nConfigured effort: ${effort}\nExecutor: ${login}\nRun: https://github.com/${repository}/actions/runs/${run}`;
-  await api('POST', `repos/${repository}/issues/${number}/comments`, { body });
+  await publishProgress({ repository, number, role: 'executor', login, userId, model, effort, run, attempt, phase, detail: acknowledgement }, api);
   return true;
 }
 
@@ -76,7 +81,7 @@ async function main() {
       throw Error(`Executor announcement ${method} ${endpoint} failed`);
     }
   };
-  const proceed = await announceWorker({ context: JSON.parse(readFileSync(process.argv[2], 'utf8')), task: event.inputs?.task ?? event.client_payload?.task ?? '', model: process.env.WORKER_MODEL, effort: process.env.WORKER_EFFORT, run: process.env.GITHUB_RUN_ID }, api);
+  const proceed = await announceWorker({ context: JSON.parse(readFileSync(process.argv[2], 'utf8')), task: event.inputs?.task ?? event.client_payload?.task ?? event.comment?.body ?? '', model: process.env.WORKER_MODEL, effort: process.env.WORKER_EFFORT, run: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT, phase: process.env.PROGRESS_PHASE ?? 'running' }, api);
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${proceed}\n`);
 }
 

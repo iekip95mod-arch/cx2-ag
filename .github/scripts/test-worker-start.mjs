@@ -12,7 +12,7 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
   const roster = loadRoster();
   const executor = roster.find(bot => bot.provider === provider && bot.role === 'executor');
   const reviewer = roster.find(bot => bot.provider === provider && bot.role === 'reviewer');
-  const context = { repository, issue: 42, branch: `${provider}/issue-42`, login: executor.login };
+  const context = { repository, issue: 42, branch: `${provider}/issue-42`, login: executor.login, userId: executor.userId };
   const head = 'a'.repeat(40);
   const options = { context, task: `Continue the existing issue lease and branch for PR #90, review 1234, head ${head}.`, model: provider === 'codex' ? 'gpt-5.6-sol' : 'opus', effort: 'high', run: 123 };
   const responses = {
@@ -24,7 +24,11 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
   };
   responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`] = [responses[`repos/${repository}/pulls/90/reviews/1234`]];
   const calls = [];
-  const api = async (method, endpoint, body) => { calls.push({ method, endpoint, body }); return responses[endpoint] ?? {}; };
+  const api = async (method, endpoint, body) => {
+    calls.push({ method, endpoint, body });
+    if (method === 'GET' && /\/issues\/[0-9]+\/comments\?/.test(endpoint)) return [];
+    return responses[endpoint] ?? {};
+  };
   return { options, responses, calls, api };
 }
 
@@ -160,8 +164,9 @@ test('the actual entry point posts with configured metadata without printing its
   const log = join(root, 'calls.jsonl');
   writeFileSync(event, JSON.stringify({ inputs: { task: f.options.task } }));
   writeFileSync(context, JSON.stringify(f.options.context));
+  f.responses[`repos/${repository}/issues/90/comments?per_page=100&page=1`] = [];
   writeFileSync(config, JSON.stringify({ responses: f.responses, log }));
-  const env = { PATH: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, GH_TOKEN: 'executor-start-fixture-token', GITHUB_EVENT_PATH: event, GITHUB_RUN_ID: '123', WORKER_MODEL: 'opus', WORKER_EFFORT: 'high', FEEDBACK_FIXTURE: config, GITHUB_OUTPUT: join(root, 'outputs') };
+  const env = { PATH: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, GH_TOKEN: 'executor-start-fixture-token', GITHUB_EVENT_PATH: event, GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '1', WORKER_MODEL: 'opus', WORKER_EFFORT: 'high', FEEDBACK_FIXTURE: config, GITHUB_OUTPUT: join(root, 'outputs') };
   const execution = spawnSync(process.execPath, [fileURLToPath(new URL('./worker-start.mjs', import.meta.url)), context], { env, encoding: 'utf8' });
   assert.equal(execution.status, 0, execution.stderr);
   const calls = readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line));

@@ -4,11 +4,35 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, findIdentity, loadRoster, readAssignment, resolveTarget } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget, selectReviewProvider } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
 const options = (issue, provider = 'codex', role = 'executor') => ({ repository, provider, role, issue });
+
+test('reviewer provider lookup uses only this PR active lease and rejects ambiguity', async () => {
+  const f = fixture();
+  const identity = roster.find(bot => bot.provider === 'codex' && bot.role === 'reviewer');
+  const lease = { key: 'codex/reviewer/issue-42', provider: 'codex', role: 'reviewer', issue: 42, pr: 85, branch: 'feature/manual', slug: identity.slug, released: false };
+  const target = { repository, pr: 85, branch: lease.branch };
+  f.assignments = [lease];
+  assert.equal(await assignedReviewProvider(target, f.api, roster), 'codex');
+  for (const change of [{ released: true }, { pr: 86 }, { branch: 'feature/other' }]) {
+    f.assignments = [{ ...lease, ...change }];
+    assert.equal(await assignedReviewProvider(target, f.api, roster), undefined);
+  }
+  const other = roster.find(bot => bot.provider === 'claude' && bot.role === 'reviewer');
+  f.assignments = [lease, { ...lease, provider: 'claude', key: 'claude/reviewer/issue-42', slug: other.slug }];
+  await assert.rejects(assignedReviewProvider(target, f.api, roster), /Multiple active reviewers/);
+  for (const selected of [identity, other, identity]) {
+    await selectReviewProvider({ ...target, login: selected.login }, f.api, roster);
+    assert.equal(await assignedReviewProvider(target, f.api, roster), selected.provider);
+    assert.equal(f.assignments.filter(assignment => assignment.selectedReview).length, 1);
+    assert.equal(f.assignments.filter(assignment => !assignment.released).length, 2);
+  }
+  f.assignments = [{ ...lease, pr: null, branch: 'codex/issue-42' }];
+  assert.equal(await assignedReviewProvider({ ...target, branch: 'codex/issue-42' }, f.api, roster), 'codex');
+});
 
 function fixture() {
   const tickets = new Map();
@@ -56,7 +80,7 @@ function fixture() {
       return {};
     }
     if (method === 'POST' && endpoint === 'graphql') return body.query.includes('closedByPullRequestsReferences')
-      ? { data: { repository: { issue: { closedByPullRequestsReferences: { totalCount: linkedOpenPrs } } } } }
+      ? { data: { repository: { issue: { closedByPullRequestsReferences: { totalCount: linkedOpenPrs, nodes: Array.from({ length: linkedOpenPrs }, () => ({ state: 'OPEN' })), pageInfo: { hasNextPage: false } } } } } }
       : { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: links, pageInfo: { hasNextPage: false } } } } } };
     if (method === 'PUT' && path === 'contents/assignments.json') {
       if (conflicts-- > 0 || body.sha !== (revision ? String(revision) : undefined)) {
@@ -143,6 +167,18 @@ test('closed PRs alone do not release an open issue', async () => {
   assert.equal(github.assignments[0].released, false);
 });
 
+test('a merged linked PR releases the identity after its issue closes', async () => {
+  const github = fixture();
+  const first = await allocateIdentity(options(20), github.api, roster);
+  github.ticket(20).state = 'closed';
+  github.pull(87, 20).state = 'closed';
+  const api = (method, endpoint, body) => method === 'POST' && endpoint === 'graphql' && body.query.includes('closedByPullRequestsReferences')
+    ? { data: { repository: { issue: { closedByPullRequestsReferences: { totalCount: 1, nodes: [{ state: 'MERGED' }], pageInfo: { hasNextPage: false } } } } } }
+    : github.api(method, endpoint, body);
+  const second = await allocateIdentity(options(42), api, roster);
+  assert.equal(second.login, first.login);
+});
+
 test('an open linked PR on another branch keeps the closed issue lease', async () => {
   const github = fixture();
   const first = await allocateIdentity(options(20), github.api, roster);
@@ -153,6 +189,27 @@ test('an open linked PR on another branch keeps the closed issue lease', async (
   github.linkedOpenPrs = 0;
   const third = await allocateIdentity(options(51), github.api, roster);
   assert.equal(first.login, third.login);
+});
+
+test('an open linked PR on a second GraphQL page keeps the closed issue lease', async () => {
+  const github = fixture();
+  const first = await allocateIdentity(options(20), github.api, roster);
+  github.ticket(20).state = 'closed';
+  const cursors = [];
+  const api = (method, endpoint, body) => {
+    if (method !== 'POST' || endpoint !== 'graphql' || !body.query.includes('closedByPullRequestsReferences')) return github.api(method, endpoint, body);
+    cursors.push(body.variables.cursor);
+    const secondPage = body.variables.cursor === 'linked-page-2';
+    return { data: { repository: { issue: { closedByPullRequestsReferences: {
+      totalCount: 101,
+      nodes: secondPage ? [{ state: 'OPEN' }] : Array.from({ length: 100 }, () => ({ state: 'MERGED' })),
+      pageInfo: { hasNextPage: !secondPage, endCursor: secondPage ? null : 'linked-page-2' },
+    } } } } };
+  };
+  const second = await allocateIdentity(options(42), api, roster);
+  assert.notEqual(second.login, first.login);
+  assert.deepEqual(cursors, [null, 'linked-page-2']);
+  assert.equal((await readAssignment(options(20), github.api, roster)).login, first.login);
 });
 
 test('executor and reviewer pools are separate while provider ownership is exclusive', async () => {

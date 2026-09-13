@@ -94,6 +94,21 @@ raise 'Default Actions token must remain read-only for contents' unless worker.f
   bootstrap = steps.find { |step| step['id'] == 'worker' }
   raise "#{name}: bootstrap must validate minted App slug" unless bootstrap.fetch('env').fetch('BOT_APP_SLUG') == '${{ steps.bot-token.outputs.app-slug }}'
   raise "#{name}: publication recovery is missing" unless steps.any? { |step| step['run'].to_s.include?('publish-worker-pr.mjs') }
+  queued = steps.find { |step| step['name'] == 'Show queued executor work' }
+  running = steps.find { |step| step['name'] == 'Show executor model startup' }
+  publishing = steps.find { |step| step['name'] == 'Show executor publication' }
+  final = steps.find { |step| step['name'] == 'Record the executor outcome' }
+  raise "#{name}: executor progress lifecycle is incomplete" unless queued && running && publishing && final && final.fetch('if').include?('always()')
+  raise "#{name}: progress must use the leased identity" unless [queued, running, publishing, final].all? { |step| step.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot-token.outputs.token }}' }
+  expected_phase = "${{ job.status == 'cancelled' && 'cancelled' || job.status == 'failure' && 'failed' || steps.execute.outcome == 'success' && 'succeeded' || 'cancelled' }}"
+  raise "#{name}: failed job status is not translated to the progress phase" unless final.fetch('env').fetch('PROGRESS_PHASE') == expected_phase
+  model = steps.find { |step| step['id'] == 'execute' }
+  raise "#{name}: completion must observe actual model execution" unless model && ['Run the agent', 'Run Codex with saved login'].include?(model['name'])
+  raise "#{name}: skipped execution must not publish a result" unless publishing.fetch('if').include?("steps.execute.outcome == 'success'")
+  prompt = name == 'agent-codex.yml' ? steps.find { |step| step['name'] == 'Assemble the prompt' }.fetch('run') : model.fetch('with').fetch('prompt')
+  raise "#{name}: executors need conflict recovery instructions" unless ['resolve merge conflicts', 'merge origin/main', 'rerun affected tests', 'request a fresh review'].all? { |text| prompt.include?(text) }
+  raise "#{name}: executors must close verified review threads" unless ['unresolved review threads', 'commit and test evidence', 'resolveReviewThread', 'confirm isResolved', 'unverified finding'].all? { |text| prompt.include?(text) }
+  raise "#{name}: executors must refresh their branch before review and merge" unless prompt.include?('Fetch origin/main before requesting review and before attempting a merge')
 end
 claude = YAML.load_file(File.join(root, '.github/workflows/agent.yml'))
 claude_step = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }
@@ -102,6 +117,7 @@ raise 'Claude must use its named bot commit identity' unless claude_step.fetch('
 raise 'Claude must use subscription OAuth without API billing' if File.read(File.join(root, '.github/workflows/agent.yml')).include?('ANTHROPIC_API_KEY')
 raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
 raise 'Claude must allow only the internal Actions bot on dispatch' unless claude_step.fetch('with').fetch('allowed_bots') == "${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}"
+raise 'Claude built-in progress would duplicate the persistent status comment' unless claude_step.fetch('with').fetch('track_progress') == false
 feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
 raise 'Feedback must subscribe to submitted reviews, merged PRs and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request') == { 'types' => ['closed'] } && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
 raise 'Feedback must serialize every queued PR event without replacing pending recovery' unless feedback.fetch('concurrency').fetch('queue') == 'max'

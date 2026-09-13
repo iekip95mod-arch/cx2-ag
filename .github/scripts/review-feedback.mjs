@@ -250,7 +250,7 @@ async function main() {
     const args = ['api', '--method', method, endpoint];
     if (body) args.push('--input', '-');
     try {
-      const response = execFileSync('gh', args, { input: body ? JSON.stringify(body) : undefined, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+      const response = execFileSync('gh', args, { input: body ? JSON.stringify(body) : undefined, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024, timeout: 30000 });
       return response.trim() ? JSON.parse(response) : {};
     } catch (error) {
       if (missing && String(error.stderr).includes('(HTTP 404)')) return null;

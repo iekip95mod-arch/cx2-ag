@@ -14,11 +14,11 @@ on:
   pull_request:
     types: [labeled]
 
-# A push that supersedes the branch supersedes the review of it. There is no value in finishing a
-# review of a diff that has already been replaced.
+# Assignment and execution serialize writes to the same reviewer progress comment.
 concurrency:
   group: agent-review-${{ github.event.pull_request.number }}-${{ startsWith(github.event.label.name, 'reviewer:') && 'requested' || 'metadata' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   select-reviewer:
@@ -106,14 +106,13 @@ jobs:
           fi
 
       - uses: actions/checkout@v7
-        if: steps.key.outputs.have == 'true'
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Authenticate the assigned reviewer
         id: bot
-        if: steps.key.outputs.have == 'true'
+        if: always()
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         with:
           app-id: ${{ needs.select-reviewer.outputs.app_id }}
@@ -121,13 +120,18 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
 
+      - name: Require reviewer credentials
+        if: steps.key.outputs.have != 'true'
+        run: |
+          echo "::error::Claude review requires CLAUDE_CODE_OAUTH_TOKEN. No review was performed."
+          exit 1
+
       - name: Verify the reviewer App identity
         if: steps.key.outputs.have == 'true'
         env:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
         run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
-
 
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
@@ -257,7 +261,7 @@ jobs:
           bot_id: ${{ needs.select-reviewer.outputs.user_id }}
           bot_name: ${{ needs.select-reviewer.outputs.login }}
           allowed_bots: ${{ needs.select-reviewer.outputs.allowed_bots }}
-          track_progress: true
+          track_progress: false
           prompt: |
             ${{ env.AGENT_TIME_BUDGET }}
             REPO: ${{ github.repository }}
@@ -390,6 +394,15 @@ jobs:
             --max-turns 80
             --allowedTools "Bash(date:*),Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Write,Read,Grep,Glob"
 
+      - name: Show reviewer publication
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-publishing
+
       - name: Publish the review for the reviewed commit
         if: steps.key.outputs.have == 'true'
         env:
@@ -446,6 +459,16 @@ jobs:
             echo "already there fires nothing."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+      - name: Record the reviewer outcome
+        if: always() && steps.bot.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
+        run: node .github/scripts/wait-for-review.mjs --review-final
 
   codex-review:
     needs: select-reviewer
@@ -514,6 +537,7 @@ jobs:
         run: node .github/scripts/agent-deadline.mjs
       - name: Authenticate the assigned reviewer
         id: bot
+        if: always()
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         with:
           app-id: ${{ needs.select-reviewer.outputs.app_id }}
@@ -580,6 +604,14 @@ jobs:
             --sandbox workspace-write -c approval_policy='"never"' \
             --ephemeral --output-schema .github/scripts/review-schema.json \
             --output-last-message "$RUNNER_TEMP/codex-review.json" - < "$RUNNER_TEMP/review-prompt.txt"
+      - name: Show reviewer publication
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-publishing
+
       - name: Publish the review for the reviewed commit
         id: publish
         env:
@@ -600,6 +632,16 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
+
+      - name: Record the reviewer outcome
+        if: always() && steps.bot.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
+        run: node .github/scripts/wait-for-review.mjs --review-final
 
   review-approved:
     needs: [select-reviewer, review, codex-review]
