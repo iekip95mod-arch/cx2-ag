@@ -1,4 +1,4 @@
-const phases = ['queued', 'preparing', 'running', 'publishing', 'succeeded', 'failed', 'cancelled'];
+const phases = ['queued', 'preparing', 'running', 'publishing', 'succeeded', 'failed', 'cancelled', 'handed-off'];
 
 function modelDescription(model) {
   return /^(opus|sonnet|haiku|fable|opusplan|default)(\[1m\])?$/.test(model)
@@ -17,14 +17,15 @@ function progressBody({ role, login, model, effort, repository, run, attempt, ph
   const executing = ['running', 'publishing', 'succeeded'].includes(phase) || sameAttempt && previous.includes('- [x] Agent execution started');
   const publishing = ['publishing', 'succeeded'].includes(phase) || sameAttempt && previous.includes('- [x] Publishing result');
   const terminal = ['succeeded', 'failed', 'cancelled'].includes(phase);
-  const label = phase === 'succeeded' ? 'Completed' : phase[0].toUpperCase() + phase.slice(1);
+  const label = phase === 'handed-off' ? 'Handed off' : phase === 'succeeded' ? 'Completed' : phase[0].toUpperCase() + phase.slice(1);
+  const checklist = phase === 'handed-off' ? '- [x] Queued\n- [x] Assignment delivered' : `- [x] Queued
+- [${executing ? 'x' : ' '}] Agent execution started
+- [${publishing ? 'x' : ' '}] Publishing result
+- [${terminal && phase === 'succeeded' ? 'x' : ' '}] Finished successfully`;
   return `<!-- cx2-agent-progress:${role}:${login} -->
 ### ${role === 'executor' ? 'Executor' : 'Reviewer'} progress
 
-- [x] Queued
-- [${executing ? 'x' : ' '}] Agent execution started
-- [${publishing ? 'x' : ' '}] Publishing result
-- [${terminal && phase === 'succeeded' ? 'x' : ' '}] Finished successfully
+${checklist}
 
 Status: **${label}**
 

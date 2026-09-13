@@ -79,6 +79,10 @@ raise 'Assignment must bootstrap safely from a base branch without progress supp
 raise 'Assignment must dispatch with the reviewer App token' unless dispatch&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && dispatch.fetch('run') == 'node .github/scripts/wait-for-review.mjs --dispatch-review'
 raise 'Assignment must queue progress before producing the real label event' unless request.fetch('steps').index(queued) < request.fetch('steps').index(dispatch)
 assignment_final = request.fetch('steps').find { |step| step['name'] == 'Record failed reviewer assignment' }
+handoff = request.fetch('steps').find { |step| step['name'] == 'Record successful reviewer handoff' }
+raise 'Successful assignments must finish their own progress without cleaning review labels' unless handoff && handoff.fetch('run').include?('--review-handoff') && !handoff.fetch('run').include?('--review-final') && handoff.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
+raise 'Handoff must follow successful assignment delivery' unless handoff['if'].nil? && request.fetch('steps').index(handoff) > request.fetch('steps').index(dispatch)
+raise 'Handoff must bootstrap safely from the previous base' unless handoff.fetch('run').include?('grep -Fq -- "--review-handoff"')
 raise 'Reviewer assignment must close unsuccessful queued progress' unless assignment_final && assignment_final.fetch('if').include?('always()') && assignment_final.fetch('if').include?("job.status != 'success'") && assignment_final.fetch('run').include?('node .github/scripts/wait-for-review.mjs --review-final')
 raise 'Assignment cleanup must tolerate a base branch without progress support' unless assignment_final.fetch('run').include?('grep -Fq -- "--review-final"')
 raise 'Reviewer assignment failure must use the assigned identity' unless assignment_final.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'

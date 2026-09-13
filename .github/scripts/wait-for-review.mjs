@@ -127,7 +127,7 @@ export async function clearReviewLabels(api, repository, pr, sha, identity, runI
 }
 
 export async function publishReviewNote(api, repository, pr, sha, appSlug, runId, attempt, mode, before, options = {}) {
-  if (!/^[1-9][0-9]*$/.test(runId) || !/^[1-9][0-9]*$/.test(attempt) || !['queued', 'progress', 'publishing', 'disclosure', 'final'].includes(mode)) throw Error('Invalid review attempt');
+  if (!/^[1-9][0-9]*$/.test(runId) || !/^[1-9][0-9]*$/.test(attempt) || !['queued', 'progress', 'publishing', 'disclosure', 'final', 'handoff'].includes(mode)) throw Error('Invalid review attempt');
   const { model, effort } = options;
   if (!/^[A-Za-z0-9._:[\]/-]+$/.test(model ?? '') || !/^[a-z]+$/.test(effort ?? '')) throw Error('Explicit review model and effort are required');
   const read = (endpoint, paginate, body) => api(body ? 'POST' : 'GET', endpoint, body);
@@ -136,14 +136,14 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   const identity = await assignedIdentity(read, repository, pr, await selectedProvider(read, repository, pr, current, options), 'reviewer', options);
   if (identity.slug !== appSlug) throw Error('The publishing App is not the assigned reviewer');
   if (mode !== 'disclosure') {
-    const phase = mode === 'queued' ? 'queued' : mode === 'progress' ? 'running' : mode === 'publishing' ? 'publishing' : options.phase;
+    const phase = mode === 'handoff' ? 'handed-off' : mode === 'queued' ? 'queued' : mode === 'progress' ? 'running' : mode === 'publishing' ? 'publishing' : options.phase;
     let cleanupError;
     if (mode === 'final') {
       try { await clearReviewLabels(api, repository, pr, sha, identity, runId, attempt, options); }
       catch (error) { cleanupError = error; }
     }
     const progress = await publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase: cleanupError ? 'failed' : phase,
-      detail: cleanupError ? `Review label cleanup failed for commit ${sha}. The formal verdict is recorded separately.` : mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' }, api);
+      detail: cleanupError ? `Review label cleanup failed for commit ${sha}. The formal verdict is recorded separately.` : mode === 'handoff' ? `Assignment delivered for commit ${sha}. Follow the separate review run in [PR checks](https://github.com/${repository}/pull/${pr}/checks). This assignment is complete, not the review.` : mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' || mode === 'handoff' }, api);
     if (cleanupError) throw cleanupError;
     return progress;
   }
@@ -244,10 +244,10 @@ async function main() {
     const outputs = { reviewer: identity.provider, requested: 'true', app_id: identity.appId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId, allowed_bots: identity.login };
     appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));
     return;
-  } else if (['--dispatch-review', '--review-queued', '--review-progress', '--review-publishing', '--review-disclosure', '--review-final'].some(mode => process.argv.includes(mode))) {
+  } else if (['--dispatch-review', '--review-queued', '--review-progress', '--review-publishing', '--review-disclosure', '--review-final', '--review-handoff'].some(mode => process.argv.includes(mode))) {
     const api = (method, endpoint, body, missing = false) => requestGitHub(fetch, process.env.GH_TOKEN, method, endpoint, body, missing);
     if (!process.argv.includes('--dispatch-review')) {
-      const mode = process.argv.includes('--review-queued') ? 'queued' : process.argv.includes('--review-progress') ? 'progress' : process.argv.includes('--review-publishing') ? 'publishing' : process.argv.includes('--review-final') ? 'final' : 'disclosure';
+      const mode = process.argv.includes('--review-handoff') ? 'handoff' : process.argv.includes('--review-queued') ? 'queued' : process.argv.includes('--review-progress') ? 'progress' : process.argv.includes('--review-publishing') ? 'publishing' : process.argv.includes('--review-final') ? 'final' : 'disclosure';
       if (mode === 'queued') {
         await publishQueuedReview(api, repository, pr, sha, process.env.APP_SLUG, process.env.REVIEW_LOGIN, Number(process.env.REVIEW_USER_ID), process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT, { model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT });
         return;

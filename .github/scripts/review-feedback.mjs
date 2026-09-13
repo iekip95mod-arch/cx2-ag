@@ -189,7 +189,7 @@ async function rejectedReviewGate(repository, ci, pr, provider, issue, api, rost
   if (!failed.length || failed.some(job => !['review-ready', 'review-approved'].includes(job.name))) return false;
   let reviewer;
   try { reviewer = await readAssignment({ repository, provider, role: 'reviewer', issue }, api, roster); }
-  catch (error) { if (error.message === 'No active bot assignment for this target') return false; throw error; }
+  catch (error) { if (error.message === 'No active bot assignment for this target') return true; throw error; }
   if (reviewer.branch !== pr.head.ref || reviewer.issue !== issue) return false;
   let latest;
   for (let page = 1; page <= 10; page++) {
@@ -203,6 +203,8 @@ async function rejectedReviewGate(repository, ci, pr, provider, issue, api, rost
       if (!latest || submitted > latest.submitted || (submitted === latest.submitted && review.id > latest.id)) latest = { id: review.id, submitted, state: blocked ? 'BLOCKED' : review.state };
     }
     if (reviews.length < 100) {
+      if (!latest) return true;
+      if (pr.draft && latest.state === 'APPROVED') return true;
       if (latest?.state === 'BLOCKED') return true;
       return latest?.state === 'CHANGES_REQUESTED' && await alreadyDelivered(repository, latest.id, run, 1, api);
     }
