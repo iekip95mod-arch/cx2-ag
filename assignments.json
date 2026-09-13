@@ -371,6 +371,16 @@
       "branch": "codex/issue-54",
       "slug": "cx2-ag-codex-cedar",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-7",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 7,
+      "pr": null,
+      "branch": "codex/issue-7",
+      "slug": "cx2-ag-codex-maple",
+      "released": false
     }
   ]
 }
