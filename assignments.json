@@ -81,6 +81,16 @@
       "branch": "codex/issue-51",
       "slug": "cx2-ag-codex-review-harbor",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-92",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 92,
+      "pr": null,
+      "branch": "codex/issue-92",
+      "slug": "cx2-ag-codex-maple",
+      "released": false
     }
   ]
 }
