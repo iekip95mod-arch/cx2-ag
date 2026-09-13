@@ -6,6 +6,17 @@ workflow = YAML.load_file(ARGV.fetch(0, File.join(root, '.github/workflows/check
 events = workflow.fetch('on', workflow[true])
 jobs = workflow.fetch('jobs')
 failures = []
+{ 'fast' => 'ubuntu-24.04', 'emulator' => 'ubuntu-24.04', 'full' => 'macos-latest' }.each do |name, runner|
+  failures << "#{name} must use #{runner}" unless jobs.fetch(name)['runs-on'] == runner
+end
+['agent-codex.yml', 'agent.yml', 'agent-gemini.yml'].each do |file|
+  executor = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch('respond')
+  failures << "#{file} executor must use Ubuntu" unless executor['runs-on'] == 'ubuntu-24.04'
+  install = executor.fetch('steps').find { |step| step['name'] == 'Install prerequisites' }.fetch('run')
+  failures << "#{file} must install Linux prerequisites" unless install.include?('apt-get install') && install.include?('libgmp-dev') && install.include?('lua5.4') && !install.include?('brew')
+end
+fast_scripts = jobs.fetch('fast').fetch('steps').filter_map { |step| step['run'] }.join("\n")
+failures << 'Fast must install Linux build prerequisites' unless fast_scripts.include?('apt-get install') && fast_scripts.include?('libgmp-dev') && fast_scripts.include?('lua5.4') && !fast_scripts.include?('brew')
 failures << 'CI must use a read-only token by default' unless workflow['permissions'] == { 'contents' => 'read' }
 failures << 'CI cancellation must be isolated by ref and event' unless workflow['concurrency'] == { 'group' => '${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}', 'cancel-in-progress' => true }
 failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branches'] == ['main']

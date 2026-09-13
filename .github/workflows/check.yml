@@ -4,15 +4,6 @@ name: check
 # canceling superseded runs and giving the fast gate its own job rather than queueing it behind
 # the slow one. Both are below.
 #
-# Everything runs on macos-latest, which is arm64 and the same platform this project is developed
-# on. That is the point: the host suite now runs where the code is written. The failure this
-# prevents already happened once in the other direction, when eighteen integrity checks staged
-# their fixtures under /private/tmp and only fell over on Linux. A runner that matches the
-# developer's machine catches the reverse before a push does.
-#
-# The cost, so nobody rediscovers it: five concurrent macOS jobs per account against twenty on
-# Linux, and three cores with 7 GB rather than four with 16. The parallel settings below are sized
-# for three cores rather than left at a Linux default.
 
 on:
   push:
@@ -41,7 +32,7 @@ env:
 
 jobs:
   fast:
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -60,11 +51,11 @@ jobs:
           TEST_WORKSPACE: ${{ runner.temp }}
         run: node --test tools/github-events/bridge.test.mjs tools/github-events/receiver/receiver.test.mjs .github/scripts/test-*.mjs
 
-      # cmake, ninja, pkgconf, zstd and python3 ship on the image. gmp does not, and the version is
-      # not a preference: nps/CMakeLists.txt:345 asks pkg-config for gmp=6.3.0 exactly, so a bump in
-      # the formula breaks configure rather than degrading it.
       - name: Install prerequisites
-        run: brew install ccache gmp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.4 python3
 
       - name: Restore compiler cache
         uses: actions/cache@v6
@@ -76,7 +67,6 @@ jobs:
 
       - name: Configure
         run: |
-          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
           cmake -S nps -B nps/build/host \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -260,12 +250,6 @@ jobs:
     permissions:
       contents: read
       security-events: write
-    # The one job in this file not on macOS, and the reason the others are does not reach it: this
-    # reads source rather than running it, so a runner matching the developer's machine buys
-    # nothing. On macos-latest it could not build at all. Job 103586919848 linked nps_host with
-    # /usr/bin/c++ -arch x86_64 against an arm64 libgmp and died on every gmp symbol, because the
-    # tracer takes the build x86_64 on an arm64 image. Moving here also stops the three entries
-    # eating three of the five macOS slots the account has.
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -311,12 +295,16 @@ jobs:
 
   emulator:
     needs: fast
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
+      - name: Install emulator prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential zlib1g-dev
       - name: Build and test the headless emulator
         run: make -C vendor/firebird-src/headless -j3 check test-build
       - name: Record emulator coverage
