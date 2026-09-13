@@ -551,6 +551,16 @@
       "branch": "codex/issue-31",
       "slug": "cx2-ag-codex-maple",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-77",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 77,
+      "pr": null,
+      "branch": "codex/issue-77",
+      "slug": "cx2-ag-codex-aspen",
+      "released": false
     }
   ]
 }
