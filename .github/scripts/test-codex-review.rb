@@ -15,6 +15,12 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
   raise 'Reviewer environment blockers must not request code changes' unless prompt.include?('BLOCKED') && prompt.include?('CI evidence') && prompt.include?('review-prerequisites.log')
   preparation = steps.find { |step| step['name'] == 'Prepare complete reviewer prerequisites' }
   raise 'Both reviewers must prepare SDK and Lua before the model runs' unless preparation && preparation.fetch('run').include?('prepare-review.sh') && preparation['continue-on-error'] == true
+  restore = steps.find { |step| step['name'] == 'Restore the reviewer cross toolchain' }
+  save = steps.find { |step| step['name'] == 'Save the complete reviewer cross toolchain' }
+  raise 'Reviewer cache restoration must not save partial prerequisites' unless restore && restore.fetch('uses') == 'actions/cache/restore@v6' && restore.fetch('id') == 'reviewer-toolchain-cache'
+  raise 'Reviewer cache save must follow successful preparation' unless save && save.fetch('uses') == 'actions/cache/save@v6' && save.fetch('if') == "steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'"
+  raise 'Reviewer cache save must use the restored primary key' unless save.fetch('with').fetch('key') == '${{ steps.reviewer-toolchain-cache.outputs.cache-primary-key }}'
+  raise 'Reviewer cache lifecycle is out of order' unless steps.index(restore) < steps.index(preparation) && steps.index(preparation) < steps.index(save)
   raise 'Review history needs CI read permission without exposing a token to Codex' unless workflow.fetch('jobs').fetch(name).fetch('permissions')['actions'] == 'read'
   token = steps.find { |step| step['id'] == 'bot' }
   raise 'Reviewers must mint their assigned App token' unless token.fetch('uses').start_with?('actions/create-github-app-token@')

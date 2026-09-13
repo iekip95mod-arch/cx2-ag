@@ -200,16 +200,24 @@ jobs:
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
 
       - name: Restore the reviewer cross toolchain
-        uses: actions/cache@v6
+        id: reviewer-toolchain-cache
+        uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
       - name: Prepare complete reviewer prerequisites
+        id: reviewer-prerequisites
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: 1
         run: bash .github/scripts/prepare-review.sh > "$RUNNER_TEMP/review-prerequisites.log" 2>&1
+      - name: Save the complete reviewer cross toolchain
+        if: steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ${{ steps.reviewer-toolchain-cache.outputs.cache-primary-key }}
 
       - name: Set execution deadline
         if: steps.key.outputs.have == 'true'
@@ -477,16 +485,24 @@ jobs:
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
           npm install -g @openai/codex@0.154.0
       - name: Restore the reviewer cross toolchain
-        uses: actions/cache@v6
+        id: reviewer-toolchain-cache
+        uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
       - name: Prepare complete reviewer prerequisites
+        id: reviewer-prerequisites
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: 1
         run: bash .github/scripts/prepare-review.sh > "$RUNNER_TEMP/review-prerequisites.log" 2>&1
+      - name: Save the complete reviewer cross toolchain
+        if: steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ${{ steps.reviewer-toolchain-cache.outputs.cache-primary-key }}
 
       - name: Set execution deadline
         env:

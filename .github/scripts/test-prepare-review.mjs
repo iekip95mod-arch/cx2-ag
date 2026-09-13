@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 test('review setup restores missing tools, reuses cached tools and refuses stale or failed setup', () => {
   const workspace = fileURLToPath(new URL('../../.Internal/workspaces/', import.meta.url));
   mkdirSync(workspace, { recursive: true });
-  for (const scenario of ['download', 'cached', 'stale', 'build-failure']) {
+  for (const scenario of ['download', 'cached', 'partial-cache', 'stale', 'build-failure']) {
     const root = mkdtempSync(join(workspace, 'review-setup-'));
     const bin = join(root, 'bin');
     const sdk = join(root, 'vendor/ndl-src/ndl-sdk');
@@ -34,6 +34,12 @@ test('review setup restores missing tools, reuses cached tools and refuses stale
       mkdirSync(join(sdk, 'toolchain/install/bin'), { recursive: true });
       writeFileSync(join(sdk, 'toolchain/install/bin/arm-none-eabi-gcc'), '');
       chmodSync(join(sdk, 'toolchain/install/bin/arm-none-eabi-gcc'), 0o755);
+      writeFileSync(join(sdk, 'toolchain/install/.review-ready'), '');
+    }
+    if (scenario === 'partial-cache') {
+      mkdirSync(join(sdk, 'toolchain/install/bin'), { recursive: true });
+      writeFileSync(join(sdk, 'toolchain/install/bin/arm-none-eabi-gcc'), '');
+      chmodSync(join(sdk, 'toolchain/install/bin/arm-none-eabi-gcc'), 0o755);
     }
     const log = join(root, 'commands.log'), envFile = join(root, 'environment');
     const run = spawnSync('bash', [fileURLToPath(new URL('./prepare-review.sh', import.meta.url))], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: bin + ':' + process.env.PATH, SETUP_ROOT: root, SETUP_LOG: log, SETUP_SCENARIO: scenario, GITHUB_ENV: envFile } });
@@ -45,7 +51,7 @@ test('review setup restores missing tools, reuses cached tools and refuses stale
       assert.equal(run.status, 0, run.stderr);
       assert.match(commands, /brew install ccache gmp php lua luajit boost/);
       assert.match(commands, /make -C .* build-libndls build-tools/);
-      assert.equal(commands.includes('lfs pull'), scenario === 'download');
+      assert.equal(commands.includes('lfs pull'), scenario === 'download' || scenario === 'partial-cache');
       assert.match(readFileSync(envFile, 'utf8'), /PKG_CONFIG_PATH=.*luajit.*gmp/);
     }
   }
