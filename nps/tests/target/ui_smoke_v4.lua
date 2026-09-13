@@ -7259,6 +7259,41 @@ do
     end)()
 end
 
+-- Reopening a retained record must not discard a progression message about the next solve. The
+-- message belongs to that retained viewer state, but preparing another record replaces it.
+do
+    (function()
+    local module = copyModule()
+    module.solve = function(expression)
+        local record = {}
+        for key, value in pairs(fake_result) do record[key] = value end
+        record.original_expression = expression
+        record.normalized_expression = expression
+        return record
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    env.stepsSetProgression("full")
+    env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
+    env.on.enterKey()
+    env.closeSteps()
+
+    local progression_message = env.stepsSetProgression("hint")
+    env.runSteps("reopen", "")
+    check(env.steps.active and env.steps.status == progression_message,
+          "reopening preserves the progression message written for the retained record")
+
+    env.closeSteps()
+    env.fctEditor.editor:setExpression("\\0el {!s 3*x=6}")
+    env.on.enterKey()
+    check(env.steps.active and env.steps.status ~= progression_message and
+          env.steps.status:find("hint 1/", 1, true) == 1 and
+          env.steps.status:find("Tab reveals next", 1, true) ~= nil,
+          "a new record replaces the retained progression message with its own status: " ..
+              tostring(env.steps.status))
+    end)()
+end
+
 -- Both one-sided limit markers are the same marker, so recall has to strip either one.
 do
     (function()
