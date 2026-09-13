@@ -350,7 +350,7 @@
       "pr": null,
       "branch": "codex/issue-16",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-28",
@@ -400,7 +400,7 @@
       "pr": 113,
       "branch": "codex/issue-16",
       "slug": "cx2-ag-codex-review-beacon",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-28",
@@ -410,6 +410,16 @@
       "pr": 114,
       "branch": "codex/issue-28",
       "slug": "cx2-ag-codex-review-compass",
+      "released": false
+    },
+    {
+      "key": "codex/executor/issue-3",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 3,
+      "pr": null,
+      "branch": "codex/issue-3",
+      "slug": "cx2-ag-codex-amber",
       "released": false
     }
   ]
