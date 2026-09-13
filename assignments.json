@@ -131,6 +131,16 @@
       "branch": "codex/issue-96",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-96",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 96,
+      "pr": 97,
+      "branch": "codex/issue-96",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
