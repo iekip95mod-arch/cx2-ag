@@ -132,12 +132,20 @@ constexpr bool cross_check_allowed(DiffOutcome outcome) {
     return outcome != DiffOutcome::Cancelled && outcome != DiffOutcome::ResourceExceeded;
 }
 
+constexpr bool cross_check_allowed(IntegrateOutcome outcome) {
+    return outcome != IntegrateOutcome::Cancelled &&
+           outcome != IntegrateOutcome::ResourceExceeded;
+}
+
 static_assert(!cross_check_allowed(SolveOutcome::Cancelled));
 static_assert(!cross_check_allowed(SolveOutcome::ResourceExceeded));
 static_assert(cross_check_allowed(SolveOutcome::NotLinear));
 static_assert(!cross_check_allowed(DiffOutcome::Cancelled));
 static_assert(!cross_check_allowed(DiffOutcome::ResourceExceeded));
 static_assert(cross_check_allowed(DiffOutcome::UnsupportedForm));
+static_assert(!cross_check_allowed(IntegrateOutcome::Cancelled));
+static_assert(!cross_check_allowed(IntegrateOutcome::ResourceExceeded));
+static_assert(cross_check_allowed(IntegrateOutcome::UnsupportedForm));
 
 // Diagnostic instrumentation (raw memory reads, watchdog pokes, flash tracing) is off unless the
 // build says -DNPS_DIAG=1, which is what make DIAG=1 does.
@@ -325,6 +333,21 @@ struct CrossCheck {
 constexpr bool answer_only_allowed(DerivationStatus status) {
     return status == DerivationStatus::Unsupported ||
            status == DerivationStatus::PartiallySolved;
+}
+
+enum class IntegrateCrossCheckRoute : uint8_t { None, Differentiate, Integrate };
+
+constexpr IntegrateCrossCheckRoute integrate_cross_check_route(bool cross,
+                                                               IntegrateOutcome outcome,
+                                                               NodeId particular,
+                                                               DerivationStatus status) {
+    if (!cross || !cross_check_allowed(outcome))
+        return IntegrateCrossCheckRoute::None;
+    if (particular != kNoNode)
+        return IntegrateCrossCheckRoute::Differentiate;
+    if (answer_only_allowed(status))
+        return IntegrateCrossCheckRoute::Integrate;
+    return IntegrateCrossCheckRoute::None;
 }
 
 // MATH-015 for the answer the viewer shows, which is the backend's whenever we withheld our own.
@@ -2048,12 +2071,19 @@ int integrate_into(lua_State *L, bool cross) {
     d.context.normalized_expression = normalized_expression;
 
     CrossCheck c;
-    if (cross && r.particular != kNoNode)
-        c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular, arena.symbol(variable),
-                    parsed.root, true, nullptr, backed ? &backend : nullptr);
-    else if (cross && answer_only_allowed(r.status))
-        c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable), kNoNode,
-                     true, nullptr, backed ? &backend : nullptr);
+    switch (integrate_cross_check_route(cross, r.outcome, r.particular, r.status)) {
+        case IntegrateCrossCheckRoute::Differentiate:
+            c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular,
+                         arena.symbol(variable), parsed.root, true, nullptr,
+                         backed ? &backend : nullptr);
+            break;
+        case IntegrateCrossCheckRoute::Integrate:
+            c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable),
+                         kNoNode, true, nullptr, backed ? &backend : nullptr);
+            break;
+        case IntegrateCrossCheckRoute::None:
+            break;
+    }
     const bool answer_only = answer_only_allowed(r.status) && c.has_answer;
     const DerivationStatus status = cross && r.outcome == IntegrateOutcome::Integrated
                                         ? cross_checked_status(r.status, c)
