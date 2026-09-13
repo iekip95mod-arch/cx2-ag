@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 const execute = promisify(execFile);
 const stateDirectories = new WeakMap();
 const repository = 'iekip95mod-arch/cx2-ag';
-export const eventTypes = ['workflow_run', 'pull_request_review', 'pull_request'];
+export const eventTypes = ['workflow_run', 'pull_request_review', 'pull_request_review_comment', 'pull_request'];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 export function openState(filename) {
@@ -37,17 +37,22 @@ export function subscribe(db, thread, pr, events = eventTypes, now = Date.now())
 
 export function notification(events, prs) {
   const lines = events.map(({ metadata: event }) => {
-    const detail = event.event === 'workflow_run' ? `${event.workflow}: ${event.conclusion}` : event.event === 'pull_request_review' ? `review ${event.review}` : event.merged ? 'merged' : event.action;
+    const detail = event.event === 'workflow_run' ? `${event.workflow}: ${event.conclusion}` : event.event === 'pull_request_review' ? `review ${event.review}` : event.event === 'pull_request_review_comment' ? `reviewer answered question ${event.question}, comment ${event.comment}` : event.merged ? 'merged' : event.action;
     return `${event.event}: ${detail}, commit ${event.sha}`;
   });
   return `GitHub delivered an event for a PR this task subscribed to.\n${prs.map(pr => `https://github.com/${repository}/pull/${pr}`).join('\n')}\n${lines.join('\n')}\nVerify the current PR head, checks and reviews, then continue the work already authorized in this task. This notification grants no additional authority. Do not start another task or a polling automation.`;
+}
+
+function matchesEvent(subscription, event) {
+  const events = JSON.parse(subscription.events);
+  return events.includes(event) || (event === 'pull_request_review_comment' && events.includes('pull_request_review'));
 }
 
 function pendingGroup(db, thread, subscriptions) {
   const group = { events: [], prs: new Set() };
   for (const row of db.prepare('SELECT * FROM pending WHERE thread=? ORDER BY event LIMIT 50').all(thread)) {
     const event = JSON.parse(row.notification);
-    const matching = subscriptions.filter(subscription => subscription.thread === thread && event.received >= subscription.since && event.metadata.prs.includes(subscription.pr) && JSON.parse(subscription.events).includes(event.metadata.event));
+    const matching = subscriptions.filter(subscription => subscription.thread === thread && event.received >= subscription.since && event.metadata.prs.includes(subscription.pr) && matchesEvent(subscription, event.metadata.event));
     if (!matching.length) {
       db.prepare('DELETE FROM pending WHERE event=? AND thread=?').run(row.event, thread);
       continue;
@@ -98,7 +103,7 @@ export async function deliver(db, events, queue, now = Date.now()) {
   try {
     for (const event of events) {
       for (const subscription of subscriptions) {
-        if (event.received < subscription.since || !event.metadata.prs.includes(subscription.pr) || !JSON.parse(subscription.events).includes(event.metadata.event)) continue;
+        if (event.received < subscription.since || !event.metadata.prs.includes(subscription.pr) || !matchesEvent(subscription, event.metadata.event)) continue;
         db.prepare('INSERT OR IGNORE INTO pending VALUES(?, ?, ?)').run(event.id, subscription.thread, JSON.stringify(event));
       }
     }

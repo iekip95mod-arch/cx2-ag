@@ -60,6 +60,46 @@ test('storage errors reject delivery for redelivery', async () => {
   assert.equal((await worker.fetch(request(), env)).status, 503);
 });
 
+test('any failed PR workflow wakes subscribers without looping on worker failures', () => {
+  const delivery = { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, path: '.github/workflows/new-ci-check.yml', event: 'pull_request', head_repository: repository, conclusion: 'failure', pull_requests: [{ number: 84 }] } };
+  assert.equal(normalize('workflow_run', delivery)?.workflow, 'new-ci-check');
+  for (const change of [{ event: 'workflow_dispatch' }, { conclusion: 'success' }, { head_repository: { full_name: 'other/repo' } }]) assert.equal(normalize('workflow_run', { ...delivery, workflow_run: { ...delivery.workflow_run, ...change } }), null);
+});
+
+test('CodeQL comment reviews wake subscribers without being treated as approvals', () => {
+  const bot = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
+  const delivery = { ...review, sender: bot, review: { id: 75, state: 'commented', user: bot } };
+  assert.equal(normalize('pull_request_review', delivery)?.review, 'security_alerts');
+  assert.equal(normalize('pull_request_review', { ...delivery, sender: { ...bot, id: 1 } }), null);
+  assert.equal(normalize('pull_request_review', { ...delivery, review: { ...delivery.review, user: { ...bot, id: 1 } } }), null);
+  assert.equal(normalize('pull_request_review', { ...delivery, action: 'dismissed' }), null);
+});
+
+test('review answers retain only routing metadata and ignore ordinary discussion', async () => {
+  const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
+  const bot = { login: 'cx2-ag-codex-review-aegis[bot]', id: 328534539, type: 'Bot' };
+  const answer = { repository, action: 'created', pull_request: review.pull_request, sender: bot, comment: { id: 99, in_reply_to_id: 70, user: bot, body: '<!-- cx2-review-answer:88 -->\nUntrusted answer text' } };
+  assert.deepEqual(normalize('pull_request_review_comment', answer), { repository: repository.full_name, event: 'pull_request_review_comment', action: 'created', prs: [84], sha, comment: 99, question: 88, reviewer: bot.login });
+  for (const change of [
+    item => { item.action = 'edited'; },
+    item => { item.comment.body = '/ask-reviewer What does this mean?'; },
+    item => { item.comment.body = '<!-- cx2-review-answer:0 -->\nAnswer'; },
+    item => { item.comment.in_reply_to_id = undefined; },
+    item => { item.comment.user = { ...bot, type: 'User' }; },
+    item => { item.comment.user = { ...bot, login: 'cx2-ag-codex-amber[bot]' }; },
+    item => { item.sender = { ...bot, id: 1 }; },
+  ]) {
+    const invalid = structuredClone(answer); change(invalid);
+    assert.equal(normalize('pull_request_review_comment', invalid), null);
+  }
+  const response = await worker.fetch(request(answer, randomUUID(), { 'x-github-event': 'pull_request_review_comment' }), env);
+  assert.equal(response.status, 202);
+  const inbox = await worker.fetch(new Request('https://receiver.test/events?wait=0', { headers: { authorization: 'Bearer test-reader' } }), env);
+  const stored = await inbox.json();
+  assert.equal(stored.events.length, 1);
+  assert.equal(JSON.stringify(stored).includes('Untrusted answer text'), false);
+});
+
 test('workflow paths route renamed review runs and reject unrelated workflows', () => {
   for (const name of ['Review PR #85 (requested)', 'Review PR #85 (metadata)']) {
     const run = { repository, action: 'completed', workflow_run: { id: 34719249175, head_sha: sha, name, path: '.github/workflows/agent-review.yml', conclusion: 'success', pull_requests: [{ number: 85 }] } };
@@ -69,10 +109,16 @@ test('workflow paths route renamed review runs and reject unrelated workflows', 
   }
 });
 
+test('discussion failures notify without duplicating successful answer notifications', () => {
+  const delivery = { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, path: '.github/workflows/agent-review-discussion.yml', conclusion: 'failure', pull_requests: [{ number: 84 }] } };
+  assert.equal(normalize('workflow_run', delivery)?.workflow, 'agent-review-discussion');
+  for (const conclusion of ['success', 'neutral', 'skipped']) assert.equal(normalize('workflow_run', { ...delivery, workflow_run: { ...delivery.workflow_run, conclusion } }), null);
+});
+
 test('every supported notification route persists its exact metadata', async () => {
   const env = { DB: database(), WEBHOOK_SECRET: secret, BRIDGE_TOKEN: 'test-reader' };
   const cases = [];
-  for (const name of ['check', 'agent-review']) {
+  for (const name of ['check', 'agent-review-request', 'agent-review', 'agent-review-feedback']) {
     for (const conclusion of ['success', 'failure', 'cancelled', 'timed_out', 'action_required', 'neutral', 'skipped', 'stale', 'startup_failure']) {
       cases.push({ event: 'workflow_run', body: { repository, action: 'completed', workflow_run: { id: 123, head_sha: sha, name: name === 'agent-review' ? 'Review PR #84 (requested)' : name, path: `.github/workflows/${name}.yml`, conclusion, pull_requests: [{ number: 84 }] } }, expected: { repository: repository.full_name, event: 'workflow_run', action: 'completed', prs: [84], sha, workflow: name, conclusion, run: 123 } });
     }
