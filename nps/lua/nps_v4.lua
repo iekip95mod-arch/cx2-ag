@@ -3144,9 +3144,18 @@ end
 -- parks one. The shell's size-change listeners call reposME after a new entry lands and would
 -- move them straight back, so reposME itself parks them while the viewer is up.
 local function parkEditors()
-	for _, e in ipairs(histME1) do e.editor:move(-10000, -10000) end
-	for _, e in ipairs(histME2) do e.editor:move(-10000, -10000) end
-	if fctEditor then fctEditor.editor:move(-10000, -10000) end
+	for _, e in ipairs(histME1) do
+		e.editor:setVisible(false)
+		e.editor:move(-10000, -10000)
+	end
+	for _, e in ipairs(histME2) do
+		e.editor:setVisible(false)
+		e.editor:move(-10000, -10000)
+	end
+	if fctEditor then
+		fctEditor.editor:setVisible(false)
+		fctEditor.editor:move(-10000, -10000)
+	end
 end
 
 -- Parked native editors can still receive input while an overlay owns the screen.
