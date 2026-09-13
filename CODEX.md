@@ -109,6 +109,8 @@ The Mac must be awake and the destination task available. Offline events remain 
 
 ## Validation and current limits
 
+Finish alert cleanup before reporting completion or merging. Confirm the current revision's successful scan marks repaired alerts fixed and their PR conversations resolved. GitHub normally handles that resolution. Resolve any remaining verified-finished conversation with the evidence recorded. Dismiss only with an accurate supported reason and explanation, such as a confirmed false positive. Do not use dismissal to stand in for a missing scan, and do not claim an outdated suggestion proves the alert fixed.
+
 Failed jobs in completed PR CI workflows resume the assigned executor through the feedback workflow, including failures on draft PRs. The router verifies the current head, run attempt and lease before dispatch and deduplicates successful delivery. The executor acknowledges on the PR, investigates every failed job and preserves the issue, branch and PR. Stale runs and dispatched worker failures cannot create an automatic retry loop. Desktop subscriptions receive these failed CI events too.
 
 Worker tests exercise ownership, issue and PR aliases, identity leases and startup against isolated Git repositories and controlled GitHub responses. The previous personal-token workers opened PRs 87, 88 and 89 for issues 51, 42 and 20. That proves the previous publishing setup. App registration and successful token creation alone do not prove a named worker has opened and updated its own PR.

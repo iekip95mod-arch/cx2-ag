@@ -55,6 +55,9 @@ test('CodeQL commented reviews resume both executors without granting review app
     assert.match(sent[0].body.inputs.task, /reply in each/);
     assert.match(sent[0].body.inputs.task, /Do not dismiss/);
     assert.match(sent[0].body.inputs.task, /not an approval/);
+    assert.match(sent[0].body.inputs.task, /Before merging or reporting completion/);
+    assert.match(sent[0].body.inputs.task, /PR conversations are resolved/);
+    assert.match(sent[0].body.inputs.task, /accurate supported dismissal reason/);
   }
 });
 
@@ -89,6 +92,7 @@ test('both providers dispatch the leased issue on trusted main for both formal v
     assert.match(sent[0].body.inputs.task, /Reuse the assigned bot identity, branch and PR/);
     assert.equal(sent[0].body.inputs.task.includes(f.review.body), false);
     assert.match(sent[0].body.inputs.task, state === 'APPROVED' ? /Do not request another review or reapply review labels/ : /request a fresh review after implementation stops/);
+    assert.match(sent[0].body.inputs.task, /GitHub normally resolves fixed-alert conversations automatically/);
   }
 });
 
