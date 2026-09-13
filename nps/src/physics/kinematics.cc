@@ -91,6 +91,7 @@ struct Hop {
     NodeId symbolic = kNoNode;
     NodeId numeric = kNoNode;
     NodeId value = kNoNode;
+    SolveOutcome solve_outcome = SolveOutcome::Refused;
     DerivationStatus refusal_status = DerivationStatus::NotRecorded;
     // Why each equation this hop did not use was not used, in the solver's own words where the
     // solver was the one that refused.
@@ -260,6 +261,8 @@ struct Search {
     std::vector<bool> used;
     bool halted = false;
     bool cancelled = false;
+    // A verified contradiction ends the search even when it appears while deriving an intermediate.
+    bool terminal_answer = false;
     std::string halt_detail;
     // Only what a probe spent on its own meter. Ours is read directly, so copying it here doubles it.
     Cost halt_cost;
@@ -278,6 +281,7 @@ struct Search {
 // caller rather than to a flag here.
 enum class Probe : uint8_t {
     Solved,
+    NoSolution,
     Refused,
     Halted,
 };
@@ -311,12 +315,17 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
     scratch.share_runs(s.derivation);
     SolveResult probe = solve_linear(s.arena, scratch, candidate, s.arena.symbol(target), s.budget);
     hop->refusal_status = probe.status;
+    hop->solve_outcome = probe.outcome;
     if (probe.outcome == SolveOutcome::Cancelled || probe.outcome == SolveOutcome::ResourceExceeded) {
         s.cancelled = probe.outcome == SolveOutcome::Cancelled;
         s.halt_detail = probe.detail;
         s.halt_cost = probe.cost;
         *reason = probe.detail;
         return Probe::Halted;
+    }
+    if (probe.outcome == SolveOutcome::NoSolution) {
+        *reason = probe.detail;
+        return Probe::NoSolution;
     }
     if (probe.outcome != SolveOutcome::Solved) {
         *reason = probe.detail;
@@ -327,12 +336,12 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
 }
 
 // The route search's use of it, where a halt ends the search.
-bool try_equation(Search &s, const Equation &e, const std::string &target, Hop *hop,
-                  std::string *reason) {
+Probe try_equation(Search &s, const Equation &e, const std::string &target, Hop *hop,
+                   std::string *reason) {
     const Probe p = offer(s, s.names, s.values, e, target, hop, reason);
     if (p == Probe::Halted)
         s.halted = true;
-    return p == Probe::Solved;
+    return p;
 }
 
 // What is in this equation that reaching target would still need. Empty means the equation can be
@@ -405,6 +414,7 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
             std::string why;
             switch (offer(s, known_names, known_values, e, target, &unused, &why)) {
                 case Probe::Solved: reasons[i] = "also applicable, not needed"; break;
+                case Probe::NoSolution: reasons[i] = why; break;
                 case Probe::Refused: reasons[i] = why; break;
                 case Probe::Halted: reasons[i] = "not tried, the search budget was spent"; break;
             }
@@ -422,12 +432,18 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
         // be paid for. Siblings share what is left, so two missing quantities cannot each spend it.
         for (size_t m = 0; m < missing.size() && reached; ++m)
             reached = chain(s, missing[m], limit - 1, route);
+        if (s.terminal_answer)
+            return true;
         Hop hop;
         std::string reason;
-        const bool solved = reached && try_equation(s, e, target, &hop, &reason);
-        if (solved) {
+        const Probe probe = reached ? try_equation(s, e, target, &hop, &reason) : Probe::Refused;
+        if (probe == Probe::Solved || probe == Probe::NoSolution) {
             taken = i;
             route->push_back(hop);
+            if (probe == Probe::NoSolution) {
+                s.terminal_answer = true;
+                return true;
+            }
             known_names = s.names;
             known_values = s.values;
             s.names.push_back(target);
@@ -1006,7 +1022,8 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
         }
 
         bool giac_disagreed = false;
-        if (ctx.giac) {
+        // A no-solution answer has no scalar value for a backend rearrangement to corroborate.
+        if (ctx.giac && hop.solve_outcome == SolveOutcome::Solved) {
             NodeId hop_isolated = kNoNode;
             giac_rearrangement(ctx, plan_id, hop.symbolic, hop_symbol, names, values, hop.value,
                                &hop_isolated, &giac_disagreed);
@@ -1053,6 +1070,12 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             ctx.halted = true;
             ctx.cancelled = solved.outcome == SolveOutcome::Cancelled;
             ctx.halt_detail = solved.detail;
+            return result;
+        }
+        if (solved.outcome == SolveOutcome::NoSolution) {
+            result.outcome = KinematicsOutcome::NoSolution;
+            result.detail = solved.detail;
+            result.status = solved.status;
             return result;
         }
         if (solved.outcome != SolveOutcome::Solved) {
@@ -1237,6 +1260,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
 const char *kinematics_outcome_name(KinematicsOutcome o) {
     switch (o) {
         case KinematicsOutcome::Solved: return "solved";
+        case KinematicsOutcome::NoSolution: return "no solution";
         case KinematicsOutcome::InvalidInput: return "invalid input";
         case KinematicsOutcome::NoApplicableEquation: return "no applicable equation";
         case KinematicsOutcome::DimensionMismatch: return "dimension mismatch";
@@ -1347,7 +1371,8 @@ KinematicsResult solve_kinematics(Arena &arena, Derivation &derivation,
         return halted;
     }
 
-    if (result.outcome == KinematicsOutcome::Solved) {
+    if (result.outcome == KinematicsOutcome::Solved ||
+        result.outcome == KinematicsOutcome::NoSolution) {
         result.status = derivation.outcome_from(mark);
     }
     result.cost.rewrites += meter.cost().rewrites;

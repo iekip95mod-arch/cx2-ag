@@ -736,9 +736,29 @@ void run_kinematics_tests(TestSink &t) {
                 "and it names what is missing and that the search failed to reach it");
     }
     {
-        Solved s = run("find t; v = 5 m/s; v0 = 5 m/s; a = 0 m/s^2");
-        t.equal(s.outcome, "no applicable equation", "no acceleration leaves t undetermined");
-        t.check(has(s.detail, "v = v0 + a*t: "), "and the equation says why in the solver's words");
+        Solved s = run("find t; v = 6 m/s; v0 = 5 m/s; a = 0 m/s^2");
+        t.equal(s.outcome, "no solution",
+                "inconsistent constant-velocity data keeps the linear solver's answer");
+        t.equal(s.status, "solved and verified",
+                "and keeps the verified status of the no-solution derivation");
+        t.equal(s.detail,
+                "the unknown cancels and leaves a false statement, so nothing satisfies it",
+                "with the linear solver's reason intact");
+        t.check(has(s.rules, "eq.linear.inspect-collected-coefficient") && s.checks > 0 &&
+                    s.failed_checks == 0,
+                "and the coefficient check that proves inconsistency remains in the walkthrough");
+
+        KinematicsProblem problem;
+        std::string why;
+        t.check(parse_kinematics("find t; v = 6 m/s; v0 = 5 m/s; a = 0 m/s^2", &problem, &why),
+                "the inconsistent backend fixture parses");
+        Arena arena;
+        Derivation derivation;
+        SequencedGiac giac(std::vector<std::string>{});
+        const KinematicsResult with_backend =
+            solve_kinematics(arena, derivation, problem, Budget(), &giac);
+        t.check(with_backend.outcome == KinematicsOutcome::NoSolution && giac.commands.empty(),
+                "a verified no-solution answer does not ask a backend for a scalar rearrangement");
     }
     {
         Solved s = run("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 m");
