@@ -301,9 +301,10 @@ jobs:
             a heading saying these are separate, and do not hold the branch up over it. Withholding an
             approval over something outside the diff is the same failure as approving a broken change.
 
-            Build and run rather than read. Say in your verdict which stages ran: host build, host
-            suite, ARM build, emulator, handheld. A stage nobody reached is a stage the verdict says
-            nobody reached.
+            Build and run rather than read. Report applicable host tests, ARM package builds and emulator runs.
+            Calculator execution is emulator only. Physical handheld runs are outside scope.
+            Do not request them, add unfinished physical-test checkboxes or block approval on their absence.
+            Distinguish headless emulator regressions from TI OS boot and StepCAS package loading.
 
             Every command is matched against an allowed prefix, so a bare nps_host, an export, or
             two commands joined by an ampersand will be refused. There is no cd either, so write
@@ -326,7 +327,7 @@ jobs:
               cmake -S nps -B nps/build/device -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ndl-arm926ej-s.cmake
               cmake --build nps/build/device --target unified --parallel
 
-            This job has no physical handheld, so the verdict says nobody reached that stage.
+            A successful package build does not prove that the package ran in the emulator.
 
             Establish the baseline on the base commit before you judge the branch, and hold the
             branch to what you measured rather than to anything written down here. Do not take a
@@ -580,6 +581,9 @@ jobs:
           gaps in the final body. Do not reopen verified fixes without new evidence or invent defects
           to fill the time. Finish within the supplied deadline.
           Read the review sections of AGENTS.md. Judge only this diff and its claimed fixes.
+          Calculator execution is emulator only. Physical handheld runs are outside scope.
+          Do not request them, add unfinished physical-test checkboxes or block approval on their absence.
+          Keep relevant host tests and package builds. Distinguish emulator regressions from package execution.
           Reproduce relevant behavior and validate tests against the baseline in an isolated worktree.
           If worktree creation is denied, extract the baseline with git archive under .Internal/workspaces/.
           For workflow changes, run the committed workflow tests and inspect trigger and credential handling.

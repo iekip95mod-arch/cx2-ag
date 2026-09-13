@@ -4,6 +4,8 @@ Read [AGENTS.md](AGENTS.md) first. It is the shared working agreement for iekip9
 
 ## Authority and execution
 
+Calculator execution is emulator only. Physical handheld runs will not happen in this workflow. Workers and reviewers must not request them, wait for them, add unfinished physical-test checkboxes or withhold approval because they are absent. Keep relevant host tests and ARM package builds. Distinguish headless emulator regressions from TI OS boot and StepCAS package loading, and report only the emulator stages actually reached.
+
 Create branches, assign issues, commit, push, write and publish pull requests, request review and enable protected auto-merge without asking the maintainer. Main still requires independent approval and every required check. Never bypass those gates, force-push main or overwrite another worker's work.
 
 The trusted repository's .codex/config.toml selects gpt-5.6-sol with high effort, never approval and danger-full-access. Restart or create a session to load changed defaults. Managed policies and explicit launch settings take precedence. This configuration grants no authority over unrelated repositories or files.
@@ -100,7 +102,7 @@ The branch update workflow runs whenever main changes and when a PR opens, reope
 
 To ask for clarification, the assigned executor replies in the finding's thread with /ask-reviewer followed by its question. The discussion workflow accepts questions while the PR is ready or draft, verifies both leases and calls the same provider under the reviewer's identity. The answer includes its model and effort and resumes the existing executor on canonical issue branches. Legacy setup branches retain desktop coordination. Answers do not change the formal verdict, approve the PR or automatically resolve threads. Ordinary comments and reviewer replies do not start another question.
 
-Check the current head, reviews and checks before acting on any notification. Auto-merge waits for the protected gates. Host tests, Firebird regressions, calculator package builds and physical-device observations prove different stages. Report only the stages reached.
+Check the current head, reviews and checks before acting on any notification. Auto-merge waits for the protected gates. Host tests, Firebird regressions, calculator package builds and package execution in the emulator prove different stages. Report only the stages reached. Physical-device observations are outside scope.
 
 ## Wake the task that requested an event
 

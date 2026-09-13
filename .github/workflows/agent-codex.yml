@@ -226,6 +226,9 @@ jobs:
             echo "You are answering on issue or pull request number ${ISSUE:-none}."
             echo "Say which stages you actually reached. Host build and host suite are what a commit"
             echo "can claim."
+            echo "Calculator execution is emulator only. Physical handheld runs are outside scope."
+            echo "Do not request hardware runs, add unfinished physical-test checkboxes or block on their absence."
+            echo "Keep relevant host tests and package builds. Distinguish emulator regressions from package execution."
             echo "When requesting a pull request review, use the codex-review label."
             if [ -n "$ISSUE" ]; then
               echo "You own issue or PR $ISSUE on branch $BRANCH. Work on this issue only."
