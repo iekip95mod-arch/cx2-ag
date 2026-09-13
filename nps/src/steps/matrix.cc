@@ -404,9 +404,10 @@ static MatrixResult matrix_operation(Arena &arena, Adapter &adapter, Derivation 
     Run run(arena, derivation, matrix, form, budget, determinant);
     if (!run.running())
         return run.stopped();
-    if (!MatrixView::from(arena, matrix))
+    const auto input_view = MatrixView::from(arena, matrix);
+    if (!input_view)
         return run.finish(MatrixOutcome::InvalidInput, kNoNode, "enter a nonempty rectangular matrix");
-    if (determinant && MatrixView::from(arena, matrix)->rows() != MatrixView::from(arena, matrix)->columns())
+    if (determinant && (input_view->rows() != input_view->columns() || input_view->rows() > 4))
         return run.finish(MatrixOutcome::UnsupportedForm, kNoNode, "a determinant requires a square matrix of order 1 through 4");
     if (derivation.request.numeric_mode != NumericMode::Exact)
         return run.finish(MatrixOutcome::UnsupportedForm, kNoNode, "matrix walkthroughs require Exact mode");
