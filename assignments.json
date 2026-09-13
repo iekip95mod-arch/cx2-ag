@@ -271,6 +271,16 @@
       "branch": "codex/issue-65",
       "slug": "cx2-ag-codex-maple",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-65",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 65,
+      "pr": 106,
+      "branch": "codex/issue-65",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
