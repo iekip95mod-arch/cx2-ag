@@ -9,7 +9,7 @@ failures = []
 failures << 'CI must use a read-only token by default' unless workflow['permissions'] == { 'contents' => 'read' }
 failures << 'CI cancellation must be isolated by ref and event' unless workflow['concurrency'] == { 'group' => '${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}', 'cancel-in-progress' => true }
 failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branches'] == ['main']
-failures << 'Pull requests must run CI' unless events.key?('pull_request')
+failures << 'Pull requests must run CI when opened, updated, reopened or ready for review' unless events.dig('pull_request', 'types') == ['opened', 'synchronize', 'reopened', 'ready_for_review']
 failures << 'Manual runs must remain available' unless events.key?('workflow_dispatch')
 failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device']).empty?
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
