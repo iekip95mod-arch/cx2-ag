@@ -16,7 +16,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name))
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: read
@@ -96,7 +96,7 @@ jobs:
           private-key: ${{ steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY || '' }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-      - name: Deliver the reviewer assignment
+      - name: Show queued reviewer work
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -104,6 +104,11 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           REVIEW_MODEL: ${{ steps.reviewer.outputs.model }}
           REVIEW_EFFORT: ${{ steps.reviewer.outputs.effort }}
-        run: |
-          node .github/scripts/wait-for-review.mjs --review-queued
-          node .github/scripts/wait-for-review.mjs --dispatch-review
+        run: node .github/scripts/wait-for-review.mjs --review-queued
+      - name: Deliver the reviewer assignment
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --dispatch-review

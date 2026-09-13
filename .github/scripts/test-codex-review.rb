@@ -40,8 +40,12 @@ raise 'Review execution must not allocate identities' if selection.fetch('steps'
 request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml')).fetch('jobs').fetch('assign')
 raise 'Validate the requester before reserving a reviewer' unless request.fetch('steps').index { |step| step['id'] == 'requester' } < request.fetch('steps').index { |step| step['id'] == 'identity' }
 raise 'Execute the requester verifier' unless request.fetch('steps').find { |step| step['id'] == 'requester' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-requester'
-raise 'Assignment must dispatch with the reviewer App token' unless request.fetch('steps').last.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
-raise 'Assignment must queue progress before producing the real label event' unless request.fetch('steps').last.fetch('run').lines.map(&:strip).last(2) == ['node .github/scripts/wait-for-review.mjs --review-queued', 'node .github/scripts/wait-for-review.mjs --dispatch-review']
+queued = request.fetch('steps').find { |step| step['name'] == 'Show queued reviewer work' }
+dispatch = request.fetch('steps').find { |step| step['name'] == 'Deliver the reviewer assignment' }
+raise 'Reviewer assignment needs room for progress publication and delivery' unless request.fetch('timeout-minutes') >= 10
+raise 'Assignment must publish queued progress with the reviewer App token' unless queued&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && queued.fetch('run') == 'node .github/scripts/wait-for-review.mjs --review-queued'
+raise 'Assignment must dispatch with the reviewer App token' unless dispatch&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && dispatch.fetch('run') == 'node .github/scripts/wait-for-review.mjs --dispatch-review'
+raise 'Assignment must queue progress before producing the real label event' unless request.fetch('steps').index(queued) < request.fetch('steps').index(dispatch)
 codex_publication = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Publish the review for the reviewed commit' }
 raise 'Codex review must be published by the assigned identity' unless codex_publication.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
 %w[review codex-review].each do |name|
