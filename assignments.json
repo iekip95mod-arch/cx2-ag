@@ -111,6 +111,16 @@
       "branch": "codex/issue-94",
       "slug": "cx2-ag-codex-willow",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-94",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 94,
+      "pr": 95,
+      "branch": "codex/issue-94",
+      "slug": "cx2-ag-codex-review-prism",
+      "released": false
     }
   ]
 }
