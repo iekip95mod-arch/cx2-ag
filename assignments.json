@@ -541,6 +541,16 @@
       "branch": "codex/issue-48",
       "slug": "cx2-ag-codex-flint",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-31",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 31,
+      "pr": null,
+      "branch": "codex/issue-31",
+      "slug": "cx2-ag-codex-maple",
+      "released": false
     }
   ]
 }
