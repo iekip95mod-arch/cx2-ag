@@ -464,8 +464,21 @@ void run_determinant_tests(TestSink &t) {
                 !passed(verify_matrix_determinant_correction(arena, scalar("1.0"), scalar("1"), scalar("1"))),
                 "zero divisor and approximate certificate values are refused");
     }
+    {
+        Arena arena;
+        Derivation derivation;
+        RecordedBackend backend;
+        Adapter adapter(arena, backend);
+        const MatrixResult result = matrix_determinant(arena, adapter, derivation,
+            parse(arena, "[[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1]]").root);
+        t.check(result.outcome == MatrixOutcome::UnsupportedForm && result.expression == kNoNode &&
+                    backend.calls == 0 && derivation.size() == 0,
+                "determinant order five is refused before backend work");
+        t.equal(result.detail, "a determinant requires a square matrix of order 1 through 4",
+                "determinant order five uses its square-order diagnostic");
+    }
     for (const char *input : {"[]", "[1,2]", "[[1,2]]", "[[1],[2]]", "[[1,2],[3]]", "[[[1]]]",
-                              "[[x]]", "[[1.0]]", "[[i]]", "[[1/0]]", "[[1,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1]]"}) {
+                              "[[x]]", "[[1.0]]", "[[i]]", "[[1/0]]"}) {
         Arena arena;
         Derivation derivation;
         RecordedBackend backend;
