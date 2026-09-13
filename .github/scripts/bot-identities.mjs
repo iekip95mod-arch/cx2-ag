@@ -107,13 +107,21 @@ async function closed(repository, assignment, api) {
     const ticket = await api('GET', `repos/${repository}/issues/${assignment.issue}`);
     if (ticket.state !== 'closed') return false;
     const [owner, name] = repository.split('/');
-    const linked = await api('POST', 'graphql', {
-      query: 'query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){closedByPullRequestsReferences(first:1,includeClosedPrs:false){totalCount}}}}',
-      variables: { owner, name, number: assignment.issue },
-    });
-    const count = linked.data?.repository?.issue?.closedByPullRequestsReferences?.totalCount;
-    if (!Number.isSafeInteger(count) || count < 0) throw Error('Could not verify all linked PRs are closed');
-    if (count > 0) return false;
+    let cursor = null;
+    do {
+      const linked = await api('POST', 'graphql', {
+        query: 'query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){issue(number:$number){closedByPullRequestsReferences(first:100,after:$cursor,includeClosedPrs:true){totalCount nodes{state} pageInfo{hasNextPage endCursor}}}}}',
+        variables: { owner, name, number: assignment.issue, cursor },
+      });
+      const connection = linked.data?.repository?.issue?.closedByPullRequestsReferences;
+      if (!Number.isSafeInteger(connection?.totalCount) || connection.totalCount < 0) throw Error('Could not verify all linked PRs are closed');
+      if (connection.totalCount === 0) break;
+      if (!Array.isArray(connection.nodes) || !connection.nodes.length || !connection.nodes.every(pr => ['OPEN', 'CLOSED', 'MERGED'].includes(pr.state)) || typeof connection.pageInfo?.hasNextPage !== 'boolean') throw Error('Could not verify linked PR states');
+      if (connection.nodes.some(pr => pr.state === 'OPEN')) return false;
+      if (!connection.pageInfo.hasNextPage) break;
+      if (!connection.pageInfo.endCursor || connection.pageInfo.endCursor === cursor) throw Error('Invalid linked PR cursor');
+      cursor = connection.pageInfo.endCursor;
+    } while (cursor);
   }
   if (assignment.pr) {
     const pull = await api('GET', `repos/${repository}/pulls/${assignment.pr}`);
