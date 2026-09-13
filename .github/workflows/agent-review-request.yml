@@ -102,6 +102,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          REVIEW_LOGIN: ${{ steps.identity.outputs.login }}
+          REVIEW_USER_ID: ${{ steps.identity.outputs.user_id }}
           REVIEW_MODEL: ${{ steps.reviewer.outputs.model }}
           REVIEW_EFFORT: ${{ steps.reviewer.outputs.effort }}
         run: node .github/scripts/wait-for-review.mjs --review-queued

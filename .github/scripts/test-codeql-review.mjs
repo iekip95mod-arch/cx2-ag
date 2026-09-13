@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { approvalState, executeGhApi, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
+import { approvalState, executeGhApi, publishQueuedReview, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
 import * as reviewRuntime from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const sha = 'a'.repeat(40);
 const roster = [
-  { provider: 'codex', role: 'reviewer', slug: 'cx2-codex-review-amber', login: 'cx2-codex-review-amber[bot]', userId: 200 },
-  { provider: 'claude', role: 'reviewer', slug: 'cx2-claude-review-amber', login: 'cx2-claude-review-amber[bot]', userId: 201 },
+  { provider: 'codex', role: 'reviewer', slug: 'cx2-codex-review-amber', login: 'cx2-codex-review-amber[bot]', userId: 200, appId: 301, clientId: 'Iv1.review-fixture' },
+  { provider: 'claude', role: 'reviewer', slug: 'cx2-claude-review-amber', login: 'cx2-claude-review-amber[bot]', userId: 201, appId: 302, clientId: 'Iv1.review-fixture' },
   { provider: 'codex', role: 'executor', login: 'cx2-codex-amber[bot]', userId: 100, appId: 300, clientId: 'Iv1.fixture' }
 ];
 const options = { roster, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
@@ -23,6 +23,21 @@ test('GitHub API reads close child stdin before waiting for completion', async (
   const result = await executeGhApi(() => pending, ['api', 'repos/example/project']);
   assert.deepEqual(result, { ok: true });
   assert.equal(input, '');
+});
+
+test('queued review progress reuses trusted assignment outputs without rereading the lease', async () => {
+  const identity = roster[0];
+  const current = { head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
+  const endpoints = [];
+  const api = async (method, endpoint, body) => {
+    endpoints.push(endpoint);
+    if (endpoint.endsWith('/pulls/85')) return current;
+    if (method === 'GET') return [];
+    return { id: 10, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+  };
+  await publishQueuedReview(api, repository, 85, sha, identity.slug, identity.login, identity.userId, '100', '1', { roster, model: 'gpt-6-astra', effort: 'high' });
+  assert.deepEqual(endpoints, [`repos/${repository}/pulls/85`, `repos/${repository}/issues/85/comments?per_page=100&page=1`, `repos/${repository}/issues/85/comments`]);
+  await assert.rejects(publishQueuedReview(api, repository, 85, sha, identity.slug, identity.login, 999, '100', '1', { roster, model: 'gpt-6-astra', effort: 'high' }));
 });
 
 test('review progress updates one issue comment and remains separate from formal reviews', async () => {

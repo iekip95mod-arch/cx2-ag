@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { publishProgress } from './agent-progress.mjs';
+import { findIdentity, loadRoster } from './bot-identities.mjs';
 
 export async function executeGhApi(execute, args, body) {
   const pending = execute('gh', args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
@@ -109,6 +110,15 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   return api('PUT', `repos/${repository}/pulls/${pr}/reviews/${verdict.id}`, { body: `${verdict.body}\n\n${disclosure}\n\n${marker}` });
 }
 
+export async function publishQueuedReview(api, repository, pr, sha, appSlug, login, userId, runId, attempt, options = {}) {
+  const identity = findIdentity(options.roster ?? loadRoster(), login, undefined, 'reviewer');
+  if (identity.slug !== appSlug || identity.userId !== userId) throw Error('Queued progress identity does not match the assigned reviewer');
+  const current = await api('GET', `repos/${repository}/pulls/${pr}`);
+  if (current.head.repo?.full_name !== repository || current.head.sha !== sha || current.state !== 'open' || current.draft || reviewProvider(current) !== identity.provider) throw Error('The review revision is no longer current');
+  return publishProgress({ repository, number: pr, role: 'reviewer', login, userId, model: options.model, effort: options.effort, run: runId, attempt, phase: 'queued',
+    detail: `Reviewing commit ${sha}. The formal verdict will be recorded separately.` }, api);
+}
+
 export async function approvalState(read, repository, pr, sha, options = {}) {
   const current = await read(`repos/${repository}/pulls/${pr}`);
   if (current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('PR is superseded, closed or draft');
@@ -192,6 +202,10 @@ async function main() {
     };
     if (!process.argv.includes('--dispatch-review')) {
       const mode = process.argv.includes('--review-queued') ? 'queued' : process.argv.includes('--review-progress') ? 'progress' : process.argv.includes('--review-publishing') ? 'publishing' : process.argv.includes('--review-final') ? 'final' : 'disclosure';
+      if (mode === 'queued') {
+        await publishQueuedReview(api, repository, pr, sha, process.env.APP_SLUG, process.env.REVIEW_LOGIN, Number(process.env.REVIEW_USER_ID), process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT, { model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT });
+        return;
+      }
       await publishReviewNote(api, repository, pr, sha, process.env.APP_SLUG, process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT, mode, JSON.parse(process.env.BEFORE ?? '[]'), { model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT, phase: process.env.PROGRESS_PHASE });
       return;
     }
