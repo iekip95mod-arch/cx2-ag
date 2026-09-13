@@ -7,7 +7,7 @@ import { assignedReviewProvider, findIdentity, loadRoster, selectReviewProvider 
 
 export async function executeGhApi(execute, args, body) {
   const pending = execute('gh', args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-  pending.child.stdin.end(body === undefined ? '' : JSON.stringify(body));
+  if (body !== undefined) pending.child.stdin.end(JSON.stringify(body));
   const { stdout } = await pending;
   return stdout.trim() ? JSON.parse(stdout) : null;
 }
