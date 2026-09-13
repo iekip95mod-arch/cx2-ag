@@ -23,6 +23,7 @@ failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branch
 failures << 'Pull requests must run CI when opened, updated, reopened or ready for review' unless events.dig('pull_request', 'types') == ['opened', 'synchronize', 'reopened', 'ready_for_review']
 failures << 'Manual runs must remain available' unless events.key?('workflow_dispatch')
 failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device']).empty?
+failures << 'Draft PRs must skip approval waiting while ready PRs and main keep their gates' unless jobs.fetch('review-ready')['if'] == "github.event_name != 'pull_request' || github.event.pull_request.draft == false"
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
 ['full', 'emulator'].each do |name|
   job = jobs.fetch(name)
@@ -31,7 +32,7 @@ end
 codeql = jobs.fetch('codeql')
 failures << 'CodeQL must wait for every execution gate and reviewer approval' unless Array(codeql['needs']).sort == ['emulator', 'fast', 'full', 'review-ready'] && codeql['if'].nil?
 review = jobs.fetch('review-ready')
-failures << 'Review readiness must follow execution without bypassing failed approval' unless Array(review['needs']).sort == ['emulator', 'fast', 'full'] && review['if'].nil? && !review['continue-on-error']
+failures << 'Review readiness must follow execution without bypassing failed approval' unless Array(review['needs']).sort == ['emulator', 'fast', 'full'] && !review['continue-on-error']
 failures << 'Review readiness must use a read-only token' unless review['permissions'] == { 'contents' => 'read', 'actions' => 'read', 'pull-requests' => 'read' }
 gate = review.fetch('steps').find { |step| step['run'] == 'node .github/scripts/wait-for-review.mjs' }
 failures << 'Review readiness must target the PR head and number' unless gate && gate.dig('env', 'PR_NUMBER') == '${{ github.event.pull_request.number }}' && gate.dig('env', 'PR_HEAD_SHA') == '${{ github.event.pull_request.head.sha }}' && !gate.key?('if') && !gate['continue-on-error']
