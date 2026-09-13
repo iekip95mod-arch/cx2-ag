@@ -401,6 +401,16 @@
       "branch": "codex/issue-16",
       "slug": "cx2-ag-codex-review-beacon",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-28",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 28,
+      "pr": 114,
+      "branch": "codex/issue-28",
+      "slug": "cx2-ag-codex-review-compass",
+      "released": false
     }
   ]
 }
