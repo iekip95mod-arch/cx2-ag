@@ -211,6 +211,16 @@
       "branch": "codex/issue-103",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-103",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 103,
+      "pr": 104,
+      "branch": "codex/issue-103",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
