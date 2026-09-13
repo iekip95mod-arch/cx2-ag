@@ -105,7 +105,7 @@ raise 'Claude must allow only the internal Actions bot on dispatch' unless claud
 feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
 raise 'Feedback must subscribe to submitted reviews and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
 feedback_job = feedback.fetch('jobs').fetch('continue-executor')
-raise 'Feedback must be able to dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'read', 'pull-requests' => 'read', 'actions' => 'write' }
+raise 'Feedback must be able to persist late findings and dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'write', 'pull-requests' => 'read', 'actions' => 'write' }
 feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }
 raise 'Feedback must run trusted main code without checkout credentials' unless feedback_checkout.fetch('with') == { 'ref' => 'main', 'persist-credentials' => false }
 feedback_dispatch = feedback_job.fetch('steps').find { |step| step['name'] == 'Dispatch the assigned executor' }

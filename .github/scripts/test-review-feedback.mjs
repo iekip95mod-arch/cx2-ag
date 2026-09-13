@@ -61,6 +61,45 @@ test('CodeQL commented reviews resume both executors without granting review app
   }
 });
 
+test('CodeQL findings after merge create a durable follow-up for both providers', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = securityFixture(provider);
+    f.pr.state = 'closed';
+    f.pr.merged = true;
+    f.pr.merged_at = '2026-09-12T12:05:00Z';
+    f.issue.state = 'closed';
+    const marker = '<!-- late-codeql-review:1234 -->';
+    f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [];
+    const followUp = { number: 106, state: 'open', title: 'Follow up CodeQL findings from merged PR #90', body: marker };
+    const api = async (method, endpoint, body) => {
+      if (method === 'POST' && endpoint === `repos/${repository}/issues`) {
+        f.calls.push({ method, endpoint, body });
+        const created = { ...followUp, body: body.body };
+        f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [created];
+        return created;
+      }
+      return f.api(method, endpoint, body);
+    };
+    assert.equal(await dispatchFeedback(f.options, api), true);
+    const issue = f.calls.find(call => call.method === 'POST' && call.endpoint === `repos/${repository}/issues`);
+    assert.ok(issue);
+    assert.match(issue.body.body, /late-codeql-review:1234/);
+    assert.match(issue.body.body, /merged PR #90/);
+    const sent = f.calls.find(call => call.method === 'POST' && call.endpoint.endsWith('/dispatches'));
+    assert.equal(sent.body.inputs.issue_number, '106');
+    assert.match(sent.body.inputs.task, /Do not reopen PR #90/);
+    assert.match(sent.body.inputs.task, /new issue #106/);
+    f.options.run = 101;
+    assert.equal(await dispatchFeedback(f.options, api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint === `repos/${repository}/issues`).length, 1);
+  }
+});
+
+test('feedback workflow can persist late CodeQL follow-up issues', () => {
+  const workflow = readFileSync(new URL('../workflows/agent-review-feedback.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /permissions:\n      contents: read\n      issues: write\n      pull-requests: read\n      actions: write/);
+});
+
 test('security feedback rejects spoofed, empty, stale and unrelated comment reviews', async () => {
   for (const change of [
     f => { f.review.user.id++; f.event.review.user.id++; },
