@@ -161,13 +161,14 @@ jobs:
         run: node .github/scripts/agent-deadline.mjs
 
       - name: Announce the executor configuration and review work
+        id: start
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Run the agent
-        if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
+        if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           CLAUDE_BRANCH: ${{ steps.worker.outputs.branch }}
@@ -223,7 +224,7 @@ jobs:
           cat "$RUNNER_TEMP/claude-general-reply.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure the first commit has a linked draft PR
-        if: always() && steps.worker.outputs.issue
+        if: always() && steps.worker.outputs.issue && steps.start.outputs.proceed == 'true'
         working-directory: ${{ steps.worker.outputs.directory }}
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}

@@ -28,7 +28,7 @@ export async function inspectQuestion({ repository, event }, api, roster = loadR
   const identity = roster.find(bot => bot.role === 'executor' && sameBot(delivered.user, bot));
   if (!identity || !sameBot(event.sender, identity)) return null;
   const pr = await api('GET', `repos/${repository}/pulls/${number}`);
-  if (pr.state !== 'open' || pr.draft || pr.head?.repo?.full_name !== repository || !/^[a-f0-9]{40}$/.test(pr.head.sha) || pr.head.sha !== event.pull_request.head?.sha) return null;
+  if (pr.state !== 'open' || pr.head?.repo?.full_name !== repository || !/^[a-f0-9]{40}$/.test(pr.head.sha) || pr.head.sha !== event.pull_request.head?.sha) return null;
   let reviewer, executor;
   try {
     reviewer = await readAssignment({ repository, provider: identity.provider, role: 'reviewer', pr: number }, api, roster);

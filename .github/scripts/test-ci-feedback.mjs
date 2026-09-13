@@ -15,7 +15,8 @@ function fixture(provider = 'codex') {
     [`repos/${repository}/pulls/90`]: pr,
     [`repos/${repository}/issues/42`]: { state: 'open' },
     [`repos/${repository}/contents/assignments.json?ref=bot-assignments`]: { sha: 'lease', content: Buffer.from(JSON.stringify({ version: 1, assignments: [{ key: `${provider}/executor/issue-42`, provider, role: 'executor', issue: 42, pr: 90, branch, slug: executor.slug, released: false }] })).toString('base64') },
-    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&status=success&per_page=100`]: { workflow_runs: [] },
+    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&per_page=100`]: { workflow_runs: [] },
+    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`]: { workflow_runs: [] },
   };
   const calls = [];
   const api = async (method, endpoint, body) => { calls.push({ method, endpoint, body }); if (method === 'POST') return {}; assert.ok(Object.hasOwn(responses, endpoint), endpoint); return structuredClone(responses[endpoint]); };
@@ -54,9 +55,9 @@ test('successful, superseded, foreign and worker-generated failures never dispat
 
 test('duplicate CI delivery is suppressed and a retry starting during validation prevents dispatch', async () => {
   const f = fixture();
-  const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&status=success&per_page=100`;
+  const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&per_page=100`;
   f.responses[history].workflow_runs = [{ id: 99, display_title: 'CI feedback 77 attempt 1', conclusion: 'success' }];
-  f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: 'success' }] }] };
+  f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
   assert.equal(await dispatchCiFeedback(f.options, f.api), false);
   f.responses[history].workflow_runs = [];
   let reads = 0;
@@ -79,6 +80,17 @@ test('rejected-review gate failures do not dispatch a second executor but real C
     f.responses[`repos/${f.repository}/pulls/90/reviews?per_page=100&page=1`] = [{ id: 5, state: 'CHANGES_REQUESTED', commit_id: f.pr.head.sha, user: { login: reviewer.login, id: reviewer.userId, type: 'Bot' }, submitted_at: '2026-09-13T01:00:00Z' }];
     const jobs = f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`].jobs;
     jobs[0].name = 'review-approved';
+    assert.equal(await dispatchCiFeedback(f.options, f.api), true);
+    const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`;
+    f.responses[history] = { workflow_runs: [{ id: 99, display_title: 'Review feedback 5', conclusion: 'failure' }] };
+    f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
+    assert.equal(await dispatchCiFeedback(f.options, f.api), false);
+    f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`].jobs[0].steps[0].conclusion = 'skipped';
+    f.pr.draft = true;
+    assert.equal(await dispatchCiFeedback(f.options, f.api), true);
+    const verdict = f.responses[`repos/${f.repository}/pulls/90/reviews?per_page=100&page=1`][0];
+    verdict.state = 'COMMENTED';
+    verdict.body = 'Setup is unavailable. <!-- review-blocked -->';
     assert.equal(await dispatchCiFeedback(f.options, f.api), false);
     jobs.push({ name: 'full', conclusion: 'failure' });
     f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`].total_count = 2;

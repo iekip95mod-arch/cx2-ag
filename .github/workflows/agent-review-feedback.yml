@@ -1,7 +1,9 @@
 name: agent-review-feedback
-run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || format('Review feedback {0}', github.event.review.id) }}
+run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || github.event_name == 'pull_request' && format('Merged security feedback {0}', github.event.pull_request.number) || format('Review feedback {0}', github.event.review.id) }}
 
 on:
+  pull_request:
+    types: [closed]
   pull_request_review:
     types: [submitted]
   workflow_run:
@@ -9,12 +11,14 @@ on:
     types: [completed]
 
 concurrency:
-  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id }}
+  group: review-feedback-${{ github.event_name == 'workflow_run' && format('workflow-run-{0}', github.event.workflow_run.id) || format('pr-{0}', github.event.pull_request.number) }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   continue-executor:
     if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
        contains(fromJSON('["failure", "timed_out", "action_required", "startup_failure"]'), github.event.workflow_run.conclusion)) ||
       (github.event.pull_request.head.repo.full_name == github.repository &&
@@ -25,7 +29,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      issues: read
+      issues: write
       pull-requests: read
       actions: write
     steps:
@@ -46,8 +50,15 @@ jobs:
             echo "Review feedback starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Dispatch the assigned executor
+        id: dispatch
         if: steps.installed.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LEGACY_OWNER: iekip95mod-arch
         run: node .github/scripts/review-feedback.mjs
+      - name: Confirm executor dispatch
+        if: steps.dispatch.outputs.dispatched == 'true' && steps.dispatch.outputs.follow_up != 'true'
+        run: echo "Executor dispatch was accepted by GitHub."
+      - name: Confirm follow-up dispatch
+        if: steps.dispatch.outputs.dispatched == 'true' && steps.dispatch.outputs.follow_up == 'true'
+        run: echo "Follow-up dispatch was accepted by GitHub."
