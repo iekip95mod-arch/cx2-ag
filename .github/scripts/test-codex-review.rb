@@ -36,6 +36,9 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 
 end
 claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['uses']&.start_with?('anthropics/claude-code-action@') }.fetch('with')
+claude_prompt = claude.fetch('prompt')
+raise 'Claude must be told that reviewer prerequisites include the cross toolchain and host Lua' unless claude_prompt.include?('prepares the cross toolchain and host Lua')
+raise 'Claude must not be told that prepared reviewer prerequisites are unavailable' if claude_prompt.include?('never unpacks the cross toolchain') || claude_prompt.include?('for want of host Lua')
 raise 'Claude review must use the assigned GitHub identity' unless claude.fetch('github_token') == '${{ steps.bot.outputs.token }}'
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
 raise 'Claude must invoke the disclosed model and effort' unless claude.fetch('claude_args').include?('--model ${{ env.REVIEW_MODEL }}') && claude.fetch('claude_args').include?('--effort ${{ env.REVIEW_EFFORT }}')

@@ -95,9 +95,41 @@ test('CodeQL findings after merge create a durable follow-up for both providers'
   }
 });
 
+test('a merged CodeQL review recovers from an accepted open-PR dispatch exactly once', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = securityFixture(provider);
+    assert.equal(await dispatchFeedback(f.options, f.api), true);
+
+    const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`;
+    f.responses[history].workflow_runs = [{ id: 99, display_title: 'Review feedback 1234' }];
+    f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
+    f.pr.state = 'closed';
+    f.pr.merged = true;
+    f.issue.state = 'closed';
+    f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [];
+    const api = async (method, endpoint, body) => {
+      if (method === 'POST' && endpoint === `repos/${repository}/issues`) {
+        f.calls.push({ method, endpoint, body });
+        const created = { number: 106, state: 'open', title: body.title, body: body.body };
+        f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [created];
+        return created;
+      }
+      return f.api(method, endpoint, body);
+    };
+
+    f.options.run = 101;
+    assert.equal(await dispatchFeedback(f.options, api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint.endsWith('/dispatches')).length, 2);
+    f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`].jobs[0].steps.push({ name: 'Confirm follow-up dispatch', conclusion: 'success' });
+    f.options.run = 102;
+    assert.equal(await dispatchFeedback(f.options, api), false);
+  }
+});
+
 test('feedback workflow can persist late CodeQL follow-up issues', () => {
   const workflow = readFileSync(new URL('../workflows/agent-review-feedback.yml', import.meta.url), 'utf8');
   assert.match(workflow, /permissions:\n      contents: read\n      issues: write\n      pull-requests: read\n      actions: write/);
+  assert.match(workflow, /- name: Confirm follow-up dispatch\n        if: steps\.dispatch\.outputs\.dispatched == 'true' && steps\.dispatch\.outputs\.follow_up == 'true'/);
 });
 
 test('security feedback rejects spoofed, empty, stale and unrelated comment reviews', async () => {

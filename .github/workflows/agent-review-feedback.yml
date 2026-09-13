@@ -53,5 +53,8 @@ jobs:
           LEGACY_OWNER: iekip95mod-arch
         run: node .github/scripts/review-feedback.mjs
       - name: Confirm executor dispatch
-        if: steps.dispatch.outputs.dispatched == 'true'
+        if: steps.dispatch.outputs.dispatched == 'true' && steps.dispatch.outputs.follow_up != 'true'
         run: echo "Executor dispatch was accepted by GitHub."
+      - name: Confirm follow-up dispatch
+        if: steps.dispatch.outputs.dispatched == 'true' && steps.dispatch.outputs.follow_up == 'true'
+        run: echo "Follow-up dispatch was accepted by GitHub."

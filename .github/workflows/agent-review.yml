@@ -315,10 +315,14 @@ jobs:
             manages are part of what the suite means. Reverting a change to watch its guard fail is
             git apply -R against a patch you made with git diff, and git apply to put it back.
 
-            The device stages are not yours to reach, so the verdict says nobody reached them. That
-            is not a standing fact about the project, it is this job: the install step above takes
-            ccache, gmp and php and never unpacks the cross toolchain. If you change that step,
-            change this line with it.
+            The setup above prepares the cross toolchain and host Lua and LuaJIT. Read its log before
+            deciding which stages are available. A successful setup is prerequisite evidence, not
+            an ARM build result. When setup succeeds, the allowed ARM build commands are:
+
+              cmake -S nps -B nps/build/device -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ndl-arm926ej-s.cmake
+              cmake --build nps/build/device --target unified --parallel
+
+            This job has no physical handheld, so the verdict says nobody reached that stage.
 
             Establish the baseline on the base commit before you judge the branch, and hold the
             branch to what you measured rather than to anything written down here. Do not take a
@@ -326,8 +330,8 @@ jobs:
             #4 fixed them, and a reviewer reading it afterwards would have been told to accept five
             failures that no longer exist.
 
-            Compare the failing set rather than the size of it. Some suites do not run on this
-            runner at all for want of host Lua, so two different sets can tally to the same number.
+            Compare the failing set rather than the size of it. Use the prerequisite log and CTest
+            registration instead of assuming which host suites are available.
 
             A worktree is how you get that baseline without disturbing the branch you are judging.
             It takes the base commit directly, so no checkout is needed, and the build is spelled
