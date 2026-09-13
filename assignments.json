@@ -151,6 +151,16 @@
       "branch": "codex/issue-24",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-24",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 24,
+      "pr": 98,
+      "branch": "codex/issue-24",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
