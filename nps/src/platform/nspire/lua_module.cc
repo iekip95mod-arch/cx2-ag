@@ -335,6 +335,21 @@ constexpr bool answer_only_allowed(DerivationStatus status) {
            status == DerivationStatus::PartiallySolved;
 }
 
+enum class IntegrateCrossCheckRoute : uint8_t { None, Differentiate, Integrate };
+
+constexpr IntegrateCrossCheckRoute integrate_cross_check_route(bool cross,
+                                                               IntegrateOutcome outcome,
+                                                               NodeId particular,
+                                                               DerivationStatus status) {
+    if (!cross || !cross_check_allowed(outcome))
+        return IntegrateCrossCheckRoute::None;
+    if (particular != kNoNode)
+        return IntegrateCrossCheckRoute::Differentiate;
+    if (answer_only_allowed(status))
+        return IntegrateCrossCheckRoute::Integrate;
+    return IntegrateCrossCheckRoute::None;
+}
+
 // MATH-015 for the answer the viewer shows, which is the backend's whenever we withheld our own.
 ResultForm primary_result_form(bool has_local_result, bool answer_only, DerivationStatus status,
                                ResultForm backend_form) {
@@ -2056,12 +2071,19 @@ int integrate_into(lua_State *L, bool cross) {
     d.context.normalized_expression = normalized_expression;
 
     CrossCheck c;
-    if (cross && cross_check_allowed(r.outcome) && r.particular != kNoNode)
-        c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular, arena.symbol(variable),
-                    parsed.root, true, nullptr, backed ? &backend : nullptr);
-    else if (cross && cross_check_allowed(r.outcome) && answer_only_allowed(r.status))
-        c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable), kNoNode,
-                     true, nullptr, backed ? &backend : nullptr);
+    switch (integrate_cross_check_route(cross, r.outcome, r.particular, r.status)) {
+        case IntegrateCrossCheckRoute::Differentiate:
+            c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular,
+                         arena.symbol(variable), parsed.root, true, nullptr,
+                         backed ? &backend : nullptr);
+            break;
+        case IntegrateCrossCheckRoute::Integrate:
+            c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable),
+                         kNoNode, true, nullptr, backed ? &backend : nullptr);
+            break;
+        case IntegrateCrossCheckRoute::None:
+            break;
+    }
     const bool answer_only = answer_only_allowed(r.status) && c.has_answer;
     const DerivationStatus status = cross && r.outcome == IntegrateOutcome::Integrated
                                         ? cross_checked_status(r.status, c)
