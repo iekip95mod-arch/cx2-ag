@@ -805,9 +805,10 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
         evaluate_rational(arena, magnitude, no_symbols, &simplified_magnitude);
     bool zero_magnitude = rational_magnitude && rational_equal(simplified_magnitude, {0, 1});
     if (!rational_magnitude && !known_nonzero_component) {
+        // A simplified proposition distinguishes proven zero, proven nonzero and an undecided form.
         Request classify;
         classify.op = Op::IsZero;
-        classify.target = magnitude;
+        classify.target = arena.binary(Kind::Equals, magnitude, arena.integer("0"));
         NodeId classified;
         ResultTag tag;
         if (!adapter_value(arena, adapter, meter, classify, &classified, &tag, &why))
@@ -818,11 +819,13 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
                                             input.frame, input.unit, input.precision, output_unit,
                                             why, false);
         Rational zero_classification;
-        if (!evaluate_rational(arena, classified, no_symbols, &zero_classification))
+        if (!evaluate_rational(arena, classified, no_symbols, &zero_classification) ||
+            (!rational_equal(zero_classification, {0, 1}) &&
+             !rational_equal(zero_classification, {1, 1})))
             return conversion_failure(
                 derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                 input.precision, output_unit, "Giac did not classify the exact magnitude", true);
-        zero_magnitude = rational_equal(zero_classification, {0, 1});
+        zero_magnitude = rational_equal(zero_classification, {1, 1});
     }
     if (zero_magnitude)
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,

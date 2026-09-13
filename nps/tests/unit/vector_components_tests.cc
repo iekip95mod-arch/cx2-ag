@@ -186,7 +186,7 @@ void run_vector_components_tests(TestSink &t) {
     {
         Arena arena;
         Derivation derivation;
-        SequenceBackend backend({"pi-pi", "0", "0.0", "0", "0", "0.0"});
+        SequenceBackend backend({"pi-pi", "0", "1", "0", "0", "0.0"});
         VectorExpr input;
         input.x = parsed(arena, "pi-pi");
         input.y = parsed(arena, "0");
@@ -209,10 +209,10 @@ void run_vector_components_tests(TestSink &t) {
                 "an unclassified magnitude gets an independent zero check before atan2");
     }
 
-    {
+    for (const char *classification : {"pi-pi", "2"}) {
         Arena arena;
         Derivation derivation;
-        SequenceBackend backend({"pi-pi", "0", "pi-pi", "0.0", "0", "0", "0.0"});
+        SequenceBackend backend({"pi-pi", "0", classification, "0.0", "0", "0", "0.0"});
         VectorExpr input;
         input.x = parsed(arena, "pi-pi");
         input.y = parsed(arena, "0");
@@ -261,6 +261,33 @@ void run_vector_components_tests(TestSink &t) {
                     backend.commands[2].find("atan2") == 0 &&
                     has_obligation(derivation, "obl.vector-components.quadrant-direction"),
                 "a rational component proves an irrational magnitude is nonzero");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"sqrt(2)", "0", "0", "0", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "sqrt(2)");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::Solved && result.has_polar &&
+                    print(arena, result.polar.magnitude) ==
+                        print(arena, parsed(arena, "sqrt(2)")) &&
+                    print(arena, result.polar.angle) == "0",
+                "nonzero exact symbolic components retain a polar result");
+        t.check(backend.commands.size() == 5 &&
+                    backend.commands[2].find("sqrt") != std::string::npos &&
+                    backend.commands[2].find("=") != std::string::npos &&
+                    backend.commands[3].find("atan2") == 0 &&
+                    has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "a symbolic nonzero magnitude is classified before direction reconstruction");
     }
 
     {
