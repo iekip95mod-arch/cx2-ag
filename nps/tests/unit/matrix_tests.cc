@@ -1,6 +1,8 @@
 #include "unit/adapter_tests.h"
 #include "golden/golden.h"
 
+#include <limits>
+
 #include "nps/cas/matrix_events.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
@@ -390,6 +392,9 @@ void run_determinant_tests(TestSink &t) {
          {{"[[3037000500,0],[0,3037000500]]", "[[1,0],[0,3037000500]]", MatrixRowScale{0, {1, 3037000500}}},
           {"[[1,0],[0,3037000500]]", "[[1,0],[0,1]]", MatrixRowScale{1, {1, 3037000500}}}}, 2, "matrix_det_large", true},
         {"[[2,0,0,0],[0,-3,0,0],[0,0,4,0],[0,0,0,5]]", "[[2,0,0,0],[0,-3,0,0],[0,0,4,0],[0,0,0,5]]", "-120", {}, 0},
+        {"[[9223372036854775807,0,0,0],[0,9223372036854775807,0,0],[0,0,9223372036854775807,0],[0,0,0,9223372036854775807]]",
+         "[[9223372036854775807,0,0,0],[0,9223372036854775807,0,0],[0,0,9223372036854775807,0],[0,0,0,9223372036854775807]]",
+         "7237005577332262210834635695349653859421902880380109739573089701262786560001", {}, 0},
     };
     for (const Fixture &fixture : fixtures) {
         Arena arena;
@@ -418,8 +423,9 @@ void run_determinant_tests(TestSink &t) {
         }
         t.check(derivation.context.problem_family_id == "matrix.det.rational" &&
                 derivation.context.requested_method == "det" &&
-                derivation.context.resource_policy.find("determinant-bits<=4096") != std::string::npos,
-                "determinant context identifies family, method and bounded GMP policy");
+                derivation.context.resource_policy.find("matrix-cell-bits<=63") != std::string::npos &&
+                derivation.context.resource_policy.find("determinant-factor-bits<=4096") != std::string::npos,
+                "determinant context distinguishes cell admission from the GMP factor policy");
         invariants::Pass pass;
         std::vector<std::string> failures;
         pass.walk(arena, derivation, false, false, &failures);
@@ -501,7 +507,9 @@ void run_determinant_tests(TestSink &t) {
                 derivation.all_verified_from(0) && derivation.size() <= maximum,
                 "step exhaustion withholds determinant and preserves only completed verified prefix");
     }
-    for (size_t cycles : {size_t{65}, size_t{66}}) {
+    static_assert(kMatrixCellValueBits == std::numeric_limits<int64_t>::digits);
+    constexpr size_t factors_within_limit = kMatrixDeterminantFactorBits / kMatrixCellValueBits;
+    for (size_t cycles : {factors_within_limit, factors_within_limit + 1}) {
         Arena arena;
         Derivation derivation;
         RecordedBackend backend;
@@ -515,7 +523,7 @@ void run_determinant_tests(TestSink &t) {
         backend.answer = "[[1,0],[0,0]]";
         Adapter adapter(arena, backend);
         const MatrixResult result = matrix_determinant(arena, adapter, derivation, parse(arena, "[[1,0],[1,0]]").root);
-        if (cycles == 65) {
+        if (cycles == factors_within_limit) {
             t.check(result.outcome == MatrixOutcome::Determined && print(arena, result.expression) == "0",
                     "a 4095-bit accumulated determinant factor stays exact within the resource policy");
         } else {

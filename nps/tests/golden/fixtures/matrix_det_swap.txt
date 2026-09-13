@@ -9,7 +9,7 @@ context
   branch convention: exact rational row operations
   unit policy: exact integers, decimals as written, no unit conversion
   detail projection: standard
-  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32 determinant-bits<=4096
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32 matrix-cell-bits<=63 determinant-factor-bits<=4096
   derivation status: solved and verified
 steps
   1 plan

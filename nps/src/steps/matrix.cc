@@ -9,9 +9,9 @@
 namespace nps {
 namespace {
 
-bool bounded(mpq_srcptr value) {
-    return mpz_sizeinbase(mpq_numref(value), 2) <= kMatrixDeterminantBits &&
-           mpz_sizeinbase(mpq_denref(value), 2) <= kMatrixDeterminantBits;
+bool within_determinant_work_limit(mpq_srcptr value) {
+    return mpz_sizeinbase(mpq_numref(value), 2) <= kMatrixDeterminantFactorBits &&
+           mpz_sizeinbase(mpq_denref(value), 2) <= kMatrixDeterminantFactorBits;
 }
 
 bool read_scalar(const Arena &arena, NodeId id, mpq_ptr value, size_t depth = 0) {
@@ -24,7 +24,7 @@ bool read_scalar(const Arena &arena, NodeId id, mpq_ptr value, size_t depth = 0)
         if (text.empty() || text.size() > 1235 || mpz_set_str(mpq_numref(value), text.c_str(), 10))
             return false;
         mpz_set_ui(mpq_denref(value), 1);
-        return bounded(value);
+        return within_determinant_work_limit(value);
     }
     if (node.kind == Kind::Neg && children.size() == 1) {
         if (!read_scalar(arena, children[0], value, depth + 1))
@@ -50,11 +50,11 @@ bool read_scalar(const Arena &arena, NodeId id, mpq_ptr value, size_t depth = 0)
         !read_scalar(arena, children[1], right.get(), depth + 1))
         return false;
     mpq_mul(value, value, right.get());
-    return bounded(value);
+    return within_determinant_work_limit(value);
 }
 
 NodeId scalar_node(Arena &arena, mpq_srcptr value) {
-    if (!bounded(value))
+    if (!within_determinant_work_limit(value))
         return kNoNode;
     std::array<char, 1236> text{};
     mpz_get_str(text.data(), 10, mpq_numref(value));
@@ -120,7 +120,7 @@ bool diagonal_product(const Arena &arena, NodeId matrix, mpq_ptr product) {
         detail::mpq_set_rational(cell.get(), values[index * view->columns() + index]);
         mpq_mul(product, product, cell.get());
     }
-    return bounded(product);
+    return true;
 }
 
 struct Run final : MatrixRowSink {
@@ -160,8 +160,9 @@ struct Run final : MatrixRowSink {
             return record;
         }
         mpq_mul(next_factor.get(), factor.get(), multiplier.get());
-        if (!bounded(next_factor.get())) {
-            refuse(MatrixOutcome::ResourceExceeded, "the determinant factor exceeds 4096 bits");
+        if (!within_determinant_work_limit(next_factor.get())) {
+            refuse(MatrixOutcome::ResourceExceeded, "the determinant factor exceeds " +
+                std::to_string(kMatrixDeterminantFactorBits) + " bits");
             return record;
         }
         const NodeId next_id = scalar_node(arena, next_factor.get());
@@ -314,7 +315,8 @@ struct Run final : MatrixRowSink {
         context.detail_projection = "standard";
         context.resource_policy = budget_policy(meter.budget());
         if (determinant)
-            context.resource_policy += " determinant-bits<=4096";
+            context.resource_policy += " matrix-cell-bits<=" + std::to_string(kMatrixCellValueBits) +
+                " determinant-factor-bits<=" + std::to_string(kMatrixDeterminantFactorBits);
         context.derivation_status = result.status;
         derivation.context = make_context(context);
         derivation.context.problem_family_envelope_version = "1";
@@ -330,12 +332,12 @@ VerificationRecord verify_matrix_determinant_factor(const Arena &arena,
     const MatrixRowOperation &operation, NodeId before_factor, NodeId after_factor) {
     detail::Mpq before, after, multiplier;
     VerificationOutcome outcome = VerificationOutcome::Inconclusive;
-    std::string detail = "factor certificates require exact nonzero rationals within 4096 bits";
+    std::string detail = "factor certificates require exact nonzero rationals within the determinant factor limit";
     if (read_scalar(arena, before_factor, before.get()) && read_scalar(arena, after_factor, after.get())) {
         outcome = VerificationOutcome::Failed;
         if (mpq_sgn(before.get()) && mpq_sgn(after.get()) && row_multiplier(operation, multiplier.get())) {
             mpq_mul(before.get(), before.get(), multiplier.get());
-            if (bounded(before.get()) && mpq_equal(before.get(), after.get())) {
+            if (within_determinant_work_limit(before.get()) && mpq_equal(before.get(), after.get())) {
                 outcome = VerificationOutcome::Passed;
                 detail = "the nonzero determinant factor follows the exact elementary row multiplier";
             } else {
@@ -368,14 +370,14 @@ VerificationRecord verify_matrix_determinant_correction(const Arena &arena,
     NodeId product, NodeId factor, NodeId answer) {
     detail::Mpq numerator, denominator, actual;
     VerificationOutcome outcome = VerificationOutcome::Inconclusive;
-    std::string detail = "the product, factor and answer require exact rationals within 4096 bits";
+    std::string detail = "the product, factor and answer require exact rationals within the determinant work limit";
     if (read_scalar(arena, product, numerator.get()) && read_scalar(arena, factor, denominator.get()) &&
         read_scalar(arena, answer, actual.get())) {
         outcome = VerificationOutcome::Failed;
         detail = "the determinant factor must be nonzero";
         if (mpq_sgn(denominator.get())) {
             mpq_div(numerator.get(), numerator.get(), denominator.get());
-            outcome = bounded(numerator.get()) && mpq_equal(numerator.get(), actual.get()) ?
+            outcome = within_determinant_work_limit(numerator.get()) && mpq_equal(numerator.get(), actual.get()) ?
                 VerificationOutcome::Passed : VerificationOutcome::Failed;
             detail = outcome == VerificationOutcome::Passed ?
                 "the answer equals the diagonal product divided by the nonzero accumulated factor" :
@@ -527,8 +529,6 @@ static MatrixResult matrix_operation(Arena &arena, Adapter &adapter, Derivation 
         }
         detail::Mpq answer;
         mpq_div(answer.get(), product.get(), run.factor.get());
-        if (!bounded(answer.get()))
-            return run.finish(MatrixOutcome::ResourceExceeded, kNoNode, "the determinant result exceeds 4096 bits");
         const NodeId answer_id = scalar_node(arena, answer.get());
         VerificationRecord correction = verify_matrix_determinant_correction(arena, product_id, run.factor_id, answer_id);
         if (!run.running())
