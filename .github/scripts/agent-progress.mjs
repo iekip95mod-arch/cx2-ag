@@ -47,25 +47,17 @@ export async function publishProgress(options, api) {
   for (let page = 1; page <= 10; page++) {
     const comments = await api('GET', `repos/${repository}/issues/${number}/comments?per_page=100&page=${page}`);
     if (!Array.isArray(comments)) throw Error('Invalid progress comment history');
-    matching.push(...comments.filter(comment => comment.body?.includes(marker) && comment.user?.type === 'Bot' && comment.user.login === login && comment.user.id === userId));
+    matching.push(...comments.filter(comment => {
+      if (!comment.body?.includes(marker) || comment.user?.type !== 'Bot' || comment.user.login !== login || comment.user.id !== userId) return false;
+      const previous = workflowCoordinates(comment.body);
+      return previous.run === BigInt(run) && previous.attempt === BigInt(attempt);
+    }));
     if (comments.length < 100) break;
     if (page === 10) throw Error('Progress comment history exceeds the lookup limit');
   }
-  if (matching.length > 1) throw Error('Multiple progress comments exist for this identity and role');
+  if (matching.length > 1) throw Error('Multiple progress comments exist for this identity, role and workflow attempt');
   if (!matching[0] && options.updateOnly) return false;
-  if (matching[0]) {
-    const previous = workflowCoordinates(matching[0].body);
-    let stale = previous.run === BigInt(run) && previous.attempt > BigInt(attempt);
-    if (previous.run !== BigInt(run)) {
-      const currentRun = await api('GET', `repos/${repository}/actions/runs/${run}/attempts/${attempt}`);
-      const previousRun = await api('GET', `repos/${repository}/actions/runs/${previous.run}/attempts/${previous.attempt}`);
-      const currentStart = Date.parse(currentRun.run_started_at), previousStart = Date.parse(previousRun.run_started_at);
-      if (!Number.isFinite(currentStart) || !Number.isFinite(previousStart)) throw Error('Invalid progress attempt start');
-      stale = currentStart < previousStart || currentStart === previousStart && previous.run > BigInt(run);
-    }
-    if (stale) return matching[0];
-  }
-  const body = progressBody({ ...options, previous: matching[0]?.body });
+  const body = progressBody({ ...options, attempt, previous: matching[0]?.body });
   if (matching[0]?.body === body) return matching[0];
   if (matching[0]) return api('PATCH', `repos/${repository}/issues/comments/${matching[0].id}`, { body });
   return api('POST', `repos/${repository}/issues/${number}/comments`, { body });

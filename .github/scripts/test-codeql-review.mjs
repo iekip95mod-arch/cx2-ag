@@ -129,7 +129,7 @@ test('queued review progress reuses trusted assignment outputs without rereading
   await assert.rejects(publishQueuedReview(api, repository, 85, sha, identity.slug, identity.login, 999, '100', '1', { roster, model: 'gpt-6-astra', effort: 'high' }));
 });
 
-test('review progress updates one issue comment and remains separate from formal reviews', async () => {
+test('review progress preserves each attempt and remains separate from formal reviews', async () => {
   const identity = roster[0];
   const current = { head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
   const reviews = [];
@@ -140,7 +140,7 @@ test('review progress updates one issue comment and remains separate from formal
     if (method === 'GET' && endpoint.includes('/reviews?')) return reviews;
     if (method === 'GET' && endpoint.includes('/comments?')) return comments;
     writes.push({ method, endpoint, body });
-    const comment = { id: 10, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+    const comment = { id: 10 + comments.length, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
     if (method === 'POST') comments.push(comment);
     else comments[0] = comment;
     return comment;
@@ -157,7 +157,10 @@ test('review progress updates one issue comment and remains separate from formal
   await assert.rejects(approvalState(async endpoint => endpoint.includes('/reviews?') ? [reviews] : current, repository, 85, sha, options));
   await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '2', 'progress', [], configured);
   assert.equal(writes.length, 2);
-  assert.equal(writes[1].method, 'PATCH');
+  assert.equal(writes[1].method, 'POST');
+  assert.equal(comments.length, 2);
+  assert.match(comments[0].body, /attempts\/1$/);
+  assert.match(comments[1].body, /attempts\/2$/);
   await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, sha, 'wrong-app', '100', '2', 'progress', [], configured));
   await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, 'b'.repeat(40), identity.slug, '100', '2', 'progress', [], configured));
   assert.equal(writes.length, 2);
