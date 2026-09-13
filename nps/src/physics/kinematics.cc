@@ -414,7 +414,7 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
             std::string why;
             switch (offer(s, known_names, known_values, e, target, &unused, &why)) {
                 case Probe::Solved: reasons[i] = "also applicable, not needed"; break;
-                case Probe::NoSolution: reasons[i] = why; break;
+                case Probe::NoSolution:
                 case Probe::Refused: reasons[i] = why; break;
                 case Probe::Halted: reasons[i] = "not tried, the search budget was spent"; break;
             }
