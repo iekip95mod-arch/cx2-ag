@@ -1480,6 +1480,7 @@ end }
 script("[v0+a*t]", "0", "[[17]]", "0")
 r = nps.kinematics("find v; v0 = 18 km/h; a = 3 m/s^2; t = 4 s")
 check(r.result == "v = 17 m/s", "a quantity given in km/h converts before the equation is used")
+check(r.has_result == true, "native kinematics publishes has_result")
 
 r = nps.kinematics("v0 = 5 m/s; a = 3 m/s^2")
 check(r.outcome == "invalid input", "a problem with no unknown is refused")
@@ -1494,6 +1495,7 @@ check(r.outcome == "no applicable equation" and r.status == "unsupported" and
       "a locally refused one-root kinematics equation can return a Giac answer")
 check(r.result == "t = 2 s" and r.value == "2" and r.unit == "s" and r.giac_tag == "exact",
       "the answer-only kinematics result carries its quantity, unit and Giac tag")
+check(r.has_result == true, "backend-only kinematics publishes has_result")
 check(type(r.steps) == "table" and #r.steps == 0 and r.step_count == 0,
       "answer-only kinematics carries no derivation")
 check(r.detail:find("fully specified and dimensionally valid", 1, true) ~= nil,
@@ -1549,17 +1551,20 @@ r = nps.kinematics(quadratic_problem)
 check(r.answer_only == false and r.result == nil and r.giac_tag == "exact" and
       r.giac_detail:find("exactly one", 1, true) ~= nil,
       "multiple kinematics roots remain a refusal rather than selecting one")
+check(r.has_result == false, "multiple-root kinematics explicitly has no result")
 
 script("Error: Bad Argument Value")
 r = nps.kinematics(quadratic_problem)
 check(r.answer_only == false and r.result == nil and r.giac_tag == "backend error",
       "a kinematics backend error remains a refusal")
+check(r.has_result == false, "backend-error kinematics explicitly has no result")
 
 local before_dimension_failure = giac_calls
 r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 m")
 check(r.outcome == "dimension mismatch" and r.status == "invalid input" and
       r.answer_only == false and r.result == nil,
       "dimensionally invalid kinematics cannot become answer-only success")
+check(r.has_result == false, "dimensionally invalid kinematics explicitly has no result")
 check(giac_calls == before_dimension_failure,
       "dimensionally invalid kinematics never reaches Giac")
 
@@ -1568,6 +1573,7 @@ r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(r.outcome == "verification failed" and r.status == "verification failed" and
       r.answer_only == false and r.result == nil,
       "a failed kinematics verification cannot become answer-only success")
+check(r.has_result == false, "failed kinematics verification explicitly has no result")
 
 -- The local entry points never reach Giac.
 giac_calls = 0
@@ -1590,6 +1596,7 @@ check(r.original_expression == raw_integral and r.normalized_expression == "(x *
       "the integral bridge preserves source bytes and prints the retained normalized AST")
 r = nps.kinematics_local("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(giac_calls == 0 and r.result == "v = 17 m/s", "kinematics_local makes no Giac call")
+check(r.has_result == true, "local kinematics publishes has_result")
 check(r.rearranged == nil, "and records no rearrangement it had no way to check")
 r = nps.integrate_local("x*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
@@ -1597,6 +1604,7 @@ check(giac_calls == 0 and r.answer_only == false and r.result == nil,
 r = nps.kinematics_local(quadratic_problem)
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only quadratic kinematics refusal cannot become answer-only")
+check(r.has_result == false, "local kinematics refusal explicitly has no result")
 
 nps.test_escape_pressed(true)
 giac_calls = 0
@@ -1616,6 +1624,7 @@ r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(r.outcome == "cancelled" and r.result == nil, "the kinematics bridge returns cancellation")
 check(type(r.steps) == "table" and #r.steps == 0, "with no kinematics steps")
 check(r.answer_only == false, "cancelled kinematics is not answer-only")
+check(r.has_result == false, "cancelled kinematics explicitly has no result")
 r = nps.catch_up(catch_up_input)
 check(r.outcome == "cancelled" and r.event_time == nil and #r.steps == 0 and
       r.answer_only == false,
@@ -1765,12 +1774,14 @@ r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(r.result == "v = 17 m/s" and r.status == "dependency unavailable" and
       r.giac_compare_tag == "backend error",
       "a failed supplementary kinematics check retains the candidate with dependency status")
+check(r.has_result == true, "kinematics retains has_result after a supplementary backend error")
 
 script("[v0+a*t]", "0", "[[17]]", "Time limit exceeded")
 r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(r.result == "v = 17 m/s" and r.status == "solved but unchecked" and
       r.giac_compare_tag == "timeout",
       "and a timed-out one says the same as every other engine does")
+check(r.has_result == true, "kinematics retains has_result after a supplementary timeout")
 
 -- Complete backend root sets cross-check the locally verified quadratic cases.
 script("[-2,2]")
