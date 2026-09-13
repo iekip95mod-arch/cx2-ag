@@ -161,6 +161,16 @@
       "branch": "codex/issue-24",
       "slug": "cx2-ag-codex-review-aegis",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-99",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 99,
+      "pr": null,
+      "branch": "codex/issue-99",
+      "slug": "cx2-ag-codex-birch",
+      "released": false
     }
   ]
 }
