@@ -2115,6 +2115,7 @@ function toggleHLines()
 end
 
 function applyFontSizeChange()
+	if not fctEditor then return false end
 	fctEditor.editor:setFontSize(fsize)
 	for _, e in pairs(histME1) do
 		e.editor:setFontSize(fsize)
