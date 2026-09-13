@@ -166,6 +166,32 @@ test('review progress preserves each attempt and remains separate from formal re
   assert.equal(writes.length, 2);
 });
 
+test('both providers finish assignment progress without removing the review request', async () => {
+  for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
+    const current = { state: 'open', draft: false, head: { sha, ref: `${identity.provider}/issue-42`, repo: { full_name: repository } }, labels: [{ name: `${identity.provider}-review` }] };
+    const comments = [];
+    const writes = [];
+    const api = async (method, endpoint, body) => {
+      if (method === 'GET' && endpoint.endsWith('/pulls/85')) return current;
+      if (method === 'GET' && endpoint.includes('/comments?')) return comments;
+      if (!['POST', 'PATCH'].includes(method) || !endpoint.includes('/comments')) throw Error(endpoint);
+      writes.push({ method, endpoint });
+      const comment = { id: 10, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+      if (method === 'POST') comments.push(comment);
+      else comments[0] = comment;
+      return comment;
+    };
+    const configured = { ...options, provider: identity.provider, model: 'gpt-5.6-sol', effort: 'high' };
+    await publishQueuedReview(api, repository, 85, sha, identity.slug, identity.login, identity.userId, '100', '1', configured);
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'handoff', [], configured);
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'handoff', [], configured);
+    assert.deepEqual(writes.map(write => write.method), ['POST', 'PATCH']);
+    assert.match(comments[0].body, /Status: \*\*Handed off\*\*/);
+    assert.match(comments[0].body, /pull\/85\/checks/);
+    assert.equal(current.labels[0].name, `${identity.provider}-review`);
+  }
+});
+
 test('both providers append deterministic configured metadata to a fresh formal verdict', async () => {
   for (const identity of roster.filter(entry => entry.role === 'reviewer')) {
     const current = { head: { sha, ref: `${identity.provider}/issue-42`, repo: { full_name: repository } }, labels: [], state: 'open', draft: false };

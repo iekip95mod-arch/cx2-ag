@@ -120,6 +120,18 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
         run: node .github/scripts/wait-for-review.mjs --dispatch-review
+      - name: Record successful reviewer handoff
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          REVIEW_MODEL: ${{ steps.reviewer.outputs.model }}
+          REVIEW_EFFORT: ${{ steps.reviewer.outputs.effort }}
+        run: |
+          if grep -Fq -- "--review-handoff" .github/scripts/wait-for-review.mjs; then
+            node .github/scripts/wait-for-review.mjs --review-handoff
+          fi
       - name: Record failed reviewer assignment
         if: always() && steps.bot.outputs.token != '' && job.status != 'success'
         env:

@@ -20,7 +20,7 @@ raise 'Assignment must not run either model' if request.fetch('jobs').values.fla
     provider = name == 'agent-codex' ? 'codex' : 'claude'
     response = worker.fetch('jobs').fetch('respond')
     expected = "agent-#{provider}-" + '${{ needs.resolve.outputs.branch || github.run_id }}'
-    raise 'Issue and PR aliases must share their branch queue' unless response.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false }
+    raise 'Issue and PR aliases must share their branch queue' unless response.fetch('concurrency') == { 'group' => expected, 'cancel-in-progress' => false, 'queue' => 'max' }
     raise 'Resolve and allocate ownership before starting a worker' unless response.fetch('needs').sort == ['allocate', 'resolve']
     resolver = worker.fetch('jobs').fetch('resolve')
     raise 'Ownership resolution must be read-only' unless resolver.fetch('permissions').values.all? { |value| value == 'read' }

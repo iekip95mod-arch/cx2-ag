@@ -227,6 +227,7 @@ jobs:
   # the analysis an empty database and the job would still pass.
   review-ready:
     needs: [fast, full, emulator]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions:

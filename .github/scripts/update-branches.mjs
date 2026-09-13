@@ -18,18 +18,26 @@ async function ownedBranch(pr, api, assignment) {
 }
 
 export async function discoverBranches(api, assignment = readAssignment, number) {
+  const main = (await api('GET', `${root}/git/ref/heads/main`)).object.sha;
+  const pending = async pr => {
+    const identity = await ownedBranch(pr, api, assignment);
+    if (!identity) return null;
+    const comparison = await api('GET', `${root}/compare/${main}...${pr.head.sha}`);
+    if (comparison.behind_by === 0) return null;
+    return { pr: pr.number, branch: identity.branch, provider: identity.provider, login: identity.login, app_id: identity.appId, secret_name: identity.secretName };
+  };
   if (number !== undefined) {
     if (!Number.isSafeInteger(number) || number < 1) throw Error('Invalid branch discovery target');
     const pr = await api('GET', `${root}/pulls/${number}`);
-    const identity = await ownedBranch(pr, api, assignment);
-    return { include: identity ? [{ pr: pr.number, branch: identity.branch, provider: identity.provider, login: identity.login, app_id: identity.appId, secret_name: identity.secretName }] : [] };
+    const branch = await pending(pr);
+    return { include: branch ? [branch] : [] };
   }
   const include = [];
   for (let page = 1; page <= 10; page++) {
     const pulls = await api('GET', `${root}/pulls?state=open&base=main&per_page=100&page=${page}`);
     for (const pr of pulls) {
-      const identity = await ownedBranch(pr, api, assignment);
-      if (identity) include.push({ pr: pr.number, branch: identity.branch, provider: identity.provider, login: identity.login, app_id: identity.appId, secret_name: identity.secretName });
+      const branch = await pending(pr);
+      if (branch) include.push(branch);
     }
     if (pulls.length < 100) return { include };
   }

@@ -56,7 +56,17 @@ test('a PR update discovers only that PR instead of scheduling every branch agai
   const endpoints = [];
   const matrix = await discoverBranches(async (...args) => { endpoints.push(args[1]); return f.api(...args); }, f.assignment, 90);
   assert.equal(matrix.include.length, 1);
-  assert.deepEqual(endpoints, ['repos/iekip95mod-arch/cx2-ag/pulls/90']);
+  assert.equal(endpoints.filter(endpoint => endpoint.includes('/pulls/')).length, 1);
+  assert.equal(endpoints.some(endpoint => endpoint.includes('/pulls?')), false);
+});
+
+test('current branches are excluded before entering the writer queue', async () => {
+  for (const provider of ['codex', 'claude']) for (const number of [undefined, 90]) {
+    const f = fixture(provider);
+    f.behind = 0;
+    assert.deepEqual(await discoverBranches(f.api, f.assignment, number), { include: [] });
+    assert.equal(f.writes.length, 0);
+  }
 });
 
 test('branch updates use trusted main scripts and share the executor branch lock', () => {
@@ -70,6 +80,13 @@ test('branch updates use trusted main scripts and share the executor branch lock
   }
   assert.equal(workflow.jobs.update.concurrency.group, 'agent-${{ matrix.provider }}-${{ matrix.branch }}');
   assert.equal(workflow.jobs.update.concurrency['cancel-in-progress'], false);
+  assert.equal(workflow.jobs.update.concurrency.queue, 'max');
+  for (const name of ['agent-codex.yml', 'agent.yml']) {
+    const executorPath = fileURLToPath(new URL(`../workflows/${name}`, import.meta.url));
+    const executor = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', executorPath], { encoding: 'utf8' }));
+    assert.equal(executor.jobs.respond.concurrency.queue, 'max', name);
+    assert.equal(executor.jobs.respond.concurrency['cancel-in-progress'], false);
+  }
   const update = workflow.jobs.update.steps.at(-1);
   assert.equal(update.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');
 });
