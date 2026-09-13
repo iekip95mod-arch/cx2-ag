@@ -361,6 +361,16 @@
       "branch": "codex/issue-28",
       "slug": "cx2-ag-codex-birch",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-54",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 54,
+      "pr": null,
+      "branch": "codex/issue-54",
+      "slug": "cx2-ag-codex-cedar",
+      "released": false
     }
   ]
 }
