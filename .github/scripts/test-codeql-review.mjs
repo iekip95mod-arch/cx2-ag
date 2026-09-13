@@ -14,30 +14,35 @@ const options = { roster, assignment: async ({ provider }) => roster.find(identi
 const reviewState = (read, repository, pr, sha, overrides = options) => checkReview(read, repository, pr, sha, overrides);
 const waitForReview = (read, repository, pr, sha, sleep, attempts) => wait(read, repository, pr, sha, sleep, attempts, options);
 
-test('review progress is an idempotent non-approval with honest runtime disclosure', async () => {
+test('review progress updates one issue comment and remains separate from formal reviews', async () => {
   const identity = roster[0];
   const current = { head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
   const reviews = [];
+  const comments = [];
   const writes = [];
   const api = async (method, endpoint, body) => {
     if (method === 'GET' && endpoint.endsWith('/pulls/85')) return current;
     if (method === 'GET' && endpoint.includes('/reviews?')) return reviews;
+    if (method === 'GET' && endpoint.includes('/comments?')) return comments;
     writes.push({ method, endpoint, body });
-    const review = { id: reviews.length + 1, commit_id: body.commit_id, state: 'COMMENTED', body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
-    reviews.push(review);
-    return review;
+    const comment = { id: 10, body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+    if (method === 'POST') comments.push(comment);
+    else comments[0] = comment;
+    return comment;
   };
   const configured = { ...options, model: 'gpt-6-astra', effort: 'high' };
   await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'progress', [], configured);
   await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'progress', [], configured);
   assert.equal(writes.length, 1);
-  assert.equal(writes[0].body.event, 'COMMENT');
+  assert.equal(writes[0].endpoint, `repos/${repository}/issues/85/comments`);
   assert.match(writes[0].body.body, /Configured model: gpt-6-astra/);
-  assert.match(writes[0].body.body, /Configured reasoning effort: high/);
-  assert.match(writes[0].body.body, /No verdict has been reached/);
+  assert.match(writes[0].body.body, /Configured effort: high/);
+  assert.match(writes[0].body.body, /formal verdict will be recorded separately/);
+  assert.equal(reviews.length, 0);
   await assert.rejects(approvalState(async endpoint => endpoint.includes('/reviews?') ? [reviews] : current, repository, 85, sha, options));
   await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '2', 'progress', [], configured);
   assert.equal(writes.length, 2);
+  assert.equal(writes[1].method, 'PATCH');
   await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, sha, 'wrong-app', '100', '2', 'progress', [], configured));
   await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, 'b'.repeat(40), identity.slug, '100', '2', 'progress', [], configured));
   assert.equal(writes.length, 2);

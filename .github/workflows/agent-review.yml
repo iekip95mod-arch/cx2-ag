@@ -128,7 +128,6 @@ jobs:
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
         run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
 
-
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
       # pull request that edits this file cannot be reviewed by it. What made that dangerous is
@@ -361,6 +360,15 @@ jobs:
             --max-turns 80
             --allowedTools "Bash(date:*),Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Write,Read,Grep,Glob"
 
+      - name: Show reviewer publication
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-publishing
+
       - name: Publish the review for the reviewed commit
         if: steps.key.outputs.have == 'true'
         env:
@@ -382,6 +390,16 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
+
+      - name: Record the reviewer outcome
+        if: always() && steps.bot.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+        run: node .github/scripts/wait-for-review.mjs --review-final
 
       # The step above can finish green having posted nothing, and it has four times. Twice the
       # action declined and skipped, once the reviewer ran out waiting on a check, once it stopped
@@ -523,6 +541,14 @@ jobs:
             --sandbox workspace-write -c approval_policy='"never"' \
             --ephemeral --output-schema .github/scripts/review-schema.json \
             --output-last-message "$RUNNER_TEMP/codex-review.json" - < "$RUNNER_TEMP/review-prompt.txt"
+      - name: Show reviewer publication
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-publishing
+
       - name: Publish the review for the reviewed commit
         id: publish
         env:
@@ -543,6 +569,16 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
+
+      - name: Record the reviewer outcome
+        if: always() && steps.bot.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+        run: node .github/scripts/wait-for-review.mjs --review-final
 
   review-approved:
     needs: [select-reviewer, review, codex-review]

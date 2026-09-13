@@ -58,11 +58,13 @@ fixtures.each_with_index do |(action, branch, labels, requested_label, expected)
   output_file = File.join(directory, 'output')
   File.write(event_file, { action: action, label: { name: requested_label }, pull_request: { head: { ref: branch }, labels: labels.map { |name| { name: name } } } }.to_json)
   File.write(output_file, '')
-  environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file }
+  environment = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_EVENT_PATH' => event_file, 'GITHUB_OUTPUT' => output_file,
+                  'CODEX_MODEL' => 'gpt-fixture', 'CODEX_EFFORT' => 'high', 'CLAUDE_MODEL' => 'opus', 'CLAUDE_EFFORT' => 'high' }
   _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', selection, unsetenv_others: true)
   if expected
     requested = action != 'labeled' || ['claude-review', 'codex-review'].include?(requested_label)
-    raise "case #{index}: wrong reviewer or review request" unless status.success? && File.read(output_file) == "reviewer=#{expected}\nrequested=#{requested}\n"
+    model = expected == 'codex' ? 'gpt-fixture' : 'opus'
+    raise "case #{index}: wrong reviewer or review request" unless status.success? && File.read(output_file) == "reviewer=#{expected}\nrequested=#{requested}\nmodel=#{model}\neffort=high\n"
   else
     raise "case #{index}: invalid request accepted" if status.success? || !File.read(output_file).empty?
   end

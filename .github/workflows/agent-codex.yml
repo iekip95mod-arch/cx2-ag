@@ -19,6 +19,10 @@ on:
       - .github/scripts/bot-identities.mjs
       - .github/scripts/bot-identities.json
       - .github/scripts/test-bot-identities.mjs
+      - .github/scripts/worker-start.mjs
+      - .github/scripts/test-worker-start.mjs
+      - .github/scripts/agent-progress.mjs
+      - .github/scripts/test-agent-progress.mjs
       - .github/workflows/agent.yml
   issues:
     types: [labeled]
@@ -53,7 +57,7 @@ jobs:
         with:
           node-version: "24"
       - name: Test issue claiming and publishing contracts
-        run: node --test .github/scripts/test-codex-worker.mjs .github/scripts/test-bot-identities.mjs
+        run: node --test .github/scripts/test-codex-worker.mjs .github/scripts/test-bot-identities.mjs .github/scripts/test-agent-progress.mjs .github/scripts/test-worker-start.mjs
 
   resolve:
     # The repository is public, so anyone can comment. Only people who could push here can spend the
@@ -170,6 +174,13 @@ jobs:
           EXPECTED_BRANCH: ${{ needs.resolve.outputs.branch }}
         run: node .github/scripts/prepare-codex-worker.mjs
 
+      - name: Show queued executor work
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: queued
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
         run: |
@@ -186,6 +197,13 @@ jobs:
       - name: Calculate the remaining agent budget
         if: steps.key.outputs.have == 'true'
         run: node .github/scripts/agent-deadline.mjs
+
+      - name: Show executor model startup
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: running
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       # The comment is written by a person and reaches the prompt as a file rather than as shell
       # text, so nothing in it can become a command.
@@ -240,13 +258,17 @@ jobs:
           SANDBOX_MODE: ${{ steps.worker.outputs.issue && 'danger-full-access' || 'workspace-write' }}
         run: |
           codex login status
-          if [ -n "$GH_TOKEN" ]; then
-            node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
-          fi
           printf 'Configured model: %s\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
           codex exec --model "$WORKER_MODEL" -c "model_reasoning_effort=\"$WORKER_EFFORT\"" --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
             -c shell_environment_policy.ignore_default_excludes=true \
             --ephemeral --output-last-message "$RUNNER_TEMP/codex-reply.md" - < "$RUNNER_TEMP/codex-prompt.txt"
+
+      - name: Show executor publication
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: publishing
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Ensure the first commit has a linked draft PR
         if: always() && steps.worker.outputs.issue
@@ -278,3 +300,10 @@ jobs:
             cat "$RUNNER_TEMP/codex-reply.md"
           } > "$RUNNER_TEMP/codex-published-reply.md"
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/codex-published-reply.md"
+
+      - name: Record the executor outcome
+        if: always() && steps.worker.outputs.issue && steps.bot-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"

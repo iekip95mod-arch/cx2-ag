@@ -34,6 +34,7 @@ test('claim publishes the executor participation marker without using its App to
   const claim = await claimIssue(target, api);
   assert.equal(claim.branch, 'codex/issue-42');
   assert.equal(claim.login, bot.login);
+  assert.equal(claim.userId, bot.id);
   assert.equal(claim.email, '7+worker-amber[bot]@users.noreply.github.com');
   assert.equal(calls.some(call => call.endpoint === 'user'), false);
   const commentIndex = calls.findIndex(call => call.method === 'POST' && call.endpoint.endsWith('/comments'));

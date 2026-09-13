@@ -143,6 +143,13 @@ jobs:
           LEGACY_OWNER: iekip95mod-arch
         run: node .github/scripts/prepare-codex-worker.mjs
 
+      - name: Show queued executor work
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: queued
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
         run: |
@@ -160,10 +167,11 @@ jobs:
         if: steps.key.outputs.have == 'true'
         run: node .github/scripts/agent-deadline.mjs
 
-      - name: Announce the executor configuration and review work
+      - name: Show executor model startup
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: running
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
 
       - name: Run the agent
@@ -180,6 +188,7 @@ jobs:
           bot_id: ${{ needs.allocate.outputs.user_id }}
           bot_name: ${{ needs.allocate.outputs.login }}
           allowed_bots: ${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}
+          track_progress: false
           trigger_phrase: "@claude"
           label_trigger: claude
           branch_prefix: claude/
@@ -210,6 +219,13 @@ jobs:
             --max-turns 80
             --dangerously-skip-permissions
 
+      - name: Show executor publication
+        if: steps.worker.outputs.issue
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: publishing
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+
       - name: Answer an unassigned request
         if: steps.key.outputs.have == 'true' && needs.resolve.outputs.branch == ''
         env:
@@ -228,3 +244,10 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
         run: node "$GITHUB_WORKSPACE/.github/scripts/publish-worker-pr.mjs" "$RUNNER_TEMP/worker-publication.json"
+
+      - name: Record the executor outcome
+        if: always() && steps.worker.outputs.issue && steps.bot-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot-token.outputs.token }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+        run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"

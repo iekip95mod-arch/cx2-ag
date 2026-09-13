@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { appendFileSync, readFileSync } from 'node:fs';
+import { publishProgress } from './agent-progress.mjs';
 
 export function reviewProvider(current) {
   const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
@@ -72,14 +73,19 @@ export async function dispatchReview(api, repository, pr, sha, appSlug, options 
 }
 
 export async function publishReviewNote(api, repository, pr, sha, appSlug, runId, attempt, mode, before, options = {}) {
-  if (!/^[1-9][0-9]*$/.test(runId) || !/^[1-9][0-9]*$/.test(attempt) || !['progress', 'disclosure'].includes(mode)) throw Error('Invalid review attempt');
+  if (!/^[1-9][0-9]*$/.test(runId) || !/^[1-9][0-9]*$/.test(attempt) || !['queued', 'progress', 'publishing', 'disclosure', 'final'].includes(mode)) throw Error('Invalid review attempt');
   const { model, effort } = options;
   if (!/^[A-Za-z0-9._:[\]/-]+$/.test(model ?? '') || !/^[a-z]+$/.test(effort ?? '')) throw Error('Explicit review model and effort are required');
   const read = (endpoint, paginate, body) => api(body ? 'POST' : 'GET', endpoint, body);
   const current = await read(`repos/${repository}/pulls/${pr}`);
-  if (current.head.repo?.full_name !== repository || current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('The review revision is no longer current');
+  if (current.head.repo?.full_name !== repository || (mode !== 'final' && (current.head.sha !== sha || current.state !== 'open' || current.draft))) throw Error('The review revision is no longer current');
   const identity = await assignedIdentity(read, repository, pr, reviewProvider(current), 'reviewer', options);
   if (identity.slug !== appSlug) throw Error('The publishing App is not the assigned reviewer');
+  if (mode !== 'disclosure') {
+    const phase = mode === 'queued' ? 'queued' : mode === 'progress' ? 'running' : mode === 'publishing' ? 'publishing' : options.phase;
+    return publishProgress({ repository, number: pr, role: 'reviewer', login: identity.login, userId: identity.userId, model, effort, run: runId, attempt, phase,
+      detail: mode === 'final' ? `Review workflow finished for commit ${sha}. The formal verdict is recorded separately.` : `Reviewing commit ${sha}. The formal verdict will be recorded separately.`, updateOnly: mode === 'final' }, api);
+  }
   const marker = `<!-- review-${mode}:${runId}:${attempt} -->`;
   const alias = identity.provider === 'claude' && ['opus', 'sonnet', 'haiku', 'fable', 'opusplan'].includes(model) ? ' (alias, resolved model unverified)' : '';
   const disclosure = `Configured model: ${model}${alias}\nConfigured reasoning effort: ${effort}\nWorkflow attempt: https://github.com/${repository}/actions/runs/${runId}/attempts/${attempt}`;
@@ -91,9 +97,6 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   }
   const existing = reviews.find(review => review.body?.includes(marker));
   if (existing) return existing;
-  if (mode === 'progress') {
-    return api('POST', `repos/${repository}/pulls/${pr}/reviews`, { commit_id: sha, event: 'COMMENT', body: `Review is starting for commit ${sha}. No verdict has been reached.\n\n${disclosure}\n\n${marker}` });
-  }
   const verdict = reviews.filter(review => !before.includes(review.id) && ['APPROVED', 'CHANGES_REQUESTED'].includes(review.state)).sort((a, b) => b.id - a.id)[0];
   if (!verdict) throw Error('No fresh formal verdict exists to disclose');
   return api('PUT', `repos/${repository}/pulls/${pr}/reviews/${verdict.id}`, { body: `${verdict.body}\n\n${disclosure}\n\n${marker}` });
@@ -174,7 +177,7 @@ async function main() {
     const outputs = { reviewer: identity.provider, requested: 'true', app_id: identity.appId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId, allowed_bots: identity.login };
     appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));
     return;
-  } else if (['--dispatch-review', '--review-progress', '--review-disclosure'].some(mode => process.argv.includes(mode))) {
+  } else if (['--dispatch-review', '--review-queued', '--review-progress', '--review-publishing', '--review-disclosure', '--review-final'].some(mode => process.argv.includes(mode))) {
     const api = async (method, endpoint, body, missing = false) => {
       const pending = execute('gh', ['api', '--method', method, endpoint, ...(body ? ['--input', '-'] : [])], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
       if (body) pending.child.stdin.end(JSON.stringify(body));
@@ -187,7 +190,8 @@ async function main() {
       }
     };
     if (!process.argv.includes('--dispatch-review')) {
-      await publishReviewNote(api, repository, pr, sha, process.env.APP_SLUG, process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT, process.argv.includes('--review-progress') ? 'progress' : 'disclosure', JSON.parse(process.env.BEFORE ?? '[]'), { model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT });
+      const mode = process.argv.includes('--review-queued') ? 'queued' : process.argv.includes('--review-progress') ? 'progress' : process.argv.includes('--review-publishing') ? 'publishing' : process.argv.includes('--review-final') ? 'final' : 'disclosure';
+      await publishReviewNote(api, repository, pr, sha, process.env.APP_SLUG, process.env.GITHUB_RUN_ID, process.env.GITHUB_RUN_ATTEMPT, mode, JSON.parse(process.env.BEFORE ?? '[]'), { model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT, phase: process.env.PROGRESS_PHASE });
       return;
     }
     const identity = await dispatchReview(api, repository, pr, sha, process.env.APP_SLUG);
