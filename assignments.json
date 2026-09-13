@@ -9,7 +9,7 @@
       "pr": 91,
       "branch": "codex/named-bot-identities",
       "slug": "cx2-ag-codex-review-aegis",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-90",
@@ -20,7 +20,7 @@
       "branch": "codex/named-bot-identities",
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-51",
@@ -110,7 +110,7 @@
       "pr": null,
       "branch": "codex/issue-94",
       "slug": "cx2-ag-codex-willow",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-94",
@@ -120,6 +120,16 @@
       "pr": 95,
       "branch": "codex/issue-94",
       "slug": "cx2-ag-codex-review-prism",
+      "released": true
+    },
+    {
+      "key": "codex/executor/issue-96",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 96,
+      "pr": null,
+      "branch": "codex/issue-96",
+      "slug": "cx2-ag-codex-amber",
       "released": false
     }
   ]
