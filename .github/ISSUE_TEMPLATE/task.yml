@@ -41,12 +41,11 @@ body:
     id: stage
     attributes:
       label: Which stage has to be reached
-      description: Host is what a commit can claim. Anything past ARM needs hardware nobody on CI has.
+      description: Host is what a commit can claim. ARM builds a package. Emulator is the final device stage.
       options:
         - Host build and host suite
         - Host suite plus an ARM compile
         - Emulator
-        - Physical device
     validations:
       required: true
   - type: textarea

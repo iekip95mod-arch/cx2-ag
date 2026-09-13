@@ -6,6 +6,7 @@ require 'yaml'
 
 root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
+emulator_contract = ['Calculator execution is emulator only', 'Physical handheld runs are outside scope', 'unfinished physical-test checkboxes', 'block', 'absence', 'package', 'Distinguish']
 %w[review codex-review].each do |name|
   steps = workflow.fetch('jobs').fetch(name).fetch('steps')
   history = steps.find { |step| step['name'] == 'Prepare cumulative review history' }
@@ -13,6 +14,7 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
   prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('with').fetch('prompt') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
   raise 'Every review must cover the full PR and track earlier findings' unless prompt.include?('entire cumulative PR') && prompt.include?('review-history.json') && prompt.include?('superseded') && prompt.include?('suggestion block')
   raise 'Reviewer environment blockers must not request code changes' unless prompt.include?('BLOCKED') && prompt.include?('CI evidence') && prompt.include?('review-prerequisites.log')
+  raise "#{name}: reviewer prompt must make emulator validation the final device stage" unless emulator_contract.all? { |text| prompt.include?(text) }
   preparation = steps.find { |step| step['name'] == 'Prepare complete reviewer prerequisites' }
   raise 'Both reviewers must prepare SDK and Lua before the model runs' unless preparation && preparation.fetch('run').include?('prepare-review.sh') && preparation['continue-on-error'] == true
   restore = steps.find { |step| step['name'] == 'Restore the reviewer cross toolchain' }
