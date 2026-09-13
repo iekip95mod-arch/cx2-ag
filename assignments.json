@@ -281,6 +281,16 @@
       "branch": "codex/issue-65",
       "slug": "cx2-ag-codex-review-aegis",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-26",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 26,
+      "pr": 105,
+      "branch": "codex/issue-26",
+      "slug": "cx2-ag-codex-review-beacon",
+      "released": false
     }
   ]
 }
