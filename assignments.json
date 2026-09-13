@@ -440,7 +440,7 @@
       "pr": null,
       "branch": "codex/issue-46",
       "slug": "cx2-ag-codex-flint",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-36",
@@ -490,7 +490,7 @@
       "pr": 117,
       "branch": "codex/issue-46",
       "slug": "cx2-ag-codex-review-lantern",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-119",
@@ -500,7 +500,7 @@
       "pr": null,
       "branch": "codex/issue-119",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-119",
@@ -510,6 +510,16 @@
       "pr": 120,
       "branch": "codex/issue-119",
       "slug": "cx2-ag-codex-review-aegis",
+      "released": true
+    },
+    {
+      "key": "codex/executor/issue-2",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 2,
+      "pr": null,
+      "branch": "codex/issue-2",
+      "slug": "cx2-ag-codex-amber",
       "released": false
     }
   ]
