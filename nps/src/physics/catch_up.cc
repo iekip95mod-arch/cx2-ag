@@ -292,6 +292,8 @@ Precision answer_precision(const CatchUpProblem &problem) {
         precision = precision_combine(precision, body->position_at_start.precision);
         precision = precision_combine(precision, body->velocity_at_start.precision);
         precision = precision_combine(precision, body->start_time.precision);
+        if (body->motion == CatchUpMotionModel::ConstantAcceleration)
+            precision = precision_combine(precision, body->acceleration.precision);
     }
     return precision;
 }

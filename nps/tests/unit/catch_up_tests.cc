@@ -366,6 +366,12 @@ void run_catch_up_tests(TestSink &t) {
                 "the measured zero acceleration is recorded without calling it exact");
         t.check(!contains(solved.context_assumptions, "exact zero"),
                 "the measured zero acceleration is not upgraded to exact input");
+        t.check(solved.result.event_time.precision.kind == NumberKind::Measured &&
+                    solved.result.event_time.precision.significant_digits == 1,
+                "the event time retains the measured acceleration precision");
+        t.check(solved.result.event_position.precision.kind == NumberKind::Measured &&
+                    solved.result.event_position.precision.significant_digits == 1,
+                "the event position retains the measured acceleration precision");
     }
     {
         CatchUpProblem input = reference_problem();

@@ -101,17 +101,17 @@ family id physics.kinematics.catch-up.equal-position
 reference_curriculum_set_ids StepCAS product requirements PHYS-002, PHYS-014, PHYS-015, PHYS-025, PHYS-026, PHYS-027, PHYS-028, PHYS-029, M1 archetype 4
 curriculum_source_locations StepCAS_Product_Requirements_Document.md sections 9.4 through 9.7, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 4
 topic_and_level Two-stage one-dimensional catch-up and equal-position events, M1 archetype 4
-family_envelope_version 1
+family_envelope_version 2
 accepted_expression_grammar existing quantity grammar for each position, velocity, acceleration, and start-time field
 domains_and_parameter_assumptions two distinct named bodies share one declared one-dimensional frame and an event is admissible only after both start times
-supported_branches_and_degenerate_cases delayed starts, a meeting at the shared-domain boundary, an algebraic meeting before that boundary, no meeting, coincident laws, and exact zero acceleration reduced to constant velocity
+supported_branches_and_degenerate_cases delayed starts, a meeting at the shared-domain boundary, an algebraic meeting before that boundary, no meeting, coincident laws, and zero acceleration reduced to constant velocity while retaining measured precision
 exact_special_function_and_numerical_result_policy compatible units convert exactly to SI, the existing linear solver isolates event time exactly, and measured precision is applied only to final event reports
 accepted_input_forms one typed CatchUpProblem containing two CatchUpBody records with identity, frame, motion model, and typed quantities
 word_language_profile_ids none, typed entry only
 parser_module_ids src/units/units.cc, src/physics/catch_up.cc, src/steps/linear.cc
-required_assumptions velocity is constant on each active interval, or a constant-acceleration model carries exact zero acceleration, and the solve carries "motion is one-dimensional with positive position along the declared axis"
+required_assumptions velocity is constant on each active interval, or a constant-acceleration model carries zero acceleration, and the solve carries "motion is one-dimensional with positive position along the declared axis"
 supported_methods build both active-interval position laws, equate positions, use the existing exact linear solver, enforce the shared domain, and substitute into both original laws
-unsupported_near_neighbors nonzero or measured-zero acceleration, nonlinear motion in time, more than two bodies, two-dimensional pursuit, implicit frame conversion, and collision dynamics
+unsupported_near_neighbors nonzero acceleration, nonlinear motion in time, more than two bodies, two-dimensional pursuit, implicit frame conversion, and collision dynamics
 strategy_ids physics.catch-up.constant-velocity
 test_group_ids catch up
 proof_obligation_ids obl.catch-up.position-law-dimensions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
