@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "nps/core/context.h"
+#include "nps/core/evaluate.h"
 
 namespace nps {
 namespace {
@@ -744,6 +745,17 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     derivation.complete_plan_precondition(
         plan, "pre.vector-components.dimensions-preserved", VerificationOutcome::Passed,
         dimension_observed);
+
+    Rational exact_x;
+    Rational exact_y;
+    const std::vector<SymbolValue> no_symbols;
+    if (exact_magnitude == nullptr &&
+        evaluate_rational(arena, input.x, no_symbols, &exact_x) &&
+        evaluate_rational(arena, input.y, no_symbols, &exact_y) &&
+        rational_equal(exact_x, {0, 1}) && rational_equal(exact_y, {0, 1}))
+        return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
+                             input.precision, output_unit,
+                             "the zero vector has no defined direction");
 
     Adapter adapter(arena, backend);
     const NodeId two = arena.integer("2");

@@ -125,7 +125,7 @@ void run_vector_components_tests(TestSink &t) {
                             result.detail == "the zero vector has no defined direction" &&
                             !result.has_polar && result.polar.angle == kNoNode,
                         "zero vectors refuse a defined polar direction in either angle unit");
-                t.check(backend.commands.size() == (expression ? 2u : 1u) &&
+                t.check(backend.commands.size() == (expression ? 0u : 1u) &&
                             !has_rule(derivation, "vec.polar.direction") &&
                             !has_obligation(derivation,
                                             "obl.vector-components.quadrant-direction") &&
@@ -133,6 +133,30 @@ void run_vector_components_tests(TestSink &t) {
                         "zero vectors stop before atan2 and quadrant evidence or approximation");
             }
         }
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0.0", "0", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "0.0-0.0");
+        input.y = parsed(arena, "0.0*2");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::InvalidInput && !result.has_polar &&
+                    result.detail == "the zero vector has no defined direction",
+                "measured decimal expressions refuse a direction for the zero vector");
+        t.check(backend.commands.empty() &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "exactly evaluable decimal zero components stop before backend direction work");
     }
 
     for (const bool vertical : {false, true}) {
