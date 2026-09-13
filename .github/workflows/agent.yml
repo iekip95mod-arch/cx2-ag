@@ -88,12 +88,15 @@ jobs:
     env:
       WORKER_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
       WORKER_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+      AGENT_JOB_TIMEOUT_MINUTES: 30
     permissions:
       contents: read
       issues: read
       pull-requests: read
       actions: read
     steps:
+      - name: Capture the job start
+        run: echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - name: Decide whether a key is configured
         id: key
         env:
@@ -150,6 +153,10 @@ jobs:
         if: steps.key.outputs.have == 'true'
         run: npm install -g @anthropic-ai/claude-code@2.1.269
 
+      - name: Calculate the remaining agent budget
+        if: steps.key.outputs.have == 'true'
+        run: node .github/scripts/agent-deadline.mjs
+
       - name: Announce the executor configuration and review work
         if: steps.key.outputs.have == 'true' && steps.worker.outputs.issue
         env:
@@ -174,6 +181,7 @@ jobs:
           label_trigger: claude
           branch_prefix: claude/
           prompt: |
+            ${{ env.AGENT_TIME_BUDGET }}
             Read AGENTS.md in the prepared checkout ${{ steps.worker.outputs.directory }}.
             Work only in that checkout on branch ${{ steps.worker.outputs.branch }} for issue
             ${{ steps.worker.outputs.issue }}. Read the issue and comments with gh before implementation.
@@ -206,8 +214,8 @@ jobs:
           GH_TOKEN: ''
           TASK: ${{ github.event.inputs.task || github.event.client_payload.task }}
         run: |
-          printf '%s\n' "$TASK" > "$RUNNER_TEMP/claude-general-request.txt"
-          claude -p --model "$WORKER_MODEL" --effort "$WORKER_EFFORT" --tools 'Read,Glob,Grep' --allowedTools 'Read,Glob,Grep' < "$RUNNER_TEMP/claude-general-request.txt" > "$RUNNER_TEMP/claude-general-reply.md"
+          printf '%s\n\n%s\n' "$AGENT_TIME_BUDGET" "$TASK" > "$RUNNER_TEMP/claude-general-request.txt"
+          claude -p --model "$WORKER_MODEL" --effort "$WORKER_EFFORT" --tools 'Read,Glob,Grep,Bash' --allowedTools 'Read,Glob,Grep,Bash(date:*)' < "$RUNNER_TEMP/claude-general-request.txt" > "$RUNNER_TEMP/claude-general-reply.md"
           printf 'Configured model: %s (selected model or alias)\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/claude-general-reply.md" >> "$GITHUB_STEP_SUMMARY"
 

@@ -37,53 +37,20 @@ raise 'Assignment must dispatch with the reviewer App token' unless request.fetc
 raise 'Assignment must produce the real label event' unless request.fetch('steps').last.fetch('run') == 'node .github/scripts/wait-for-review.mjs --dispatch-review'
 codex_publication = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Publish the review for the reviewed commit' }
 raise 'Codex review must be published by the assigned identity' unless codex_publication.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
-publication = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Publish the review for the reviewed commit' }.fetch('run')
+%w[review codex-review].each do |name|
+  steps = workflow.fetch('jobs').fetch(name).fetch('steps')
+  publish = steps.find { |step| step['name'] == 'Publish the review for the reviewed commit' }
+  raise 'Both providers must use the native inline publisher' unless publish.fetch('run') == 'node .github/scripts/publish-review.mjs'
+  raise 'Native reviews must use the assigned identity' unless publish.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
+  file = name == 'review' ? 'claude-review.json' : 'codex-review.json'
+  raise 'Publish the provider output file' unless publish.fetch('env').fetch('REVIEW_FILE') == "${{ runner.temp }}/#{file}"
+  raise 'Disclose only after publication' unless steps.index(publish) < steps.index { |step| step.fetch('run', '').include?('--review-disclosure') }
+end
+raise 'Claude must write its verdict artifact' unless claude.fetch('prompt').include?('${{ runner.temp }}/claude-review.json') && claude.fetch('claude_args').include?(',Write,')
+raise 'Claude must not post a competing summary-only verdict' if claude.fetch('claude_args').include?('Bash(gh pr review:*)')
 workspace = File.join(root, '.Internal/workspaces/codex-review-tests')
 FileUtils.mkdir_p(workspace)
 run_directory = Dir.mktmpdir('run-', workspace)
-fixtures = [
-  ['approval', 'reviewed-sha', { verdict: 'APPROVED', body: 'Checks passed' }, 'APPROVE'],
-  ['changes', 'reviewed-sha', { verdict: 'CHANGES_REQUESTED', body: 'A regression was reproduced' }, 'REQUEST_CHANGES'],
-  ['stale', 'newer-sha', { verdict: 'APPROVED', body: 'Checks passed' }, nil],
-  ['invalid-verdict', 'reviewed-sha', { verdict: 'UNKNOWN', body: 'Checks passed' }, nil],
-  ['empty-body', 'reviewed-sha', { verdict: 'APPROVED', body: '' }, nil],
-  ['wrong-app', 'reviewed-sha', { verdict: 'APPROVED', body: 'Checks passed' }, nil]
-]
-fixtures.each do |name, current_sha, review, expected_event|
-  directory = File.join(run_directory, name)
-  FileUtils.mkdir_p(directory)
-  File.write(File.join(directory, 'codex-review.json'), review.to_json)
-  gh = File.join(directory, 'gh')
-  File.write(gh, <<~SH)
-    #!/bin/bash
-    set -euo pipefail
-    if [ "$*" = "api repos/repository/pulls/84 --jq .head.sha" ]; then
-      printf '%s\n' "$CURRENT_SHA"
-    elif [ "$1" = api ] && [ "$2" = repos/repository/pulls/84/reviews ] && [ "$3" = --input ]; then
-      cp "$4" "$RUNNER_TEMP/posted.json"
-    elif [ "$*" = "label create reviewer:assigned-reviewer --repo repository --description Assigned reviewer identity --color 8250df --force" ]; then
-      touch "$RUNNER_TEMP/label-created"
-    elif [ "$*" = "pr edit 84 --repo repository --add-label reviewer:assigned-reviewer" ]; then
-      test -f "$RUNNER_TEMP/label-created"
-      touch "$RUNNER_TEMP/label-applied"
-    else
-      exit 1
-    fi
-  SH
-  File.chmod(0o700, gh)
-  environment = { 'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'RUNNER_TEMP' => directory, 'CURRENT_SHA' => current_sha, 'HEAD_SHA' => 'reviewed-sha', 'REPO' => 'repository', 'PR' => '84', 'APP_SLUG' => 'assigned-reviewer', 'EXPECTED_LOGIN' => 'assigned-reviewer[bot]' }
-  environment['APP_SLUG'] = 'other-reviewer' if name == 'wrong-app'
-  _stdout, _stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', publication, unsetenv_others: true)
-  posted_file = File.join(directory, 'posted.json')
-  if expected_event
-    raise "#{name}: review not posted" unless status.success? && File.exist?(posted_file)
-    posted = JSON.parse(File.read(posted_file))
-    raise "#{name}: wrong review" unless posted == { 'commit_id' => 'reviewed-sha', 'event' => expected_event, 'body' => review.fetch(:body) }
-  else
-    raise "#{name}: invalid review posted" if status.success? || File.exist?(posted_file)
-  end
-end
-puts "#{fixtures.length} review publication cases passed"
 
 invocation = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
 raise 'Codex default must match the selected repository model' unless workflow.fetch('jobs').fetch('codex-review').fetch('env') == { 'REVIEW_MODEL' => "${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}", 'REVIEW_EFFORT' => "${{ vars.CODEX_EFFORT || 'high' }}" }
@@ -96,10 +63,15 @@ File.write(File.join(directory, 'codex'), <<~SH)
   printf '%s\n' "$@" > "$RUNNER_TEMP/invoked-args"
 SH
 File.chmod(0o700, File.join(directory, 'codex'))
-environment = { 'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'RUNNER_TEMP' => directory, 'BASE_SHA' => 'base', 'HEAD_SHA' => 'head', 'REVIEW_MODEL' => 'gpt-5.6-sol', 'REVIEW_EFFORT' => 'high' }
+environment = { 'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'RUNNER_TEMP' => directory, 'BASE_SHA' => 'base', 'HEAD_SHA' => 'head', 'REVIEW_MODEL' => 'gpt-5.6-sol', 'REVIEW_EFFORT' => 'high', 'AGENT_TIME_BUDGET' => 'Finish before the supplied UTC cutoff' }
 _stdout, stderr, status = Open3.capture3(environment, 'bash', '-e', '-o', 'pipefail', '-c', invocation, unsetenv_others: true)
 raise "Codex invocation failed: #{stderr}" unless status.success?
 args = File.readlines(File.join(directory, 'invoked-args'), chomp: true)
+raise 'Codex reviewer must receive its execution deadline' unless File.read(File.join(directory, 'review-prompt.txt')).start_with?(environment.fetch('AGENT_TIME_BUDGET') + "\n")
 raise 'Codex must invoke exactly the disclosed model' unless args[args.index('--model') + 1] == environment.fetch('REVIEW_MODEL')
 raise 'Codex must invoke exactly the disclosed effort' unless args.include?('model_reasoning_effort="high"')
+raise 'Codex must enforce the inline finding schema' unless args[args.index('--output-schema') + 1] == '.github/scripts/review-schema.json'
+schema = JSON.parse(File.read(File.join(root, '.github/scripts/review-schema.json')))
+raise 'Review output must include inline comments' unless schema.fetch('required').include?('comments')
+raise 'Inline findings require native diff coordinates' unless schema.dig('properties', 'comments', 'items', 'required').sort == %w[body line path side]
 puts 'Codex configured model and effort invocation passed'

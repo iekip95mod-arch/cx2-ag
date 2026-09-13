@@ -123,11 +123,14 @@ jobs:
     env:
       WORKER_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
       WORKER_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
+      AGENT_JOB_TIMEOUT_MINUTES: 30
     permissions:
       contents: read
       issues: read
       pull-requests: read
     steps:
+      - name: Capture the job start
+        run: echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -175,6 +178,14 @@ jobs:
           brew install ccache gmp php
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
 
+      - name: Install Codex CLI
+        if: steps.key.outputs.have == 'true'
+        run: npm install -g @openai/codex@0.154.0
+
+      - name: Calculate the remaining agent budget
+        if: steps.key.outputs.have == 'true'
+        run: node .github/scripts/agent-deadline.mjs
+
       # The comment is written by a person and reaches the prompt as a file rather than as shell
       # text, so nothing in it can become a command.
       - name: Assemble the prompt
@@ -186,6 +197,7 @@ jobs:
           BRANCH: ${{ steps.worker.outputs.branch }}
         run: |
           {
+            printf '%s\n' "$AGENT_TIME_BUDGET"
             echo "Read AGENTS.md before anything else. It is the working agreement for this"
             echo "repository. Work under .Internal/workspaces/, ship tests in the same commit as the"
             echo "code they cover, reach for what already exists before writing your own, and prove"
@@ -217,10 +229,6 @@ jobs:
             echo "---"
             printf '%s\n' "${COMMENT:-$MANUAL}"
           } > "$RUNNER_TEMP/codex-prompt.txt"
-
-      - name: Install Codex CLI
-        if: steps.key.outputs.have == 'true'
-        run: npm install -g @openai/codex@0.154.0
 
       - name: Run Codex with saved login
         if: steps.key.outputs.have == 'true'

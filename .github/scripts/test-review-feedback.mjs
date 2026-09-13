@@ -48,6 +48,8 @@ test('both providers dispatch the leased issue on trusted main for both formal v
     assert.deepEqual(Object.keys(sent[0].body.inputs).sort(), ['issue_number', 'task']);
     assert.match(sent[0].body.inputs.task, /PR #90, review 1234, head a{40}/);
     assert.match(sent[0].body.inputs.task, /untrusted task content/);
+    assert.ok(sent[0].body.inputs.task.includes(`gh api --paginate repos/${repository}/pulls/90/reviews/1234/comments`));
+    if (state === 'CHANGES_REQUESTED') assert.match(sent[0].body.inputs.task, /\/ask-reviewer/);
     assert.match(sent[0].body.inputs.task, /Reuse the assigned bot identity, branch and PR/);
     assert.equal(sent[0].body.inputs.task.includes(f.review.body), false);
     assert.match(sent[0].body.inputs.task, state === 'APPROVED' ? /Do not request another review or reapply review labels/ : /request a fresh review after implementation stops/);
@@ -121,6 +123,35 @@ test('a newer PR head appearing during validation prevents dispatch', async () =
     return response;
   };
   assert.equal(await dispatchFeedback(f.options, api), false);
+  assert.equal(f.calls.some(call => call.method === 'POST'), false);
+});
+
+test('an older successful dispatch outside the retry window cannot cause another worker', async () => {
+  const f = fixture();
+  f.options.attempt = 12;
+  for (let attempt = 1; attempt < 12; attempt++) {
+    f.responses[`repos/${repository}/actions/runs/100/attempts/${attempt}/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: attempt === 1 ? 'success' : 'failure' }] }] };
+  }
+  await assert.rejects(dispatchFeedback(f.options, f.api), /attempt history exceeds/);
+  assert.equal(f.calls.some(call => call.method === 'POST'), false);
+});
+
+test('successful deliveries on later history pages are not dispatched again', async () => {
+  const f = fixture();
+  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`;
+  f.responses[history] = { workflow_runs: Array.from({ length: 100 }, (_, id) => ({ id: 1000 + id, display_title: 'Unrelated review', conclusion: 'success' })) };
+  f.responses[`${history}&page=2`] = { workflow_runs: [{ id: 99, display_title: 'Review feedback 1234', conclusion: 'success' }] };
+  f.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: 'success' }] }] };
+  assert.equal(await dispatchFeedback(f.options, f.api), false);
+  assert.equal(f.calls.some(call => call.method === 'POST'), false);
+});
+
+test('incomplete workflow history fails instead of assuming no prior delivery', async () => {
+  const f = fixture();
+  const history = `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`;
+  const batch = { workflow_runs: Array.from({ length: 100 }, (_, id) => ({ id: 1000 + id, display_title: 'Unrelated review', conclusion: 'success' })) };
+  for (let page = 1; page <= 10; page++) f.responses[`${history}${page === 1 ? '' : `&page=${page}`}`] = batch;
+  await assert.rejects(dispatchFeedback(f.options, f.api), /workflow history exceeds/);
   assert.equal(f.calls.some(call => call.method === 'POST'), false);
 });
 

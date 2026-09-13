@@ -1,0 +1,134 @@
+name: agent-review-discussion
+run-name: Review discussion ${{ github.event.comment.id }}
+
+on:
+  pull_request_review_comment:
+    types: [created]
+
+concurrency:
+  group: review-discussion-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  answer:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.comment.user.type == 'Bot' &&
+      startsWith(github.event.comment.body, '/ask-reviewer')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Record job start
+        run: echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Check whether discussion is installed on main
+        id: installed
+        run: |
+          if [ -f .github/scripts/review-discussion.mjs ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Review discussion starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Validate the question and prepare its thread
+        if: steps.installed.outputs.ready == 'true'
+        id: question
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/review-discussion.mjs prepare
+      - name: Restore Codex subscription login
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true' && steps.question.outputs.provider == 'codex'
+        id: codex
+        env:
+          AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          bash .github/scripts/prepare-codex-auth.sh
+          test -s "$RUNNER_TEMP/codex-home/auth.json"
+      - name: Install the selected CLI
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true'
+        env:
+          PROVIDER: ${{ steps.question.outputs.provider }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/discussion-empty"
+          if [ "$PROVIDER" = codex ]; then
+            npm install -g @openai/codex@0.154.0
+          else
+            npm install -g @anthropic-ai/claude-code@2.1.269
+          fi
+      - name: Set execution deadline
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true'
+        env:
+          AGENT_JOB_TIMEOUT_MINUTES: 15
+          AGENT_CLOCK_TOOLS: 'false'
+        run: node .github/scripts/agent-deadline.mjs
+      - name: Include the deadline in the question
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true'
+        run: |
+          {
+            printf '%s\n' "$AGENT_TIME_BUDGET"
+            cat "$RUNNER_TEMP/review-discussion-prompt.txt"
+          } > "$RUNNER_TEMP/review-discussion-timed-prompt.txt"
+      - name: Answer with Codex
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true' && steps.question.outputs.provider == 'codex'
+        working-directory: ${{ runner.temp }}/discussion-empty
+        env:
+          CODEX_HOME: ${{ steps.codex.outputs.home }}
+          REVIEW_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
+          REVIEW_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
+        run: |
+          codex exec --model "$REVIEW_MODEL" -c "model_reasoning_effort=\"$REVIEW_EFFORT\"" \
+            --sandbox read-only -c approval_policy='"never"' --skip-git-repo-check \
+            --ephemeral --output-last-message "$RUNNER_TEMP/review-discussion-answer.txt" \
+            - < "$RUNNER_TEMP/review-discussion-timed-prompt.txt"
+      - name: Answer with Claude
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true' && steps.question.outputs.provider == 'claude'
+        working-directory: ${{ runner.temp }}/discussion-empty
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REVIEW_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
+          REVIEW_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+        run: |
+          test -n "$CLAUDE_CODE_OAUTH_TOKEN"
+          claude -p --model "$REVIEW_MODEL" --effort "$REVIEW_EFFORT" \
+            --tools '' --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
+            --setting-sources '' --no-session-persistence \
+            < "$RUNNER_TEMP/review-discussion-timed-prompt.txt" > "$RUNNER_TEMP/review-discussion-answer.txt"
+      - name: Authenticate only the answer publisher
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true'
+        id: bot
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ steps.question.outputs.app_id }}
+          private-key: ${{ secrets[steps.question.outputs.secret_name] }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: write
+      - name: Publish the native thread answer
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          REVIEW_MODEL: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_MODEL || 'gpt-5.6-sol') || (vars.CLAUDE_MODEL || 'opus') }}
+          REVIEW_EFFORT: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_EFFORT || 'high') || (vars.CLAUDE_EFFORT || 'high') }}
+        run: node .github/scripts/review-discussion.mjs publish
+      - name: Continue the assigned executor
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.canonical == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/review-discussion.mjs dispatch
+      - name: Report legacy continuation boundary
+        if: steps.question.outputs.ready == 'true' && steps.question.outputs.canonical != 'true'
+        run: echo "The native reviewer answer is available. Hosted executor continuation supports canonical provider/issue branches only." >> "$GITHUB_STEP_SUMMARY"

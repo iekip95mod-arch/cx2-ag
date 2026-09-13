@@ -112,12 +112,13 @@ FileUtils.chmod(0o755, File.join(general_bin, 'claude'))
 general_env = {
   'PATH' => "#{general_bin}:#{ENV.fetch('PATH')}", 'RUNNER_TEMP' => general_directory,
   'GITHUB_STEP_SUMMARY' => File.join(general_directory, 'summary'), 'CAPTURE' => File.join(general_directory, 'capture'),
-  'WORKER_MODEL' => 'opus', 'WORKER_EFFORT' => 'high', 'TASK' => "Explain the repository's tests", 'GH_TOKEN' => ''
+  'WORKER_MODEL' => 'opus', 'WORKER_EFFORT' => 'high', 'TASK' => "Explain the repository's tests", 'GH_TOKEN' => '',
+  'AGENT_TIME_BUDGET' => 'Finish before the supplied UTC cutoff'
 }
 stdout, stderr, status = Open3.capture3(general_env, 'bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', general.fetch('run'), unsetenv_others: true, chdir: root)
 raise "Claude task-only execution failed: #{stderr}" unless status.success?
 captured = JSON.parse(File.read(general_env.fetch('CAPTURE')))
-raise 'Claude task-only request changed' unless captured.fetch('task') == general_env.fetch('TASK') + "\n"
+raise 'Claude task-only deadline or request changed' unless captured.fetch('task') == general_env.fetch('AGENT_TIME_BUDGET') + "\n\n" + general_env.fetch('TASK') + "\n"
 raise 'Claude task-only model or effort differs from disclosure' unless captured.fetch('args')[0, 5] == ['-p', '--model', 'opus', '--effort', 'high']
 raise 'Claude task-only response was dropped' unless File.read(general_env.fetch('GITHUB_STEP_SUMMARY')).include?('General response fixture')
 raise 'Codex model and effort must be passed explicitly' unless execution.fetch('run').include?('--model "$WORKER_MODEL"') && execution.fetch('run').include?('model_reasoning_effort=')

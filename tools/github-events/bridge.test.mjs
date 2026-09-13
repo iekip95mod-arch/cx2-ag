@@ -11,6 +11,24 @@ const second = '22222222-2222-2222-2222-222222222222';
 const now = 1700000000000;
 const event = (id, pr = 84, extra = {}) => ({ id, received: now + 1, metadata: { repository: 'iekip95mod-arch/cx2-ag', event: 'workflow_run', prs: [pr], sha: 'a'.repeat(40), workflow: 'check', conclusion: 'success', ...extra } });
 
+test('review answers wake existing review subscriptions and coalesce later replies', async () => {
+  const db = openState(':memory:');
+  subscribe(db, first, 84, ['pull_request_review'], now);
+  subscribe(db, second, 84, ['workflow_run'], now);
+  const queued = [];
+  const answer = id => event(id, 84, { event: 'pull_request_review_comment', comment: id + 90, question: 88 });
+  await deliver(db, [answer(1)], async (...args) => queued.push(args), now + 2);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0][0], first);
+  assert.match(queued[0][1], /reviewer answered question 88, comment 91/);
+  await deliver(db, [answer(2)], async (...args) => queued.push(args), now + 3);
+  assert.equal(queued.length, 1);
+  const consumed = bridge.consume(db, first, now + 4);
+  assert.match(consumed.message, /comment 92/);
+  assert.equal(consumed.more, false);
+  db.close();
+});
+
 test('routes only subscribed PRs and event types to each requesting task', async () => {
   const db = openState(':memory:');
   subscribe(db, first, 84, ['workflow_run'], now);
