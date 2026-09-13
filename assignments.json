@@ -30,7 +30,7 @@
       "pr": null,
       "branch": "codex/issue-51",
       "slug": "cx2-ag-codex-birch",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-42",
@@ -40,7 +40,7 @@
       "pr": null,
       "branch": "codex/issue-42",
       "slug": "cx2-ag-codex-cedar",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-20",
@@ -50,7 +50,7 @@
       "pr": null,
       "branch": "codex/issue-20",
       "slug": "cx2-ag-codex-flint",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-42",
@@ -60,7 +60,7 @@
       "pr": 88,
       "branch": "codex/issue-42",
       "slug": "cx2-ag-codex-review-beacon",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-20",
@@ -70,7 +70,7 @@
       "pr": 89,
       "branch": "codex/issue-20",
       "slug": "cx2-ag-codex-review-compass",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-51",
@@ -80,7 +80,7 @@
       "pr": 87,
       "branch": "codex/issue-51",
       "slug": "cx2-ag-codex-review-harbor",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-92",
@@ -90,7 +90,7 @@
       "pr": null,
       "branch": "codex/issue-92",
       "slug": "cx2-ag-codex-maple",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-92",
@@ -100,7 +100,7 @@
       "pr": 93,
       "branch": "codex/issue-92",
       "slug": "cx2-ag-codex-review-lantern",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-94",
@@ -130,7 +130,7 @@
       "pr": null,
       "branch": "codex/issue-96",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-96",
@@ -140,6 +140,16 @@
       "pr": 97,
       "branch": "codex/issue-96",
       "slug": "cx2-ag-codex-review-aegis",
+      "released": true
+    },
+    {
+      "key": "codex/executor/issue-24",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 24,
+      "pr": null,
+      "branch": "codex/issue-24",
+      "slug": "cx2-ag-codex-amber",
       "released": false
     }
   ]
