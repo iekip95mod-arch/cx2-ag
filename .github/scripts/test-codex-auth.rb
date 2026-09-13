@@ -67,6 +67,16 @@ claim = worker.fetch('steps').find { |step| step['id'] == 'worker' }
 raise 'Issue work must use the scoped publishing token' unless claim.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot-token.outputs.token }}'
 raise 'Issue work must claim its branch before running Codex' unless claim.fetch('run') == 'node .github/scripts/prepare-codex-worker.mjs'
 execution = worker.fetch('steps').find { |step| step['name'] == 'Run Codex with saved login' }
+raise 'Codex must stop superseded issue work before model execution' unless execution.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+%w[agent-codex.yml agent.yml].each do |file|
+  steps = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch('respond').fetch('steps')
+  startup = steps.find { |step| step['id'] == 'start' }
+  raise 'Both workers must validate and acknowledge before execution' unless startup && startup.fetch('run').include?('worker-start.mjs')
+  publication = steps.find { |step| step['name'] == 'Ensure the first commit has a linked draft PR' }
+  raise 'Stale work must not publish from final cleanup' unless publication.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+  model = steps.find { |step| step['name'] == (file == 'agent.yml' ? 'Run the agent' : 'Run Codex with saved login') }
+  raise 'Both workers must honor startup validation' unless model.fetch('if').include?("steps.start.outputs.proceed == 'true'")
+end
 raise 'Codex must inherit its publishing credential' unless execution.fetch('run').include?('shell_environment_policy.ignore_default_excludes=true')
 raise 'Codex must run inside its assigned checkout' unless execution.fetch('run').include?('--cd "$WORKER_DIRECTORY"')
 raise 'General responses must not receive publishing credentials' unless execution.fetch('env').fetch('GH_TOKEN') == "${{ steps.worker.outputs.issue && steps.bot-token.outputs.token || '' }}"
@@ -93,9 +103,10 @@ raise 'Claude must use subscription OAuth without API billing' if File.read(File
 raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
 raise 'Claude must allow only the internal Actions bot on dispatch' unless claude_step.fetch('with').fetch('allowed_bots') == "${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}"
 feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
-raise 'Feedback must subscribe to submitted reviews and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
+raise 'Feedback must subscribe to submitted reviews, merged PRs and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request') == { 'types' => ['closed'] } && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
+raise 'Feedback must serialize every queued PR event without replacing pending recovery' unless feedback.fetch('concurrency').fetch('queue') == 'max'
 feedback_job = feedback.fetch('jobs').fetch('continue-executor')
-raise 'Feedback must be able to dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'read', 'pull-requests' => 'read', 'actions' => 'write' }
+raise 'Feedback must be able to persist late findings and dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'write', 'pull-requests' => 'read', 'actions' => 'write' }
 feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }
 raise 'Feedback must run trusted main code without checkout credentials' unless feedback_checkout.fetch('with') == { 'ref' => 'main', 'persist-credentials' => false }
 feedback_dispatch = feedback_job.fetch('steps').find { |step| step['name'] == 'Dispatch the assigned executor' }

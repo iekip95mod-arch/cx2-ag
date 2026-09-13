@@ -94,7 +94,7 @@ export async function publishReviewNote(api, repository, pr, sha, appSlug, runId
   if (mode === 'progress') {
     return api('POST', `repos/${repository}/pulls/${pr}/reviews`, { commit_id: sha, event: 'COMMENT', body: `Review is starting for commit ${sha}. No verdict has been reached.\n\n${disclosure}\n\n${marker}` });
   }
-  const verdict = reviews.filter(review => !before.includes(review.id) && ['APPROVED', 'CHANGES_REQUESTED'].includes(review.state)).sort((a, b) => b.id - a.id)[0];
+  const verdict = reviews.filter(review => !before.includes(review.id) && (['APPROVED', 'CHANGES_REQUESTED'].includes(review.state) || (review.state === 'COMMENTED' && review.body?.includes('<!-- review-blocked -->')))).sort((a, b) => b.id - a.id)[0];
   if (!verdict) throw Error('No fresh formal verdict exists to disclose');
   return api('PUT', `repos/${repository}/pulls/${pr}/reviews/${verdict.id}`, { body: `${verdict.body}\n\n${disclosure}\n\n${marker}` });
 }

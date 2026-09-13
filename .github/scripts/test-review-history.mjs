@@ -10,6 +10,9 @@ function fixture() {
   const options = { repository: 'iekip95mod-arch/cx2-ag', pr: 91, head: 'a'.repeat(40), base: 'b'.repeat(40) };
   const endpoint = `repos/${options.repository}/pulls/91`;
   const responses = {
+    [`repos/${options.repository}/issues/91/comments?per_page=100&page=1`]: [{ id: 4, body: 'Executor verification', user: { login: 'executor[bot]' } }],
+    [`repos/${options.repository}/actions/workflows/check.yml/runs?head_sha=${options.head}&event=pull_request&per_page=100&page=1`]: { workflow_runs: [{ id: 12, run_attempt: 2, head_sha: options.head, event: 'pull_request', head_repository: { full_name: options.repository }, pull_requests: [{ number: 91 }], status: 'completed', conclusion: 'success' }] },
+    [`repos/${options.repository}/actions/runs/12/attempts/2/jobs?per_page=100&page=1`]: { total_count: 1, jobs: [{ name: 'full', conclusion: 'success', status: 'completed' }] },
     [endpoint]: { state: 'open', draft: false, changed_files: 2, head: { sha: options.head, repo: { full_name: options.repository } }, base: { sha: options.base } },
     [`${endpoint}/files?per_page=100&page=1`]: [{ filename: 'earlier.cc', status: 'modified' }, { filename: 'latest.cc', status: 'added' }],
     [`${endpoint}/reviews?per_page=100&page=1`]: [{ id: 1, commit_id: 'c'.repeat(40), state: 'CHANGES_REQUESTED', body: 'Earlier finding', user: { login: 'reviewer[bot]' } }],
@@ -25,6 +28,25 @@ test('review history includes earlier files, findings and executor replies', asy
   assert.equal(history.reviews[0].head, 'c'.repeat(40));
   assert.equal(history.comments[1].replyTo, 2);
   assert.match(history.scope, /untrusted/);
+  assert.equal(history.discussion[0].body, 'Executor verification');
+  assert.equal(history.ci[0].attempt, 2);
+  assert.equal(history.ci[0].jobs[0].conclusion, 'success');
+});
+
+test('CI evidence excludes other heads, repositories and PRs and refuses missing jobs', async () => {
+  for (const change of [
+    run => { run.head_sha = 'c'.repeat(40); },
+    run => { run.head_repository.full_name = 'another/repository'; },
+    run => { run.pull_requests = [{ number: 90 }]; },
+    run => { run.event = 'workflow_dispatch'; },
+  ]) {
+    const f = fixture();
+    change(f.responses[`repos/${f.options.repository}/actions/workflows/check.yml/runs?head_sha=${f.options.head}&event=pull_request&per_page=100&page=1`].workflow_runs[0]);
+    assert.deepEqual((await reviewHistory(f.options, f.api)).ci, []);
+  }
+  const f = fixture();
+  f.responses[`repos/${f.options.repository}/actions/runs/12/attempts/2/jobs?per_page=100&page=1`].total_count = 2;
+  await assert.rejects(reviewHistory(f.options, f.api), /Incomplete CI/);
 });
 
 test('history paginates and refuses incomplete or superseded review snapshots', async () => {
