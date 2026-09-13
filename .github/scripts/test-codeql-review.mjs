@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { approvalState, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
+import { approvalState, executeGhApi, reviewState as checkReview, waitForReview as wait, trustedAuthor } from './wait-for-review.mjs';
 import * as reviewRuntime from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
@@ -13,6 +13,17 @@ const roster = [
 const options = { roster, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
 const reviewState = (read, repository, pr, sha, overrides = options) => checkReview(read, repository, pr, sha, overrides);
 const waitForReview = (read, repository, pr, sha, sleep, attempts) => wait(read, repository, pr, sha, sleep, attempts, options);
+
+test('GitHub API reads close child stdin before waiting for completion', async () => {
+  let finish;
+  let input;
+  const pending = Object.assign(new Promise(resolve => { finish = resolve; }), {
+    child: { stdin: { end(value) { input = value; finish({ stdout: '{"ok":true}' }); } } }
+  });
+  const result = await executeGhApi(() => pending, ['api', 'repos/example/project']);
+  assert.deepEqual(result, { ok: true });
+  assert.equal(input, '');
+});
 
 test('review progress updates one issue comment and remains separate from formal reviews', async () => {
   const identity = roster[0];

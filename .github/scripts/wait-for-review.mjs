@@ -4,6 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { publishProgress } from './agent-progress.mjs';
 
+export async function executeGhApi(execute, args, body) {
+  const pending = execute('gh', args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+  pending.child.stdin.end(body === undefined ? '' : JSON.stringify(body));
+  const { stdout } = await pending;
+  return stdout.trim() ? JSON.parse(stdout) : null;
+}
+
 export function reviewProvider(current) {
   const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
   if (labels.length > 1) throw Error('Keep only the selected provider review label');
@@ -166,10 +173,7 @@ async function main() {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? '') || !Number.isSafeInteger(pr) || pr < 1 || !/^[a-f0-9]{40}$/.test(sha ?? '')) throw Error('Invalid PR review target');
   const execute = promisify(execFile);
   const read = async (endpoint, paginate = false, body) => {
-    const pending = execute('gh', ['api', ...(paginate ? ['--paginate', '--slurp'] : []), endpoint, ...(body ? ['--method', 'POST', '--input', '-'] : [])], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-    if (body) pending.child.stdin.end(JSON.stringify(body));
-    const { stdout } = await pending;
-    return JSON.parse(stdout);
+    return executeGhApi(execute, ['api', ...(paginate ? ['--paginate', '--slurp'] : []), endpoint, ...(body ? ['--method', 'POST', '--input', '-'] : [])], body);
   };
   if (process.argv.includes('--trust-assignment')) {
     const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
@@ -179,11 +183,8 @@ async function main() {
     return;
   } else if (['--dispatch-review', '--review-queued', '--review-progress', '--review-publishing', '--review-disclosure', '--review-final'].some(mode => process.argv.includes(mode))) {
     const api = async (method, endpoint, body, missing = false) => {
-      const pending = execute('gh', ['api', '--method', method, endpoint, ...(body ? ['--input', '-'] : [])], { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-      if (body) pending.child.stdin.end(JSON.stringify(body));
       try {
-        const { stdout } = await pending;
-        return stdout.trim() ? JSON.parse(stdout) : null;
+        return await executeGhApi(execute, ['api', '--method', method, endpoint, ...(body ? ['--input', '-'] : [])], body);
       } catch (error) {
         if (missing && /\(HTTP 404\)/.test(error.stderr ?? '')) return null;
         throw error;
