@@ -234,6 +234,54 @@ void run_vector_components_tests(TestSink &t) {
                 "an inconclusive magnitude classification stops before approximation and atan2");
     }
 
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        Budget budget;
+        budget.max_backend_calls = 2;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend, budget);
+        t.check(result.outcome == VectorComponentsOutcome::ResourceExceeded &&
+                    result.status == DerivationStatus::ResourceLimitReached && !result.has_polar &&
+                    backend.commands.size() == 2,
+                "a classifier blocked by the backend budget reports resource exhaustion");
+        t.check(derivation.size() != 0 && derivation.all_verified_from(0) &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "classifier exhaustion retains only the verified derivation prefix");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::BackendFailure &&
+                    result.status == DerivationStatus::DependencyUnavailable && !result.has_polar &&
+                    backend.commands.size() == 3,
+                "a classifier backend refusal remains a dependency failure");
+        t.check(derivation.size() == 0 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "classifier backend failure rolls back partial polar work");
+    }
+
     for (const bool expression : {false, true}) {
         Arena arena;
         Derivation derivation;
