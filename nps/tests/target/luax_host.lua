@@ -765,6 +765,13 @@ do
                   solver[1] .. " refuses variable " .. string.format("%q", variable) ..
                   " with a reason and no raise, before Giac")
         end
+        do
+            local calls_before = giac_calls
+            local ok, refused, why = pcall(nps[solver[1]], solver[2], string.rep("x", 4097))
+            check(ok and refused == nil and type(why) == "string" and
+                  why:find("identifier", 1, true) ~= nil and giac_calls == calls_before,
+                  solver[1] .. " refuses a variable beyond the shared input-byte limit before Giac")
+        end
         for _, variable in ipairs({ "long_name2", "_velocity2" }) do
             script(solver[3]:gsub("x", variable), "0")
             local named = nps[solver[1]](solver[2]:gsub("x", variable), variable)
