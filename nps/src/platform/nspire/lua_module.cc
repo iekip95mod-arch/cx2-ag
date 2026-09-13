@@ -3222,11 +3222,11 @@ int l_magnitude_angle_to_components(lua_State *L) {
     if (!magnitude_angle_text(L, 1, &input, &magnitude, &angle, &why))
         return typed_failure(L, "invalid input", "invalid input", why);
 
+    GcPause paused(L);
     Arena arena;
     if (!magnitude_angle_parse(arena, magnitude, angle, &input, &why))
         return typed_failure(L, "invalid input", "invalid input", why);
 
-    GcPause paused(L);
     Derivation derivation;
     VectorComponentsResult result;
     const Budget budget = interactive_budget();
@@ -3253,11 +3253,11 @@ int l_components_to_magnitude_angle(lua_State *L) {
         !angle_unit_field(L, 1, &output_unit, &why))
         return typed_failure(L, "invalid input", "invalid input", why);
 
+    GcPause paused(L);
     Arena arena;
     if (!vector_expression_parse(arena, x, y, z, &input, &exact, &has_exact, &why))
         return typed_failure(L, "invalid input", "invalid input", why);
 
-    GcPause paused(L);
     Derivation derivation;
     VectorComponentsResult result;
     const Budget budget = interactive_budget();
