@@ -5,7 +5,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadRoster } from './bot-identities.mjs';
-import { dispatchFeedback } from './review-feedback.mjs';
+import { dispatchFeedback, dispatchMergedSecurityFeedback } from './review-feedback.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster();
@@ -126,8 +126,34 @@ test('a merged CodeQL review recovers from an accepted open-PR dispatch exactly 
   }
 });
 
+test('merging a PR replays its current CodeQL review through durable recovery', async () => {
+  for (const provider of ['codex', 'claude']) {
+    const f = securityFixture(provider);
+    assert.equal(await dispatchFeedback(f.options, f.api), true);
+    f.pr.state = 'closed';
+    f.pr.merged = true;
+    f.issue.state = 'closed';
+    f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [];
+    f.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request&per_page=100`] = { workflow_runs: [] };
+    const api = async (method, endpoint, body) => {
+      if (method === 'POST' && endpoint === `repos/${repository}/issues`) {
+        f.calls.push({ method, endpoint, body });
+        const created = { number: 106, state: 'open', title: body.title, body: body.body };
+        f.responses[`repos/${repository}/issues?state=all&per_page=100&page=1`] = [created];
+        return created;
+      }
+      return f.api(method, endpoint, body);
+    };
+    const event = { action: 'closed', repository: { full_name: repository }, pull_request: structuredClone(f.pr) };
+    assert.equal(await dispatchMergedSecurityFeedback({ repository, event, run: 101 }, api), true);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint === `repos/${repository}/issues`).length, 1);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.endpoint.endsWith('/dispatches')).length, 2);
+  }
+});
+
 test('feedback workflow can persist late CodeQL follow-up issues', () => {
   const workflow = readFileSync(new URL('../workflows/agent-review-feedback.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /pull_request:\n    types: \[closed\]/);
   assert.match(workflow, /permissions:\n      contents: read\n      issues: write\n      pull-requests: read\n      actions: write/);
   assert.match(workflow, /- name: Confirm follow-up dispatch\n        if: steps\.dispatch\.outputs\.dispatched == 'true' && steps\.dispatch\.outputs\.follow_up == 'true'/);
 });

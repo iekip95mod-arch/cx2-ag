@@ -103,7 +103,7 @@ raise 'Claude must use subscription OAuth without API billing' if File.read(File
 raise 'Claude comments must name Claude explicitly' unless claude.fetch('jobs').fetch('resolve').fetch('if').include?("contains(github.event.comment.body, '@claude')")
 raise 'Claude must allow only the internal Actions bot on dispatch' unless claude_step.fetch('with').fetch('allowed_bots') == "${{ github.event_name == 'workflow_dispatch' && 'github-actions[bot]' || '' }}"
 feedback = YAML.load_file(File.join(root, '.github/workflows/agent-review-feedback.yml'))
-raise 'Feedback must subscribe to submitted reviews and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
+raise 'Feedback must subscribe to submitted reviews, merged PRs and completed CI' unless feedback.fetch(true).keys.sort == %w[pull_request pull_request_review workflow_run] && feedback.fetch(true).fetch('pull_request') == { 'types' => ['closed'] } && feedback.fetch(true).fetch('pull_request_review') == { 'types' => ['submitted'] } && feedback.fetch(true).fetch('workflow_run').fetch('types') == ['completed']
 feedback_job = feedback.fetch('jobs').fetch('continue-executor')
 raise 'Feedback must be able to persist late findings and dispatch workflows' unless feedback_job.fetch('permissions') == { 'contents' => 'read', 'issues' => 'write', 'pull-requests' => 'read', 'actions' => 'write' }
 feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }

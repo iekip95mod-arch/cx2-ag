@@ -1,7 +1,9 @@
 name: agent-review-feedback
-run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || format('Review feedback {0}', github.event.review.id) }}
+run-name: ${{ github.event_name == 'workflow_run' && format('CI feedback {0} attempt {1}', github.event.workflow_run.id, github.event.workflow_run.run_attempt) || github.event_name == 'pull_request' && format('Merged security feedback {0}', github.event.pull_request.number) || format('Review feedback {0}', github.event.review.id) }}
 
 on:
+  pull_request:
+    types: [closed]
   pull_request_review:
     types: [submitted]
   workflow_run:
@@ -9,12 +11,13 @@ on:
     types: [completed]
 
 concurrency:
-  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id }}
+  group: review-feedback-${{ github.event_name }}-${{ github.event.review.id || github.event.workflow_run.id || github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   continue-executor:
     if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&
        contains(fromJSON('["failure", "timed_out", "action_required", "startup_failure"]'), github.event.workflow_run.conclusion)) ||
       (github.event.pull_request.head.repo.full_name == github.repository &&

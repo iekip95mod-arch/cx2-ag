@@ -100,5 +100,6 @@ Dir.glob(File.join(root, '.github/workflows/*.yml')).each do |path|
   candidate = YAML.load_file(path)
   events = candidate['on'] || candidate[true]
   next unless events.is_a?(Hash) && events.key?('pull_request')
+  next if candidate['name'] == 'agent-review-feedback'
   raise "Failed CI feedback does not cover #{candidate['name']}" unless covered.include?(candidate['name'])
 end
