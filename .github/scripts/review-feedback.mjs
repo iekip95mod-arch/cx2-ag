@@ -14,7 +14,12 @@ async function alreadyDelivered(repository, review, run, attempt, api) {
   }
   const history = await api('GET', `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`);
   if (!Array.isArray(history.workflow_runs)) throw Error('Invalid feedback workflow history');
-  return history.workflow_runs.some(previous => previous.id !== run && previous.display_title === `Review feedback ${review}` && previous.conclusion === 'success');
+  for (const previous of history.workflow_runs.filter(candidate => candidate.id !== run && candidate.display_title === `Review feedback ${review}` && candidate.conclusion === 'success')) {
+    const jobs = await api('GET', `repos/${repository}/actions/runs/${previous.id}/jobs?per_page=100`);
+    if (!Array.isArray(jobs.jobs) || jobs.total_count > 100) throw Error('Invalid feedback delivery history');
+    if (jobs.jobs.some(job => job.steps?.some(step => step.name === dispatchStep && step.conclusion === 'success'))) return true;
+  }
+  return false;
 }
 
 export async function dispatchFeedback({ repository, event, run, attempt = 1, legacyOwner = '' }, api, roster = loadRoster()) {

@@ -6,7 +6,7 @@ Read [AGENTS.md](AGENTS.md) first. It is the shared working agreement for iekip9
 
 Create branches, assign issues, commit, push, write and publish pull requests, request review and enable protected auto-merge without asking the maintainer. Main still requires independent approval and every required check. Never bypass those gates, force-push main or overwrite another worker's work.
 
-The trusted repository's .codex/config.toml selects never approval and danger-full-access. Restart or create a session to load changed defaults. Managed policies and explicit launch settings take precedence. This configuration grants no authority over unrelated repositories or files.
+The trusted repository's .codex/config.toml selects gpt-5.6-sol with high effort, never approval and danger-full-access. Restart or create a session to load changed defaults. Managed policies and explicit launch settings take precedence. This configuration grants no authority over unrelated repositories or files.
 
 Implementation workers run in GitHub Actions through [.github/workflows/agent-codex.yml](.github/workflows/agent-codex.yml). Desktop tasks coordinate work and receive subscribed events. A desktop wake-up does not start a new hosted worker automatically.
 
@@ -24,7 +24,7 @@ gh workflow run agent-codex.yml --repo iekip95mod-arch/cx2-ag --ref main \
 
 The codex issue label also starts a worker. An @codex comment from an owner, member or collaborator resumes work on its issue or PR. Opening an issue alone starts nothing. Manual dispatch without issue_number is a general response and receives no publishing credential.
 
-The preparation script reserves a named executor identity and records its branch and run on the issue. GitHub rejects the installed custom App bots as native assignees, so a worker label and durable claim show ownership instead. A new issue uses codex/issue-N from current main. Resume an owned branch without rewriting history and merge current main before final validation.
+The preparation script reserves a named executor identity and records its branch and run on the issue. The executor posts regular participation comments on the issue and PR. A separate trusted routing action then requests native assignment and checks GitHub's response. Live verification assigned Amber to PR 91 after participation, but GitHub rejected assignment to issue 90. Worker labels and durable claims retain issue ownership when native assignment is unavailable. Reviewers are not issue or PR assignees. A new issue uses codex/issue-N from current main. Resume an owned branch without rewriting history and merge current main before final validation.
 
 Closed issues, another account's assignment, Claude-labelled issues, unclaimed existing branches and foreign or differently authored PRs are rejected. An owned PR resolves to its existing codex/ branch. Issue and PR requests share a queue keyed by that branch, and the worker verifies the branch again before claiming it. This serializes Codex writers only. Do not dispatch another provider onto the same branch. GitHub concurrency is not a durable task backlog, so check pending run status before assuming every request will execute.
 
@@ -45,6 +45,10 @@ The bot-assignments branch stores durable claims. Allocation uses the file's cur
 
 Executor and reviewer pools are separate. The reviewer uses the same model provider as the executor, with a different GitHub identity. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
 
+A coordinator can reserve an executor for an existing noncanonical provider branch using an explicit legacy-owner migration. The PR must have that owner's authorship and link exactly one issue in this repository. The allocator preserves and revalidates the original issue, PR and branch. Hosted issue workers and automatic review feedback still require canonical issue branches. The desktop coordinator completes legacy setup PRs.
+
+Executors and reviewers announce their selected model and effort at startup and include them in their published result. CODEX_MODEL and CODEX_EFFORT repository variables default to gpt-5.6-sol and high. CLAUDE_MODEL and CLAUDE_EFFORT default to opus and high. The same values configure the CLI and the disclosure. Claude's opus selection is an alias, not a verified version identifier. Work acknowledgements and results use the leased executor's credentials, never the maintainer's account or a reviewer identity.
+
 ## Credentials
 
 | Secret | Purpose |
@@ -52,8 +56,11 @@ Executor and reviewer pools are separate. The reviewer uses the same model provi
 | CODEX_AUTH_JSON | Saved Codex subscription login for model execution |
 | CX2_AG_*_PRIVATE_KEY | Private key for one named executor or reviewer GitHub App |
 | GITHUB_TOKEN | Automatic Actions token for trusted routing and durable identity allocation |
+| CODEX_GITHUB_TOKEN | Existing owner credential used only by the trusted native-assignment router |
 
 Named workers mint short-lived installation tokens for cx2-ag from their assigned App's private key. Executor Apps can write contents, issues, PRs and workflows. Reviewer Apps can read contents and publish issues and reviews, but cannot push code. The App credentials change GitHub attribution only. Codex continues using CODEX_AUTH_JSON and Claude uses CLAUDE_CODE_OAUTH_TOKEN for subscription model execution. The former personal CODEX_GITHUB_TOKEN is not the named workers' publishing identity.
+
+The assignment router reads trusted code from main and verifies the commenting executor against its durable lease before using the owner credential. That credential is never passed to a model or a publication hook. Bot App tokens were rejected for native assignment in live checks, even when the owner credential could assign the same bot to a PR. The router reports rejected assignments rather than treating an empty response as success.
 
 The worker restores CODEX_AUTH_JSON into a private temporary Codex home and rejects API-key authentication. General responses receive no publishing token. Hosted implementation runs expose the publishing token to git and gh so their pushes and PR events can trigger CI. Never print credentials or commit them. Refreshed subscription credentials are not written back to repository secrets, so replace an expired login explicitly.
 
@@ -70,6 +77,8 @@ gh pr merge "$PR" --repo iekip95mod-arch/cx2-ag --auto --merge
 ~~~
 
 The agent-review-feedback.yml workflow resumes the issue's assigned Codex or Claude executor after an approval or request for changes from its assigned reviewer. It verifies the current commit and both identity leases, then dispatches the matching worker on its existing issue branch and PR. The worker addresses findings or completes the protected merge checks. An approval with unchanged code does not request another review. Stale reviews, comments and unrelated reviewers do not start a worker. A repeated delivery must not repeat work already completed.
+
+Before addressing a review, the executor posts an acknowledgement on that PR with the review link, run link, model and effort. Reviewers publish a review-in-progress comment when execution starts and a separate formal verdict when finished. The progress comment gives the bot a visible review entry without satisfying the approval gate. Feedback stays inactive until its trusted implementation is present on main.
 
 Check the current head, reviews and checks before acting on any notification. Auto-merge waits for the protected gates. Host tests, Firebird regressions, calculator package builds and physical-device observations prove different stages. Report only the stages reached.
 

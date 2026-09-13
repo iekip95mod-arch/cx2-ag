@@ -100,4 +100,32 @@ feedback_checkout = feedback_job.fetch('steps').find { |step| step['uses'].to_s.
 raise 'Feedback must run trusted main code without checkout credentials' unless feedback_checkout.fetch('with') == { 'ref' => 'main', 'persist-credentials' => false }
 feedback_dispatch = feedback_job.fetch('steps').find { |step| step['name'] == 'Dispatch the assigned executor' }
 raise 'Feedback must execute the validated dispatcher' unless feedback_dispatch.fetch('run') == 'node .github/scripts/review-feedback.mjs' && feedback_dispatch.fetch('env').fetch('GH_TOKEN') == '${{ secrets.GITHUB_TOKEN }}'
-puts '27 worker credential contracts passed'
+general = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Answer an unassigned request' }
+raise 'Claude task-only requests must execute rather than skip' unless general && general.fetch('run').include?('claude -p')
+raise 'Claude task-only requests must not receive publishing credentials' unless general.fetch('env').fetch('GH_TOKEN') == ''
+raise 'Claude installs its CLI for task-only requests' unless claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Install Claude CLI' }.fetch('if') == "steps.key.outputs.have == 'true'"
+general_directory = Dir.mktmpdir('general-', run_directory)
+general_bin = File.join(general_directory, 'bin')
+FileUtils.mkdir_p(general_bin)
+File.write(File.join(general_bin, 'claude'), "#!/usr/bin/env ruby\nrequire 'json'\nFile.write(ENV.fetch('CAPTURE'), JSON.generate({args: ARGV, task: STDIN.read}))\nputs 'General response fixture'\n")
+FileUtils.chmod(0o755, File.join(general_bin, 'claude'))
+general_env = {
+  'PATH' => "#{general_bin}:#{ENV.fetch('PATH')}", 'RUNNER_TEMP' => general_directory,
+  'GITHUB_STEP_SUMMARY' => File.join(general_directory, 'summary'), 'CAPTURE' => File.join(general_directory, 'capture'),
+  'WORKER_MODEL' => 'opus', 'WORKER_EFFORT' => 'high', 'TASK' => "Explain the repository's tests", 'GH_TOKEN' => ''
+}
+stdout, stderr, status = Open3.capture3(general_env, 'bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', general.fetch('run'), unsetenv_others: true, chdir: root)
+raise "Claude task-only execution failed: #{stderr}" unless status.success?
+captured = JSON.parse(File.read(general_env.fetch('CAPTURE')))
+raise 'Claude task-only request changed' unless captured.fetch('task') == general_env.fetch('TASK') + "\n"
+raise 'Claude task-only model or effort differs from disclosure' unless captured.fetch('args')[0, 5] == ['-p', '--model', 'opus', '--effort', 'high']
+raise 'Claude task-only response was dropped' unless File.read(general_env.fetch('GITHUB_STEP_SUMMARY')).include?('General response fixture')
+raise 'Codex model and effort must be passed explicitly' unless execution.fetch('run').include?('--model "$WORKER_MODEL"') && execution.fetch('run').include?('model_reasoning_effort=')
+raise 'Claude model and effort must be passed explicitly' unless claude_step.fetch('with').fetch('claude_args').include?('--model ${{ env.WORKER_MODEL }}') && claude_step.fetch('with').fetch('claude_args').include?('--effort ${{ env.WORKER_EFFORT }}')
+installed = feedback_job.fetch('steps').find { |step| step['id'] == 'installed' }
+raise 'Feedback dispatch must skip until trusted main contains its helper' unless feedback_dispatch.fetch('if') == "steps.installed.outputs.ready == 'true'"
+bootstrap_directory = Dir.mktmpdir('bootstrap-', run_directory)
+bootstrap_env = { 'PATH' => ENV.fetch('PATH'), 'GITHUB_OUTPUT' => File.join(bootstrap_directory, 'outputs'), 'GITHUB_STEP_SUMMARY' => File.join(bootstrap_directory, 'summary') }
+stdout, stderr, status = Open3.capture3(bootstrap_env, 'bash', '--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', installed.fetch('run'), unsetenv_others: true, chdir: bootstrap_directory)
+raise "Bootstrap skip failed: #{stderr}" unless status.success? && File.read(bootstrap_env.fetch('GITHUB_OUTPUT')) == "ready=false\n"
+puts 'Worker model, task-only execution and feedback bootstrap contracts passed'

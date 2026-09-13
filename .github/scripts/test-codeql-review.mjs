@@ -14,6 +14,62 @@ const options = { roster, assignment: async ({ provider }) => roster.find(identi
 const reviewState = (read, repository, pr, sha, overrides = options) => checkReview(read, repository, pr, sha, overrides);
 const waitForReview = (read, repository, pr, sha, sleep, attempts) => wait(read, repository, pr, sha, sleep, attempts, options);
 
+test('review progress is an idempotent non-approval with honest runtime disclosure', async () => {
+  const identity = roster[0];
+  const current = { head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
+  const reviews = [];
+  const writes = [];
+  const api = async (method, endpoint, body) => {
+    if (method === 'GET' && endpoint.endsWith('/pulls/85')) return current;
+    if (method === 'GET' && endpoint.includes('/reviews?')) return reviews;
+    writes.push({ method, endpoint, body });
+    const review = { id: reviews.length + 1, commit_id: body.commit_id, state: 'COMMENTED', body: body.body, user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+    reviews.push(review);
+    return review;
+  };
+  const configured = { ...options, model: 'gpt-6-astra', effort: 'high' };
+  await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'progress', [], configured);
+  await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'progress', [], configured);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].body.event, 'COMMENT');
+  assert.match(writes[0].body.body, /Configured model: gpt-6-astra/);
+  assert.match(writes[0].body.body, /Configured reasoning effort: high/);
+  assert.match(writes[0].body.body, /No verdict has been reached/);
+  await assert.rejects(approvalState(async endpoint => endpoint.includes('/reviews?') ? [reviews] : current, repository, 85, sha, options));
+  await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '2', 'progress', [], configured);
+  assert.equal(writes.length, 2);
+  await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, sha, 'wrong-app', '100', '2', 'progress', [], configured));
+  await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, 'b'.repeat(40), identity.slug, '100', '2', 'progress', [], configured));
+  assert.equal(writes.length, 2);
+});
+
+test('both providers append deterministic configured metadata to a fresh formal verdict', async () => {
+  for (const identity of roster.filter(entry => entry.role === 'reviewer')) {
+    const current = { head: { sha, ref: `${identity.provider}/issue-42`, repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
+    const verdict = { id: 2, commit_id: sha, state: 'APPROVED', body: 'Validated the changed behavior.', user: { login: identity.login, id: identity.userId, type: 'Bot' } };
+    const writes = [];
+    const api = async (method, endpoint, body) => {
+      if (method === 'GET' && endpoint.endsWith('/pulls/85')) return current;
+      if (method === 'GET' && endpoint.includes('/reviews?')) return [verdict];
+      writes.push({ method, endpoint, body });
+      verdict.body = body.body;
+      return verdict;
+    };
+    const configured = { ...options, model: identity.provider === 'claude' ? 'opus' : 'gpt-6-astra', effort: 'high' };
+    await assert.rejects(reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'disclosure', [2], configured));
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'disclosure', [1], configured);
+    await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'disclosure', [1], configured);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].method, 'PUT');
+    assert.equal(writes[0].endpoint, `repos/${repository}/pulls/85/reviews/2`);
+    assert.match(verdict.body, /^Validated the changed behavior\./);
+    assert.match(verdict.body, /Configured reasoning effort: high/);
+    if (identity.provider === 'claude') assert.match(verdict.body, /opus \(alias, resolved model unverified\)/);
+    else assert.match(verdict.body, /Configured model: gpt-6-astra/);
+    assert.equal(verdict.state, 'APPROVED');
+  }
+});
+
 test('review execution requires a verified reviewer assignment event', async () => {
   for (const identity of roster.filter(entry => entry.role === 'reviewer')) {
     const current = { number: 85, state: 'open', draft: false, user: { login: 'owner', id: 10, type: 'User' }, head: { sha, ref: `${identity.provider}/issue-42`, repo: { full_name: repository } }, labels: [{ name: `reviewer:${identity.slug}` }] };

@@ -120,6 +120,9 @@ jobs:
       cancel-in-progress: false
     runs-on: macos-latest
     timeout-minutes: 30
+    env:
+      WORKER_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
+      WORKER_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
     permissions:
       contents: read
       issues: read
@@ -228,7 +231,11 @@ jobs:
           SANDBOX_MODE: ${{ steps.worker.outputs.issue && 'danger-full-access' || 'workspace-write' }}
         run: |
           codex login status
-          codex exec --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
+          if [ -n "$GH_TOKEN" ]; then
+            node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"
+          fi
+          printf 'Configured model: %s\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
+          codex exec --model "$WORKER_MODEL" -c "model_reasoning_effort=\"$WORKER_EFFORT\"" --cd "$WORKER_DIRECTORY" --sandbox "$SANDBOX_MODE" -c approval_policy='"never"' \
             -c shell_environment_policy.ignore_default_excludes=true \
             --ephemeral --output-last-message "$RUNNER_TEMP/codex-reply.md" - < "$RUNNER_TEMP/codex-prompt.txt"
 
@@ -256,4 +263,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           NUMBER: ${{ steps.worker.outputs.issue }}
-        run: gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/codex-reply.md"
+        run: |
+          {
+            printf 'Configured model: %s\nConfigured effort: %s\n\n' "$WORKER_MODEL" "$WORKER_EFFORT"
+            cat "$RUNNER_TEMP/codex-reply.md"
+          } > "$RUNNER_TEMP/codex-published-reply.md"
+          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/codex-published-reply.md"

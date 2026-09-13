@@ -127,7 +127,10 @@ test('a newer PR head appearing during validation prevents dispatch', async () =
 test('completed deliveries and successful earlier attempts are deduplicated, failed attempts retry', async () => {
   const duplicate = fixture();
   duplicate.responses[`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&status=success&per_page=100`].workflow_runs = [{ id: 99, display_title: 'Review feedback 1234', conclusion: 'success' }];
+  duplicate.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Dispatch the assigned executor', conclusion: 'success' }] }] };
   assert.equal(await dispatchFeedback(duplicate.options, duplicate.api), false);
+  duplicate.responses[`repos/${repository}/actions/runs/99/jobs?per_page=100`].jobs[0].steps[0].conclusion = 'skipped';
+  assert.equal(await dispatchFeedback(duplicate.options, duplicate.api), true);
   for (const conclusion of ['success', 'failure']) {
     const f = fixture();
     f.options.attempt = 2;

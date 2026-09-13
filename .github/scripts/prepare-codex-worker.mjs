@@ -35,16 +35,11 @@ export async function claimIssue({ repository, number, run, expectedBranch, prov
     const main = await api('GET', `repos/${repository}/git/ref/heads/main`);
     await api('POST', `repos/${repository}/git/refs`, { ref: `refs/heads/${branch}`, sha: main.object.sha });
   }
-  const assignable = await api('GET', `repos/${repository}/assignees/${identity.login}`, undefined, true);
-  if (assignable !== null) {
-    const assigned = await api('POST', `repos/${repository}/issues/${issueNumber}/assignees`, { assignees: [identity.login] });
-    if (!assigned.assignees.some(assignee => assignee.login === identity.login)) throw Error('GitHub did not confirm the bot assignment');
-  }
   const label = `worker:${bot.slug}`;
   const existingLabel = await api('GET', `repos/${repository}/labels/${label}`, undefined, true);
   if (!existingLabel) await api('POST', `repos/${repository}/labels`, { name: label, color: '5319e7', description: 'Executor identity reserved by the durable issue lease' });
   await api('POST', `repos/${repository}/issues/${issueNumber}/labels`, { labels: [label] });
-  await api('POST', `repos/${repository}/issues/${issueNumber}/comments`, { body: `${identity.login} holds the ${provider} executor lease for this issue.\n\nBranch: ${branch}\nRun: https://github.com/${repository}/actions/runs/${run}\n\nThis worker owns this issue only. Its changes require an independent ${provider} review and all protected checks before merging.` });
+  await api('POST', `repos/${repository}/issues/${issueNumber}/comments`, { body: `${identity.login} holds the ${provider} executor lease for this issue.\n\nExecutor lease: ${branch}\nBranch: ${branch}\nRun: https://github.com/${repository}/actions/runs/${run}\n\nThis worker owns this issue only. Its changes require an independent ${provider} review and all protected checks before merging.` });
   return { branch, login: identity.login, email: `${identity.id}+${identity.login}@users.noreply.github.com`, issue, number: issueNumber };
 }
 
@@ -61,7 +56,7 @@ async function main() {
       return reply.trim() ? JSON.parse(reply) : {};
     } catch (error) {
       if (missing && String(error.stderr).includes('(HTTP 404)')) return null;
-      throw Error(`GitHub ${method} ${endpoint} failed. Check the publishing token permissions`);
+      throw Object.assign(Error(`GitHub ${method} ${endpoint} failed. Check the publishing token permissions`), { status: Number(/\(HTTP (\d+)\)/.exec(String(error.stderr))?.[1]) });
     }
   };
   if (process.argv.includes('--resolve')) {

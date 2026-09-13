@@ -80,6 +80,9 @@ jobs:
     if: needs.select-reviewer.outputs.reviewer == 'claude' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
+    env:
+      REVIEW_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
+      REVIEW_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
     permissions:
       contents: read
       pull-requests: write
@@ -193,6 +196,15 @@ jobs:
           # Published here rather than written into the step below, because the prefix is brew's to
           # report and not ours to spell.
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+
+      - name: Show that the assigned reviewer is starting
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-progress
 
       - name: Review the pull request
         if: steps.key.outputs.have == 'true'
@@ -310,8 +322,20 @@ jobs:
           # takes the base commit directly, and git checkout -- . would silently discard the
           # git apply -R the reviewer uses to watch a guard fail.
           claude_args: |
+            --model ${{ env.REVIEW_MODEL }}
+            --effort ${{ env.REVIEW_EFFORT }}
             --max-turns 80
             --allowedTools "Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Read,Grep,Glob"
+
+      - name: Disclose the configured review model and effort
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          BEFORE: ${{ needs.select-reviewer.outputs.before }}
+        run: node .github/scripts/wait-for-review.mjs --review-disclosure
 
       # The step above can finish green having posted nothing, and it has four times. Twice the
       # action declined and skipped, once the reviewer ran out waiting on a check, once it stopped
@@ -353,6 +377,9 @@ jobs:
     if: needs.select-reviewer.outputs.reviewer == 'codex' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: macos-latest
     timeout-minutes: 30
+    env:
+      REVIEW_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
+      REVIEW_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
     permissions:
       contents: read
       pull-requests: write
@@ -383,6 +410,21 @@ jobs:
           brew install ccache gmp php
           echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
           npm install -g @openai/codex@0.154.0
+      - name: Authenticate the assigned reviewer
+        id: bot
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ needs.select-reviewer.outputs.app_id }}
+          private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Show that the assigned reviewer is starting
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+        run: node .github/scripts/wait-for-review.mjs --review-progress
       - name: Review with subscription login
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
@@ -403,17 +445,10 @@ jobs:
           A separate workflow step publishes your verdict against the reviewed commit.
           EOF
           codex login status
-          codex exec --sandbox workspace-write -c approval_policy='"never"' \
+          codex exec --model "$REVIEW_MODEL" -c "model_reasoning_effort=\"$REVIEW_EFFORT\"" \
+            --sandbox workspace-write -c approval_policy='"never"' \
             --ephemeral --output-schema "$RUNNER_TEMP/review-schema.json" \
             --output-last-message "$RUNNER_TEMP/codex-review.json" - < "$RUNNER_TEMP/review-prompt.txt"
-      - name: Authenticate the assigned reviewer
-        id: bot
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
-        with:
-          app-id: ${{ needs.select-reviewer.outputs.app_id }}
-          private-key: ${{ secrets[needs.select-reviewer.outputs.secret_name] }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
       - name: Publish the review for the reviewed commit
         id: publish
         env:
@@ -429,6 +464,15 @@ jobs:
           jq -e '(.verdict == "APPROVED" or .verdict == "CHANGES_REQUESTED") and (.body | type == "string" and length > 0)' "$RUNNER_TEMP/codex-review.json" > /dev/null
           jq --arg sha "$HEAD_SHA" '{commit_id: $sha, event: (if .verdict == "APPROVED" then "APPROVE" else "REQUEST_CHANGES" end), body: .body}' "$RUNNER_TEMP/codex-review.json" > "$RUNNER_TEMP/review-request.json"
           gh api "repos/$REPO/pulls/$PR/reviews" --input "$RUNNER_TEMP/review-request.json" --jq '{id, state, commit_id}'
+
+      - name: Disclose the configured review model and effort
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          BEFORE: ${{ needs.select-reviewer.outputs.before }}
+        run: node .github/scripts/wait-for-review.mjs --review-disclosure
 
   review-approved:
     needs: [select-reviewer, review, codex-review]

@@ -28,12 +28,19 @@ export function findIdentity(roster, login, provider, role) {
   return identity;
 }
 
-export async function resolveTarget({ repository, provider, role, issue, pr }, api) {
+export async function resolveTarget({ repository, provider, role, issue, pr, legacyOwner }, api) {
   if (repository !== repositoryName || !['codex', 'claude'].includes(provider) || !['executor', 'reviewer'].includes(role)) throw Error('Invalid bot repository or pool');
   if ((issue === undefined) === (pr === undefined) || !/^[1-9][0-9]*$/.test(String(issue ?? pr)) || !Number.isSafeInteger(Number(issue ?? pr))) throw Error('Specify one issue or PR number');
   if (issue !== undefined) {
     const ticket = await api('GET', `repos/${repository}/issues/${issue}`);
-    if (ticket.pull_request) return resolveTarget({ repository, provider, role, pr: issue }, api);
+    if (ticket.pull_request) return resolveTarget({ repository, provider, role, pr: issue, legacyOwner }, api);
+    const state = await readState(repository, api);
+    const existing = state.assignments.find(assignment => assignment.key === `${provider}/${role}/issue-${issue}` && !assignment.released);
+    if (existing && existing.branch !== `${provider}/issue-${issue}`) {
+      const target = await resolveTarget({ repository, provider, role, pr: existing.pr }, api);
+      if (target.key !== existing.key || target.branch !== existing.branch) throw Error('The assigned PR no longer matches this issue and branch');
+      return target;
+    }
     return { key: `${provider}/${role}/issue-${issue}`, provider, role, issue: Number(issue), pr: null, branch: `${provider}/issue-${issue}` };
   }
   const pull = await api('GET', `repos/${repository}/pulls/${pr}`);
@@ -45,17 +52,25 @@ export async function resolveTarget({ repository, provider, role, issue, pr }, a
     if (ticket.pull_request) throw Error('The canonical branch must refer to an issue, not a PR');
     return { key: `${provider}/${role}/issue-${canonical[2]}`, provider, role, issue: Number(canonical[2]), pr: Number(pr), branch: pull.head.ref };
   }
-  if (role !== 'reviewer') throw Error('Executor PRs require a canonical issue branch');
+  if (role === 'executor' && !pull.head.ref.startsWith(`${provider}/`)) throw Error('The legacy executor branch belongs to another provider');
   const [owner, name] = repository.split('/');
   const linked = await api('POST', 'graphql', {
     query: 'query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:100){nodes{number repository{nameWithOwner}} pageInfo{hasNextPage}}}}}',
     variables: { owner, name, number: Number(pr) },
   });
   const references = linked.data?.repository?.pullRequest?.closingIssuesReferences;
-  if (!references || references.pageInfo.hasNextPage || references.nodes.length > 1) throw Error('A reviewer PR must link at most one issue');
+  if (!references || references.pageInfo.hasNextPage || references.nodes.length > 1 || (role === 'executor' && references.nodes.length !== 1)) throw Error('A legacy executor PR must link exactly one issue, and a reviewer PR at most one');
   if (references.nodes.length) {
     const ticket = references.nodes[0];
     if (ticket.repository.nameWithOwner !== repository) throw Error('The linked issue belongs to another repository');
+    if (role === 'executor') {
+      const state = await readState(repository, api);
+      const existing = state.assignments.find(assignment => assignment.key === `${provider}/${role}/issue-${ticket.number}` && !assignment.released);
+      if (existing && (existing.pr !== Number(pr) || existing.branch !== pull.head.ref)) throw Error('The issue already has a different assigned PR or branch');
+      const owner = existing?.legacyOwner ?? legacyOwner;
+      if (owner !== repository.split('/')[0] || pull.user.login !== owner) throw Error('Legacy executor migration requires the explicit repository owner and matching PR author');
+      return { key: `${provider}/${role}/issue-${ticket.number}`, provider, role, issue: ticket.number, pr: Number(pr), branch: pull.head.ref, legacyOwner: owner };
+    }
     return { key: `${provider}/${role}/issue-${ticket.number}`, provider, role, issue: ticket.number, pr: Number(pr), branch: pull.head.ref };
   }
   return { key: `${provider}/${role}/pr-${pr}`, provider, role, issue: null, pr: Number(pr), branch: pull.head.ref };
@@ -72,7 +87,7 @@ async function readState(repository, api) {
     if (!['codex', 'claude'].includes(assignment.provider) || !['executor', 'reviewer'].includes(assignment.role) || typeof assignment.branch !== 'string' || typeof assignment.slug !== 'string' || typeof assignment.released !== 'boolean') throw Error('Invalid bot assignment');
     const number = assignment.issue ?? assignment.pr;
     if (!Number.isSafeInteger(number) || number <= 0 || assignment.key !== `${assignment.provider}/${assignment.role}/${assignment.issue ? 'issue' : 'pr'}-${number}`) throw Error('Invalid bot assignment target');
-    if (assignment.role === 'executor' && assignment.branch !== `${assignment.provider}/issue-${assignment.issue}`) throw Error('Invalid bot assignment branch');
+    if (assignment.role === 'executor' && assignment.branch !== `${assignment.provider}/issue-${assignment.issue}` && (!Number.isSafeInteger(assignment.pr) || assignment.pr <= 0 || !assignment.issue || !assignment.branch.startsWith(`${assignment.provider}/`) || assignment.legacyOwner !== repository.split('/')[0])) throw Error('Invalid legacy bot assignment branch');
   }
   return { sha: file.sha, assignments: document.assignments };
 }
@@ -116,13 +131,13 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   if (target.role !== 'executor') return;
   const ticket = await api('GET', `repos/${repository}/issues/${target.issue}`);
   const allowed = new Set([identity.login]);
-  if (legacyOwner === repository.split('/')[0]) allowed.add(legacyOwner);
+  if ((target.legacyOwner ?? legacyOwner) === repository.split('/')[0]) allowed.add(repository.split('/')[0]);
   if (ticket.assignees.some(assignee => !allowed.has(assignee.login))) throw Error('Another identity owns the issue');
   if (ticket.labels.some(label => label.name === (target.provider === 'codex' ? 'claude' : 'codex'))) throw Error('Another provider owns the issue');
   const branch = await api('GET', `repos/${repository}/git/ref/heads/${target.branch}`, undefined, true);
   const pulls = await branchPulls(repository, target.branch, api);
   if (pulls.some(pull => !allowed.has(pull.user.login))) throw Error('Another identity owns a branch PR');
-  if (branch && !leased && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
+  if (branch && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
 }
 
 export async function readAssignment(options, api, roster = loadRoster()) {

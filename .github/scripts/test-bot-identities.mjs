@@ -207,6 +207,69 @@ test('read-only resolution rejects forks, invalid input and cross-provider PRs',
   assert.equal(github.calls.some(call => call.method !== 'GET'), false);
 });
 
+function legacyFixture() {
+  const github = fixture();
+  const pull = github.pull(91, 90);
+  pull.head.ref = 'codex/named-bot-identities';
+  pull.user.login = 'iekip95mod-arch';
+  github.branches.add(pull.head.ref);
+  github.links = [{ number: 90, repository: { nameWithOwner: repository } }];
+  return { github, pull, target: { repository, provider: 'codex', role: 'executor', pr: 91, legacyOwner: 'iekip95mod-arch' } };
+}
+
+test('explicit legacy PR migration keeps its executor identity for issue and PR retries', async () => {
+  const { github, target } = legacyFixture();
+  const worker = await allocateIdentity(target, github.api, roster);
+  assert.equal(worker.issue, 90);
+  assert.equal(worker.branch, 'codex/named-bot-identities');
+  assert.equal(worker.role, 'executor');
+  for (const alias of [options(90), options(91), { ...target, legacyOwner: undefined }]) {
+    const resolved = await resolveTarget(alias, github.api);
+    const read = await readAssignment(alias, github.api, roster);
+    const resumed = await allocateIdentity(alias, github.api, roster);
+    assert.equal(resolved.branch, worker.branch);
+    assert.equal(read.login, worker.login);
+    assert.equal(resumed.login, worker.login);
+  }
+  assert.equal(github.revision, 1);
+});
+
+test('legacy executor migration rejects missing authority, foreign authors, branches and issue links', async () => {
+  for (const change of [
+    ({ target }) => { delete target.legacyOwner; },
+    ({ target }) => { target.legacyOwner = 'someone-else'; },
+    ({ pull }) => { pull.user.login = 'someone-else'; },
+    ({ pull }) => { pull.head.ref = 'claude/setup'; },
+    ({ pull }) => { pull.head.ref = 'unrelated/setup'; },
+    ({ pull }) => { pull.head.repo.full_name = 'other/repo'; },
+    ({ github }) => { github.links = []; },
+    ({ github }) => { github.links = [{ number: 90, repository: { nameWithOwner: repository } }, { number: 92, repository: { nameWithOwner: repository } }]; },
+    ({ github }) => { github.links = [{ number: 90, repository: { nameWithOwner: 'other/repo' } }]; },
+  ]) {
+    const setup = legacyFixture();
+    change(setup);
+    await assert.rejects(allocateIdentity(setup.target, setup.github.api, roster));
+    assert.equal(setup.github.revision, 0);
+    assert.equal(setup.github.calls.some(call => call.method === 'PUT'), false);
+  }
+});
+
+test('legacy executor lookup revalidates the recorded PR branch, author and linked issue', async () => {
+  for (const change of [
+    ({ github }) => { github.links = [{ number: 92, repository: { nameWithOwner: repository } }]; },
+    ({ pull }) => { pull.head.ref = 'codex/changed-branch'; },
+    ({ pull }) => { pull.user.login = 'someone-else'; },
+    ({ github }) => { github.assignments = github.assignments.map(record => ({ ...record, pr: null })); },
+    ({ github }) => { github.assignments = github.assignments.map(record => ({ ...record, legacyOwner: 'someone-else' })); },
+  ]) {
+    const setup = legacyFixture();
+    await allocateIdentity(setup.target, setup.github.api, roster);
+    change(setup);
+    await assert.rejects(readAssignment(options(90), setup.github.api, roster));
+    await assert.rejects(allocateIdentity(options(90), setup.github.api, roster));
+  }
+});
+
 test('noncanonical reviewer PRs use authoritative linked issues or a standalone PR lease', async () => {
   const github = fixture();
   github.pull(91, 90).head.ref = 'codex/named-bot-identities';
@@ -262,7 +325,7 @@ test('the CLI resolves an issue into workflow outputs without exposing credentia
   const run = spawnSync(process.execPath, [cli, 'resolve', '--provider', 'codex', '--role', 'executor', '--issue', '42'], { env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(readFileSync(output, 'utf8'), 'branch=codex/issue-42\nissue=42\n');
-  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['api', '--method', 'GET', `repos/${repository}/issues/42`]]);
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['api', '--method', 'GET', `repos/${repository}/issues/42`], ['api', '--method', 'GET', `repos/${repository}/contents/assignments.json?ref=bot-assignments`]]);
   assert.doesNotMatch(run.stdout + run.stderr, /fixture-secret/);
   const invalidOutput = join(directory, 'invalid-outputs');
   const invalid = spawnSync(process.execPath, [cli, 'allocate', '--provider', 'codex', '--role', 'executor', '--issue', '42'], { env: { ...env, GH_TOKEN: '', GITHUB_OUTPUT: invalidOutput }, encoding: 'utf8' });

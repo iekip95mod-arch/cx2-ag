@@ -29,7 +29,17 @@ jobs:
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         with:
           node-version: "24"
+      - name: Check whether feedback is installed on main
+        id: installed
+        run: |
+          if [ -f .github/scripts/review-feedback.mjs ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Review feedback starts after its setup PR merges into main." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Dispatch the assigned executor
+        if: steps.installed.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LEGACY_OWNER: iekip95mod-arch

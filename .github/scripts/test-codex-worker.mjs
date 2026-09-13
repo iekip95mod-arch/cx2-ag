@@ -29,14 +29,17 @@ function fixture(options = {}) {
   };
   return { calls, api };
 }
-test('claim creates the branch and identifies the leased bot without requiring assignment', async () => {
+test('claim publishes the executor participation marker without using its App token to assign', async () => {
   const { calls, api } = fixture();
   const claim = await claimIssue(target, api);
   assert.equal(claim.branch, 'codex/issue-42');
   assert.equal(claim.login, bot.login);
   assert.equal(claim.email, '7+worker-amber[bot]@users.noreply.github.com');
   assert.equal(calls.some(call => call.endpoint === 'user'), false);
-  assert.equal(calls.some(call => call.method === 'POST' && call.endpoint.endsWith('/assignees')), false);
+  const commentIndex = calls.findIndex(call => call.method === 'POST' && call.endpoint.endsWith('/comments'));
+  assert.ok(commentIndex >= 0);
+  assert.match(calls[commentIndex].body.body, /Executor lease: codex\/issue-42/);
+  assert.equal(calls.some(call => call.endpoint.includes('/assignees')), false);
   assert.deepEqual(calls.find(call => call.endpoint.endsWith('/issues/42/labels')).body, { labels: ['worker:worker-amber'] });
   assert.match(calls.find(call => call.endpoint.endsWith('/comments')).body.body, /worker-amber\[bot\].*executor lease/);
 });
@@ -77,11 +80,10 @@ test('legacy ownership migration requires the explicit trusted principal', async
   await claimIssue({ ...target, number: 84, legacyOwner: 'iekip95mod-arch' }, fixture(options).api);
   await assert.rejects(claimIssue({ ...target, legacyOwner: 'someone-else' }, fixture().api));
 });
-test('assignable bots are assigned and the returned assignment must match', async () => {
+test('native assignment is delegated to the separate trusted metadata router', async () => {
   const supported = fixture({ assignable: true });
   await claimIssue(target, supported.api);
-  assert.equal(supported.calls.some(call => call.method === 'POST' && call.endpoint.endsWith('/assignees')), true);
-  await assert.rejects(claimIssue(target, fixture({ assignable: true, assignment: [] }).api), /confirm the bot assignment/);
+  assert.equal(supported.calls.some(call => call.endpoint.includes('/assignees')), false);
 });
 test('incorrect GitHub identity cannot mutate or report a claim', async () => {
   for (const identity of [{ type: 'User' }, { id: 8 }, { login: 'other[bot]' }]) {
@@ -265,6 +267,10 @@ test('the first meaningful commit publishes a linked draft and later commits reu
   assert.equal(published[0].body.draft, true);
   assert.equal(published[0].body.head, 'codex/issue-42');
   assert.match(published[0].body.body, /^Closes #42\n/);
+  const participation = fixture.calls().filter(call => call.args[2] === 'POST' && call.args[3].endsWith('/issues/90/comments'));
+  assert.equal(participation.length, 1);
+  assert.match(participation[0].body.body, /Executor lease: codex\/issue-42/);
+  assert.equal(fixture.calls().some(call => call.args[3]?.includes('/assignees')), false);
   const ownership = fixture.calls().filter(call => call.args[2] === 'POST' && call.args[3].endsWith('/issues/90/labels'));
   assert.equal(ownership.length, 2);
   for (const call of ownership) assert.deepEqual(call.body, { labels: ['worker:worker-amber'] });
@@ -351,13 +357,36 @@ test('a failed PR ownership label is retried on the existing draft without creat
 
 test('an explicitly migrated human PR receives the leased bot ownership label', async () => {
   const context = { repository, issue: 42, branch: 'codex/issue-42', login: bot.login, title: 'Printer refusal', directory: '/owned/tree', legacyOwner: 'iekip95mod-arch' };
-  const pr = { number: 90, state: 'open', user: { login: context.legacyOwner }, head: { repo: { full_name: repository }, ref: context.branch } };
+  const pr = { number: 90, state: 'open', assignees: [{ login: bot.login }], user: { login: context.legacyOwner }, head: { repo: { full_name: repository }, ref: context.branch } };
   const mutations = [];
   const git = (...args) => args[0] === 'rev-parse' ? context.directory : args[0] === 'branch' ? context.branch : 'regression.cc';
   const api = async (method, endpoint, body) => {
     if (method === 'POST') { mutations.push({ endpoint, body }); return {}; }
+    if (endpoint.includes('/comments?')) return [{ user: { login: bot.login }, body: `Executor lease: ${context.branch}` }];
     return endpoint.includes('/issues/') ? { state: 'open' } : [pr];
   };
   assert.equal(await publishDraft(context, git, api), pr);
   assert.deepEqual(mutations, [{ endpoint: `repos/${repository}/issues/90/labels`, body: { labels: ['worker:worker-amber'] } }]);
+});
+
+test('publication recovery accepts a verified merged PR and closed issue without pushing again', async () => {
+  const context = { repository, issue: 42, branch: 'codex/issue-42', login: bot.login, title: 'Printer refusal', directory: '/owned/tree' };
+  const pr = { number: 90, state: 'closed', merged_at: '2026-09-12T12:00:00Z', user: { login: bot.login }, head: { sha: 'a'.repeat(40), repo: { full_name: repository }, ref: context.branch } };
+  const mutations = [];
+  const git = (...args) => {
+    if (args[0] === 'rev-parse') return args[1] === '--show-toplevel' ? context.directory : pr.head.sha;
+    if (args[0] === 'branch') return context.branch;
+    if (args[0] === 'diff') return 'regression.cc';
+    mutations.push(args);
+    return '';
+  };
+  const api = async (method, endpoint) => {
+    assert.equal(method, 'GET');
+    return endpoint.includes('/issues/') ? { state: 'closed' } : [pr];
+  };
+  assert.equal(await publishDraft(context, git, api), null);
+  assert.equal(mutations.length, 0);
+  for (const changed of [{ ...pr, merged_at: null }, { ...pr, head: { ...pr.head, sha: 'b'.repeat(40) } }]) {
+    await assert.rejects(publishDraft(context, git, async (method, endpoint) => endpoint.includes('/issues/') ? { state: 'closed' } : [changed]));
+  }
 });
