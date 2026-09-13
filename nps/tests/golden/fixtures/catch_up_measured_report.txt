@@ -38,8 +38,8 @@ steps
     fact: Boreal starts at 5 s
     fact: shared coordinate frame: track
     alternative: a constant-acceleration position law, which would be nonlinear in event time
-    rationale: both active-interval laws have constant velocity directly or by exact zero acceleration, so the existing exact linear solver applies
-    verification: validated motion models, passed, both bodies are constant velocity directly or have exact zero acceleration
+    rationale: both active-interval laws have constant velocity directly or by zero acceleration, so the existing exact linear solver applies
+    verification: validated motion models, passed, both bodies are constant velocity directly or have zero acceleration
     verification: frame identity, passed, both bodies use the same declared coordinate frame
     verification: exact rational boundary comparison, passed, the candidate is in both active intervals
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence

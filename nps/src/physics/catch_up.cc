@@ -131,10 +131,9 @@ bool validate_body(const CatchUpBody &body, CatchUpResult *failure) {
     return true;
 }
 
-bool has_exact_zero_acceleration(const CatchUpBody &body) {
+bool has_zero_acceleration(const CatchUpBody &body) {
     if (body.motion != CatchUpMotionModel::ConstantAcceleration ||
-        body.acceleration.unit.dimension != acceleration_dimension() ||
-        body.acceleration.precision.kind != NumberKind::Exact) {
+        body.acceleration.unit.dimension != acceleration_dimension()) {
         return false;
     }
     std::string detail;
@@ -189,8 +188,7 @@ bool convert_body(const CatchUpBody &body, BodySI *converted,
                                   " acceleration to SI exceeds exact arithmetic");
             return false;
         }
-        if (acceleration.num != 0 ||
-            body.acceleration.precision.kind != NumberKind::Exact) {
+        if (acceleration.num != 0) {
             *failure = failed(
                 CatchUpOutcome::NonlinearMotionUnsupported,
                 DerivationStatus::Unsupported,
@@ -294,6 +292,8 @@ Precision answer_precision(const CatchUpProblem &problem) {
         precision = precision_combine(precision, body->position_at_start.precision);
         precision = precision_combine(precision, body->velocity_at_start.precision);
         precision = precision_combine(precision, body->start_time.precision);
+        if (body->motion == CatchUpMotionModel::ConstantAcceleration)
+            precision = precision_combine(precision, body->acceleration.precision);
     }
     return precision;
 }
@@ -427,10 +427,10 @@ std::vector<std::string> motion_assumptions(const CatchUpProblem &problem) {
                           catch_up_motion_model_name(problem.first.motion));
     assumptions.push_back(std::string("second body motion model: ") +
                           catch_up_motion_model_name(problem.second.motion));
-    if (has_exact_zero_acceleration(problem.first))
-        assumptions.push_back("first body acceleration is exact zero on its active interval");
-    if (has_exact_zero_acceleration(problem.second))
-        assumptions.push_back("second body acceleration is exact zero on its active interval");
+    if (has_zero_acceleration(problem.first))
+        assumptions.push_back("first body acceleration is zero on its active interval");
+    if (has_zero_acceleration(problem.second))
+        assumptions.push_back("second body acceleration is zero on its active interval");
     return assumptions;
 }
 
@@ -550,16 +550,16 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                                          problem.first.frame.name);
     if (problem.first.motion == CatchUpMotionModel::ConstantAcceleration) {
         plan.matched_problem_facts.push_back(
-            problem.first.name + " has exact zero acceleration");
+            problem.first.name + " has zero acceleration");
     }
     if (problem.second.motion == CatchUpMotionModel::ConstantAcceleration) {
         plan.matched_problem_facts.push_back(
-            problem.second.name + " has exact zero acceleration");
+            problem.second.name + " has zero acceleration");
     }
     plan.alternatives_considered.push_back(
         "a constant-acceleration position law, which would be nonlinear in event time");
     plan.selection_rationale =
-        "both active-interval laws have constant velocity directly or by exact zero acceleration, "
+        "both active-interval laws have constant velocity directly or by zero acceleration, "
         "so the existing exact linear solver applies";
     Step plan_step;
     plan_step.phase = "plan";
@@ -576,7 +576,7 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         "each body has constant velocity after its stated start time",
         "validated motion models", EvidenceStrength::StructurallyValid,
         VerificationOutcome::Passed,
-        "both bodies are constant velocity directly or have exact zero acceleration");
+        "both bodies are constant velocity directly or have zero acceleration");
     register_strategy_precondition(
         plan, plan_step, "pre.catch-up.shared-axis",
         "both positions use the same one-dimensional coordinate axis", "frame identity",
