@@ -212,6 +212,31 @@ void run_vector_components_tests(TestSink &t) {
     {
         Arena arena;
         Derivation derivation;
+        SequenceBackend backend({"pi-pi", "0", "pi-pi", "0.0", "0", "0", "0.0"});
+        VectorExpr input;
+        input.x = parsed(arena, "pi-pi");
+        input.y = parsed(arena, "0");
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+        input.precision.kind = NumberKind::Measured;
+        input.precision.significant_digits = 3;
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.check(result.outcome == VectorComponentsOutcome::VerificationFailed &&
+                    result.status == DerivationStatus::VerificationFailed && !result.has_polar &&
+                    result.detail == "Giac did not classify the exact magnitude",
+                "an equivalent-zero classification cannot stand as nonzero evidence");
+        t.check(backend.commands.size() == 3 &&
+                    !has_obligation(derivation, "obl.vector-components.quadrant-direction"),
+                "an inconclusive magnitude classification stops before approximation and atan2");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
         SequenceBackend backend({"0.004", "0", "0.0", "0", "0", "0.0"});
         VectorExpr input;
         input.x = parsed(arena, "0.004");

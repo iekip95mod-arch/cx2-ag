@@ -815,8 +815,11 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
                                             input.frame, input.unit, input.precision, output_unit,
                                             why, false);
         Rational zero_classification;
-        zero_magnitude = evaluate_rational(arena, classified, no_symbols, &zero_classification) &&
-                         rational_equal(zero_classification, {0, 1});
+        if (!evaluate_rational(arena, classified, no_symbols, &zero_classification))
+            return conversion_failure(
+                derivation, mark, meter, budget, model, direction, input.frame, input.unit,
+                input.precision, output_unit, "Giac did not classify the exact magnitude", true);
+        zero_magnitude = rational_equal(zero_classification, {0, 1});
     }
     if (zero_magnitude)
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
