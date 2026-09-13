@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readAssignment } from './bot-identities.mjs';
 import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
@@ -27,7 +27,7 @@ export async function announceWorker({ context, task = '', model, effort, run },
     const pr = await api('GET', `repos/${repository}/pulls/${prNumber}`);
     const review = await api('GET', `repos/${repository}/pulls/${prNumber}/reviews/${reviewId}`);
     const security = isSecurityReview(review);
-    if (pr.state !== 'open' || pr.draft || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch || pr.head.sha !== head || review.commit_id !== head || review.id !== Number(reviewId) || (!security && !['APPROVED', 'CHANGES_REQUESTED'].includes(review.state))) return false;
+    if (pr.state !== 'open' || (pr.draft && review.state === 'APPROVED') || pr.head?.repo?.full_name !== repository || pr.head.ref !== branch || pr.head.sha !== head || review.commit_id !== head || review.id !== Number(reviewId) || (!security && !['APPROVED', 'CHANGES_REQUESTED'].includes(review.state))) return false;
     if (pr.user.login !== login && !(legacyOwner === 'iekip95mod-arch' && pr.user.login === legacyOwner)) throw Error('The review PR belongs to another executor');
     if (security && !await hasSecurityFindings(repository, prNumber, review, api)) return false;
     let reviewer;
@@ -43,7 +43,8 @@ export async function announceWorker({ context, task = '', model, effort, run },
       const reviews = await api('GET', `repos/${repository}/pulls/${prNumber}/reviews?per_page=100&page=${page}`);
       if (!Array.isArray(reviews)) throw Error('Invalid PR review history');
       for (const candidate of reviews) {
-        if (candidate.commit_id !== head || candidate.user?.login !== reviewer.login || candidate.user.id !== reviewer.userId || candidate.user.type !== 'Bot' || !['APPROVED', 'CHANGES_REQUESTED'].includes(candidate.state)) continue;
+        const blocked = candidate.state === 'COMMENTED' && candidate.body?.includes('<!-- review-blocked -->');
+        if (candidate.commit_id !== head || candidate.user?.login !== reviewer.login || candidate.user.id !== reviewer.userId || candidate.user.type !== 'Bot' || (!blocked && !['APPROVED', 'CHANGES_REQUESTED'].includes(candidate.state))) continue;
         const submitted = Date.parse(candidate.submitted_at);
         if (!Number.isFinite(submitted) || !Number.isSafeInteger(candidate.id)) throw Error('Invalid formal review submission');
         if (!latest || submitted > latest.submitted || (submitted === latest.submitted && candidate.id > latest.id)) latest = { id: candidate.id, submitted, state: candidate.state };
@@ -75,7 +76,8 @@ async function main() {
       throw Error(`Executor announcement ${method} ${endpoint} failed`);
     }
   };
-  await announceWorker({ context: JSON.parse(readFileSync(process.argv[2], 'utf8')), task: event.inputs?.task ?? event.client_payload?.task ?? '', model: process.env.WORKER_MODEL, effort: process.env.WORKER_EFFORT, run: process.env.GITHUB_RUN_ID }, api);
+  const proceed = await announceWorker({ context: JSON.parse(readFileSync(process.argv[2], 'utf8')), task: event.inputs?.task ?? event.client_payload?.task ?? '', model: process.env.WORKER_MODEL, effort: process.env.WORKER_EFFORT, run: process.env.GITHUB_RUN_ID }, api);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `proceed=${proceed}\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(error => { console.error(`::error::${error.message}`); process.exitCode = 1; });

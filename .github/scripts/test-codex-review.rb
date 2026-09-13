@@ -12,6 +12,16 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
   raise 'Reviewers need prior findings on the exact head' unless history && history.fetch('run') == 'node .github/scripts/review-history.mjs' && history.fetch('env').fetch('HEAD_SHA') == '${{ github.event.pull_request.head.sha }}'
   prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('with').fetch('prompt') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
   raise 'Every review must cover the full PR and track earlier findings' unless prompt.include?('entire cumulative PR') && prompt.include?('review-history.json') && prompt.include?('superseded') && prompt.include?('suggestion block')
+  raise 'Reviewer environment blockers must not request code changes' unless prompt.include?('BLOCKED') && prompt.include?('CI evidence') && prompt.include?('review-prerequisites.log')
+  preparation = steps.find { |step| step['name'] == 'Prepare complete reviewer prerequisites' }
+  raise 'Both reviewers must prepare SDK and Lua before the model runs' unless preparation && preparation.fetch('run').include?('prepare-review.sh') && preparation['continue-on-error'] == true
+  restore = steps.find { |step| step['name'] == 'Restore the reviewer cross toolchain' }
+  save = steps.find { |step| step['name'] == 'Save the complete reviewer cross toolchain' }
+  raise 'Reviewer cache restoration must not save partial prerequisites' unless restore && restore.fetch('uses') == 'actions/cache/restore@v6' && restore.fetch('id') == 'reviewer-toolchain-cache'
+  raise 'Reviewer cache save must follow successful preparation' unless save && save.fetch('uses') == 'actions/cache/save@v6' && save.fetch('if') == "steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'"
+  raise 'Reviewer cache save must use the restored primary key' unless save.fetch('with').fetch('key') == '${{ steps.reviewer-toolchain-cache.outputs.cache-primary-key }}'
+  raise 'Reviewer cache lifecycle is out of order' unless steps.index(restore) < steps.index(preparation) && steps.index(preparation) < steps.index(save)
+  raise 'Review history needs CI read permission without exposing a token to Codex' unless workflow.fetch('jobs').fetch(name).fetch('permissions')['actions'] == 'read'
   token = steps.find { |step| step['id'] == 'bot' }
   raise 'Reviewers must mint their assigned App token' unless token.fetch('uses').start_with?('actions/create-github-app-token@')
   raise 'Reviewer token must use its leased App and secret' unless token.fetch('with').fetch('app-id') == '${{ needs.select-reviewer.outputs.app_id }}' && token.fetch('with').fetch('private-key').include?('needs.select-reviewer.outputs.secret_name == ') && !token.fetch('with').fetch('private-key').include?('secrets[')
@@ -26,6 +36,9 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 
 end
 claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['uses']&.start_with?('anthropics/claude-code-action@') }.fetch('with')
+claude_prompt = claude.fetch('prompt')
+raise 'Claude must be told that reviewer prerequisites include the cross toolchain and host Lua' unless claude_prompt.include?('prepares the cross toolchain and host Lua')
+raise 'Claude must not be told that prepared reviewer prerequisites are unavailable' if claude_prompt.include?('never unpacks the cross toolchain') || claude_prompt.include?('for want of host Lua')
 raise 'Claude review must use the assigned GitHub identity' unless claude.fetch('github_token') == '${{ steps.bot.outputs.token }}'
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
 raise 'Claude must invoke the disclosed model and effort' unless claude.fetch('claude_args').include?('--model ${{ env.REVIEW_MODEL }}') && claude.fetch('claude_args').include?('--effort ${{ env.REVIEW_EFFORT }}')
@@ -87,5 +100,6 @@ Dir.glob(File.join(root, '.github/workflows/*.yml')).each do |path|
   candidate = YAML.load_file(path)
   events = candidate['on'] || candidate[true]
   next unless events.is_a?(Hash) && events.key?('pull_request')
+  next if candidate['name'] == 'agent-review-feedback'
   raise "Failed CI feedback does not cover #{candidate['name']}" unless covered.include?(candidate['name'])
 end
