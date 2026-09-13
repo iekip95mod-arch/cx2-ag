@@ -391,16 +391,6 @@ jobs:
           BEFORE: ${{ needs.select-reviewer.outputs.before }}
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
 
-      - name: Record the reviewer outcome
-        if: always() && steps.bot.outputs.token != ''
-        env:
-          GH_TOKEN: ${{ steps.bot.outputs.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
-          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
-        run: node .github/scripts/wait-for-review.mjs --review-final
-
       # The step above can finish green having posted nothing, and it has four times. Twice the
       # action declined and skipped, once the reviewer ran out waiting on a check, once it stopped
       # against the sandbox after 26 turns. Every one of those reported success, and the rollup
@@ -435,6 +425,16 @@ jobs:
             echo "already there fires nothing."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
+
+      - name: Record the reviewer outcome
+        if: always() && steps.bot.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          APP_SLUG: ${{ steps.bot.outputs.app-slug }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
+        run: node .github/scripts/wait-for-review.mjs --review-final
 
   codex-review:
     needs: select-reviewer
@@ -577,7 +577,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
-          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
         run: node .github/scripts/wait-for-review.mjs --review-final
 
   review-approved:

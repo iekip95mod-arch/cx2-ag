@@ -26,6 +26,8 @@ workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
   final = steps.find { |step| step.fetch('run', '') == 'node .github/scripts/wait-for-review.mjs --review-final' }
   publishing = steps.find { |step| step.fetch('run', '') == 'node .github/scripts/wait-for-review.mjs --review-publishing' }
   raise 'Reviewer lifecycle must record publishing and final states' unless publishing && final && final.fetch('if').include?('always()')
+  expected_phase = "${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}"
+  raise 'Failed reviewer status is not translated to the progress phase' unless final.fetch('env').fetch('PROGRESS_PHASE') == expected_phase
 
 end
 claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['uses']&.start_with?('anthropics/claude-code-action@') }.fetch('with')
@@ -39,8 +41,8 @@ raise 'Review execution must validate the assignment event' unless selection.fet
 raise 'Review execution must not allocate identities' if selection.fetch('steps').any? { |step| step.fetch('run', '').include?(' allocate ') }
 request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml')).fetch('jobs').fetch('assign')
 trust = request.fetch('steps').index { |step| step['name'] == 'Require a trusted PR author' }
-trusted_checkout = request.fetch('steps').index { |step| step['name'] == 'Check out the trusted PR revision' }
-raise 'Assignment must load bot-authored changes only after base-branch author verification' unless trust && trusted_checkout && trust < trusted_checkout && request.fetch('steps')[trusted_checkout].fetch('with').fetch('ref') == '${{ github.event.pull_request.head.sha }}'
+checkouts = request.fetch('steps').select { |step| step['uses']&.start_with?('actions/checkout@') }
+raise 'Credentialed assignment scripts must stay on the trusted initial checkout' unless trust && checkouts.length == 1 && checkouts[0].fetch('with').fetch('ref').include?('github.event.pull_request.base.sha')
 raise 'Validate the requester before reserving a reviewer' unless request.fetch('steps').index { |step| step['id'] == 'requester' } < request.fetch('steps').index { |step| step['id'] == 'identity' }
 raise 'Execute the requester verifier' unless request.fetch('steps').find { |step| step['id'] == 'requester' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-requester'
 queued = request.fetch('steps').find { |step| step['name'] == 'Show queued reviewer work' }
@@ -49,6 +51,16 @@ raise 'Reviewer assignment needs room for progress publication and delivery' unl
 raise 'Assignment must publish queued progress with the reviewer App token' unless queued&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && queued.fetch('run') == 'node .github/scripts/wait-for-review.mjs --review-queued'
 raise 'Assignment must dispatch with the reviewer App token' unless dispatch&.fetch('env')&.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}' && dispatch.fetch('run') == 'node .github/scripts/wait-for-review.mjs --dispatch-review'
 raise 'Assignment must queue progress before producing the real label event' unless request.fetch('steps').index(queued) < request.fetch('steps').index(dispatch)
+assignment_final = request.fetch('steps').find { |step| step['name'] == 'Record failed reviewer assignment' }
+raise 'Reviewer assignment must close unsuccessful queued progress' unless assignment_final && assignment_final.fetch('if').include?('always()') && assignment_final.fetch('if').include?("job.status != 'success'") && assignment_final.fetch('run') == 'node .github/scripts/wait-for-review.mjs --review-final'
+raise 'Reviewer assignment failure must use the assigned identity' unless assignment_final.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
+expected_phase = "${{ job.status == 'failure' && 'failed' || job.status }}"
+raise 'Assignment failure is not translated to the progress phase' unless assignment_final.fetch('env').fetch('PROGRESS_PHASE') == expected_phase
+raise 'Assignment cleanup must follow delivery' unless request.fetch('steps').index(assignment_final) > request.fetch('steps').index(dispatch)
+claude_steps = workflow.fetch('jobs').fetch('review').fetch('steps')
+claude_guard = claude_steps.index { |step| step['name'] == 'Refuse a green check over a review that was not posted' }
+claude_final = claude_steps.index { |step| step['name'] == 'Record the reviewer outcome' }
+raise 'Claude final progress must observe the review-presence guard' unless claude_guard && claude_final && claude_final > claude_guard
 codex_publication = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Publish the review for the reviewed commit' }
 raise 'Codex review must be published by the assigned identity' unless codex_publication.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
 %w[review codex-review].each do |name|

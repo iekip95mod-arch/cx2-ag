@@ -90,6 +90,8 @@ raise 'Default Actions token must remain read-only for contents' unless worker.f
   final = steps.find { |step| step['name'] == 'Record the executor outcome' }
   raise "#{name}: executor progress lifecycle is incomplete" unless queued && running && publishing && final && final.fetch('if').include?('always()')
   raise "#{name}: progress must use the leased identity" unless [queued, running, publishing, final].all? { |step| step.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot-token.outputs.token }}' }
+  expected_phase = "${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}"
+  raise "#{name}: failed job status is not translated to the progress phase" unless final.fetch('env').fetch('PROGRESS_PHASE') == expected_phase
 end
 claude = YAML.load_file(File.join(root, '.github/workflows/agent.yml'))
 claude_step = claude.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }

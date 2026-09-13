@@ -7,8 +7,9 @@ function modelDescription(model) {
 }
 
 function progressBody({ role, login, model, effort, repository, run, attempt, phase, detail, previous = '' }) {
-  const executing = ['running', 'publishing', 'succeeded'].includes(phase) || previous.includes('- [x] Agent execution started');
-  const publishing = ['publishing', 'succeeded'].includes(phase) || previous.includes('- [x] Publishing result');
+  const sameAttempt = previous.includes(`Workflow: https://github.com/${repository}/actions/runs/${run}/attempts/${attempt}`);
+  const executing = ['running', 'publishing', 'succeeded'].includes(phase) || sameAttempt && previous.includes('- [x] Agent execution started');
+  const publishing = ['publishing', 'succeeded'].includes(phase) || sameAttempt && previous.includes('- [x] Publishing result');
   const terminal = ['succeeded', 'failed', 'cancelled'].includes(phase);
   const label = phase === 'succeeded' ? 'Completed' : phase[0].toUpperCase() + phase.slice(1);
   return `<!-- cx2-agent-progress:${role}:${login} -->

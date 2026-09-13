@@ -249,5 +249,5 @@ jobs:
         if: always() && steps.worker.outputs.issue && steps.bot-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
-          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status }}
+          PROGRESS_PHASE: ${{ job.status == 'success' && 'succeeded' || job.status == 'failure' && 'failed' || job.status }}
         run: node .github/scripts/worker-start.mjs "$RUNNER_TEMP/worker-publication.json"

@@ -60,3 +60,13 @@ test('terminal recovery never creates a status that did not start', async () => 
   assert.match(f.comments[0].body, /\[x\] Agent execution started/);
   assert.match(f.comments[0].body, /\[ \] Publishing result/);
 });
+
+test('a new workflow attempt resets lifecycle checkmarks', async () => {
+  const f = fixture();
+  await publishProgress({ ...base, phase: 'succeeded' }, f.api);
+  await publishProgress({ ...base, run: 124, attempt: 2, phase: 'queued' }, f.api);
+  assert.match(f.comments[0].body, /Status: \*\*Queued\*\*/);
+  assert.match(f.comments[0].body, /\[ \] Agent execution started/);
+  assert.match(f.comments[0].body, /\[ \] Publishing result/);
+  assert.match(f.comments[0].body, /actions\/runs\/124\/attempts\/2/);
+});
