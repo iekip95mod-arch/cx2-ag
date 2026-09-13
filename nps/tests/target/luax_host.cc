@@ -10,6 +10,25 @@ unsigned nps_test_msgbox_reply = 1;
 #include "../../src/platform/nspire/lua_module.cc"
 #undef main
 
+static_assert(!cross_check_allowed(nps::IntegrateOutcome::Cancelled));
+static_assert(!cross_check_allowed(nps::IntegrateOutcome::ResourceExceeded));
+static_assert(cross_check_allowed(nps::IntegrateOutcome::UnsupportedForm));
+static_assert(integrate_cross_check_route(true, nps::IntegrateOutcome::Cancelled, 0,
+                                          nps::DerivationStatus::Unsupported) ==
+              IntegrateCrossCheckRoute::None);
+static_assert(integrate_cross_check_route(true, nps::IntegrateOutcome::ResourceExceeded,
+                                          nps::kNoNode, nps::DerivationStatus::Unsupported) ==
+              IntegrateCrossCheckRoute::None);
+static_assert(integrate_cross_check_route(true, nps::IntegrateOutcome::Integrated, 0,
+                                          nps::DerivationStatus::SolvedAndVerified) ==
+              IntegrateCrossCheckRoute::Differentiate);
+static_assert(integrate_cross_check_route(true, nps::IntegrateOutcome::UnsupportedForm,
+                                          nps::kNoNode, nps::DerivationStatus::Unsupported) ==
+              IntegrateCrossCheckRoute::Integrate);
+static_assert(integrate_cross_check_route(false, nps::IntegrateOutcome::Integrated, 0,
+                                          nps::DerivationStatus::SolvedAndVerified) ==
+              IntegrateCrossCheckRoute::None);
+
 lua_State *nl_lua_getstate() { return nullptr; }
 
 // Declared in the module itself rather than in os.h, so the stub belongs here to match it.

@@ -1627,6 +1627,7 @@ r = nps.integrate("sin(2x)", "x")
 check(r.outcome == "cancelled" and r.result == nil, "the integral bridge returns cancellation")
 check(type(r.steps) == "table" and #r.steps == 0, "with no integral steps")
 check(r.answer_only == false, "a cancelled integral is not answer-only")
+check(giac_calls == 0, "a cancelled integral outcome does not reach Giac")
 r = nps.kinematics("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s")
 check(r.outcome == "cancelled" and r.result == nil, "the kinematics bridge returns cancellation")
 check(type(r.steps) == "table" and #r.steps == 0, "with no kinematics steps")
@@ -1680,6 +1681,12 @@ end
 check(unfilled == 0, "with every kept transformation showing what it produced")
 check(r.answer_only == false, "a resource-halted derivative is not answer-only")
 check(giac_calls == 0, "a resource-halted bridge call never reaches Giac")
+
+giac_calls = 0
+r = nps.integrate("0.1234567890123456789*x", "x")
+check(r.outcome == "resource exceeded" and r.result == nil and r.answer_only == false,
+      "the integral bridge returns a resource halt without an answer")
+check(giac_calls == 0, "a resource-halted integral outcome does not reach Giac")
 
 script("[[1]]")
 giac_calls = 0
