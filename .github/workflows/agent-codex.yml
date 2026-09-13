@@ -118,7 +118,7 @@ jobs:
     concurrency:
       group: agent-codex-${{ needs.resolve.outputs.branch || github.run_id }}
       cancel-in-progress: false
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       WORKER_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
@@ -172,11 +172,12 @@ jobs:
 
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          brew install ccache gmp php
-          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 php python3
+          sudo update-alternatives --set lua-interpreter /usr/bin/lua5.1
+          lua -e 'assert(_VERSION == "Lua 5.1")'
 
       - name: Install Codex CLI
         if: steps.key.outputs.have == 'true'
