@@ -321,6 +321,16 @@
       "branch": "codex/issue-29",
       "slug": "cx2-ag-codex-review-lantern",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-110",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 110,
+      "pr": null,
+      "branch": "codex/issue-110",
+      "slug": "cx2-ag-codex-willow",
+      "released": false
     }
   ]
 }
