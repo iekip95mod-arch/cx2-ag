@@ -431,6 +431,16 @@
       "branch": "codex/issue-22",
       "slug": "cx2-ag-codex-cedar",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-46",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 46,
+      "pr": null,
+      "branch": "codex/issue-46",
+      "slug": "cx2-ag-codex-flint",
+      "released": false
     }
   ]
 }
