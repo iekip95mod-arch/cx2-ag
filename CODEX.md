@@ -10,6 +10,8 @@ The trusted repository's .codex/config.toml selects gpt-5.6-sol with high effort
 
 Implementation workers run in GitHub Actions through [.github/workflows/agent-codex.yml](.github/workflows/agent-codex.yml). Desktop tasks coordinate work and receive subscribed events. A desktop wake-up does not start a new hosted worker automatically.
 
+Codex, Claude and Gemini executors, fast checks and the headless emulator use Ubuntu 24.04. Full bridge tests and hosted reviewers retain macOS for the committed Darwin ARM toolchain. Keep other jobs on Ubuntu to reserve the five macOS slots for that verification. Ubuntu host results do not establish bridge, ARM package or handheld coverage.
+
 ## Start one issue worker
 
 Check the raw issue list and open PRs first. Each worker owns one issue, one branch and one ongoing PR. Parallel workers need separate worktrees and non-overlapping file ownership. Serialize issues that share files instead of combining them into one PR.
