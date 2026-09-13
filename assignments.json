@@ -441,6 +441,16 @@
       "branch": "codex/issue-46",
       "slug": "cx2-ag-codex-flint",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-36",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 36,
+      "pr": null,
+      "branch": "codex/issue-36",
+      "slug": "cx2-ag-codex-willow",
+      "released": false
     }
   ]
 }
