@@ -339,8 +339,8 @@ void run_catch_up_tests(TestSink &t) {
         t.check(contains(refused.result.detail, "nonlinear in time"),
                 "the unsupported motion explains why the selected solver does not apply");
         t.check(!contains(refused.context_assumptions,
-                          "first body acceleration is exact zero"),
-                "a refused nonzero acceleration is not recorded as an exact-zero assumption");
+                          "first body acceleration is zero"),
+                "a refused nonzero acceleration is not recorded as a zero assumption");
     }
     {
         CatchUpProblem input = reference_problem();
@@ -351,20 +351,21 @@ void run_catch_up_tests(TestSink &t) {
         t.equal(catch_up_outcome_name(solved.result.outcome), "solved",
                 "an exact zero acceleration reduces to the constant-velocity law");
         t.check(contains(solved.context_assumptions,
-                         "first body acceleration is exact zero on its active interval"),
+                         "first body acceleration is zero on its active interval"),
                 "a normalized exact zero acceleration is recorded as an active assumption");
     }
     {
         CatchUpProblem input = reference_problem();
         input.first.motion = CatchUpMotionModel::ConstantAcceleration;
         input.first.acceleration = quantity("0.0 m/s^2");
-        const Run refused = run(input);
-        t.equal(catch_up_outcome_name(refused.result.outcome),
-                "nonlinear motion unsupported",
-                "a measured zero does not establish an exact linear position law");
-        t.check(!contains(refused.context_assumptions,
-                          "first body acceleration is exact zero"),
-                "a refused measured zero is not recorded as an exact-zero assumption");
+        const Run solved = run(input);
+        t.equal(catch_up_outcome_name(solved.result.outcome), "solved",
+                "a measured zero acceleration still reduces to the constant-velocity law");
+        t.check(contains(solved.context_assumptions,
+                         "first body acceleration is zero on its active interval"),
+                "the measured zero acceleration is recorded without calling it exact");
+        t.check(!contains(solved.context_assumptions, "exact zero"),
+                "the measured zero acceleration is not upgraded to exact input");
     }
     {
         CatchUpProblem input = reference_problem();
