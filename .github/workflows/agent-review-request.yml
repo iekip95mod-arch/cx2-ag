@@ -88,8 +88,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROVIDER: ${{ steps.reviewer.outputs.reviewer }}
           PR: ${{ github.event.pull_request.number }}
+          REVIEW_CAPACITY_WAIT: 'true'
         run: node .github/scripts/bot-identities.mjs allocate --provider "$PROVIDER" --role reviewer --pr "$PR"
+      - name: Wait for reviewer capacity
+        if: steps.identity.outputs.waiting == 'true'
+        run: echo "Waiting for an available reviewer identity. Repository events will retry this assignment when capacity frees." >> "$GITHUB_STEP_SUMMARY"
       - name: Authenticate the assigned reviewer
+        if: steps.identity.outputs.waiting != 'true'
         id: bot
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         with:
@@ -98,6 +103,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Show queued reviewer work
+        if: steps.identity.outputs.waiting != 'true'
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -114,6 +120,7 @@ jobs:
             echo "Queued reviewer progress activates after this workflow change reaches the base branch." >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Deliver the reviewer assignment
+        if: steps.identity.outputs.waiting != 'true'
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -121,6 +128,7 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
         run: node .github/scripts/wait-for-review.mjs --dispatch-review
       - name: Record successful reviewer handoff
+        if: steps.identity.outputs.waiting != 'true'
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

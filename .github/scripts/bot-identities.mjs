@@ -191,6 +191,16 @@ export async function readAssignment(options, api, roster = loadRoster()) {
   return { ...identity, ...target };
 }
 
+export async function reviewerCapacity(repository, api, roster = loadRoster()) {
+  const state = await readState(repository, api);
+  const free = Object.fromEntries(['codex', 'claude'].map(provider => [provider, roster.filter(identity => identity.provider === provider && identity.role === 'reviewer').length]));
+  for (const assignment of state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer')) {
+    findIdentity(roster, `${assignment.slug}[bot]`, assignment.provider, 'reviewer');
+    if (!await closed(repository, assignment, api)) free[assignment.provider]--;
+  }
+  return free;
+}
+
 export async function allocateIdentity(options, api, roster = loadRoster()) {
   const target = await resolveTarget(options, api);
   if (await closed(options.repository, target, api)) throw Error('The issue and its PRs are already closed');
@@ -210,7 +220,7 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
     }
     if (target.role === 'executor' && state.assignments.some(assignment => !assignment.released && assignment.role === 'executor' && assignment.issue === target.issue)) throw Error('Another provider already has this issue');
     const candidate = roster.find(identity => identity.provider === target.provider && identity.role === target.role && !state.assignments.some(assignment => !assignment.released && assignment.slug === identity.slug));
-    if (!candidate) throw Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`);
+    if (!candidate) throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
     const identity = findIdentity(roster, candidate.login, target.provider, target.role);
     await verifyIdentity(identity, api);
     await verifyOwnership(options.repository, target, identity, options.legacyOwner, api);
@@ -259,7 +269,13 @@ async function main() {
       throw Object.assign(Error(`GitHub ${method} ${endpoint} failed`), { status });
     }
   };
-  const identity = await (command === 'allocate' ? allocateIdentity(options, api) : command === 'lookup' ? readAssignment(options, api) : resolveTarget(options, api));
+  let identity;
+  try { identity = await (command === 'allocate' ? allocateIdentity(options, api) : command === 'lookup' ? readAssignment(options, api) : resolveTarget(options, api)); }
+  catch (error) {
+    if (command !== 'allocate' || options.role !== 'reviewer' || process.env.REVIEW_CAPACITY_WAIT !== 'true' || error.code !== 'BOT_POOL_OCCUPIED') throw error;
+    appendFileSync(process.env.GITHUB_OUTPUT, 'waiting=true\n');
+    return;
+  }
   const outputs = { branch: identity.branch, issue: identity.issue ?? '' };
   if (command !== 'resolve') Object.assign(outputs, { app_id: identity.appId, client_id: identity.clientId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId });
   appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));

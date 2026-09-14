@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget, selectReviewProvider } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget, reviewerCapacity, selectReviewProvider } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
@@ -146,6 +146,19 @@ test('twelve executor slots per provider retain ownership and reject overflow', 
     assert.equal(github.assignments.length, 12);
     assert.equal(github.revision, 12);
   }
+});
+
+test('reviewer capacity retains open issue leases and reports pool exhaustion distinctly', async () => {
+  const github = fixture();
+  const count = roster.filter(identity => identity.provider === 'codex' && identity.role === 'reviewer').length;
+  for (let issue = 1; issue <= count; issue++) await allocateIdentity(options(issue, 'codex', 'reviewer'), github.api, roster);
+  assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 0);
+  await assert.rejects(allocateIdentity(options(count + 1, 'codex', 'reviewer'), github.api, roster), { code: 'BOT_POOL_OCCUPIED' });
+  github.ticket(1).state = 'closed';
+  assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 1);
+  const active = github.pull(50, 1, 'codex');
+  active.state = 'open';
+  assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 0);
 });
 
 test('reviewer pools remain limited to six identities per provider', async () => {
