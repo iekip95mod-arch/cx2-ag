@@ -1092,7 +1092,8 @@
       "pr": 250,
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-review-dial",
-      "released": false
+      "released": false,
+      "selectedReview": false
     },
     {
       "key": "gemini/reviewer/issue-207",
@@ -1172,7 +1173,8 @@
       "pr": 250,
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-claude-review-ridge",
-      "released": false
+      "released": false,
+      "selectedReview": true
     }
   ]
 }
