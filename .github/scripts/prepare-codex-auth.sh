@@ -13,6 +13,9 @@ if [ -n "$AUTH_JSON" ]; then
   mkdir -p "$RUNNER_TEMP/codex-home"
   printf '%s' "$AUTH_JSON" > "$RUNNER_TEMP/codex-home/auth.json"
   chmod 600 "$RUNNER_TEMP/codex-home/auth.json"
+  if [ "${RUNNER_OS:-}" = Linux ]; then
+    printf '[features]\nuse_legacy_landlock = true\n' > "$RUNNER_TEMP/codex-home/config.toml"
+  fi
   {
     echo "home=$RUNNER_TEMP/codex-home"
     echo "have=true"
