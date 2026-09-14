@@ -450,7 +450,7 @@
       "pr": null,
       "branch": "codex/issue-36",
       "slug": "cx2-ag-codex-willow",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-3",
@@ -480,7 +480,7 @@
       "pr": 118,
       "branch": "codex/issue-36",
       "slug": "cx2-ag-codex-review-harbor",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-46",
@@ -640,6 +640,16 @@
       "pr": 124,
       "branch": "claude/issue-6",
       "slug": "cx2-ag-claude-review-anchor",
+      "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-17",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 17,
+      "pr": 128,
+      "branch": "codex/issue-17",
+      "slug": "cx2-ag-codex-review-harbor",
       "released": false
     }
   ]
