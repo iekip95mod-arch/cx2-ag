@@ -691,6 +691,16 @@
       "branch": "claude/issue-203",
       "slug": "cx2-ag-claude-ember",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-211",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 211,
+      "pr": null,
+      "branch": "claude/issue-211",
+      "slug": "cx2-ag-claude-nova",
+      "released": false
     }
   ]
 }
