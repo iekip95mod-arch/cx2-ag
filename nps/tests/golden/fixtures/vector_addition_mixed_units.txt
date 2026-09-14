@@ -126,9 +126,11 @@ steps
       explanation: Round only the reported vector, after exact component addition
       detail: Reach for this once, at the very end, and never partway through. A measured value is only as good as the figures it was written with, so the answer is reported to the fewest significant figures among the measurements it came from. Rounding a component before adding would throw away figures the final rounding cannot get back, which is why every step above this one keeps the exact value.
       proof obligation: obl.vector-add.rounding-final, precision is applied once after exact component addition
+      proof obligation: obl.vector-add.rounding-within-half-place, the reported vector is within half a unit in the last place of the exact one
       action: report (6.2 i + 7.0 j) m
       before: vector((31 * (5^-1)), 7)
       after: vector((31 * (5^-1)), 7)
       reversible: no
       verification: significant figures, passed, 2
+      verification: exact half-place comparison, passed, (6.2 i + 7.0 j) m is within half a unit in the last place of (6.2 i + 7 j) m
       verified: yes
