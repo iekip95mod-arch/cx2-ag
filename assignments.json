@@ -1175,6 +1175,16 @@
       "slug": "cx2-ag-claude-review-ridge",
       "released": false,
       "selectedReview": true
+    },
+    {
+      "key": "claude/reviewer/issue-222",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 222,
+      "pr": 253,
+      "branch": "gemini/issue-222",
+      "slug": "cx2-ag-claude-review-vale",
+      "released": false
     }
   ]
 }
