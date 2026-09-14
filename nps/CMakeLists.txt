@@ -1576,6 +1576,18 @@ if(NOT CMAKE_CROSSCOMPILING)
                        "bootstrap-ndl.sh go untested here")
     endif()
 
+    # Makefile.ki names the parser and lexer generators the package build shells out to, and a name
+    # that is wrong for this host does not surface until the whole Giac tree has already compiled.
+    # Generating the parser costs a fraction of a second, so the answer is had here instead.
+    if(EXISTS "${NPS_GIAC_SRC}/Makefile.ki")
+        add_test(NAME giac_parser_tools
+                 COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/giac_parser_tools_test.sh"
+                 "${NPS_GIAC_SRC}" "${CMAKE_CURRENT_BINARY_DIR}/giac-parser-tools")
+    else()
+        message(STATUS "nps: no Makefile.ki under ${NPS_GIAC_SRC}, so its generator selection goes "
+                       "untested here")
+    endif()
+
     # Globbed rather than tested with EXISTS, so a device build done after this configure brings the
     # check with it instead of waiting for an unrelated reconfigure.
     file(GLOB NPS_DEVICE_IMAGE CONFIGURE_DEPENDS "${NPS_DEVICE_BUILD_DIR}/nps_nspire.elf")
