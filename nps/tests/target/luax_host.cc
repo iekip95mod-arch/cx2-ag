@@ -51,6 +51,18 @@ int test_integrity_failure_surface(lua_State *L) {
     return 1;
 }
 
+int test_native_artifact_package_scheme(lua_State *L) {
+    const nps::CapabilityManifest manifest = nps::capability_manifest();
+    for (std::size_t i = 0; i < manifest.integrity_identifier_count; ++i) {
+        const nps::IntegrityIdentifier &identifier = manifest.integrity_identifiers[i];
+        if (std::strcmp(identifier.component, "artifact.package") == 0) {
+            lua_pushstring(L, identifier.scheme);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 extern "C" int luaopen_nps_split(lua_State *L) {
     if (!lua_number_abi_works(L))
         return luaL_error(L, "StepCAS module rejected an incompatible Ndl Lua number ABI");
@@ -61,5 +73,7 @@ extern "C" int luaopen_nps_split(lua_State *L) {
     lua_setfield(L, -2, "test_lua_number_observation_comparator");
     lua_pushcfunction(L, test_integrity_failure_surface);
     lua_setfield(L, -2, "test_integrity_failure_surface");
+    lua_pushcfunction(L, test_native_artifact_package_scheme);
+    lua_setfield(L, -2, "test_native_artifact_package_scheme");
     return 1;
 }
