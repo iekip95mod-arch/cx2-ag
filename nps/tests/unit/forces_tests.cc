@@ -250,8 +250,18 @@ void run_forces_tests(TestSink &t) {
                 "the tension enters the along axis with its own inventory entry");
         t.equal(tension == nullptr ? std::string() : tension->along_text, std::string("6 N"),
                 "the tension component carries its unit the way every other entry does");
-        t.check(solved.result.inventory.size() == 5,
-                "the tension is a fifth entry rather than folded into the applied force");
+        ForcesProblem without_string = base(ForcesUnknown::Acceleration);
+        without_string.applied = parsed("12 N");
+        without_string.has_applied = true;
+        without_string.assume_equilibrium = false;
+        Run unstrung(without_string);
+        t.check(unstrung.result.outcome == ForcesOutcome::Solved &&
+                    unstrung.result.inventory.size() == 3,
+                "the same push with no string carries the weight, the normal force and the push");
+        const ForceEntry *push = entry_of(solved.result, ForceKind::Applied);
+        t.check(solved.result.inventory.size() == unstrung.result.inventory.size() + 1 &&
+                    push != nullptr && push->along.num == 12 && push->along.den == 1,
+                "the tension adds an entry rather than folding into the applied force");
         bool massless = false;
         for (const std::string &assumption : solved.result.assumptions) {
             if (assumption.find("tension unchanged") != std::string::npos)
