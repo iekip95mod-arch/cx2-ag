@@ -953,6 +953,16 @@
       "branch": "claude/issue-233",
       "slug": "cx2-ag-claude-orion",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-234",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 234,
+      "pr": null,
+      "branch": "claude/issue-234",
+      "slug": "cx2-ag-claude-vega",
+      "released": false
     }
   ]
 }
