@@ -209,16 +209,29 @@ local CHAN_PROBE = false
 -- that is actually loaded. Not read at load time on purpose: a caseval before the UI is up is what
 -- the channel probe was doing when it took the calculator down.
 -- A local, so the memo belongs to the document that scanned it rather than to whichever ran first.
-local giacVer, giacVersionDetails
+-- Three states, not two: never asked is giacVer nil, asked and answered is a string with
+-- giacVerUnanswered false, and asked without an answer is a string with it true. A call that raised
+-- said nothing about the backend's version, so caching its silence as "no version" would refuse
+-- every later solve for a failure that lasted one paint. Retried at the surfaces a student drives,
+-- rather than on every paint, because the deferral to first paint was about not asking Giac often.
+local giacVer, giacVersionDetails, giacVerUnanswered
 
-local function giacRuntimeVersion()
-	if giacVer == nil then
+local function giacRuntimeVersion(retry)
+	if giacVer == nil or (retry and giacVerUnanswered) then
 		giacVer = ""
+		giacVerUnanswered = false
 		if hasGiac then
 			local ok, s = pcall(nps_nspire.caseval, "version()")
-			if type(s) == "string" then giacVersionDetails = ok and s or "Query failed: " .. s
-			else giacVersionDetails = "Unexpected " .. type(s) .. " response" end
-			if ok and type(s) == "string" then
+			if not ok then
+				-- Nothing answered, whatever the error object was, so the wording says so rather
+				-- than naming the type of a response that never arrived.
+				giacVersionDetails = type(s) == "string" and "Query failed: " .. s
+				                     or "Query failed (" .. type(s) .. " error)"
+				giacVerUnanswered = true
+			elseif type(s) ~= "string" then
+				giacVersionDetails = "Unexpected " .. type(s) .. " response"
+			else
+				giacVersionDetails = s
 				-- "giac for TI Nspire CX 1.9.0, (c) ...", so the version is the last word before the
 				-- first comma. Scanned rather than pattern matched.
 				local stop = string.find(s, ",", 1, true) or (string.len(s) + 1)
@@ -257,10 +270,10 @@ end
 
 -- PLAT-010. The manifest carries the version this artefact was built around, and this is the one
 -- that answered. Anything unreadable fails the comparison too, and is named rather than quoted back.
-local function backendVersionRefusal()
+local function backendVersionRefusal(retry)
 	if not hasStepSurface then return nil end
 	local declared = stepManifest.symbolic_backend.version
-	local running = giacRuntimeVersion()
+	local running = giacRuntimeVersion(retry)
 	-- Both numbers fit the launch screen's 50 character paint budget, which the longer
 	-- "StepCAS module incompatible (...)" wording the load-time refusals use would not.
 	if not versionShaped(running) then
@@ -275,8 +288,10 @@ end
 -- One answer for every surface that solves. The load-time refusals are decided before the UI is up
 -- and the version cannot be, so a caller asking whether it may solve has to ask about both. The
 -- default remedy fits this one: the artefact carries both the manifest and the backend that answered.
-function stepRefusal()
-	return stepSurfaceError or backendVersionRefusal()
+-- retry asks for one more version query when the last one raised. The surfaces a student drives
+-- pass it, the ones that only draw what is already known do not.
+function stepRefusal(retry)
+	return stepSurfaceError or backendVersionRefusal(retry)
 end
 
 -- PLAT-001. The module reads the model, the build and the Ndl revision off the calculator it is
@@ -1823,7 +1838,7 @@ function enterHandler(widget)
 					res = runSteps(request.mode, request.text)
 				else
 					-- The first Enter clears the launch banner, so its refusal has to be restated.
-					local refusal = stepRefusal()
+					local refusal = stepRefusal(true)
 					steps.status = refusal
 					res = refusal or nps_nspire.caseval(expr) or "Error"
 				end
@@ -3447,7 +3462,7 @@ local function recordRefusal(what, why)
 end
 
 function openPhysicsFixtures()
-	local refusal = stepRefusal()
+	local refusal = stepRefusal(true)
 	if refusal then
 		steps.status = recordRefusal("Guided physics", refusal)
 		platform.window:invalidate()
@@ -3601,7 +3616,7 @@ function runSteps(mode, text)
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end
-	local refusal = stepRefusal()
+	local refusal = stepRefusal(true)
 	if refusal then
 		steps.status = refusal
 		return steps.status
