@@ -125,7 +125,7 @@ test('overlapping runs and retries update only their own progress comment', asyn
 });
 
 test('both reviewer providers preserve earlier run comments', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const reviewer = { ...base, role: 'reviewer', login: `cx2-ag-${provider}-review-aegis[bot]`, userId: 200 };
     const f = fixture([], reviewer);
     await publishProgress({ ...reviewer, phase: 'succeeded' }, f.api);

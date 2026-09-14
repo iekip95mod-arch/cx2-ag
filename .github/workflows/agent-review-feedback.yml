@@ -7,7 +7,7 @@ on:
   pull_request_review:
     types: [submitted]
   workflow_run:
-    workflows: [check, agent-codex, agent-review, agent-review-request]
+    workflows: [check, agent-codex, agent-gemini, agent-review, agent-review-request]
     types: [completed]
 
 concurrency:

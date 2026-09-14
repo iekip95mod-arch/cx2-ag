@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 export async function publishDraft(context, git, api) {
   const { repository, issue, branch, login, title, directory, legacyOwner = '' } = context;
-  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude'].some(provider => branch === `${provider}/issue-${issue}`)) throw Error('Invalid executor publication target');
+  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude', 'gemini'].some(provider => branch === `${provider}/issue-${issue}`)) throw Error('Invalid executor publication target');
   if (legacyOwner && legacyOwner !== 'iekip95mod-arch') throw Error('Unknown legacy publishing owner');
   if (!/^[a-z0-9-]+\[bot\]$/.test(login)) throw Error('A named bot publisher is required');
   if (git('rev-parse', '--show-toplevel') !== directory || git('branch', '--show-current') !== branch) throw Error('Publish only from the leased checkout and branch');
