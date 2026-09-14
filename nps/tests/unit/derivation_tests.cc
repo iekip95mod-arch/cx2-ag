@@ -563,6 +563,221 @@ void test_verified_prefix(TestSink &t) {
     // looked at is where the prefix ends, whatever came after it.
     Step checked = envelope("Isolate x", ClaimType::SolutionSetPreserved);
     checked.verifications.push_back(verification("sample agreement", VerificationOutcome::Passed));
+    const auto exhaustive_case = []() {
+        BranchPayload payload;
+        payload.siblings_exhaustive = true;
+        payload.siblings_exclusive = true;
+        payload.siblings_domain_consistent = true;
+        payload.exhaustive_evidence = "case reconstruction";
+        payload.resolution = BranchResolution::Solved;
+        payload.resolution_evidence = "substitution";
+        return payload;
+    };
+    const auto retains_complete_split = [&](BranchPayload first_payload,
+                                            BranchPayload second_payload) {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split =
+            d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        d.add_branch(meter, split, checked, std::move(first_payload));
+        const StepId first = d.add_branch(meter, split, checked, std::move(second_payload));
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        return first != kNoStep && d.verified_prefix_end(0) == after;
+    };
+
+    t.check(retains_complete_split(exhaustive_case(), exhaustive_case()),
+            "a consistent resolved split remains in the verified prefix");
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_exhaustive = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about exhaustiveness roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_exclusive = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about exclusivity roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_domain_consistent = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about domain consistency roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.exhaustive_evidence = "different reconstruction";
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that name different exhaustive evidence roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.resolution = BranchResolution::Unresolved;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "an unresolved sibling rolls back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.resolution_evidence.clear();
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "a sibling without resolution evidence rolls back before the split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(
+            kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+
+        Step unchecked = envelope("Take the other square root", ClaimType::SolutionSetNarrowed);
+        const StepId second =
+            d.add_branch(meter, split, std::move(unchecked), exhaustive_case());
+
+        t.check(second != kNoStep && d.verified_prefix_end(0) == first,
+                "a prefix ending in the second case rolls back to before the split");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == first,
+                "so retaining it keeps the checked setup and no half split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(
+            kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId only = d.add_branch(meter, split, checked, exhaustive_case());
+
+        t.check(d.verified_prefix_end(0) == only,
+                "an individually checked case without its split completion is not a valid prefix");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == only,
+                "so an end-of-record halt also keeps no half split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        t.check(d.verified_prefix_end(0) == after,
+                "a completed split remains in the prefix when later work is unchecked");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == after,
+                "so the group guard does not discard a valid completed split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId failed = d.add_check(
+            first, envelope("Check the first result", ClaimType::SolutionSetPreserved),
+            CheckPayload{});
+
+        t.check(failed != kNoStep && d.at(failed).parent == first &&
+                    d.verified_prefix_end(0) == first,
+                "a failed direct branch child rolls the prefix back before the split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        TransformationPayload inner_payload;
+        inner_payload.concrete_action = "Simplify the first result";
+        const StepId inner = d.add_transformation(first, checked, std::move(inner_payload));
+        d.complete_transformation(inner, 2);
+        const StepId failed = d.add_check(
+            inner, envelope("Check the first result", ClaimType::SolutionSetPreserved),
+            CheckPayload{});
+
+        t.check(d.verified_prefix_end(0) == first,
+                "a failed nested branch descendant rolls the prefix back before the split");
+        t.check(failed != kNoStep && d.at(failed).parent == inner && d.at(inner).parent == first,
+                "the nested control reaches a grandchild beyond the complete branch records");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+
+        TransformationPayload inner_payload;
+        inner_payload.concrete_action = "Split the first result";
+        const StepId inner = d.add_transformation(first, checked, std::move(inner_payload));
+        d.complete_transformation(inner, 2);
+        d.add_branch(meter, inner, checked, exhaustive_case());
+        d.add_branch(meter, inner, checked, exhaustive_case());
+        Step inner_closing = envelope("Check every inner case", ClaimType::SolutionSetPreserved);
+        inner_closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        const StepId inner_check = d.add_check(inner, std::move(inner_closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        t.check(d.verified_prefix_end(0) == first,
+                "a nested split cannot supply its enclosing split's completion evidence");
+        t.check(d.at(inner_check).parent == inner && d.verified_prefix_end(inner) == after,
+                "the evidence-scope control still recognizes the completed inner split");
+    }
 
     {
         Derivation d;

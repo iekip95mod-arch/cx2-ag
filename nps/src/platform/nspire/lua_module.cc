@@ -2678,6 +2678,8 @@ int kinematics_into(lua_State *L, bool cross) {
         c = ask_giac(L, arena, r.status, Op::Solve, r.substituted, r.unknown, kNoNode, true, nullptr,
                      backed ? &backend : nullptr);
     const bool answer_only = answer_only_allowed(r.status) && c.has_answer;
+    const bool has_result = r.outcome == KinematicsOutcome::Solved ||
+                            r.outcome == KinematicsOutcome::NoSolution || answer_only;
     const DerivationStatus status = cross && r.outcome == KinematicsOutcome::Solved
                                         ? cross_checked_status(r.status, c)
                                         : r.status;
@@ -2700,7 +2702,7 @@ int kinematics_into(lua_State *L, bool cross) {
     set_field(L, "outcome", kinematics_outcome_name(r.outcome));
     set_field(L, "detail", detail);
     set_field(L, "solved", r.outcome == KinematicsOutcome::Solved);
-    set_field(L, "has_result", !answer.empty() || answer_only);
+    set_field(L, "has_result", has_result);
     set_field(L, "answer_only", answer_only);
     set_field(L, "status", derivation_status_name(status));
     set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));

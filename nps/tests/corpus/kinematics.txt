@@ -825,12 +825,12 @@ case kinematics.degenerate.zero-time
 case kinematics.degenerate.acceleration-over-zero-time
   family kinematics
   input find a; v = 5 m/s; v0 = 3 m/s; t = 0 s
-  expect no applicable equation
+  expect no solution
 
 case kinematics.degenerate.time-at-zero-acceleration
   family kinematics
   input find t; v = 17 m/s; v0 = 5 m/s; a = 0 m/s^2
-  expect no applicable equation
+  expect no solution
 
 case kinematics.final-velocity.negative-initial-and-acceleration
   family kinematics
