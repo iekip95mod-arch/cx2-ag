@@ -10,7 +10,7 @@ export function runGemini({ startedAt, timeoutMinutes, prompt, binary, now }, ex
   const run = execute(binary, args, { encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024 });
   if (run.error || run.status !== 0) throw Error('Gemini did not finish successfully within its execution budget');
   const envelope = JSON.parse(run.stdout);
-  if (envelope.status !== 'SUCCESS' || typeof envelope.response !== 'string' || !envelope.response.trim()) throw Error('Gemini did not produce a successful response');
+  if (envelope.status !== 'SUCCESS' || typeof envelope.response !== 'string' || !envelope.response.trim()) throw Error(`Gemini response status ${envelope.status}: ${envelope.error || 'empty response'}`);
   return `${envelope.response.trim()}\n\nModel: gemini-3.8-flash-high. Reasoning effort: high. Authentication: subscription OAuth.\n`;
 }
 
