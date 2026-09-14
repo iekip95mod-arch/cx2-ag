@@ -131,7 +131,7 @@ jobs:
         env:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
-        run: test "$APP_SLUG[bot]" = "$EXPECTED_LOGIN"
+        run: test "${APP_SLUG}[bot]" = "$EXPECTED_LOGIN"
 
       # The action refuses to run when this file differs from the copy on the default branch, which
       # is its own guard against a pull request widening its reviewer. Reasonable, and it means a
