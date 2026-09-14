@@ -780,7 +780,7 @@
       "pr": null,
       "branch": "claude/issue-195",
       "slug": "cx2-ag-claude-lyra",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-160",
@@ -840,7 +840,7 @@
       "pr": 221,
       "branch": "claude/issue-195",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-208",
@@ -1002,6 +1002,16 @@
       "pr": null,
       "branch": "codex/issue-246",
       "slug": "cx2-ag-codex-amber",
+      "released": true
+    },
+    {
+      "key": "gemini/executor/issue-45",
+      "provider": "gemini",
+      "role": "executor",
+      "issue": 45,
+      "pr": null,
+      "branch": "gemini/issue-45",
+      "slug": "cx2-ag-gemini-agate",
       "released": false
     }
   ]
