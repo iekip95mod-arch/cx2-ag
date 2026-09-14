@@ -6,7 +6,7 @@ import { agentDeadline } from './agent-deadline.mjs';
 export function runClaudeReview({ startedAt, timeoutMinutes, now, prompt, schema, model, effort, allowedTools }, execute = spawnSync) {
   const budget = agentDeadline({ startedAt, timeoutMinutes, now });
   const args = ['--print', '--model', model, '--effort', effort, '--max-turns', '256', '--output-format', 'json', '--json-schema', schema, '--permission-mode', 'acceptEdits', '--tools', 'Read,Write,Edit,Grep,Glob,Bash', '--allowedTools', allowedTools];
-  const run = execute('claude', args, { input: `${budget.text}\n\n${prompt}`, encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '', ANTHROPIC_API_KEY: '' } });
+  const run = execute('claude', args, { input: `${budget.text}\n\n${prompt}`, encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GH_TOKEN: process.env.REVIEW_GH_TOKEN ?? '', GITHUB_TOKEN: '', ANTHROPIC_API_KEY: '' } });
   if (run.stderr) process.stderr.write(run.stderr);
   if (run.error || run.status !== 0) throw Error('Claude review execution failed. No approval will be published');
   const envelope = JSON.parse(run.stdout);

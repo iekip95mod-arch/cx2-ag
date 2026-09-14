@@ -110,6 +110,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Restore agent configuration from the base branch
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          for path in .claude CLAUDE.md AGENTS.md .mcp.json; do
+            if git cat-file -e "$BASE_SHA:$path" 2>/dev/null; then
+              git checkout "$BASE_SHA" -- "$path"
+            else
+              rm -rf "$path"
+            fi
+          done
+
       - name: Authenticate the assigned reviewer
         id: bot
         if: always()
@@ -224,6 +236,7 @@ jobs:
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          REVIEW_GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_JOB_TIMEOUT_MINUTES: 120
           REVIEW_SCHEMA: ${{ steps.review-schema.outputs.json }}
           REVIEW_OUTPUT: ${{ runner.temp }}/claude-review.json

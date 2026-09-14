@@ -59,6 +59,13 @@ raise 'Claude must not be told that prepared reviewer prerequisites are unavaila
 raise 'Claude review must use subscription OAuth' unless claude.fetch('CLAUDE_CODE_OAUTH_TOKEN') == '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
 raise 'Claude review must use the CLI adapter' unless workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['id'] == 'review' }.fetch('run') == 'node .github/scripts/run-claude-review.mjs'
+review_steps = workflow.fetch('jobs').fetch('review').fetch('steps')
+restored = review_steps.find { |step| step['name'] == 'Restore agent configuration from the base branch' }
+raise 'A branch must not steer its own reviewer through agent configuration' unless restored && %w[.claude CLAUDE.md AGENTS.md .mcp.json].all? { |path| restored.fetch('run').include?(path) } && restored.fetch('run').include?('git checkout "$BASE_SHA"') && restored.fetch('run').include?('rm -rf')
+raise 'Agent configuration must be restored from the base commit' unless restored.fetch('env').fetch('BASE_SHA') == '${{ github.event.pull_request.base.sha }}'
+raise 'Agent configuration must be restored after checkout and before the model reads it' unless review_steps.index { |step| step['uses'].to_s.start_with?('actions/checkout@') } < review_steps.index(restored) && review_steps.index(restored) < review_steps.index { |step| step['id'] == 'review' }
+raise 'A reviewer told to file separate issues needs a credential that can' unless claude['REVIEW_GH_TOKEN'] == '${{ secrets.GITHUB_TOKEN }}'
+raise 'Reviewer gh tooling must not receive the assigned App token' if claude['REVIEW_GH_TOKEN'].to_s.include?('steps.bot.outputs.token')
 raise 'Claude review must not depend on the workflow equality guard' if workflow.fetch('jobs').fetch('review').fetch('steps').any? { |step| step['id'] == 'mine' || step['uses'].to_s.start_with?('anthropics/') }
 selection = workflow.fetch('jobs').fetch('select-reviewer')
 raise 'Review execution must use verified assignment metadata' unless selection.fetch('outputs').fetch('allowed_bots') == '${{ steps.identity.outputs.allowed_bots }}'
