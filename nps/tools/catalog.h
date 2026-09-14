@@ -111,7 +111,15 @@ inline bool quoted_fragments(const std::string &value, std::vector<std::string> 
     return true;
 }
 
-inline bool read_catalog(const std::string &path, std::vector<Family> *out) {
+// The two evidence classes a rule line can name. A fixture records it, or only a run on the
+// calculator reaches it, and there is no third one.
+inline bool known_evidence(const std::string &word) {
+    return word == "fixture" || word == "device";
+}
+
+// A fault names the line that stopped the read, for a caller that wants to say which one it was.
+inline bool read_catalog(const std::string &path, std::vector<Family> *out,
+                         std::string *fault = nullptr) {
     std::ifstream in(path.c_str());
     if (!in)
         return false;
@@ -137,8 +145,14 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out) {
         Family &f = out->back();
         if (word == "rule") {
             std::string id, evidence;
-            if (!first_word(rest, &id, &evidence))
-                continue;
+            // A rule whose evidence word is not one of the two classes is a typo, and reading it
+            // anyway hands every consumer a rule that silently joins against nothing.
+            if (!first_word(rest, &id, &evidence) || !known_evidence(evidence)) {
+                if (fault != nullptr)
+                    *fault = "rule line names no known evidence class: " + rest;
+                out->clear();
+                return false;
+            }
             Rule r;
             r.id = id;
             r.evidence = evidence;
