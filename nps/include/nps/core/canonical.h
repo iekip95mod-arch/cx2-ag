@@ -26,6 +26,12 @@ namespace nps {
 // the reverse. Real equivalence is the verifier's job with Giac and its bignums behind it.
 NodeId canonicalize(Arena &arena, NodeId id);
 
+// canonicalize answers kNoNode for a limit the arena hit and for a form it has no canonical spelling
+// for, and the caller cannot tell those apart from the return value alone. The arena is what knows,
+// so the reading of it lives here beside the function that refused rather than in each caller.
+enum class CanonicalRefusal { Unsupported, ResourceLimit };
+CanonicalRefusal canonical_refusal(const Arena &arena);
+
 // Ordering over canonical nodes. Exposed because the rule engine needs the same order the canonical
 // form was built with, and two orders that disagree would make equality depend on who asked.
 bool canonical_less(const Arena &arena, NodeId a, NodeId b);
