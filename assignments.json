@@ -861,6 +861,16 @@
       "branch": "claude/issue-160",
       "slug": "cx2-ag-claude-review-crest",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-143",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 143,
+      "pr": 223,
+      "branch": "claude/issue-143",
+      "slug": "cx2-ag-claude-review-dune",
+      "released": false
     }
   ]
 }
