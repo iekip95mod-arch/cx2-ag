@@ -638,6 +638,57 @@ void test_verified_prefix(TestSink &t) {
 
     {
         Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId failed = d.add_check(
+            first, envelope("Check the first result", ClaimType::SolutionSetPreserved),
+            CheckPayload{});
+
+        t.check(failed != kNoStep && d.at(failed).parent == first &&
+                    d.verified_prefix_end(0) == first,
+                "a failed direct branch child rolls the prefix back before the split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        TransformationPayload inner_payload;
+        inner_payload.concrete_action = "Simplify the first result";
+        const StepId inner = d.add_transformation(first, checked, std::move(inner_payload));
+        d.complete_transformation(inner, 2);
+        const StepId failed = d.add_check(
+            inner, envelope("Check the first result", ClaimType::SolutionSetPreserved),
+            CheckPayload{});
+
+        t.check(d.verified_prefix_end(0) == first,
+                "a failed nested branch descendant rolls the prefix back before the split");
+        t.check(failed != kNoStep && d.at(failed).parent == inner && d.at(inner).parent == first,
+                "the nested control reaches a grandchild beyond the complete branch records");
+    }
+
+    {
+        Derivation d;
         PlanPayload strategy = plan_payload("strategy.inverse-operations");
         Step plan_step = plan_envelope(strategy.strategy_id.c_str());
         register_strategy_precondition(strategy, plan_step, "pre.registered",

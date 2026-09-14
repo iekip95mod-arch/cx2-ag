@@ -522,8 +522,8 @@ size_t Derivation::verified_prefix_end(size_t checkpoint, bool retain_plans) con
                         records.push_back(child);
                 }
             }
-            for (StepId member : members) {
-                for (StepId child : steps_[member].children)
+            for (size_t record = 0; record < records.size(); ++record) {
+                for (StepId child : steps_[records[record]].children)
                     records.push_back(child);
             }
 
