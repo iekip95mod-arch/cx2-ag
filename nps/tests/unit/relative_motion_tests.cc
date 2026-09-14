@@ -586,47 +586,28 @@ void run_relative_motion_tests(TestSink &t) {
                    "cross-check on the step and refused as a walkthrough, rather than presented "
                    "as one");
 
-        // The record itself, not the status. Keeping a run the backend could not check means the
-        // learner is shown those component steps, and until this walked the audit nothing asked
-        // whether they were still fit to show.
-        // survives names what issue #63 owns, asserted in both directions so closing #63 cannot
-        // leave a row that passes by allowing a break rather than by the break going away.
-        // Each survivor carries how many rows of it are expected, not only that some appear, so a
-        // new break of an already-named class cannot arrive unnoticed behind the first one.
-        struct Survivor { const char *text; size_t rows; };
-        struct Audited { const char *label; const Run *run; std::vector<Survivor> survives; };
+        // The record itself, not only the status. Each component obligation must be discharged by a
+        // method its schema promises before the run can call the walkthrough solved and verified.
+        struct Audited { const char *label; const Run *run; };
         const Audited audited[] = {
-            {"no backend", &alone, {{"VER-016", 2}}},
-            {"an agreeing backend", &checked, {}},
-            // A backend that failed outright still records the declared method, inconclusive, so
-            // the obligation is discharged and #63 does not reach this row. Only the run with no
-            // backend at all has nothing the schema recognises.
-            {"a backend that failed outright", &unavailable, {}}};
+            {"no backend", &alone},
+            {"an agreeing backend", &checked},
+            {"a backend that failed outright", &unavailable}};
         for (const Audited &row : audited) {
             invariants::Pass pass;
-            std::vector<std::string> broken;
-            pass.walk(row.run->arena, row.run->derivation, false, true, &broken);
+            std::vector<std::string> violations;
+            pass.walk(row.run->arena, row.run->derivation, false, true, &violations);
             std::string all;
-            bool unexpected = false;
-            for (size_t i = 0; i < broken.size(); ++i) {
-                all += (i ? " | " : ", got ") + broken[i];
-                bool named = false;
-                for (const Survivor &known : row.survives)
-                    named = named || broken[i].find(known.text) != std::string::npos;
-                unexpected = unexpected || !named;
+            for (size_t i = 0; i < violations.size(); ++i) {
+                all += (i ? " | " : ", got ") + violations[i];
             }
-            t.check(!unexpected, std::string("the record left behind with ") + row.label +
-                                     " breaks no invariant beyond the ones #63 names" + all);
-            for (const Survivor &known : row.survives) {
-                size_t seen = 0;
-                for (size_t i = 0; i < broken.size(); ++i)
-                    seen += broken[i].find(known.text) != std::string::npos ? 1 : 0;
-                t.equal(integer_text(static_cast<int64_t>(seen)),
-                        integer_text(static_cast<int64_t>(known.rows)),
-                        std::string("and ") + known.text + " still breaks exactly as often with " +
-                            row.label + ", so #63 is closed by the break going away rather than by "
-                            "an allowance widening");
-            }
+            t.check(violations.empty(),
+                    std::string("every relative-motion obligation is discharged with ") +
+                        row.label + all);
+            t.check(row.run->result.status != DerivationStatus::SolvedAndVerified ||
+                        violations.empty(),
+                    std::string("relative motion reports verified only with schema-recognised evidence for ") +
+                        row.label);
         }
     }
 }
