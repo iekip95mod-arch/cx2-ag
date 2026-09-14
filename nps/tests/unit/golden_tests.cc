@@ -27,20 +27,35 @@ namespace {
 
 class GoldenSequenceBackend : public Backend {
   public:
-    explicit GoldenSequenceBackend(std::vector<std::string> replies)
-        : replies_(std::move(replies)) {}
+    explicit GoldenSequenceBackend(std::vector<std::string> replies,
+                                   std::vector<std::string> expected_commands = {})
+        : replies_(std::move(replies)), expected_commands_(std::move(expected_commands)) {}
 
-    bool eval(const std::string &, std::string *out, std::string *error) override {
+    bool eval(const std::string &command, std::string *out, std::string *error) override {
+        commands.push_back(command);
         if (next_ >= replies_.size()) {
             *error = "no scripted reply";
+            return false;
+        }
+        if (!expected_commands_.empty() &&
+            (next_ >= expected_commands_.size() || command != expected_commands_[next_])) {
+            *error = "unexpected backend request";
             return false;
         }
         *out = replies_[next_++];
         return true;
     }
 
+    bool complete() const {
+        return !expected_commands_.empty() && commands == expected_commands_ &&
+               next_ == replies_.size();
+    }
+
+    std::vector<std::string> commands;
+
   private:
     std::vector<std::string> replies_;
+    std::vector<std::string> expected_commands_;
     size_t next_ = 0;
 };
 
@@ -665,19 +680,34 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "integrate_power", integrate_record("x^2", "x", Budget()));
     check_golden(t, "integrate_substitution", integrate_record("sin(2x) + 1/x", "x", Budget()));
     {
-        GoldenSequenceBackend backend({"0"});
+        GoldenSequenceBackend backend(
+            {"0"},
+            {"simplify(((-1+(a*(a)^(-1)*ln((b+(a*x))))+(a*(b+(a*x))*(a)^(-1)*"
+             "((b+(a*x)))^(-1)))+(-(ln((b+(a*x)))))))"});
         check_golden(t, "integrate_logarithm_affine",
                      integrate_record("ln(a*x+b)", "x", Budget(), &backend));
+        t.check(backend.complete(),
+                "the affine logarithm golden checks the exact Giac request and reply");
     }
     {
-        GoldenSequenceBackend backend({"0"});
+        GoldenSequenceBackend backend(
+            {"0"},
+            {"simplify(((-1+((1+(-2*t))*((1+(-2*t)))^(-1))+ln((1+(-2*t))))+"
+             "(-(ln((1+(-2*t)))))))"});
         check_golden(t, "integrate_logarithm_negative_coefficient",
                      integrate_record("ln(1-2*t)", "t", Budget(), &backend));
+        t.check(backend.complete(),
+                "the negative-coefficient logarithm golden checks the exact Giac request and reply");
     }
     check_golden(t, "integrate_logarithm_unverified", integrate_record("ln(x)", "x", Budget()));
     {
-        GoldenSequenceBackend backend({"0"});
+        GoldenSequenceBackend backend(
+            {"0"},
+            {"simplify(((2*((x*(2)^(-1)*(sqrt(x))^(-1))+sqrt(x))*(3)^(-1))+"
+             "(-(sqrt(x)))))"});
         check_golden(t, "integrate_square_root", integrate_record("sqrt(x)", "x", Budget(), &backend));
+        t.check(backend.complete(),
+                "the square-root golden checks the exact Giac request and reply");
     }
     check_golden(t, "integrate_unsupported", integrate_record("x*sin(x)", "x", Budget()));
     check_golden(t, "integrate_unsupported_partway",
