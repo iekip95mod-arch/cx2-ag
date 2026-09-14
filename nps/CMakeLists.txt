@@ -475,7 +475,7 @@ endforeach()
 
 function(nps_add_manifest target artifact release_targets diagnostic_only backend_name
          backend_version backend_interface backend_deployment step_hash ndl_hash giac_hash
-         sidecar ui_sidecar)
+         sidecar sidecar_scheme ui_sidecar)
     if(ndl_hash)
         set(NPS_CFG_HAS_NDL 1)
     else()
@@ -521,7 +521,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
     string(APPEND build_profile "|retained_ui=${NPS_RETAINED_UI}")
     string(APPEND build_profile "|retained_fault_injection=${NPS_RETAINED_FAULT_INJECTION}")
     string(SHA256 identity
-           "schema=2\nartifact=${artifact}\ntargets=${release_targets}\ndiagnostic=${diagnostic_only}\nprofile=${build_profile}\nstepcas=${step_hash}\nndl=${ndl_hash}\ngiac=${giac_hash}\nbackend=${backend_name}\nversion=${backend_version}\ninterface=${backend_interface}\ndeployment=${backend_deployment}\nsidecar=${sidecar}\nui_sidecar=${ui_sidecar}\n")
+           "schema=2\nartifact=${artifact}\ntargets=${release_targets}\ndiagnostic=${diagnostic_only}\nprofile=${build_profile}\nstepcas=${step_hash}\nndl=${ndl_hash}\ngiac=${giac_hash}\nbackend=${backend_name}\nversion=${backend_version}\ninterface=${backend_interface}\ndeployment=${backend_deployment}\nsidecar=${sidecar}\nsidecar_scheme=${sidecar_scheme}\nui_sidecar=${ui_sidecar}\n")
     if(artifact STREQUAL "host")
         set(identity_kind "semantic-inputs-sha256")
     else()
@@ -539,6 +539,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
     set(NPS_CFG_NDL_HASH "${ndl_hash}")
     set(NPS_CFG_GIAC_HASH "${giac_hash}")
     set(NPS_CFG_SIDECAR "${sidecar}")
+    set(NPS_CFG_SIDECAR_SCHEME "${sidecar_scheme}")
     set(NPS_CFG_UI_SIDECAR "${ui_sidecar}")
     set(config_dir "${CMAKE_CURRENT_BINARY_DIR}/manifest/${artifact}")
     file(MAKE_DIRECTORY "${config_dir}")
@@ -560,6 +561,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
 #define NPS_MANIFEST_GIAC_HASH "@NPS_CFG_GIAC_HASH@"
 #define NPS_MANIFEST_HAS_SIDECAR @NPS_CFG_HAS_SIDECAR@
 #define NPS_MANIFEST_SIDECAR "@NPS_CFG_SIDECAR@"
+#define NPS_MANIFEST_SIDECAR_SCHEME "@NPS_CFG_SIDECAR_SCHEME@"
 #define NPS_MANIFEST_HAS_UI_SIDECAR @NPS_CFG_HAS_UI_SIDECAR@
 #define NPS_MANIFEST_UI_SIDECAR "@NPS_CFG_UI_SIDECAR@"
 #endif
@@ -613,15 +615,15 @@ if(CMAKE_CROSSCOMPILING)
 
     nps_add_manifest(nps_manifest_probe probe 1 1 none not-installed none absent
                      "${NPS_PROBE_STEP_HASH}" "${NPS_NDL_HASH}" ""
-                     "${NPS_PROBE_SIDECAR}" "")
+                     "${NPS_PROBE_SIDECAR}" external-sha256-sidecar "")
     nps_add_manifest(nps_manifest_split split 1 0 Giac runtime-unverified
                      lua5.1.luagiac.caseval-v1 external-required-unvalidated
                      "${NPS_SPLIT_STEP_HASH}" "${NPS_NDL_HASH}" ""
-                     "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
+                     "${NPS_SPLIT_SIDECAR}" runtime-sha256-sidecar "${NPS_V3_SIDECAR}")
     nps_add_manifest(nps_manifest_unified unified 1 ${NPS_RESOURCE_PROFILE} Giac "${NPS_GIAC_VERSION}"
                       nps.giac.typed-v1 bundled-static
                       "${NPS_UNIFIED_STEP_HASH}" "${NPS_NDL_HASH}" "${NPS_GIAC_HASH}"
-                      "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
+                      "${NPS_UNIFIED_SIDECAR}" runtime-sha256-sidecar "${NPS_V4_SIDECAR}")
     if(NPS_RETAINED_FAULT_INJECTION)
         target_compile_definitions(nps_manifest_unified PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
     endif()
@@ -1080,8 +1082,17 @@ else()
 
     nps_hash_inputs(NPS_HOST_STEP_HASH ${NPS_COMMON_MANIFEST_INPUTS})
     nps_add_manifest(nps_manifest_host host 0 0 none not-installed none absent
-                     "${NPS_HOST_STEP_HASH}" "" "" "" "")
+                     "${NPS_HOST_STEP_HASH}" "" "" "" "" "")
     target_link_libraries(nps_manifest_host PRIVATE nps_flags)
+
+    nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
+                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}"
+                     external-sha256-sidecar "")
+    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
+    add_executable(nps_manifest_probe_test tests/unit/manifest_probe_tests.cc
+                   $<TARGET_OBJECTS:nps_manifest_probe_host>)
+    target_include_directories(nps_manifest_probe_test PRIVATE include)
+    target_link_libraries(nps_manifest_probe_test PRIVATE nps_flags)
 
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
@@ -1218,7 +1229,7 @@ else()
         nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
                          lua5.1.luagiac.caseval-v1 external-required-unvalidated
                          "${NPS_SPLIT_HOST_STEP_HASH}" "${NPS_SPLIT_HOST_NDL_HASH}"
-                         "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
+                         "" "${NPS_SPLIT_SIDECAR}" runtime-sha256-sidecar "${NPS_V3_SIDECAR}")
         target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
         if(NPS_RETAINED_FAULT_INJECTION)
             target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
@@ -1387,6 +1398,7 @@ add_custom_target(tidy
 
 if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME unit COMMAND nps_host)
+    add_test(NAME manifest_probe COMMAND nps_manifest_probe_test)
     set_tests_properties(unit PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         ENVIRONMENT "NPS_EVIDENCE=${CMAKE_BINARY_DIR}/evidence.txt"
         FIXTURES_SETUP nps_evidence_unit)
@@ -1569,7 +1581,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
-                nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
+                nps_manifest_probe_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
                 nps_acceptance_corpus nps_device_run
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)
