@@ -42,8 +42,16 @@ OBJS = sym2poly.o gausspol.o threaded.o maple.o ti89.o mathml.o moyal.o misc.o p
 # Debian's +dfsg repack drops the generated parser and lexer, so regenerate them here. The
 # giac_yy prefix is not optional: the grammar calls giac_yyerror and input_lexer.h declares
 # giac_yylex, so a default-prefix bison emits calls to a yylex nothing defines. Taken from
-# AM_YFLAGS in Makefile.am. macOS bison is 2.3 and too old for this grammar.
-BISON = /opt/homebrew/opt/bison/bin/bison
+# AM_YFLAGS in Makefile.am.
+#
+# Which bison runs is decided here rather than by whoever set up the host, because this makefile is
+# what the package build shells out to. The macOS system bison is 2.3 and too old for this grammar,
+# so a major version below 3 is rejected and Homebrew's is taken instead. Linux packages 3.x, so a
+# plain bison on PATH is the one that runs there. Either name can be overridden from the
+# environment or the command line.
+BISON_FALLBACK ?= /opt/homebrew/opt/bison/bin/bison
+BISON_MAJOR = $(shell bison --version 2>/dev/null | head -n 1 | awk '{print $$NF}' | cut -d. -f1)
+BISON ?= $(if $(filter-out 0 1 2,$(BISON_MAJOR)),bison,$(BISON_FALLBACK))
 LEX = flex
 
 all: $(EXE)
