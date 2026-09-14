@@ -27,12 +27,12 @@ failures << 'Draft PRs must skip approval waiting while ready PRs and main keep 
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
 ['full', 'emulator'].each do |name|
   job = jobs.fetch(name)
-  failures << "#{name} must wait for fast to succeed on every event" unless Array(job['needs']) == ['fast'] && job['if'].nil?
+  failures << "#{name} must wait for fast and current-head approval" unless Array(job['needs']).sort == ['fast', 'review-ready'] && job['if'].nil?
 end
 codeql = jobs.fetch('codeql')
 failures << 'CodeQL must wait for every execution gate and reviewer approval' unless Array(codeql['needs']).sort == ['emulator', 'fast', 'full', 'review-ready'] && codeql['if'].nil?
 review = jobs.fetch('review-ready')
-failures << 'Review readiness must follow execution without bypassing failed approval' unless Array(review['needs']).sort == ['emulator', 'fast', 'full'] && !review['continue-on-error']
+failures << 'Review readiness must follow fast without waiting on the suites it gates' unless Array(review['needs']) == ['fast'] && !review['continue-on-error']
 failures << 'Review readiness must use a read-only token' unless review['permissions'] == { 'contents' => 'read', 'actions' => 'read', 'pull-requests' => 'read' }
 gate = review.fetch('steps').find { |step| step['run'] == 'node .github/scripts/wait-for-review.mjs' }
 failures << 'Review readiness must target the PR head and number' unless gate && gate.dig('env', 'PR_NUMBER') == '${{ github.event.pull_request.number }}' && gate.dig('env', 'PR_HEAD_SHA') == '${{ github.event.pull_request.head.sha }}' && !gate.key?('if') && !gate['continue-on-error']
