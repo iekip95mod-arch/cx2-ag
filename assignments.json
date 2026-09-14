@@ -731,6 +731,16 @@
       "branch": "claude/issue-15",
       "slug": "cx2-ag-claude-aurora",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-203",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 203,
+      "pr": 214,
+      "branch": "claude/issue-203",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
