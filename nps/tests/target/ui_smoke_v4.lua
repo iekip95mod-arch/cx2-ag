@@ -7495,6 +7495,101 @@ do
     end)()
 end
 
+-- In hint mode, resultLines withholds the answer until all steps are revealed.
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    local record = {}
+    for key, value in pairs(fake_result) do record[key] = value end
+    record.canonical = "SECRET_CANONICAL_ANSWER"
+    record.result = "SECRET_RAW_ANSWER"
+    env.stepsSetProgression("hint")
+    env.steps.walkthrough = "hint"
+    env.steps.result, env.steps.view = record, "result"
+    env.steps.revealed = 1
+    env.openSteps()
+
+    drawn = {}
+    local editors_before = #editors
+    env.on.paint(gc)
+    local answer_in_source = false
+    if env.steps.detailLayout and env.steps.detailLayout.source then
+        for _, item in ipairs(env.steps.detailLayout.source) do
+            if item.slot == "answer" or item.label == "Answer:" or (item.math and item.math:find("SECRET", 1, true)) then
+                answer_in_source = true
+            end
+        end
+    end
+    local answer_in_drawn = table.concat(drawn):find("Answer:", 1, true) ~= nil
+    local answer_in_editors = false
+    for idx = editors_before + 1, #editors do
+        if editors[idx].expr and editors[idx].expr:find("SECRET", 1, true) then
+            answer_in_editors = true
+        end
+    end
+    check(not answer_in_source and not answer_in_drawn and not answer_in_editors,
+          "resultLines withholds the final answer when hints remain: source=" ..
+          tostring(answer_in_source) .. " drawn=" .. tostring(answer_in_drawn) ..
+          " editors=" .. tostring(answer_in_editors))
+
+    -- Once progression reveals all steps, the answer is included in the result view.
+    env.steps.revealed = #record.steps
+    env.steps.detailLayout = nil
+    drawn = {}
+    editors_before = #editors
+    env.on.paint(gc)
+    local revealed_in_source = false
+    if env.steps.detailLayout and env.steps.detailLayout.source then
+        for _, item in ipairs(env.steps.detailLayout.source) do
+            if item.slot == "answer" and item.label == "Answer:" and item.math == "SECRET_CANONICAL_ANSWER" then
+                revealed_in_source = true
+            end
+        end
+    end
+    local revealed_in_drawn = table.concat(drawn):find("Answer:", 1, true) ~= nil
+    check(revealed_in_source and revealed_in_drawn,
+          "resultLines includes the answer once all hints are revealed")
+
+    -- Full progression also displays the answer.
+    env.stepsSetProgression("full")
+    env.steps.detailLayout = nil
+    drawn = {}
+    env.on.paint(gc)
+    local full_in_source = false
+    if env.steps.detailLayout and env.steps.detailLayout.source then
+        for _, item in ipairs(env.steps.detailLayout.source) do
+            if item.slot == "answer" and item.math == "SECRET_CANONICAL_ANSWER" then
+                full_in_source = true
+            end
+        end
+    end
+    check(full_in_source, "resultLines includes the answer under full progression")
+
+    -- An answer-only record with no steps displays its CAS answer even in hint mode.
+    local cas_record = {}
+    for key, value in pairs(fake_result) do cas_record[key] = value end
+    cas_record.steps = {}
+    cas_record.answer_only = true
+    cas_record.canonical = "CAS_ONLY_SECRET"
+    env.stepsSetProgression("hint")
+    env.steps.result, env.steps.view = cas_record, "result"
+    env.steps.detailLayout = nil
+    drawn = {}
+    env.on.paint(gc)
+    local cas_in_source = false
+    if env.steps.detailLayout and env.steps.detailLayout.source then
+        for _, item in ipairs(env.steps.detailLayout.source) do
+            if item.slot == "answer" and item.label == "CAS answer:" and item.math == "CAS_ONLY_SECRET" then
+                cas_in_source = true
+            end
+        end
+    end
+    check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
+
+    env.closeSteps()
+    end)()
+end
+
 writeEvidence()
 print(string.format("nps_v4 ui: %d checks, %d failed", checks, failures))
 os.exit(failures == 0 and 0 or 1)

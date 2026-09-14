@@ -4205,7 +4205,7 @@ local function resultLines()
 		out[#out + 1] = { text = text, color = color }
 	end
 	add("Input: " .. (r.input or ""), {90, 90, 90})
-	local answer = answerText(r)
+	local answer = finalResultVisible(r) and answerText(r)
 	if answer then
 		out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
 		                  math = answer, color = {0, 0, 140} }
