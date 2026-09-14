@@ -45,6 +45,20 @@ function securityFixture(provider = 'codex') {
   return f;
 }
 
+test('a Claude review wakes the original Gemini executor after rerouting', async () => {
+  const f = fixture('gemini');
+  const reviewer = roster.find(bot => bot.provider === 'claude' && bot.role === 'reviewer');
+  const lease = f.assignments.find(assignment => assignment.role === 'reviewer');
+  Object.assign(lease, { provider: 'claude', key: 'claude/reviewer/issue-42', slug: reviewer.slug, selectedReview: true });
+  f.responses[`repos/${repository}/contents/assignments.json?ref=bot-assignments`].content = Buffer.from(JSON.stringify({ version: 1, assignments: f.assignments })).toString('base64');
+  f.review.user = { login: reviewer.login, id: reviewer.userId, type: 'Bot' };
+  f.event.review = structuredClone(f.review);
+  assert.equal(await dispatchFeedback(f.options, f.api, roster), true);
+  const delivery = f.calls.find(call => call.endpoint.endsWith('/dispatches'));
+  assert.match(delivery.endpoint, /agent-gemini.yml/);
+  assert.equal(delivery.body.inputs.issue_number, '42');
+});
+
 test('CodeQL commented reviews resume both executors without granting review approval', async () => {
   for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);

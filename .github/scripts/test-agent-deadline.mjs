@@ -90,8 +90,8 @@ test('review and discussion deadlines precede inference and match each job limit
     assert.ok(budgetIndex < job.steps.findIndex(step => step.name === modelStep));
     if (jobName === 'review') {
       const model = job.steps.find(step => step.name === modelStep);
-      assert.ok(model.with.prompt.includes('${{ env.AGENT_TIME_BUDGET }}'));
-      assert.ok(model.with.claude_args.includes('Bash(date:*)'));
+      assert.ok(model.env.REVIEW_PROMPT.includes('${{ env.AGENT_TIME_BUDGET }}'));
+      assert.ok(model.env.REVIEW_ALLOWED_TOOLS.includes('Bash(date:*)'));
     } else if (jobName === 'codex-review') {
       assert.ok(job.steps.find(step => step.name === modelStep).run.includes('$AGENT_TIME_BUDGET'));
     } else {
