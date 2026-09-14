@@ -882,6 +882,16 @@
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-amber",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-228",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 228,
+      "pr": 229,
+      "branch": "codex/gemini-subscription",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
