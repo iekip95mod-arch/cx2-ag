@@ -1106,6 +1106,39 @@ void run_adapter_tests(TestSink &t) {
     }
 
     {
+        // The learner pressed escape while Giac was working. Giac reports that in the result string
+        // the same way it reports a time limit, so the adapter has to read it there.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption.");
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Integrate;
+        req.target = must_parse(arena, "sin(x^2)");
+        req.variable = must_parse(arena, "x");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "cancelled",
+                "a user interruption is a cancellation, not a malformed result");
+        t.check(!r.usable(), "a cancelled reply carries no value");
+        t.check(backend.terminal() && backend.terminal_tag() == ResultTag::Cancelled,
+                "a cancelled backend is retired for the rest of the request");
+    }
+
+    {
+        // Giac's other spelling names two causes and cannot say which, so it keeps the resource
+        // reading it already had rather than claiming the learner asked to stop.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption or stack overflow.");
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Integrate;
+        req.target = must_parse(arena, "sin(x^2)");
+        req.variable = must_parse(arena, "x");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "resource failure",
+                "an interruption giac cannot separate from a stack overflow stays a resource failure");
+    }
+
+    {
         Arena arena;
         ScriptedBackend backend("Unable to integrate");
         Adapter adapter(arena, backend);
