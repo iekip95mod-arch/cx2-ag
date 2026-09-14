@@ -10,35 +10,42 @@ const job = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSO
 const configured = "steps.key.outputs.have == 'true'";
 const step = name => job.steps.find(entry => entry.name === name);
 
-test('Gemini checks out trusted code without persisting credentials', () => {
-  const checkout = job.steps.find(entry => entry.uses?.startsWith('actions/checkout@'));
-  assert.equal(checkout.with.ref, "${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}");
-  assert.equal(checkout.with['persist-credentials'], false);
-  assert.equal(job.steps[0].run, 'echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"');
-  assert.equal(job.env.AGENT_JOB_TIMEOUT_MINUTES, job['timeout-minutes']);
-  assert.doesNotMatch(readFileSync(workflow, 'utf8'), /dangerously-skip-permissions|secrets\.GEMINI_API_KEY/);
-  for (const name of ['Install Antigravity CLI', 'Run Gemini']) assert.equal(step(name).if, configured);
+test('Gemini uses durable issue allocation and isolated publication credentials', () => {
+  const workflowSource = readFileSync(workflow, 'utf8');
+  const workflowJobs = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"])', workflow], { encoding: 'utf8' }));
+  assert.match(workflowJobs.resolve.steps.at(-1).run, /prepare-codex-worker.mjs --resolve/);
+  assert.match(workflowJobs.allocate.steps.at(-1).run, /allocate --provider gemini --role executor/);
+  assert.deepEqual(job.needs, ['resolve', 'allocate']);
+  assert.equal(job.concurrency.group, '${{ needs.resolve.outputs.branch || github.run_id }}'.replace('${{', 'agent-gemini-${{'));
+  assert.equal(job.concurrency['cancel-in-progress'], false);
+  assert.equal(job.permissions.contents, 'read');
+  assert.equal(job.env.WORKER_MODEL, "${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}");
+  assert.equal(step('Run the agent').env.GH_TOKEN, '${{ steps.bot-token.outputs.token }}');
+  assert.equal(step('Run the agent').env.GEMINI_MODE, 'executor');
+  assert.match(step('Run the agent').run, /run-gemini.mjs/);
+  assert.match(step('Ensure the first commit has a linked draft PR').if, /always\(\)/);
+  assert.doesNotMatch(workflowSource, /dangerously-skip-permissions|secrets\.GEMINI_API_KEY/);
 });
 
-test('Gemini handles configured and missing subscription credentials without API fallback', () => {
-  const key = step('Decide whether credentials are configured');
-  assert.equal(key.env.OAUTH_CREDS, '${{ secrets.ANTIGRAVITY_OAUTH_CREDS }}');
-  const workspace = fileURLToPath(new URL('../../.Internal/workspaces/gemini-tests/', import.meta.url));
-  mkdirSync(workspace, { recursive: true });
-  for (const credentials of ['', 'fixture-token']) {
-    const home = mkdtempSync(join(workspace, 'credentials-'));
-    const output = join(home, 'output'), summary = join(home, 'summary');
-    const run = spawnSync('bash', ['-eu', '-o', 'pipefail', '-c', key.run], { encoding: 'utf8', env: { ...process.env, HOME: home, GITHUB_WORKSPACE: join(home, 'workspace'), OAUTH_CREDS: credentials, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary } });
-    assert.equal(run.status, 0, run.stderr);
-    assert.equal(readFileSync(output, 'utf8'), `have=${Boolean(credentials)}\n`);
-    const token = join(home, '.gemini/antigravity-cli/antigravity-oauth-token');
-    assert.equal(existsSync(token), Boolean(credentials));
-    if (credentials) {
-      assert.equal(readFileSync(token, 'utf8'), credentials);
-      const settings = JSON.parse(readFileSync(join(home, '.gemini/antigravity-cli/settings.json'), 'utf8'));
-      assert.deepEqual(settings.permissions.allow, [`read_file(${join(home, 'workspace')})`]);
-      for (const deny of ['command(*)', 'unsandboxed(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)', `read_file(${home}/.gemini)`]) assert.ok(settings.permissions.deny.includes(deny));
-    } else assert.match(readFileSync(summary, 'utf8'), /ANTIGRAVITY_OAUTH_CREDS/);
+test('Gemini restores subscription credentials with role-specific permissions', async () => {
+  const { prepareGemini } = await import('./prepare-gemini.mjs');
+  const base = fileURLToPath(new URL('../../.Internal/workspaces/gemini-tests/', import.meta.url));
+  mkdirSync(base, { recursive: true });
+  for (const mode of ['executor', 'reviewer', 'reply']) {
+    const home = mkdtempSync(join(base, 'credentials-'));
+    const workspace = join(home, 'workspace'), temporary = join(home, 'temporary');
+    const options = { mode, home, workspace, temporary };
+    assert.throws(() => prepareGemini({ ...options, credentials: '' }), /ANTIGRAVITY_OAUTH_CREDS/);
+    assert.equal(existsSync(join(home, '.gemini')), false);
+    prepareGemini({ ...options, credentials: '{"fixture":true}' });
+    assert.equal(readFileSync(join(home, '.gemini/antigravity-cli/antigravity-oauth-token'), 'utf8'), '{"fixture":true}');
+    const settings = JSON.parse(readFileSync(join(home, '.gemini/antigravity-cli/settings.json'), 'utf8'));
+    assert.equal(settings.enableTerminalSandbox, mode !== 'reply');
+    assert.ok(!settings.permissions.allow.some(rule => rule.startsWith('unsandboxed(')));
+    assert.ok(settings.permissions.deny.includes(`read_file(${home}/.gemini)`));
+    assert.equal(settings.permissions.allow.includes('command(*)'), mode !== 'reply');
+    assert.equal(settings.permissions.allow.includes('read_url(api.github.com)'), mode === 'executor');
+    assert.equal(settings.permissions.deny.includes('write_file(*)'), mode === 'reply');
   }
 });
 
@@ -78,15 +85,64 @@ test('Gemini rejects failed processes, incomplete envelopes and empty replies', 
   for (const execution of executions) assert.throws(() => runGemini(options, () => execution));
 });
 
-test('Gemini installation and publication retain the pinned binary and target', () => {
-  const install = step('Install Antigravity CLI').run;
+test('Gemini installation retains the pinned binary and verifies it before extraction', () => {
+  const install = readFileSync(new URL('./install-gemini.sh', import.meta.url), 'utf8');
   assert.match(install, /1\.2\.2-6061403484848128\/linux-x64\/cli_linux_x64\.tar\.gz/);
   assert.match(install, /74342cf2a78b344392e573b638a648a6ad1f8e877f494b96e20f9c2b79158d5c423c40b2dcf788703362bb0a9150f09c707fde599d7557ce01c12208802a63cb/);
   assert.ok(install.indexOf('sha512sum --check') < install.indexOf('tar -xzf'));
-  assert.match(install, /tar -xzf .* antigravity/);
-  assert.match(step('Run Gemini').run, /node .github\/scripts\/run-gemini.mjs/);
-  const publish = step('Post the reply');
-  assert.match(publish.if, /steps\.key\.outputs\.have == 'true'/);
-  assert.equal(publish.env.NUMBER, '${{ github.event.issue.number || github.event.pull_request.number }}');
-  assert.match(publish.run, /--body-file gemini-reply.md/);
+  assert.match(step('Install Gemini CLI').run, /install-gemini.sh/);
+  assert.match(step('Restore Gemini subscription login').run, /prepare-gemini.mjs/);
+});
+
+test('Gemini reviews use the shared native review schema without a Markdown suffix', async () => {
+  const { runGemini } = await import('./run-gemini.mjs');
+  const review = { verdict: 'APPROVED', body: 'Verified the change', comments: [] };
+  const options = { startedAt: 1789232400, timeoutMinutes: 45, now: 1789232401, mode: 'reviewer', schema: 'schema.json', directory: '/workspace' };
+  const reply = runGemini(options, (binary, args, execution) => {
+    assert.ok(args.includes('--sandbox'));
+    assert.ok(args.includes('--json-schema'));
+    assert.equal(args.at(-1), 'schema.json');
+    assert.equal(execution.cwd, '/workspace');
+    assert.equal(args[args.indexOf('--add-dir') + 1], '/workspace');
+    return { status: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: JSON.stringify(review) }) };
+  });
+  assert.deepEqual(JSON.parse(reply), review);
+  assert.throws(() => runGemini(options, () => ({ status: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: 'not a review' }) })));
+});
+
+test('Gemini review execution receives history without the publication credential', () => {
+  const review = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"]["gemini-review"])', fileURLToPath(new URL('../workflows/agent-review.yml', import.meta.url))], { encoding: 'utf8' }));
+  const infer = review.steps.find(entry => entry.name === 'Review with subscription login');
+  assert.equal(review.needs, 'select-reviewer');
+  assert.match(review.if, /reviewer == 'gemini'/);
+  assert.match(review.if, /requested == 'true'/);
+  assert.ok(!Object.keys({ ...review.env, ...infer.env }).some(key => /TOKEN|PRIVATE_KEY/.test(key)));
+  assert.match(infer.run, /entire cumulative PR/);
+  assert.match(infer.run, /review-history.json/);
+  assert.match(infer.env.GEMINI_SCHEMA, /review-schema.json/);
+  const publish = review.steps.find(entry => entry.id === 'publish');
+  assert.equal(publish.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');
+  assert.match(publish.run, /publish-review.mjs/);
+  assert.match(review.steps.at(-1).run, /wait-for-review.mjs --review-final/);
+});
+
+test('only GitHub-hosted Linux jobs use the runner instead of the native sandbox', async () => {
+  const { githubHostedGemini, geminiSettings } = await import('./prepare-gemini.mjs');
+  const { runGemini } = await import('./run-gemini.mjs');
+  const environment = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' };
+  assert.equal(githubHostedGemini(environment, 'linux'), true);
+  assert.equal(githubHostedGemini(environment, 'darwin'), false);
+  assert.equal(githubHostedGemini({ ...environment, RUNNER_ENVIRONMENT: 'self-hosted' }, 'linux'), false);
+  assert.equal(githubHostedGemini({ ...environment, GITHUB_ACTIONS: '' }, 'linux'), false);
+  for (const sandbox of [true, false]) {
+    const settings = geminiSettings({ mode: 'executor', home: '/home/runner', workspace: '/workspace', temporary: '/temporary', sandbox });
+    assert.equal(settings.enableTerminalSandbox, sandbox);
+    assert.ok(settings.permissions.allow.includes('command(*)'));
+    assert.ok(settings.permissions.deny.includes('read_file(/home/runner/.gemini)'));
+    runGemini({ startedAt: 1789232400, timeoutMinutes: 30, now: 1789232401, mode: 'executor', sandbox }, (binary, args) => {
+      assert.equal(args.includes('--sandbox'), sandbox);
+      assert.equal(args[args.indexOf('--mode') + 1], 'accept-edits');
+      return { status: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: 'Finished' }) };
+    });
+  }
 });

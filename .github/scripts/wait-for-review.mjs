@@ -26,14 +26,14 @@ export async function requestGitHub(request, token, method, endpoint, body, miss
 }
 
 export function reviewProvider(current) {
-  const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review'].includes(name));
+  const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review', 'gemini-review'].includes(name));
   if (labels.length > 1) throw Error('Keep only the selected provider review label');
-  return labels[0]?.replace('-review', '') ?? (current.head.ref.startsWith('codex/') ? 'codex' : 'claude');
+  return labels[0]?.replace('-review', '') ?? (/^(codex|claude|gemini)\//.exec(current.head.ref)?.[1] ?? 'claude');
 }
 
 async function selectedProvider(read, repository, pr, current, options = {}) {
   const fallback = reviewProvider(current);
-  if (current.labels.some(label => ['codex-review', 'claude-review'].includes(label.name))) return fallback;
+  if (current.labels.some(label => ['codex-review', 'claude-review', 'gemini-review'].includes(label.name))) return fallback;
   const lookup = options.providerLookup ?? assignedReviewProvider;
   const provider = await lookup({ repository, pr, branch: current.head.ref }, (method, endpoint, body) => read(endpoint, false, body), options.roster);
   return provider ?? fallback;
@@ -120,7 +120,7 @@ export async function clearReviewLabels(api, repository, pr, sha, identity, runI
   if (events.some(event => !Number.isFinite(Date.parse(event.created_at)) || Date.parse(event.created_at) >= started)) return;
   const latest = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (latest.head.sha !== sha) return;
-  if (!/^(codex|claude)\/issue-[1-9][0-9]*$/.test(latest.head.ref)) await selectReviewProvider({ repository, pr, branch: latest.head.ref, login: identity.login }, api, options.roster);
+  if (!/^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.test(latest.head.ref)) await selectReviewProvider({ repository, pr, branch: latest.head.ref, login: identity.login }, api, options.roster);
   for (const label of labels) {
     if (latest.labels.some(entry => entry.name === label)) await api('DELETE', `${endpoint}/labels/${encodeURIComponent(label)}`, undefined, true);
   }
@@ -267,7 +267,7 @@ async function main() {
     if (process.env.SELECT_RESULT !== 'success') throw Error('Reviewer selection failed');
     const requested = process.env.REVIEW_REQUESTED;
     const provider = process.env.REVIEWER;
-    const providerResult = provider === 'codex' ? process.env.CODEX_RESULT : provider === 'claude' ? process.env.CLAUDE_RESULT : null;
+    const providerResult = provider === 'codex' ? process.env.CODEX_RESULT : provider === 'claude' ? process.env.CLAUDE_RESULT : provider === 'gemini' ? process.env.GEMINI_RESULT : null;
     if (!['true', 'false'].includes(requested) || (requested === 'true' && providerResult !== 'success')) throw Error('The requested reviewer did not succeed');
     await approvalState(read, repository, pr, sha, { provider, before: requested === 'true' ? JSON.parse(process.env.BEFORE) : [] });
   } else {

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { loadRoster } from './bot-identities.mjs';
 
 test('App authentication references only literal secrets from the selected pool', () => {
-  const pools = { 'agent-codex': [['codex', 'executor']], agent: [['claude', 'executor']], 'update-branches': [[null, 'executor']], 'agent-review': [['claude', 'reviewer'], ['codex', 'reviewer']], 'agent-review-request': [[null, 'reviewer']], 'agent-review-discussion': [[null, 'reviewer']] };
+  const pools = { 'agent-codex': [['codex', 'executor']], agent: [['claude', 'executor']], 'agent-gemini': [['gemini', 'executor']], 'update-branches': [[null, 'executor']], 'agent-review': [['claude', 'reviewer'], ['codex', 'reviewer'], ['gemini', 'reviewer']], 'agent-review-request': [[null, 'reviewer']], 'agent-review-discussion': [[null, 'reviewer']] };
   for (const [workflow, expected] of Object.entries(pools)) {
     const source = readFileSync(new URL(`../workflows/${workflow}.yml`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /secrets\s*\[|toJSON\(secrets\)/i, workflow);
