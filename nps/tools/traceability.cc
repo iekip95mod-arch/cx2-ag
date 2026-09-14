@@ -52,6 +52,18 @@ enum class UniversalScope {
     Malformed,
 };
 
+// What a run found, split by whether it is a fault or a gap. A fault is a broken link or an input
+// the tool cannot read, and the run fails on it. A gap is coverage that has not arrived yet, which
+// the report records without failing the run.
+struct Outcome {
+    size_t unknown = 0;
+    size_t failing = 0;
+    size_t missing_groups = 0;
+    size_t untagged_groups = 0;
+    size_t universal_family_gaps = 0;
+    size_t universal_scope_faults = 0;
+};
+
 std::vector<std::string> split(const std::string &line, char on) {
     std::vector<std::string> fields;
     std::string current;
@@ -165,6 +177,13 @@ std::string grammar_token(const std::string &token) {
     return token.substr(first, last - first);
 }
 
+std::string file_text(const std::string &path) {
+    std::ifstream in(path.c_str());
+    std::ostringstream text;
+    text << in.rdbuf();
+    return text.str();
+}
+
 UniversalScope universal_domain(const Requirement &requirement, std::string *domain) {
     std::istringstream input(requirement.text);
     input.imbue(std::locale::classic());
@@ -201,74 +220,10 @@ UniversalScope universal_domain(const Requirement &requirement, std::string *dom
     return UniversalScope::Valid;
 }
 
-}  // namespace
-
-// On a staged PRD, since the one in the tree lists each requirement once and a refusal that has
-// never fired is indistinguishable from no refusal.
-int selftest() {
-    char pattern[] = "/tmp/nps_traceability_XXXXXX";
-    const char *made = ::mkdtemp(pattern);
-    if (made == nullptr) {
-        std::cout << "traceability selftest: no temporary directory\n";
-        return 1;
-    }
-    const std::string once_path = std::string(made) + "/once.md";
-    const std::string twice_path = std::string(made) + "/twice.md";
-    {
-        std::ofstream out(once_path.c_str());
-        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
-            << "| MATH-001 | P0 | The first |\n"
-            << "| MATH-002 | P1 | The second |\n";
-    }
-    {
-        std::ofstream out(twice_path.c_str());
-        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
-            << "| MATH-001 | P0 | The first |\n"
-            << "| MATH-002 | P1 | The second |\n\n"
-            << "| ID | Priority | Requirement |\n|---|---|---|\n"
-            << "| MATH-001 | P2 | The first again, at another priority |\n";
-    }
-
-    std::vector<Requirement> once;
-    std::string once_repeated;
-    const bool once_read = read_requirements(once_path, &once, &once_repeated);
-    std::vector<Requirement> twice;
-    std::string twice_repeated;
-    const bool twice_read = read_requirements(twice_path, &twice, &twice_repeated);
-
-    int failures = 0;
-    const struct {
-        bool ok;
-        const char *what;
-    } checks[] = {
-        {once_read && once.size() == 2 && once_repeated.empty(),
-         "a table listing each requirement once reads as those requirements"},
-        {!twice_read && twice_repeated == "MATH-001",
-         "a requirement listed twice is refused and named, whatever its second priority"},
-    };
-    for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); ++i) {
-        if (!checks[i].ok)
-            ++failures;
-        std::cout << "traceability selftest: " << (checks[i].ok ? "ok   " : "FAIL ")
-                  << checks[i].what << "\n";
-    }
-    std::cout << "traceability selftest: " << count_text(static_cast<size_t>(failures))
-              << " failed\n";
-    return failures == 0 ? 0 : 1;
-}
-
-int main(int argc, char **argv) {
-    if (argc == 2 && std::string(argv[1]) == "--selftest")
-        return selftest();
-    if (argc < 5) {
-        std::cout << "usage: nps_traceability <prd.md> <evidence.txt> <catalog.md> <report.md>\n"
-                     "       nps_traceability --selftest\n";
-        return 2;
-    }
-    const std::string prd = argv[1];
-    const std::string evidence_path = argv[2];
-    const std::string catalog_path = argv[3];
-    const std::string report_path = argv[4];
+// The whole run, from the three inputs to the report and the exit status, so a check can stage its
+// own inputs and read back what the gate decided rather than only what the report says.
+int analyse(const std::string &prd, const std::string &evidence_path,
+            const std::string &catalog_path, const std::string &report_path, Outcome *out) {
 
     std::vector<Requirement> requirements;
     std::string repeated;
@@ -309,7 +264,7 @@ int main(int argc, char **argv) {
     }
 
     std::map<std::string, UniversalCoverage> universal_coverage;
-    size_t universal_family_gaps = 0;
+    Outcome outcome;
     for (size_t i = 0; i < requirements.size(); ++i) {
         UniversalCoverage coverage;
         const UniversalScope scope = universal_domain(requirements[i], &coverage.domain);
@@ -317,7 +272,7 @@ int main(int argc, char **argv) {
             continue;
         if (scope == UniversalScope::Malformed) {
             coverage.malformed = true;
-            ++universal_family_gaps;
+            ++outcome.universal_scope_faults;
             std::cout << "traceability: " << requirements[i].id
                       << " has a malformed universal module scope in requirement text\n";
             universal_coverage[requirements[i].id] = coverage;
@@ -349,14 +304,14 @@ int main(int argc, char **argv) {
             }
             if (!passed) {
                 coverage.missing_families.insert(families[family_index].id);
-                ++universal_family_gaps;
+                ++outcome.universal_family_gaps;
                 std::cout << "traceability: " << requirements[i].id
                           << " is missing passing evidence for catalog family "
                           << families[family_index].id << "\n";
             }
         }
         if (coverage.applicable_families.empty()) {
-            ++universal_family_gaps;
+            ++outcome.universal_scope_faults;
             std::cout << "traceability: " << requirements[i].id << " applies to every "
                       << coverage.domain << " module, but no catalog family begins " << family_prefix
                       << "\n";
@@ -366,23 +321,19 @@ int main(int argc, char **argv) {
 
     // A catalog naming a test group that never ran is a link to nothing, and an error. A group that
     // ran and produced no evidence yet is a gap worth counting rather than a fault.
-    size_t missing_groups = 0;
-    size_t untagged_groups = 0;
     for (std::map<std::string, std::vector<std::string> >::const_iterator it =
              families_of_group.begin();
          it != families_of_group.end(); ++it) {
         if (!groups_run.count(it->first)) {
-            ++missing_groups;
+            ++outcome.missing_groups;
             std::cout << "traceability: the catalog names test group " << it->first
                       << ", which no test run reports\n";
             continue;
         }
         if (!groups_seen.count(it->first))
-            ++untagged_groups;
+            ++outcome.untagged_groups;
     }
 
-    size_t unknown = 0;
-    size_t failing = 0;
     for (std::map<std::string, std::vector<Evidence> >::const_iterator it = by_requirement.begin();
          it != by_requirement.end(); ++it) {
         bool known = false;
@@ -393,19 +344,21 @@ int main(int argc, char **argv) {
             }
         }
         if (!known) {
-            ++unknown;
+            ++outcome.unknown;
             std::cout << "traceability: evidence names " << it->first
                       << ", which is not a requirement in the PRD\n";
         }
         for (size_t i = 0; i < it->second.size(); ++i) {
             if (!it->second[i].passed)
-                ++failing;
+                ++outcome.failing;
         }
     }
 
     std::ofstream report(report_path.c_str());
     if (!report) {
         std::cout << "traceability: could not write " << report_path << "\n";
+        if (out != nullptr)
+            *out = outcome;
         return 1;
     }
     report << "# Requirement traceability\n\n";
@@ -544,10 +497,199 @@ int main(int argc, char **argv) {
               << " MVP requirements evidenced, " << count_text(prioritised_evidenced) << " of "
               << count_text(prioritised) << " adopted prioritised requirements evidenced, "
               << count_text(evidenced) << " of " << count_text(requirements.size())
-              << " counting the staged ones, " << count_text(unknown) << " unknown ids, "
-              << count_text(failing) << " failing evidence, " << count_text(missing_groups)
-              << " catalog groups that did not run, " << count_text(untagged_groups)
-              << " that ran with nothing tagged, " << count_text(universal_family_gaps)
+              << " counting the staged ones, " << count_text(outcome.unknown) << " unknown ids, "
+              << count_text(outcome.failing) << " failing evidence, "
+              << count_text(outcome.missing_groups) << " catalog groups that did not run, "
+              << count_text(outcome.untagged_groups) << " that ran with nothing tagged, "
+              << count_text(outcome.universal_scope_faults) << " universal scope faults, "
+              << count_text(outcome.universal_family_gaps)
               << " universal family evidence gaps, report in " << report_path << "\n";
-    return unknown == 0 && failing == 0 && missing_groups == 0 ? 0 : 1;
+    if (out != nullptr)
+        *out = outcome;
+    return outcome.unknown == 0 && outcome.failing == 0 && outcome.missing_groups == 0 &&
+                   outcome.universal_scope_faults == 0
+               ? 0
+               : 1;
+}
+
+}  // namespace
+
+// On staged inputs, since the PRD and catalog in the tree list each requirement once and hold no
+// structural fault, and a refusal that has never fired is indistinguishable from no refusal.
+int selftest() {
+    char pattern[] = "/tmp/nps_traceability_XXXXXX";
+    const char *made = ::mkdtemp(pattern);
+    if (made == nullptr) {
+        std::cout << "traceability selftest: no temporary directory\n";
+        return 1;
+    }
+    const std::string once_path = std::string(made) + "/once.md";
+    const std::string twice_path = std::string(made) + "/twice.md";
+    {
+        std::ofstream out(once_path.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The first |\n"
+            << "| MATH-002 | P1 | The second |\n";
+    }
+    {
+        std::ofstream out(twice_path.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The first |\n"
+            << "| MATH-002 | P1 | The second |\n\n"
+            << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P2 | The first again, at another priority |\n";
+    }
+
+    const std::string good_prd = std::string(made) + "/prd-good.md";
+    const std::string malformed_prd = std::string(made) + "/prd-malformed.md";
+    const std::string unmatched_prd = std::string(made) + "/prd-unmatched.md";
+    const std::string good_catalog = std::string(made) + "/catalog-good.md";
+    const std::string unevidenced_catalog = std::string(made) + "/catalog-unevidenced.md";
+    const std::string untagged_catalog = std::string(made) + "/catalog-untagged.md";
+    const std::string absent_catalog = std::string(made) + "/catalog-absent.md";
+    const std::string evidence_file = std::string(made) + "/evidence.txt";
+    const std::string report = std::string(made) + "/report.md";
+    {
+        std::ofstream out(good_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every physics module shall expose conditions. |\n";
+    }
+    {
+        // A one-word reflow of the same requirement, which the scope reader cannot parse.
+        std::ofstream out(malformed_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every Physics module shall expose conditions. |\n";
+    }
+    {
+        // A domain the catalog has no family for, which is a link to nothing.
+        std::ofstream out(unmatched_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every chemistry module shall expose conditions. |\n";
+    }
+    {
+        std::ofstream out(good_catalog.c_str());
+        out << "family id physics.kinematics.probe\ntopic_and_level probe\n"
+               "test_group_ids catch up\n\n"
+               "family id algebra.linear.probe\ntopic_and_level probe\n"
+               "test_group_ids linear\n";
+    }
+    {
+        // A physics family whose group ran and produced no evidence for the universal requirement.
+        std::ofstream out(unevidenced_catalog.c_str());
+        out << "family id physics.kinematics.probe\ntopic_and_level probe\n"
+               "test_group_ids catch up\n\n"
+               "family id physics.probe.unevidenced\ntopic_and_level probe\n"
+               "test_group_ids linear\n\n"
+               "family id algebra.linear.probe\ntopic_and_level probe\n"
+               "test_group_ids linear\n";
+    }
+    {
+        // A group that ran with nothing tagged, which the tool documents as a gap rather than a fault.
+        std::ofstream out(untagged_catalog.c_str());
+        out << "family id physics.kinematics.probe\ntopic_and_level probe\n"
+               "test_group_ids catch up\n\n"
+               "family id algebra.linear.probe\ntopic_and_level probe\n"
+               "test_group_ids linear\n\n"
+               "family id algebra.untagged.probe\ntopic_and_level probe\n"
+               "test_group_ids untagged\n";
+    }
+    {
+        // The same catalog against a run that never reported the group, which is the live control.
+        std::ofstream out(absent_catalog.c_str());
+        out << "family id physics.kinematics.probe\ntopic_and_level probe\n"
+               "test_group_ids catch up\n\n"
+               "family id algebra.linear.probe\ntopic_and_level probe\n"
+               "test_group_ids linear\n\n"
+               "family id algebra.absent.probe\ntopic_and_level probe\n"
+               "test_group_ids never ran\n";
+    }
+    {
+        std::ofstream out(evidence_file.c_str());
+        out << "group\tcatch up\ngroup\tlinear\ngroup\tuntagged\n"
+            << "evidence\tMATH-001\tpass\tlinear\tthe thing\n"
+            << "evidence\tPHYS-025\tpass\tcatch up\tthe physics thing\n";
+    }
+
+    Outcome sound;
+    const int sound_status = analyse(good_prd, evidence_file, good_catalog, report, &sound);
+    Outcome gap;
+    const int gap_status = analyse(good_prd, evidence_file, unevidenced_catalog, report, &gap);
+    const std::string gap_report = file_text(report);
+    Outcome malformed;
+    const int malformed_status = analyse(malformed_prd, evidence_file, good_catalog, report,
+                                         &malformed);
+    const std::string malformed_report = file_text(report);
+    Outcome unmatched;
+    const int unmatched_status = analyse(unmatched_prd, evidence_file, good_catalog, report,
+                                         &unmatched);
+    const std::string unmatched_report = file_text(report);
+    Outcome untagged;
+    const int untagged_status = analyse(good_prd, evidence_file, untagged_catalog, report,
+                                        &untagged);
+    Outcome absent;
+    const int absent_status = analyse(good_prd, evidence_file, absent_catalog, report, &absent);
+
+    std::vector<Requirement> once;
+    std::string once_repeated;
+    const bool once_read = read_requirements(once_path, &once, &once_repeated);
+    std::vector<Requirement> twice;
+    std::string twice_repeated;
+    const bool twice_read = read_requirements(twice_path, &twice, &twice_repeated);
+
+    int failures = 0;
+    const struct {
+        bool ok;
+        const char *what;
+    } checks[] = {
+        {once_read && once.size() == 2 && once_repeated.empty(),
+         "a table listing each requirement once reads as those requirements"},
+        {!twice_read && twice_repeated == "MATH-001",
+         "a requirement listed twice is refused and named, whatever its second priority"},
+        {sound_status == 0 && sound.universal_scope_faults == 0 &&
+             sound.universal_family_gaps == 0,
+         "a sound PRD and catalog pass with no fault and no gap"},
+        {gap_status == 0 && gap.universal_family_gaps == 1 && gap.universal_scope_faults == 0,
+         "a universal requirement missing family evidence is a gap the run survives"},
+        {gap_report.find("unmet, missing family evidence: physics.probe.unevidenced") !=
+             std::string::npos,
+         "that gap is still written into the report row"},
+        {malformed_status == 1 && malformed.universal_scope_faults == 1 &&
+             malformed.universal_family_gaps == 0,
+         "a PRD scope the tool cannot parse is a fault that fails the run"},
+        {malformed_report.find("unmet, malformed universal module scope") != std::string::npos,
+         "that fault is still written into the report row"},
+        {unmatched_status == 1 && unmatched.universal_scope_faults == 1 &&
+             unmatched.universal_family_gaps == 0,
+         "a domain no catalog family belongs to is a fault that fails the run"},
+        {unmatched_report.find("unmet, no applicable catalog families for chemistry") !=
+             std::string::npos,
+         "that fault is still written into the report row"},
+        {untagged_status == 0 && untagged.untagged_groups == 1 && untagged.missing_groups == 0,
+         "a group that ran with nothing tagged stays a gap the run survives"},
+        {absent_status == 1 && absent.missing_groups == 1,
+         "a catalog group no run reports still fails, which keeps this gate live"},
+    };
+    for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); ++i) {
+        if (!checks[i].ok)
+            ++failures;
+        std::cout << "traceability selftest: " << (checks[i].ok ? "ok   " : "FAIL ")
+                  << checks[i].what << "\n";
+    }
+    std::cout << "traceability selftest: " << count_text(static_cast<size_t>(failures))
+              << " failed\n";
+    return failures == 0 ? 0 : 1;
+}
+
+int main(int argc, char **argv) {
+    if (argc == 2 && std::string(argv[1]) == "--selftest")
+        return selftest();
+    if (argc < 5) {
+        std::cout << "usage: nps_traceability <prd.md> <evidence.txt> <catalog.md> <report.md>\n"
+                     "       nps_traceability --selftest\n";
+        return 2;
+    }
+    return analyse(argv[1], argv[2], argv[3], argv[4], nullptr);
 }
