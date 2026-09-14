@@ -26,28 +26,25 @@ jobs:
        contains(github.event.comment.body, '@gemini'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      GEMINI_FORCE_FILE_STORAGE: 'true'
     # Read on contents for the reason agent-codex.yml gives: this lane posts an answer and never
     # pushes a branch.
     permissions:
       contents: read
       issues: write
       pull-requests: write
-      id-token: write
     steps:
       - name: Decide whether credentials are configured
         id: key
         env:
-          OAUTH_CREDS: ${{ secrets.GEMINI_OAUTH_CREDS }}
+          OAUTH_CREDS: ${{ secrets.ANTIGRAVITY_OAUTH_CREDS }}
         run: |
           if [ -n "$OAUTH_CREDS" ]; then
-            mkdir -p "$HOME/.gemini"
-            printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/oauth_creds.json"
-            chmod 600 "$HOME/.gemini/oauth_creds.json"
+            umask 077
+            mkdir -p "$HOME/.gemini/antigravity-cli"
+            printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::GEMINI_OAUTH_CREDS is required for subscription authentication."
+            echo "::error::ANTIGRAVITY_OAUTH_CREDS is required for subscription authentication."
             exit 1
           fi
 
@@ -97,19 +94,31 @@ jobs:
             echo "${delimiter}"
           } >> "$GITHUB_ENV"
 
+      - name: Install Antigravity CLI
+        run: |
+          curl --fail --silent --show-error --location \
+            https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-x64/cli_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/antigravity.tar.gz"
+          printf '%s  %s\n' \
+            74342cf2a78b344392e573b638a648a6ad1f8e877f494b96e20f9c2b79158d5c423c40b2dcf788703362bb0a9150f09c707fde599d7557ce01c12208802a63cb \
+            "$RUNNER_TEMP/antigravity.tar.gz" | sha512sum --check
+          mkdir -p "$RUNNER_TEMP/antigravity-bin"
+          tar -xzf "$RUNNER_TEMP/antigravity.tar.gz" -C "$RUNNER_TEMP/antigravity-bin" antigravity
+          chmod +x "$RUNNER_TEMP/antigravity-bin/antigravity"
+
       - name: Run Gemini
         id: gemini
-        if: steps.key.outputs.have == 'true'
-        # v0.1.22 as of this commit. See agent.yml for why these are pinned by digest.
-        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
-        with:
-          gemini_cli_version: '0.59.0'
-          use_gemini_code_assist: 'true'
-          settings: '{"security":{"auth":{"selectedType":"oauth-personal"}}}'
-          prompt: ${{ env.GEMINI_PROMPT }}
+        timeout-minutes: 26
+        run: |
+          "$RUNNER_TEMP/antigravity-bin/antigravity" \
+            --model gemini-3.1-pro-high --effort high \
+            --print-timeout 25m --output-format json \
+            --print "$GEMINI_PROMPT" > "$RUNNER_TEMP/gemini-result.json"
+          jq -e '.status == "SUCCESS" and (.response | type == "string" and length > 0)' \
+            "$RUNNER_TEMP/gemini-result.json"
+          jq -r '.response' "$RUNNER_TEMP/gemini-result.json" > gemini-reply.md
+          cat gemini-reply.md >> "$GITHUB_STEP_SUMMARY"
 
-      # The action returns its answer rather than posting it, so the reply is written to a file and
-      # posted from there.
       - name: Post the reply
         # A review comment carries a pull request rather than an issue, and gh issue comment takes
         # either number. Without the fallback the answer is produced and then dropped.
@@ -119,7 +128,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-          SUMMARY: ${{ steps.gemini.outputs.summary }}
         run: |
-          printf '%s\n' "$SUMMARY" > gemini-reply.md
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file gemini-reply.md
