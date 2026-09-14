@@ -30,6 +30,7 @@ bool parse_kinematics(const std::string &text, KinematicsProblem *out, std::stri
 
 enum class KinematicsOutcome : uint8_t {
     Solved,
+    NoSolution,
     InvalidInput,
     NoApplicableEquation,
     DimensionMismatch,
