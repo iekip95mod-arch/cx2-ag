@@ -28,7 +28,7 @@ test('Gemini handles configured and missing subscription credentials without API
   for (const credentials of ['', 'fixture-token']) {
     const home = mkdtempSync(join(workspace, 'credentials-'));
     const output = join(home, 'output'), summary = join(home, 'summary');
-    const run = spawnSync('bash', ['-eu', '-o', 'pipefail', '-c', key.run], { encoding: 'utf8', env: { ...process.env, HOME: home, OAUTH_CREDS: credentials, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary } });
+    const run = spawnSync('bash', ['-eu', '-o', 'pipefail', '-c', key.run], { encoding: 'utf8', env: { ...process.env, HOME: home, GITHUB_WORKSPACE: join(home, 'workspace'), OAUTH_CREDS: credentials, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary } });
     assert.equal(run.status, 0, run.stderr);
     assert.equal(readFileSync(output, 'utf8'), `have=${Boolean(credentials)}\n`);
     const token = join(home, '.gemini/antigravity-cli/antigravity-oauth-token');
@@ -36,6 +36,7 @@ test('Gemini handles configured and missing subscription credentials without API
     if (credentials) {
       assert.equal(readFileSync(token, 'utf8'), credentials);
       const settings = JSON.parse(readFileSync(join(home, '.gemini/antigravity-cli/settings.json'), 'utf8'));
+      assert.deepEqual(settings.permissions.allow, [`read_file(${join(home, 'workspace')})`]);
       for (const deny of ['command(*)', 'unsandboxed(*)', 'write_file(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)', `read_file(${home}/.gemini)`]) assert.ok(settings.permissions.deny.includes(deny));
     } else assert.match(readFileSync(summary, 'utf8'), /ANTIGRAVITY_OAUTH_CREDS/);
   }

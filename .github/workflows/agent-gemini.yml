@@ -47,7 +47,8 @@ jobs:
             umask 077
             mkdir -p "$HOME/.gemini/antigravity-cli"
             printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
-            jq -n --arg home "$HOME" '{permissions: {deny: ["command(*)", "unsandboxed(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "mcp(*)", ("read_file(" + $home + "/.gemini)")]}}' \
+            jq -n --arg home "$HOME" --arg workspace "$GITHUB_WORKSPACE" \
+              '{permissions: {allow: [("read_file(" + $workspace + ")")], deny: ["command(*)", "unsandboxed(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "mcp(*)", ("read_file(" + $home + "/.gemini)")]}}' \
               > "$HOME/.gemini/antigravity-cli/settings.json"
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
