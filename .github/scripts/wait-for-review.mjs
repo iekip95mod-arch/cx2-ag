@@ -215,7 +215,7 @@ export async function reviewState(read, repository, pr, sha, options = {}) {
   return approvalState(read, repository, pr, sha, options);
 }
 
-export async function waitForReview(read, repository, pr, sha, sleep, attempts = 90, options = {}) {
+export async function waitForReview(read, repository, pr, sha, sleep, attempts = 270, options = {}) {
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (await reviewState(read, repository, pr, sha, options) === 'approved') return;
     if (attempt + 1 < attempts) await sleep(30000);

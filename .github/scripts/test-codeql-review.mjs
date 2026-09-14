@@ -310,6 +310,12 @@ test('failed, cancelled and missing approvals cannot start CodeQL', async () => 
   await assert.rejects(reviewState(fixture([run(1)], { jobs: [] }), repository, 85, sha));
   await assert.rejects(reviewState(fixture([run(1)], { jobs: [{ name: 'review-approved', status: 'in_progress', conclusion: 'success' }] }), repository, 85, sha));
 });
+test('default approval wait covers cold reviewer toolchain setup', async () => {
+  let milliseconds = 0;
+  await assert.rejects(waitForReview(fixture([]), repository, 85, sha, async ms => { milliseconds += ms; }), /Timed out/);
+  assert.equal(milliseconds, 269 * 30000);
+});
+
 test('new review attempts supersede failures and pending attempts prevent early scanning', async () => {
   assert.equal(await reviewState(fixture([run(1, { conclusion: 'failure' }), run(2)]), repository, 85, sha), 'approved');
   await assert.rejects(reviewState(fixture([run(1), run(2, { conclusion: 'failure' })]), repository, 85, sha));
