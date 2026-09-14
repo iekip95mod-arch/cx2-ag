@@ -903,6 +903,16 @@
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-flint",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-230",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 230,
+      "pr": 231,
+      "branch": "codex/ubuntu-arm-runners",
+      "slug": "cx2-ag-codex-review-beacon",
+      "released": false
     }
   ]
 }
