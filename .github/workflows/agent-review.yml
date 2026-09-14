@@ -516,8 +516,8 @@ jobs:
           outside = Path.home() / ('sandbox-denial-' + os.environ['GITHUB_RUN_ID'])
           try:
               outside.open('x').close()
-          except PermissionError:
-              pass
+          except OSError as error:
+              assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
           else:
               raise RuntimeError('Sandbox allowed a write outside the workspace')
           try:
