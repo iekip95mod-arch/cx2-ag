@@ -621,6 +621,16 @@
       "branch": "codex/issue-38",
       "slug": "cx2-ag-codex-review-lantern",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-31",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 31,
+      "pr": 126,
+      "branch": "codex/issue-31",
+      "slug": "cx2-ag-codex-review-prism",
+      "released": false
     }
   ]
 }
