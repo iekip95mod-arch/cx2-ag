@@ -227,8 +227,8 @@ jobs:
           AGENT_JOB_TIMEOUT_MINUTES: 120
           REVIEW_SCHEMA: ${{ steps.review-schema.outputs.json }}
           REVIEW_OUTPUT: ${{ runner.temp }}/claude-review.json
+          GH_TOKEN: ${{ steps.bot.outputs.token }}
           REVIEW_PROMPT: |
-            ${{ env.AGENT_TIME_BUDGET }}
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 

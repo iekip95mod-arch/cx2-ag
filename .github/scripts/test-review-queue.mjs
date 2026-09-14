@@ -69,6 +69,16 @@ test('capacity release retries a waiting assignment only on its current revision
   }
 });
 
+test('a Gemini PR waiting for Claude uses Claude capacity', async () => {
+  for (const slots of [0, 1]) {
+    const f = fixture();
+    f.pr.head.ref = 'gemini/issue-17';
+    f.pr.labels = [{ name: 'claude-review' }];
+    f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ gemini: 12, claude: slots })), slots ? [42] : []);
+  }
+});
+
 test('no capacity, stale revision, pending work and unrelated failures never retry', async () => {
   for (const kind of ['full', 'stale', 'pending', 'other', 'draft']) {
     const f = fixture();

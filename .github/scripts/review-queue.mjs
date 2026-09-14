@@ -1,7 +1,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { reviewerCapacity } from './bot-identities.mjs';
-import { requestGitHub } from './wait-for-review.mjs';
+import { requestGitHub, reviewProvider } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
@@ -51,8 +51,9 @@ export async function retryWaitingReviews(api, capacity = reviewerCapacity) {
   const pulls = await pages(api, `${root}/pulls?state=open&base=main`);
   const retried = [];
   for (const pr of pulls.sort((a, b) => a.number - b.number)) {
-    const provider = /^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.exec(pr.head.ref)?.[1];
-    if (!provider || !available[provider] || pr.draft || pr.head.repo?.full_name !== repository) continue;
+    if (!/^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.test(pr.head.ref) || pr.draft || pr.head.repo?.full_name !== repository) continue;
+    const provider = reviewProvider({ ...pr, labels: pr.labels ?? [] });
+    if (!available[provider]) continue;
     const runs = (await pages(api, `${root}/actions/workflows/agent-review-request.yml/runs?event=pull_request&head_sha=${pr.head.sha}`, 'workflow_runs'))
       .filter(run => matches(run, pr, 'agent-review-request.yml') && run.head_sha === pr.head.sha && run.display_title === `Assign reviewer for PR #${pr.number} (requested)`)
       .sort((a, b) => Date.parse(b.run_started_at) - Date.parse(a.run_started_at) || b.id - a.id);
@@ -63,7 +64,7 @@ export async function retryWaitingReviews(api, capacity = reviewerCapacity) {
     if (!waiting) continue;
     const current = await api('GET', `${root}/pulls/${pr.number}`);
     const run = await api('GET', `${root}/actions/runs/${latest.id}`);
-    if (current.state !== 'open' || current.draft || current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.head.repo?.full_name !== repository || run.run_attempt !== latest.run_attempt || run.status !== 'completed') continue;
+    if (reviewProvider({ ...current, labels: current.labels ?? [] }) !== provider || current.state !== 'open' || current.draft || current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.head.repo?.full_name !== repository || run.run_attempt !== latest.run_attempt || run.status !== 'completed') continue;
     await api('POST', `${root}/actions/runs/${latest.id}/rerun`);
     available[provider]--;
     retried.push(pr.number);

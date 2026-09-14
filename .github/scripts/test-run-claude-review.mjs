@@ -15,8 +15,8 @@ test('Claude CLI publishes only completed structured output within the remaining
     assert.equal(args[args.indexOf('--allowedTools') + 1], options.allowedTools);
     assert.equal(execution.timeout, 1440000);
     assert.match(execution.input, /Review this revision/);
-    assert.equal(execution.env.GH_TOKEN, '');
-    assert.equal(execution.env.GITHUB_TOKEN, '');
+    assert.equal(execution.env.GH_TOKEN, process.env.GH_TOKEN);
+    assert.equal(execution.env.GITHUB_TOKEN, process.env.GITHUB_TOKEN);
     assert.equal(execution.env.ANTHROPIC_API_KEY, '');
     return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: verdict }) };
   });
