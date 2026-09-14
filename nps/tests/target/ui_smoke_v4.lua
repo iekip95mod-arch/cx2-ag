@@ -457,6 +457,37 @@ local fake_work = {
     },
 }
 
+-- Global, since this file is at Lua's ceiling of 200 top-level locals.
+fake_forces = {
+    outcome = "solved", detail = "", solved = true, answer_only = false,
+    status = "solved and verified", result = "acceleration = 3.5 m/s^2", nodes = 24,
+    value = "3.5", exact_value = "7/2", unit = "m/s^2", unknown = "acceleration",
+    surface = "horizontal", friction_model = "kinetic",
+    along_equation = "12 - 5 = 2*a", across_equation = "N - 20 = 0",
+    consistency = "the assumed sliding motion is consistent with the solution",
+    precision = { kind = "exact", significant_digits = 0 },
+    step_count = 7, rewrites = 5, giac_calls = 0,
+    inventory = {
+        { kind = "weight", label = "Weight", agent = "Earth", magnitude = "20",
+          along = "0", across = "-20", known = true },
+        { kind = "normal", label = "Normal force", agent = "table", magnitude = "20",
+          along = "0", across = "20", known = true },
+        { kind = "applied", label = "Applied force", agent = "hand", magnitude = "12",
+          along = "12", across = "0", known = true },
+        { kind = "friction", label = "Kinetic friction", agent = "table", magnitude = "5",
+          along = "-5", across = "0", known = true },
+    },
+    pairs = {
+        { kind = "normal", on_body = "block", by_body = "table",
+          reaction_on = "table", reaction_by = "block", magnitude = "20" },
+    },
+    steps = {
+        { kind = "plan", name = "Free-body plan", goal = "Find the acceleration on block",
+          short = "Inventory the forces and sum each axis", claim = "no claim", verified = true,
+          failed = false, depth = 0 },
+    },
+}
+
 local fake_components = {
     outcome = "solved", detail = "", solved = true, answer_only = false,
     status = "solved and verified", has_components = true, nodes = 20,
@@ -537,6 +568,7 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
+    catch_up = 0, relative_motion = 0, forces = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
 }
 local profile_events = {}
@@ -586,6 +618,7 @@ local fake_manifest = {
         { kind = "solver", id = "physics.vectors.cartesian-addition.two-dimension" },
         { kind = "solver", id = "physics.kinematics.relative-motion.components.two-dimension" },
         { kind = "solver", id = "physics.vectors.magnitude-components.two-dimension" },
+        { kind = "solver", id = "physics.forces.newton-second-law" },
         { kind = "solver", id = "physics.work.constant-force-dot-product" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
@@ -633,6 +666,7 @@ nps_split = {
         return fake_relative_motion
     end,
     work = function(...) calls.work = calls.work + 1 last_args = { ... } return fake_work end,
+    forces = function(...) calls.forces = calls.forces + 1 last_args = { ... } return fake_forces end,
     magnitude_angle_to_components = function(...)
         calls.components = calls.components + 1
         last_args = { ... }
@@ -931,7 +965,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 16 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 17 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -1198,6 +1232,35 @@ check(#steps.histText == relative_history_before + 1 and
       steps.histText[#steps.histText][1] == " Guided: Find a speed seen from something moving" and
       steps.histText[#steps.histText][2]:find("(7 i - 6 j) m/s", 1, true) ~= nil,
       "the relative-motion answer joins document history")
+on.escapeKey()
+
+forces_history_before = #steps.histText
+openPhysicsFixtures()
+on.arrowDown()
+on.enterKey()
+check(calls.forces == 1 and steps.result.mode == "forces" and type(last_args[1]) == "table",
+      "the tenth fixture calls the native force bridge exactly once")
+forces_input = last_args[1]
+check(forces_input.body == "block" and forces_input.support == "table" and
+      forces_input.mass == "2 kg" and forces_input.gravity == "10 m/s^2" and
+      forces_input.surface == "horizontal" and forces_input.applied == "12 N" and
+      forces_input.friction == "kinetic" and forces_input.friction_coefficient == "0.25" and
+      forces_input.motion == "up the axis" and forces_input.equilibrium == false and
+      forces_input.unknown == "acceleration",
+      "the fixture sends the declared body, surface, friction model and requested unknown")
+check(steps.result.inventory ~= nil and #steps.result.inventory == 4 and
+      steps.result.inventory[4].kind == "friction" and
+      steps.result.inventory[4].along == "-5" and
+      steps.result.pairs ~= nil and #steps.result.pairs == 1 and
+      steps.result.pairs[1].reaction_on == "table",
+      "the viewer retains the force inventory and the third-law pair it keeps out of it")
+check(#steps.histText == forces_history_before + 1 and
+      steps.histText[#steps.histText][1] == " Guided: Find how hard a sliding block speeds up" and
+      steps.histText[#steps.histText][2]:find("3.5", 1, true) ~= nil,
+      "the force answer joins document history with its value")
+on.escapeKey()
+openPhysicsFixtures()
+on.arrowUp()
 on.escapeKey()
 
 check(#steps.histText >= 10 and #histME1 >= 10,

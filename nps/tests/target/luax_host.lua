@@ -265,6 +265,7 @@ local expected_modules = {
     "physics.density.mass-volume",
     "physics.vectors.cartesian-addition.two-dimension",
     "physics.vectors.magnitude-components.two-dimension",
+    "physics.forces.newton-second-law",
     "physics.work.constant-force-dot-product",
     "units.chain-link-conversion",
     "units.si"
@@ -1364,6 +1365,74 @@ r = nps.work_local({
 })
 check(r.outcome == "law not applicable" and r.result == nil,
       "the work bridge preserves a variable-force applicability refusal")
+
+forces_input = {
+    body = "block",
+    support = "table",
+    mass = "2 kg",
+    gravity = "10 m/s^2",
+    surface = "horizontal",
+    applied = "12 N",
+    friction = "kinetic",
+    friction_coefficient = "0.25",
+    motion = "up the axis",
+    equilibrium = false,
+    unknown = "acceleration",
+}
+before_forces = giac_calls
+r = nps.forces(forces_input)
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the forces bridge returns a verified typed solution")
+check(r.value == "3.5" and r.exact_value == "7/2" and r.unit == "m/s^2" and
+      r.result == "acceleration = 3.5 m/s^2" and r.unknown == "acceleration",
+      "the forces bridge reports the acceleration with its SI unit and exact value")
+check(giac_calls == before_forces and r.giac_calls == 0,
+      "the forces bridge answers without the backend")
+check(type(r.inventory) == "table" and #r.inventory == 4 and
+      r.along_equation ~= nil and r.across_equation ~= nil,
+      "the forces bridge emits the whole force inventory and both axis equations")
+by_kind = {}
+for _, entry in ipairs(r.inventory) do by_kind[entry.kind] = entry end
+check(by_kind.weight ~= nil and by_kind.weight.magnitude == "20" and
+      by_kind.normal ~= nil and by_kind.normal.across == "20" and
+      by_kind.applied ~= nil and by_kind.applied.along == "12" and
+      by_kind.friction ~= nil and by_kind.friction.along == "-5",
+      "each inventory entry carries the components #158 draws its labels from")
+check(type(r.pairs) == "table" and #r.pairs == 1 and r.pairs[1].on_body == "block" and
+      r.pairs[1].reaction_on == "table",
+      "the third-law pair travels beside the inventory rather than inside it")
+forces_rules = {}
+for _, s2 in ipairs(r.steps) do if s2.rule then forces_rules[s2.rule] = true end end
+check(forces_rules["physics.forces.weight"] and forces_rules["physics.forces.normal-force"] and
+      forces_rules["physics.forces.check-residual"],
+      "the forces bridge retains the weight, normal force and residual check steps")
+
+r = nps.forces({
+    body = "block", support = "table", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "horizontal", applied = "12 N", friction = "kinetic",
+    friction_coefficient = "0.25", equilibrium = false, unknown = "acceleration",
+})
+check(r.outcome == "motion sense undeclared" and r.result == nil,
+      "the forces bridge preserves an undeclared motion sense refusal")
+r = nps.forces({
+    body = "block", support = "table", mass = "2 m", gravity = "10 m/s^2",
+    surface = "horizontal", unknown = "normal force",
+})
+check(r.outcome == "dimension mismatch" and r.result == nil,
+      "the forces bridge preserves a dimension mismatch")
+r = nps.forces({
+    body = "block", support = "ramp", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "incline", incline_sin = "0.6", incline_cos = "0.7",
+    unknown = "normal force",
+})
+check(r.outcome == "incline angle not exact" and r.result == nil,
+      "the forces bridge preserves an inexact incline angle refusal")
+r = nps.forces({
+    body = "block", support = "table", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "horizontal", friction = "sticky", unknown = "normal force",
+})
+check(r.outcome == "invalid problem" and #r.steps == 0,
+      "the forces bridge refuses an unknown friction model before solving")
 
 script("sqrt(3)/2", "0", "5*sqrt(3)", "0", "1/2", "0", "5", "0")
 r = nps.magnitude_angle_to_components({
