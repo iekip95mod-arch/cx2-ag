@@ -993,6 +993,16 @@
       "branch": "claude/issue-154",
       "slug": "cx2-ag-claude-vega",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-246",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 246,
+      "pr": null,
+      "branch": "codex/issue-246",
+      "slug": "cx2-ag-codex-amber",
+      "released": false
     }
   ]
 }
