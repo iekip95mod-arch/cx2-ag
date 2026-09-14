@@ -93,8 +93,7 @@ TaskState SolveTask::advance(size_t units) {
         std::visit([this](auto &solved) {
             if constexpr (std::is_same_v<std::decay_t<decltype(solved)>, RearrangeResult>)
                 solved.restrictions = published_.context.active_assumptions;
-            if (solved.status != DerivationStatus::SolvedAndVerified &&
-                solved.status != DerivationStatus::ConditionallySolved) {
+            if (!status_carries_answer(solved.status)) {
                 if constexpr (std::is_same_v<std::decay_t<decltype(solved)>, SolveResult>)
                     solved.solution = kNoNode;
                 else {
