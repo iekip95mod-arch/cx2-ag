@@ -721,6 +721,16 @@
       "branch": "claude/issue-196",
       "slug": "cx2-ag-claude-vega",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-15",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 15,
+      "pr": null,
+      "branch": "claude/issue-15",
+      "slug": "cx2-ag-claude-aurora",
+      "released": false
     }
   ]
 }
