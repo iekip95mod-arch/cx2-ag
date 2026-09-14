@@ -771,6 +771,16 @@
       "branch": "claude/issue-204",
       "slug": "cx2-ag-claude-review-grove",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-195",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 195,
+      "pr": null,
+      "branch": "claude/issue-195",
+      "slug": "cx2-ag-claude-lyra",
+      "released": false
     }
   ]
 }
