@@ -5,7 +5,9 @@ import { runClaudeReview } from './run-claude-review.mjs';
 const options = { startedAt: 1000, now: 1060, timeoutMinutes: 30, prompt: 'Review this revision', schema: '{"type":"object"}', model: 'opus', effort: 'high', allowedTools: 'Read,Bash(node --test:*)' };
 const verdict = { verdict: 'APPROVED', body: 'Verified the regression', comments: [] };
 
-test('Claude CLI publishes only completed structured output within the remaining budget', () => {
+process.env.GH_TOKEN = 'assigned-reviewer-token';
+
+test('Claude CLI reads GitHub through the assigned reviewer token and publishes only completed structured output within the remaining budget', () => {
   const review = runClaudeReview(options, (binary, args, execution) => {
     assert.equal(binary, 'claude');
     assert.equal(args[args.indexOf('--model') + 1], 'opus');
@@ -15,7 +17,7 @@ test('Claude CLI publishes only completed structured output within the remaining
     assert.equal(args[args.indexOf('--allowedTools') + 1], options.allowedTools);
     assert.equal(execution.timeout, 1440000);
     assert.match(execution.input, /Review this revision/);
-    assert.equal(execution.env.GH_TOKEN, '');
+    assert.equal(execution.env.GH_TOKEN, 'assigned-reviewer-token');
     assert.equal(execution.env.GITHUB_TOKEN, '');
     assert.equal(execution.env.ANTHROPIC_API_KEY, '');
     return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: verdict }) };
