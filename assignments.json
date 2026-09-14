@@ -962,7 +962,7 @@
       "pr": null,
       "branch": "claude/issue-234",
       "slug": "cx2-ag-claude-vega",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-234",
@@ -972,7 +972,7 @@
       "pr": 241,
       "branch": "claude/issue-234",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-202",
@@ -982,6 +982,16 @@
       "pr": 242,
       "branch": "claude/issue-202",
       "slug": "cx2-ag-claude-review-delta",
+      "released": false
+    },
+    {
+      "key": "claude/executor/issue-154",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 154,
+      "pr": null,
+      "branch": "claude/issue-154",
+      "slug": "cx2-ag-claude-vega",
       "released": false
     }
   ]
