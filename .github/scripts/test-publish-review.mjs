@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { agentDeadline } from './agent-deadline.mjs';
 import { diffAnchors, reviewRequest, publishReview, fallbackBlockedReview } from './publish-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
@@ -277,7 +278,13 @@ test('workflow review budget handling enforces fail-closed fallback and preserve
   assert.equal(claudeReview['continue-on-error'], true);
   const codexReview = reviewWorkflow.jobs['codex-review'].steps.find(step => step.name === 'Review with subscription login');
   assert.equal(codexReview['continue-on-error'], true);
-  const geminiReview = reviewWorkflow.jobs['gemini-review'].steps.find(step => step.name === 'Review with subscription login');
+  const geminiJob = reviewWorkflow.jobs['gemini-review'];
+  const geminiReview = geminiJob.steps.find(step => step.name === 'Review with subscription login');
+  const deadline = geminiJob.steps.find(step => step.name === 'Set execution deadline');
+  assert.equal(deadline.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
+  assert.equal(geminiReview.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
+  const afterSetup = agentDeadline({ startedAt: 1000, now: 1000 + 32 * 60, timeoutMinutes: geminiJob['timeout-minutes'] });
+  assert.ok(afterSetup.remaining >= 45 * 60, 'A cold toolchain setup must leave a usable review budget');
   assert.equal(geminiReview['continue-on-error'], true);
 
   // Each reviewer job configures fallback blocked publishing

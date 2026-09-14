@@ -684,7 +684,7 @@ jobs:
     needs: select-reviewer
     if: needs.select-reviewer.outputs.reviewer == 'gemini' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       REVIEW_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}
       REVIEW_EFFORT: ${{ vars.GEMINI_EFFORT || 'high' }}
@@ -738,7 +738,7 @@ jobs:
 
       - name: Set execution deadline
         env:
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 120
         run: node .github/scripts/agent-deadline.mjs
       - name: Authenticate the assigned reviewer
         id: bot
@@ -771,7 +771,7 @@ jobs:
           GEMINI_PROMPT_FILE: ${{ runner.temp }}/review-prompt.txt
           GEMINI_SCHEMA: ${{ github.workspace }}/.github/scripts/review-schema.json
           GEMINI_OUTPUT: ${{ runner.temp }}/gemini-review.json
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 120
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
