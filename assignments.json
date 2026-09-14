@@ -1083,6 +1083,16 @@
       "branch": "gemini/issue-45",
       "slug": "cx2-ag-gemini-review-caliper",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-239",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 239,
+      "pr": 250,
+      "branch": "gemini/issue-239",
+      "slug": "cx2-ag-gemini-review-dial",
+      "released": false
     }
   ]
 }
