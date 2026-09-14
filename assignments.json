@@ -1013,6 +1013,16 @@
       "branch": "gemini/issue-45",
       "slug": "cx2-ag-gemini-agate",
       "released": false
+    },
+    {
+      "key": "gemini/executor/issue-222",
+      "provider": "gemini",
+      "role": "executor",
+      "issue": 222,
+      "pr": null,
+      "branch": "gemini/issue-222",
+      "slug": "cx2-ag-gemini-beryl",
+      "released": false
     }
   ]
 }
