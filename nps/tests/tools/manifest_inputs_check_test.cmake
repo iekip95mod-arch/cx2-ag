@@ -15,6 +15,31 @@ set(tracked_input "${SOURCE_DIR}/CMakeLists.txt")
 set(build_product "${SOURCE_DIR}/tools/no-such-build-product.a")
 set(failures "")
 
+# An input can live in a checkout other than the one being configured, which is what the committed
+# baseline procedure does when it points NDL_SDK at the original tree. Trackedness is a property of
+# the repository holding the input, so a second checkout standing in for that SDK is how this test
+# tells a cross-checkout source from a build product without needing a real second clone.
+find_program(GIT_EXECUTABLE git)
+if(NOT GIT_EXECUTABLE)
+    message(FATAL_ERROR "git is what tells a tracked source from a build product, and it is missing")
+endif()
+set(elsewhere "${WORK_DIR}/other-checkout")
+file(MAKE_DIRECTORY "${elsewhere}")
+execute_process(COMMAND "${GIT_EXECUTABLE}" init --quiet "${elsewhere}"
+                RESULT_VARIABLE git_status OUTPUT_QUIET ERROR_QUIET)
+if(NOT git_status EQUAL 0)
+    message(FATAL_ERROR "could not make a second checkout at ${elsewhere}")
+endif()
+set(elsewhere_tracked "${elsewhere}/tracked-source.c")
+set(elsewhere_product "${elsewhere}/built-product.a")
+file(WRITE "${elsewhere_tracked}" "int main(void) { return 0; }\n")
+file(WRITE "${elsewhere_product}" "not a source\n")
+execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${elsewhere}" add -- "${elsewhere_tracked}"
+                RESULT_VARIABLE git_status OUTPUT_QUIET ERROR_QUIET)
+if(NOT git_status EQUAL 0)
+    message(FATAL_ERROR "could not track ${elsewhere_tracked}")
+endif()
+
 function(nps_expect name expect_pass expect_text inputs deferred)
     string(REPLACE ";" "\n" input_lines "${inputs}")
     string(REPLACE ";" "\n" deferred_lines "${deferred}")
@@ -52,6 +77,12 @@ nps_expect(obsolete OFF "drop the deferral"
 
 # A deferral beside a tracked input of the same hash stays legitimate while a build product remains.
 nps_expect(mixed ON "" "${tracked_input};${build_product}" "${tracked_input};${build_product}")
+
+# An input the other checkout tracks is a source, however the configured tree would answer for it.
+nps_expect(elsewhere_tracked ON "" "${tracked_input};${elsewhere_tracked}" "")
+
+# And the same reach does not excuse a build product sitting beside it in that other checkout.
+nps_expect(elsewhere_untracked OFF "does not track" "${tracked_input};${elsewhere_product}" "")
 
 if(failures)
     string(REPLACE ";" "\n" report "${failures}")

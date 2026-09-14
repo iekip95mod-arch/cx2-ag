@@ -43,8 +43,13 @@ if(NOT GIT_EXECUTABLE)
     message(FATAL_ERROR "git is what tells a tracked source from a build product, and it is missing")
 endif()
 
+# Trackedness belongs to the repository holding the input rather than to the tree being configured.
+# An input can come from a dependency root outside this worktree, which is what the baseline procedure
+# in agent-review.yml does with NDL_SDK, so the query runs from the input's own directory. A build
+# product is still refused there, because the repository that owns it does not track it either.
 function(nps_tracked input result)
-    execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${SOURCE_DIR}" ls-files --error-unmatch -- "${input}"
+    get_filename_component(holder "${input}" DIRECTORY)
+    execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${holder}" ls-files --error-unmatch -- "${input}"
                     RESULT_VARIABLE status OUTPUT_QUIET ERROR_QUIET)
     if(status EQUAL 0)
         set(${result} ON PARENT_SCOPE)
