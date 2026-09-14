@@ -10,6 +10,18 @@ const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
 const options = (issue, provider = 'codex', role = 'executor') => ({ repository, provider, role, issue });
 
+test('Claude can review a Gemini issue without changing its executor lease', async () => {
+  const github = fixture();
+  github.pull(250, 239, 'gemini');
+  const worker = await allocateIdentity(options(239, 'gemini'), github.api, roster);
+  const reviewer = await allocateIdentity({ repository, provider: 'claude', role: 'reviewer', pr: 250 }, github.api, roster);
+  assert.equal(reviewer.branch, 'gemini/issue-239');
+  assert.equal(reviewer.issue, 239);
+  assert.equal((await readAssignment(options(239, 'gemini'), github.api, roster)).login, worker.login);
+  assert.equal((await readAssignment({ repository, provider: 'claude', role: 'reviewer', pr: 250 }, github.api, roster)).login, reviewer.login);
+  await assert.rejects(resolveTarget({ repository, provider: 'claude', role: 'executor', pr: 250 }, github.api), /another provider/);
+});
+
 test('reviewer provider lookup uses only this PR active lease and rejects ambiguity', async () => {
   const f = fixture();
   const identity = roster.find(bot => bot.provider === 'codex' && bot.role === 'reviewer');

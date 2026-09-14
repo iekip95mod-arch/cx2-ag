@@ -8,10 +8,15 @@ import { announceWorker } from './worker-start.mjs';
 import { loadRoster } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
-function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
+
+test('Gemini acknowledges a verified review from its assigned Claude reviewer', async () => {
+  const f = fixture('gemini', 'CHANGES_REQUESTED', 'claude');
+  assert.equal(await announceWorker(f.options, f.api), true);
+});
+function fixture(provider = 'codex', state = 'CHANGES_REQUESTED', reviewerProvider = provider) {
   const roster = loadRoster();
   const executor = roster.find(bot => bot.provider === provider && bot.role === 'executor');
-  const reviewer = roster.find(bot => bot.provider === provider && bot.role === 'reviewer');
+  const reviewer = roster.find(bot => bot.provider === reviewerProvider && bot.role === 'reviewer');
   const context = { repository, issue: 42, branch: `${provider}/issue-42`, login: executor.login, userId: executor.userId };
   const head = 'a'.repeat(40);
   const options = { context, task: `Continue the existing issue lease and branch for PR #90, review 1234, head ${head}.`, model: provider === 'codex' ? 'gpt-5.6-sol' : 'opus', effort: 'high', run: 123 };
@@ -20,7 +25,7 @@ function fixture(provider = 'codex', state = 'CHANGES_REQUESTED') {
     [`repos/${repository}/pulls/90`]: { state: 'open', draft: false, user: { login: context.login }, head: { sha: head, ref: context.branch, repo: { full_name: repository } } },
     [`repos/${repository}/pulls/90/reviews/1234`]: { id: 1234, state, commit_id: head, user: { login: reviewer.login, id: reviewer.userId, type: 'Bot' }, submitted_at: '2026-09-12T12:00:00Z' },
     [`repos/${repository}/issues/90/comments`]: {},
-    [`repos/${repository}/contents/assignments.json?ref=bot-assignments`]: { sha: 'fixture', content: Buffer.from(JSON.stringify({ version: 1, assignments: [{ key: `${provider}/reviewer/issue-42`, provider, role: 'reviewer', issue: 42, pr: 90, branch: context.branch, slug: reviewer.slug, released: false }] })).toString('base64') },
+    [`repos/${repository}/contents/assignments.json?ref=bot-assignments`]: { sha: 'fixture', content: Buffer.from(JSON.stringify({ version: 1, assignments: [{ key: `${reviewerProvider}/reviewer/issue-42`, provider: reviewerProvider, role: 'reviewer', issue: 42, pr: 90, branch: context.branch, slug: reviewer.slug, released: false }] })).toString('base64') },
   };
   responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`] = [responses[`repos/${repository}/pulls/90/reviews/1234`]];
   const calls = [];
