@@ -909,6 +909,7 @@ int main_body() {
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);
     sink.begin_group("relative motion");
+    run_planar_kinematics_tests(sink);
     run_relative_motion_tests(sink);
     sink.begin_group("unit conversion");
     run_unit_conversion_tests(sink);
