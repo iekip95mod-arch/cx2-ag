@@ -603,6 +603,8 @@ void run_calculus_tests(TestSink &t) {
                 "the tangent family records its final tangency check: " + text);
         t.check(rendered.find(fixture.second ? "tangent.linearization" : "tangent.line") != std::string::npos,
                 "the assembly step names the family that was asked for: " + text);
+        check_golden(t, fixture.second ? "tangent_linearization" : "tangent_line",
+                     "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" + rendered);
     }
     // Neighboring refusals. A point outside the domain, a value that is not exact there, and a form
     // the differentiation engine has no rule for are each refused rather than answered.

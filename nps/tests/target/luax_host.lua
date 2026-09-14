@@ -259,6 +259,8 @@ local expected_modules = {
     "calculus.integral.indefinite.single-variable",
     "calculus.integral.definite.single-variable",
     "calculus.limit.single-variable",
+    "calculus.tangent-line.single-variable",
+    "calculus.linearization.single-variable",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
