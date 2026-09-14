@@ -26,7 +26,7 @@ function fixture(provider = 'codex') {
 }
 
 test('both providers update their existing branch and request review only after the new head exists', async () => {
-  for (const provider of ['codex', 'claude']) for (const draft of [false, true]) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const draft of [false, true]) {
     const f = fixture(provider); f.pr.draft = draft;
     const matrix = await discoverBranches(f.api, f.assignment);
     assert.equal(matrix.include[0].branch, f.identity.branch);
@@ -61,7 +61,7 @@ test('a PR update discovers only that PR instead of scheduling every branch agai
 });
 
 test('current branches are excluded before entering the writer queue', async () => {
-  for (const provider of ['codex', 'claude']) for (const number of [undefined, 90]) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const number of [undefined, 90]) {
     const f = fixture(provider);
     f.behind = 0;
     assert.deepEqual(await discoverBranches(f.api, f.assignment, number), { include: [] });

@@ -1,12 +1,12 @@
 name: agent-review-request
 run-name: >-
-  Assign reviewer for PR #${{ github.event.pull_request.number }} (${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'metadata' || 'requested' }})
+  Assign reviewer for PR #${{ github.event.pull_request.number }} (${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review", "gemini-review"]'), github.event.label.name) && 'metadata' || 'requested' }})
 on:
   pull_request:
     types: [opened, ready_for_review, labeled]
 
 concurrency:
-  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name) && 'assignment-metadata' || 'requested' }}
+  group: agent-review-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && !contains(fromJSON('["claude-review", "codex-review", "gemini-review"]'), github.event.label.name) && 'assignment-metadata' || 'requested' }}
   cancel-in-progress: false
   queue: max
 
@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review"]'), github.event.label.name))
+      (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review", "gemini-review"]'), github.event.label.name))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -39,15 +39,17 @@ jobs:
           CODEX_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}
+          GEMINI_EFFORT: ${{ vars.GEMINI_EFFORT || 'high' }}
         run: |
           action=$(jq -r '.action' "$GITHUB_EVENT_PATH")
           requested=true
           label=$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")
-          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ]; then
+          if [ "$action" = labeled ] && [ "$label" != claude-review ] && [ "$label" != codex-review ] && [ "$label" != gemini-review ]; then
             requested=false
           fi
           if [ "$action" != labeled ] || [ "$requested" = false ]; then
-            labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
+            labels=$(jq -r '[.pull_request.labels[].name | select(. == "claude-review" or . == "codex-review" or . == "gemini-review")] | unique | .[]' "$GITHUB_EVENT_PATH")
             if [ "$(printf '%s\n' "$labels" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
               echo "::error::Keep only the requesting agent's review label."
               exit 1
@@ -57,10 +59,12 @@ jobs:
           case "$label" in
             codex-review) reviewer=codex ;;
             claude-review) reviewer=claude ;;
+            gemini-review) reviewer=gemini ;;
             '')
               branch=$(jq -r '.pull_request.head.ref' "$GITHUB_EVENT_PATH")
               case "$branch" in
                 codex/*) reviewer=codex ;;
+                gemini/*) reviewer=gemini ;;
                 *) reviewer=claude ;;
               esac
               ;;
@@ -71,6 +75,9 @@ jobs:
           if [ "$reviewer" = codex ]; then
             echo "model=$CODEX_MODEL" >> "$GITHUB_OUTPUT"
             echo "effort=$CODEX_EFFORT" >> "$GITHUB_OUTPUT"
+          elif [ "$reviewer" = gemini ]; then
+            echo "model=$GEMINI_MODEL" >> "$GITHUB_OUTPUT"
+            echo "effort=$GEMINI_EFFORT" >> "$GITHUB_OUTPUT"
           else
             echo "model=$CLAUDE_MODEL" >> "$GITHUB_OUTPUT"
             echo "effort=$CLAUDE_EFFORT" >> "$GITHUB_OUTPUT"
@@ -99,7 +106,7 @@ jobs:
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         with:
           app-id: ${{ steps.identity.outputs.app_id }}
-          private-key: ${{ steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_BASTION_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_BASTION_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_CITADEL_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_CITADEL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_LOOKOUT_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_LOOKOUT_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_SENTINEL_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_SENTINEL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_SHIELD_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_SHIELD_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_WARDEN_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_WARDEN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ARCH_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ARCH_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_BROOK_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_BROOK_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_CREST_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_CREST_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_DUNE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_DUNE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_RIDGE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_RIDGE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_VALE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_VALE_PRIVATE_KEY || '' }}
+          private-key: ${{ steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_AEGIS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_BEACON_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_COMPASS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_HARBOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_LANTERN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_PRISM_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ANCHOR_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_CAIRN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_DELTA_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ECHO_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_GROVE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_SUMMIT_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_BASTION_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_BASTION_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_CITADEL_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_CITADEL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_LOOKOUT_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_LOOKOUT_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_SENTINEL_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_SENTINEL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_SHIELD_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_SHIELD_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CODEX_REVIEW_WARDEN_PRIVATE_KEY' && secrets.CX2_AG_CODEX_REVIEW_WARDEN_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_ARCH_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_ARCH_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_BROOK_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_BROOK_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_CREST_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_CREST_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_DUNE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_DUNE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_RIDGE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_RIDGE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_CLAUDE_REVIEW_VALE_PRIVATE_KEY' && secrets.CX2_AG_CLAUDE_REVIEW_VALE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_ASTROLABE_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_ASTROLABE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_CALIPER_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_CALIPER_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_DIAL_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_DIAL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_FACET_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_FACET_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_GAUGE_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_GAUGE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_LENS_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_LENS_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_LEVEL_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_LEVEL_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_PLUMB_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_PLUMB_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_RETICLE_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_RETICLE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_SCALE_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_SCALE_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_SEXTANT_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_SEXTANT_PRIVATE_KEY || steps.identity.outputs.secret_name == 'CX2_AG_GEMINI_REVIEW_TRANSIT_PRIVATE_KEY' && secrets.CX2_AG_GEMINI_REVIEW_TRANSIT_PRIVATE_KEY || '' }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
       - name: Show queued reviewer work
