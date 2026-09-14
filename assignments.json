@@ -963,6 +963,16 @@
       "branch": "claude/issue-234",
       "slug": "cx2-ag-claude-vega",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-234",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 234,
+      "pr": 241,
+      "branch": "claude/issue-234",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
