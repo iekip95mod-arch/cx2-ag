@@ -115,7 +115,7 @@ emulator_contract = ['Calculator execution is emulator only', 'Physical handheld
   raise "#{name}: executor prompt must make emulator validation the final device stage" unless emulator_contract.all? { |text| prompt.include?(text) }
 end
 gemini = YAML.load_file(File.join(root, '.github/workflows/agent-gemini.yml'))
-gemini_prompt = gemini.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Assemble the prompt' }.fetch('run')
+gemini_prompt = gemini.fetch('jobs').fetch('respond').fetch('steps').find { |step| step['name'] == 'Run the agent' }.fetch('env').fetch('GEMINI_PROMPT')
 raise 'agent-gemini.yml: executor prompt must make emulator validation the final device stage' unless emulator_contract.all? { |text| gemini_prompt.include?(text) }
 
 task_form = YAML.load_file(File.join(root, '.github/ISSUE_TEMPLATE/task.yml'))

@@ -22,7 +22,7 @@ function fixture(provider = 'codex', legacy = false) {
   const thread = [root, question];
   const calls = [];
   const event = { action: 'created', repository: { full_name: repository }, pull_request: structuredClone(pr), comment: structuredClone(question), sender: user(executor) };
-  const options = { repository, event, run: 200, attempt: 1, model: provider === 'codex' ? 'gpt-5.6-sol' : 'opus', effort: 'high', appSlug: reviewer.slug };
+  const options = { repository, event, run: 200, attempt: 1, model: provider === 'codex' ? 'gpt-5.6-sol' : provider === 'gemini' ? 'gemini-3.8-flash-high' : 'opus', effort: 'high', appSlug: reviewer.slug };
   const history = { workflow_runs: [] };
   const jobs = { total_count: 1, jobs: [{ steps: [] }] };
   const api = async (method, endpoint, body) => {
@@ -49,7 +49,7 @@ function fixture(provider = 'codex', legacy = false) {
 }
 
 test('both providers answer old review roots on the snapshotted live head and resume their leased executor', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     const prepared = await inspectQuestion(f.options, f.api);
     assert.equal(prepared.head, f.pr.head.sha);
@@ -60,7 +60,7 @@ test('both providers answer old review roots on the snapshotted live head and re
     if (provider === 'claude') assert.match(reply.body, /alias, resolved model unverified/);
     assert.equal(await dispatchAnswer(f.options, prepared, f.api), true);
     const dispatch = f.calls.find(call => call.endpoint.endsWith('/dispatches'));
-    assert.match(dispatch.endpoint, provider === 'codex' ? /agent-codex.yml/ : /agent.yml/);
+    assert.match(dispatch.endpoint, provider === 'codex' ? /agent-codex.yml/ : provider === 'gemini' ? /agent-gemini.yml/ : /agent.yml/);
     assert.equal(dispatch.body.ref, 'main');
     assert.equal(dispatch.body.inputs.issue_number, '42');
     assert.match(dispatch.body.inputs.task, /current PR head and both active leases/);
@@ -70,7 +70,7 @@ test('both providers answer old review roots on the snapshotted live head and re
 });
 
 test('both providers answer clarification questions while repairs keep the PR draft', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     f.pr.draft = true;
     const prepared = await inspectQuestion(f.options, f.api);
@@ -219,7 +219,7 @@ async function cliFixture(provider) {
 }
 
 test('actual CLI prepares, publishes and dispatches both providers through the mocked gh executable', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = await cliFixture(provider);
     const preparation = f.execute('prepare');
     assert.equal(preparation.status, 0, preparation.stderr);
@@ -236,7 +236,7 @@ test('actual CLI prepares, publishes and dispatches both providers through the m
     assert.ok(prompt.endsWith(JSON.stringify(prepared)));
     const answer = 'Supply the missing boundary evidence.';
     writeFileSync(join(f.directory, 'review-discussion-answer.txt'), answer);
-    const model = provider === 'claude' ? 'opus (alias, resolved model unverified)' : 'gpt-5.6-sol';
+    const model = provider === 'claude' ? 'opus (alias, resolved model unverified)' : provider === 'gemini' ? 'gemini-3.8-flash-high' : 'gpt-5.6-sol';
     const body = `<!-- cx2-review-answer:101 -->\n${answer}\n\nReviewer model: ${model}. Reasoning effort: high.\nRun: https://github.com/${repository}/actions/runs/200`;
     const reply = { ...f.root, id: 102, in_reply_to_id: 100, body };
     f.responses[`repos/${repository}/pulls/90/comments`] = reply;
@@ -250,7 +250,7 @@ test('actual CLI prepares, publishes and dispatches both providers through the m
     assert.equal(posts.length, 2);
     assert.deepEqual(posts[0].args, ['api', '--method', 'POST', `repos/${repository}/pulls/90/comments`, '--input', '-']);
     assert.deepEqual(posts[0].body, { body, in_reply_to: 100 });
-    assert.equal(posts[1].args[3], `repos/${repository}/actions/workflows/${provider === 'codex' ? 'agent-codex.yml' : 'agent.yml'}/dispatches`);
+    assert.equal(posts[1].args[3], `repos/${repository}/actions/workflows/${provider === 'claude' ? 'agent.yml' : `agent-${provider}.yml`}/dispatches`);
     assert.equal(posts[1].body.ref, 'main');
     assert.equal(posts[1].body.inputs.issue_number, '42');
     assert.match(posts[1].body.inputs.task, /native review comment 102/);
@@ -259,7 +259,7 @@ test('actual CLI prepares, publishes and dispatches both providers through the m
 });
 
 test('actual CLI refuses stale publication and unauthenticated commands without POSTs', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = await cliFixture(provider);
     assert.equal(f.execute('prepare').status, 0);
     writeFileSync(join(f.directory, 'review-discussion-answer.txt'), 'Answer');
