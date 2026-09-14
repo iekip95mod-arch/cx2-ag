@@ -96,10 +96,10 @@ function fixture() {
   return { api, calls, ticket, pull, branches, get assignments() { return assignments; }, set assignments(value) { assignments = value; revision++; }, get revision() { return revision; }, get collisionCount() { return collisionCount; }, set conflicts(value) { conflicts = value; }, set user(value) { userOverride = value; }, set links(value) { links = value; }, set linkedOpenPrs(value) { linkedOpenPrs = value; } };
 }
 
-test('the catalogue contains twelve executors and six reviewers per provider', () => {
-  assert.equal(roster.length, 36);
-  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, role === 'executor' ? 12 : 6);
-  assert.equal(new Set(roster.map(identity => identity.login)).size, 36);
+test('the catalogue contains twelve identities per provider and role', () => {
+  assert.equal(roster.length, 48);
+  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, 12);
+  assert.equal(new Set(roster.map(identity => identity.login)).size, 48);
   assert.throws(() => findIdentity(roster, 'unknown[bot]'), /Unknown/);
   assert.throws(() => findIdentity(roster, roster[0].login, 'claude', 'executor'), /Unknown/);
   assert.throws(() => findIdentity([{ ...roster[0], appId: null }], roster[0].login), /unconfigured/);
@@ -161,13 +161,16 @@ test('reviewer capacity retains open issue leases and reports pool exhaustion di
   assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 0);
 });
 
-test('reviewer pools remain limited to six identities per provider', async () => {
+test('twelve reviewer slots retain assignments and reject overflow per provider', async () => {
   for (const provider of ['codex', 'claude']) {
     const github = fixture();
-    for (let issue = 1; issue <= 6; issue++) await allocateIdentity(options(issue, provider, 'reviewer'), github.api, roster);
-    await assert.rejects(allocateIdentity(options(7, provider, 'reviewer'), github.api, roster), new RegExp(`All 6 ${provider} reviewer bots are occupied`));
-    assert.equal(github.assignments.length, 6);
-    assert.equal(github.revision, 6);
+    const reviewers = [];
+    for (let issue = 1; issue <= 12; issue++) reviewers.push(await allocateIdentity(options(issue, provider, 'reviewer'), github.api, roster));
+    assert.equal(new Set(reviewers.map(reviewer => reviewer.login)).size, 12);
+    for (let issue = 1; issue <= 12; issue++) assert.equal((await allocateIdentity(options(issue, provider, 'reviewer'), github.api, roster)).login, reviewers[issue - 1].login);
+    await assert.rejects(allocateIdentity(options(13, provider, 'reviewer'), github.api, roster), new RegExp(`All 12 ${provider} reviewer bots are occupied`));
+    assert.equal(github.assignments.length, 12);
+    assert.equal(github.revision, 12);
   }
 });
 
