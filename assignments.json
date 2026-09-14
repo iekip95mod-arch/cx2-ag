@@ -360,7 +360,7 @@
       "pr": null,
       "branch": "codex/issue-28",
       "slug": "cx2-ag-codex-birch",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-54",
@@ -410,7 +410,7 @@
       "pr": 114,
       "branch": "codex/issue-28",
       "slug": "cx2-ag-codex-review-compass",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-3",
@@ -530,7 +530,7 @@
       "pr": null,
       "branch": "codex/issue-17",
       "slug": "cx2-ag-codex-cedar",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-48",
@@ -550,7 +550,7 @@
       "pr": null,
       "branch": "codex/issue-31",
       "slug": "cx2-ag-codex-maple",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-77",
@@ -630,7 +630,7 @@
       "pr": 126,
       "branch": "codex/issue-31",
       "slug": "cx2-ag-codex-review-prism",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-6",
@@ -650,7 +650,7 @@
       "pr": 128,
       "branch": "codex/issue-17",
       "slug": "cx2-ag-codex-review-harbor",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-129",
@@ -690,7 +690,7 @@
       "pr": null,
       "branch": "claude/issue-203",
       "slug": "cx2-ag-claude-ember",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-211",
@@ -700,7 +700,7 @@
       "pr": null,
       "branch": "claude/issue-211",
       "slug": "cx2-ag-claude-nova",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-204",
@@ -710,7 +710,7 @@
       "pr": null,
       "branch": "claude/issue-204",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-196",
@@ -720,7 +720,7 @@
       "pr": null,
       "branch": "claude/issue-196",
       "slug": "cx2-ag-claude-vega",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-15",
@@ -740,7 +740,7 @@
       "pr": 214,
       "branch": "claude/issue-203",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-211",
@@ -750,7 +750,7 @@
       "pr": 215,
       "branch": "claude/issue-211",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-194",
@@ -770,7 +770,7 @@
       "pr": 217,
       "branch": "claude/issue-204",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-195",
@@ -830,7 +830,7 @@
       "pr": 219,
       "branch": "claude/issue-196",
       "slug": "cx2-ag-claude-review-arch",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-195",
@@ -881,7 +881,7 @@
       "branch": "codex/gemini-subscription",
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-amber",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-228",
@@ -891,7 +891,7 @@
       "pr": 229,
       "branch": "codex/gemini-subscription",
       "slug": "cx2-ag-codex-review-aegis",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-230",
@@ -902,7 +902,7 @@
       "branch": "codex/ubuntu-arm-runners",
       "legacyOwner": "iekip95mod-arch",
       "slug": "cx2-ag-codex-flint",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-230",
@@ -912,6 +912,16 @@
       "pr": 231,
       "branch": "codex/ubuntu-arm-runners",
       "slug": "cx2-ag-codex-review-beacon",
+      "released": true
+    },
+    {
+      "key": "claude/executor/issue-202",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 202,
+      "pr": null,
+      "branch": "claude/issue-202",
+      "slug": "cx2-ag-claude-atlas",
       "released": false
     }
   ]
