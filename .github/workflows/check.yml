@@ -25,10 +25,6 @@ env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 900M
   CMAKE_GENERATOR: Ninja
-  # brew spends a minute updating itself before every install otherwise, on a job that finishes in
-  # three.
-  HOMEBREW_NO_AUTO_UPDATE: 1
-  HOMEBREW_NO_INSTALL_CLEANUP: 1
 
 jobs:
   fast:
@@ -41,6 +37,9 @@ jobs:
 
       - name: Verify CI dependency and emulator contracts
         run: ruby .github/scripts/test-ci-scheduling.rb
+
+      - name: Verify SDK filesystem fixtures
+        run: python3 vendor/ndl-src/ndl-sdk/libsyscalls/test_open.py
 
       - uses: actions/setup-node@v6
         with:
@@ -95,99 +94,42 @@ jobs:
         if: always()
         run: ccache --show-stats
 
-  # Everything ctest knows about.
-  # Reserve macOS capacity for revisions that passed fast checks and review.
   full:
     needs: [fast, review-ready]
-    runs-on: macos-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
     steps:
-      # Not lfs: true. That would pull the 49 MB toolchain on every push and every pull request, and
-      # a free account gets 10 GiB of LFS bandwidth a month. The cache below covers the ordinary
-      # case, and the pull happens only when it misses.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
-      - name: Install prerequisites
-        run: brew install ccache gmp php
-
-      # Same path and same key as the device job, so whichever runs first pays for both.
       - name: Restore the cross toolchain
         id: toolchain
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
+          key: ndl-toolchain-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/prepare-review.sh', 'vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
 
-      # The bridge suite is the one thing the host build cannot reach on its own. Enabling LuaJIT
-      # takes configure into nps/CMakeLists.txt:1208, and two lines later it wants the luna binary
-      # and a make in the SDK's system directory, both of which need the ARM cross compiler. So a
-      # host shared library ends up needing a device toolchain, because what those lines compute is
-      # package identity. The committed toolchain is what makes that affordable here.
-      - name: Unpack the committed toolchain
-        id: unpack
+      - name: Prepare complete SDK and bridge prerequisites
+        run: bash .github/scripts/prepare-review.sh
+
+      - name: Save the complete cross toolchain
         if: steps.toolchain.outputs.cache-hit != 'true'
-        run: |
-          stamp=vendor/toolchain/built-from.sha256
-          if [ ! -f "$stamp" ]; then
-            echo "used=false" >> "$GITHUB_OUTPUT"
-            echo "No committed toolchain, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          want=$(shasum -a 256 vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh \
-            vendor/deps/build-gmp.sh vendor/deps/build-mpfr-mpfi.sh | shasum -a 256 | cut -d' ' -f1)
-          if [ "$want" != "$(cut -d' ' -f1 < "$stamp")" ]; then
-            echo "used=false" >> "$GITHUB_OUTPUT"
-            echo "The committed toolchain is stale, so the bridge suite did not run." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          git lfs pull --include "vendor/toolchain/*"
-          mkdir -p vendor/ndl-src/ndl-sdk/toolchain/install
-          zstd -d -c vendor/toolchain/ndl-arm-none-eabi-darwin-arm64.tar.zst \
-            | tar -x -C vendor/ndl-src/ndl-sdk/toolchain/install
-          echo "used=true" >> "$GITHUB_OUTPUT"
-
-      # Two ways to have a toolchain, and the steps below only care that there is one.
-      - name: Note whether a toolchain is present
-        id: have
-        run: |
-          if [ -x vendor/ndl-src/ndl-sdk/toolchain/install/bin/arm-none-eabi-gcc ]; then
-            echo "toolchain=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "toolchain=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # LuaJIT goes on only once the toolchain is here. Installing it without one would take
-      # configure down the branch above and fail on the missing nspire-as, which turns a missing
-      # suite into a broken job.
-      - name: Install the bridge prerequisites
-        if: steps.have.outputs.toolchain == 'true'
-        run: |
-          # boost is for genzehn, which build-tools compiles and which includes
-          # boost/program_options.hpp with no include path of its own. The device job needs the same
-          # two lines for the same reason.
-          brew install luajit boost
-          cd vendor/ndl-src/ndl-sdk
-          export PATH="$PWD/bin:$PWD/toolchain/install/bin:$PATH"
-          export CPATH="$(brew --prefix boost)/include${CPATH:+:$CPATH}"
-          export LIBRARY_PATH="$(brew --prefix boost)/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
-          make build-libndls build-tools -j"$(sysctl -n hw.ncpu)"
+        uses: actions/cache/save@v6
+        with:
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
 
       - name: Restore compiler cache
         uses: actions/cache@v6
         with:
           path: .ccache
-          key: ccache-full-${{ runner.os }}-${{ github.sha }}
+          key: ccache-full-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
           restore-keys: |
-            ccache-full-${{ runner.os }}-
+            ccache-full-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Configure
         run: |
-          export PKG_CONFIG_PATH="$(brew --prefix gmp)/lib/pkgconfig:${PKG_CONFIG_PATH-}"
-          if [ "${{ steps.have.outputs.toolchain }}" = "true" ]; then
-            export PKG_CONFIG_PATH="$(brew --prefix luajit)/lib/pkgconfig:$PKG_CONFIG_PATH"
-          fi
           cmake -S nps -B nps/build/host \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -197,19 +139,11 @@ jobs:
       - name: Build
         run: cmake --build nps/build/host --parallel
 
-      # Same reason the fast job counts its suites. A suite that failed to register is a suite ctest
-      # reports success over, and luax_host is exactly the one that goes missing when a prerequisite
-      # is half there.
       - name: Check the bridge suite registered
-        if: steps.have.outputs.toolchain == 'true'
-        run: |
-          ctest --test-dir nps/build/host -N -R '^luax_host$' | grep "Test *#"
+        run: ctest --test-dir nps/build/host -N -R '^luax_host$' | grep "Test *#"
 
-      # Not the check target, because that serializes. ctest runs the suites across the runner's
-      # cores and reports every failure rather than stopping at the first. Three, because that is
-      # what a macos-latest runner has.
       - name: Full suite
-        run: ctest --test-dir nps/build/host --output-on-failure --parallel 3
+        run: ctest --test-dir nps/build/host --output-on-failure --parallel "$(nproc)"
 
   # CodeQL ran as GitHub's default setup until now, which fires on its own schedule and cannot be
   # told to wait for anything. Here it is a job like the others, so a push whose suites are red
@@ -226,7 +160,7 @@ jobs:
     needs: fast
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 145
     permissions:
       contents: read
       actions: read

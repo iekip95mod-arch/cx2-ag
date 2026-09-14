@@ -27,11 +27,17 @@ prefix = r'''
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <iostream>
 #include <map>
 #include <string>
 #include <type_traits>
 
+#undef st_atime
+#undef st_mtime
+#undef st_ctime
+
+namespace ndl_test {
 struct stat {
     int st_dev, st_ino, st_mode, st_nlink, st_uid, st_gid, st_rdev;
     long st_size, st_atime, st_mtime, st_ctime;
@@ -170,7 +176,7 @@ void reset(bool existing) {
     errno = 0;
 }
 
-int main(int argc, char **argv) {
+int run_cases(int argc, char **argv) {
     check(open_access[0] == O_RDONLY && open_access[1] == O_WRONLY && open_access[2] == O_WRONLY,
           "SDK standard descriptors initialize access modes");
     if (argc == 2 && std::strcmp(argv[1], "isatty") == 0) {
@@ -346,6 +352,11 @@ int main(int argc, char **argv) {
     }
     std::cout << "checks=" << checks << " failures=" << failures << '\n';
     return failures ? 1 : 0;
+}
+}
+
+int main(int argc, char **argv) {
+    return ndl_test::run_cases(argc, argv);
 }
 '''
 
