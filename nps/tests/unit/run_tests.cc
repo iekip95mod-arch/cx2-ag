@@ -908,8 +908,9 @@ int main_body() {
     run_density_tests(sink);
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);
-    sink.begin_group("relative motion");
+    sink.begin_group("planar kinematics");
     run_planar_kinematics_tests(sink);
+    sink.begin_group("relative motion");
     run_relative_motion_tests(sink);
     sink.begin_group("unit conversion");
     run_unit_conversion_tests(sink);

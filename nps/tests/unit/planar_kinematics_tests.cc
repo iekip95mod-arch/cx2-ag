@@ -1,4 +1,6 @@
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "nps/physics/planar_kinematics.h"
 #include "unit/adapter_tests.h"
@@ -44,6 +46,52 @@ struct Run {
     Derivation derivation;
     PlanarKinematicsResult result;
 };
+
+// The scripted backends relative_motion_tests.cc drives its own cross-check through. Copied
+// rather than shared because that file keeps them in its anonymous namespace.
+class SequenceBackend : public Backend {
+  public:
+    explicit SequenceBackend(std::vector<std::string> replies) : replies_(std::move(replies)) {}
+
+    bool eval(const std::string &command, std::string *out, std::string *error) override {
+        commands.push_back(command);
+        if (next_ >= replies_.size()) {
+            *error = "no scripted reply";
+            return false;
+        }
+        *out = replies_[next_++];
+        return true;
+    }
+
+    std::vector<std::string> commands;
+
+  private:
+    std::vector<std::string> replies_;
+    size_t next_ = 0;
+};
+
+class FailingBackend : public Backend {
+  public:
+    bool eval(const std::string &command, std::string *, std::string *error) override {
+        commands.push_back(command);
+        *error = "backend down";
+        return false;
+    }
+
+    std::vector<std::string> commands;
+};
+
+std::string check_detail(const Derivation &derivation, const char *rule) {
+    std::string detail;
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const StepId id = static_cast<StepId>(index);
+        if (derivation.at(id).rule_id != rule)
+            continue;
+        for (const VerificationRecord &record : derivation.at(id).verifications)
+            detail += record.detail;
+    }
+    return detail;
+}
 
 bool has_rule(const Derivation &derivation, const char *rule) {
     for (size_t index = 0; index < derivation.size(); ++index) {
@@ -150,6 +198,80 @@ void run_planar_kinematics_tests(TestSink &t) {
                 "mixed units convert exactly before either axis is integrated");
         t.equal(converted.result.displacement_text, "(600 i - 18000 j) m",
                 "36 km/h is 10 m/s and one minute is sixty seconds");
+    }
+    {
+        const PlanarKinematicsProblem input =
+            problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2"));
+        Run alone(input);
+        // The vertical average-velocity route is (4 + -16) / 2 * 2, so -12 m is the reply that
+        // agrees with the local vertical displacement and 5 is the one that cannot.
+        SequenceBackend agreeing({"-12"});
+        Run checked(input, Budget(), &agreeing);
+        t.equal(planar_kinematics_outcome_name(checked.result.outcome), "solved",
+                "an agreeing backend leaves the planar solve standing");
+        t.check(!agreeing.commands.empty(), "the agreeing backend was actually asked");
+        t.equal(checked.result.displacement_text, alone.result.displacement_text,
+                "an agreeing backend does not move the displacement it checked");
+        t.check(check_detail(checked.derivation, "physics.planar-kinematics.check-shared-time")
+                    .find("Giac agrees") != std::string::npos,
+                "the shared-time check records that the backend agreed");
+
+        SequenceBackend contradicting({"5"});
+        Run disputed(input, Budget(), &contradicting);
+        t.equal(planar_kinematics_outcome_name(disputed.result.outcome), "verification failed",
+                "a backend that contradicts the vertical displacement withholds the answer");
+        t.check(!disputed.result.has_value, "a contradicted cross-check offers no displacement");
+        t.check(disputed.result.detail.find("Giac disagrees") != std::string::npos,
+                "the refusal names the disagreement rather than the arithmetic");
+
+        FailingBackend broken;
+        Run unavailable(input, Budget(), &broken);
+        t.equal(planar_kinematics_outcome_name(unavailable.result.outcome), "solved",
+                "an unavailable backend does not withdraw the local integration");
+        t.check(!broken.commands.empty(), "the unavailable backend was actually asked");
+        t.check(check_detail(unavailable.derivation, "physics.planar-kinematics.check-shared-time")
+                    .find("Giac returned") != std::string::npos,
+                "the shared-time check records which tag came back instead of an exact reply");
+    }
+    {
+        PlanarKinematicsProblem input =
+            problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2"));
+        input.body_name.clear();
+        Run refused(input);
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "invalid problem",
+                "a body without a name is refused before any axis is integrated");
+    }
+    {
+        PlanarKinematicsProblem input =
+            problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2"));
+        input.body_name.assign(Arena().limits().max_input_bytes + 1, 'b');
+        Run refused(input);
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "resource exceeded",
+                "identifiers past the input byte limit are refused as a resource halt");
+    }
+    {
+        Run refused(problem(parsed_vector("(3, 4, 5) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "rank mismatch",
+                "a three-component velocity cannot be integrated in a plane");
+    }
+    {
+        Run refused(problem(parsed_vector("(3, 4) m/s", ""), parsed_vector("(0, -10) m/s^2", "")));
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "frame undeclared",
+                "components without a named frame are refused rather than assumed");
+    }
+    {
+        Run refused(problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2"), "-2 s"));
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "invalid problem",
+                "a negative elapsed time is refused rather than integrated backwards");
+        t.check(!refused.result.has_value, "a negative interval offers no displacement");
+    }
+    {
+        PlanarKinematicsProblem input =
+            problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2"));
+        input.elapsed_time.value = Rational{4000000000LL, 1};
+        Run refused(input);
+        t.equal(planar_kinematics_outcome_name(refused.result.outcome), "arithmetic overflow",
+                "an elapsed time whose square leaves exact arithmetic is a refusal, not a wrap");
     }
 }
 

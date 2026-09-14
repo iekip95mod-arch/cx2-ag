@@ -303,10 +303,13 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
         return failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                       "acceleration: " + invalid_detail);
     }
+    // Two separate locals, as catch_up.cc keeps them: one shared destination would let the unit
+    // scale overwrite the value and leave a negative interval unjudged.
     Rational normalized_time;
-    if (!normalized(problem.elapsed_time.value, &normalized_time) ||
-        !normalized(problem.elapsed_time.unit.scale, &normalized_time) ||
-        normalized_time.num <= 0) {
+    Rational normalized_time_scale;
+    if (!normalized(problem.elapsed_time.value, &normalized_time) || normalized_time.num <= 0 ||
+        !normalized(problem.elapsed_time.unit.scale, &normalized_time_scale) ||
+        normalized_time_scale.num <= 0) {
         return failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                       "the elapsed time has an invalid exact value or unit scale");
     }
@@ -769,8 +772,9 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     std::string displacement_text;
     std::string final_velocity_text;
     HalfPlace rounding = HalfPlace::Within;
-    if (!reported_vector_text(displacement, &displacement_text, &rounding) ||
-        !reported_vector_text(final_velocity, &final_velocity_text)) {
+    HalfPlace velocity_rounding = HalfPlace::Within;
+    if (!reported_vector_text(displacement, &displacement_text, rounding) ||
+        !reported_vector_text(final_velocity, &final_velocity_text, velocity_rounding)) {
         return failed(PlanarKinematicsOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached,
                       "reporting the measured precision exceeds exact integer arithmetic");
@@ -778,7 +782,8 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     Vector exact_display = displacement;
     exact_display.precision = Precision();
     std::string exact_text;
-    if (!reported_vector_text(exact_display, &exact_text)) {
+    HalfPlace exact_rounding = HalfPlace::Within;
+    if (!reported_vector_text(exact_display, &exact_text, exact_rounding)) {
         return failed(PlanarKinematicsOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached,
                       "the exact displacement cannot be formatted");
