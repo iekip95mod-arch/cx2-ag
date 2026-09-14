@@ -34,6 +34,8 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "calculus.integral.indefinite.single-variable"},
     {"solver", "calculus.integral.definite.single-variable"},
     {"solver", "calculus.limit.single-variable"},
+    {"solver", "calculus.tangent-line.single-variable"},
+    {"solver", "calculus.linearization.single-variable"},
     {"solver", "physics.kinematics.constant-acceleration.one-dimension"},
     {"solver", "physics.kinematics.catch-up.equal-position"},
     {"solver", "physics.kinematics.relative-motion.components.two-dimension"},
