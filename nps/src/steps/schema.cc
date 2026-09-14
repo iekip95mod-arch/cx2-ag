@@ -184,6 +184,16 @@ const ObligationSchema kLimitClassification[] = {
 const EvidenceAlternative kCalculusGiacEvidence[] = {
     {"Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
 };
+const EvidenceAlternative kTangentAgreementEvidence[] = {
+    {"exact evaluation at the point and one unit away",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kTangentAgreement[] = {
+    {"obl.calculus.tangent-agreement",
+     "the line meets the curve at the point and has the derivative as its slope",
+     kTangentAgreementEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -942,6 +952,13 @@ const RuleSchema kRules[] = {
     {"limit.infinity", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"limit.classify", ClaimType::NoClaim, kLimitClassification, 1, FailureBehavior::CannotFail},
     {"calculus.check-giac", ClaimType::EquivalentExpression, kCalculusGiac, 1, FailureBehavior::WithholdResult},
+
+    // calculus.tangent-line, CALC-010
+    {"tangent.point-value", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.slope", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,

@@ -240,7 +240,14 @@ struct Calculation {
         return false;
     }
 
+    bool linear_family() const {
+        return command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
+    }
+
     NodeId call(NodeId expression) {
+        if (linear_family())
+            return arena.call(command_kind_name(command.kind),
+                              {expression, command.variable, command.point});
         if (command.kind == CommandKind::DefiniteIntegral)
             return arena.call("int", {expression, command.variable, command.lower, command.upper});
         std::vector<NodeId> arguments{expression, command.variable, command.point};
@@ -249,14 +256,15 @@ struct Calculation {
     }
 
     StepId step(const char *rule, const std::string &title, NodeId before, NodeId after,
-                const std::string &action, const std::string &reason, bool pending = false) {
+                const std::string &action, const std::string &reason, bool pending = false,
+                ClaimType claim = ClaimType::EquivalentExpression) {
         if (before == kNoNode || (!pending && after == kNoNode) || arena.failed() || !meter.step()) return kNoStep;
         Step entry;
         entry.phase = "calculus";
         entry.rule_id = rule;
         entry.rule_name = title;
         entry.goal = title;
-        entry.claim = ClaimType::EquivalentExpression;
+        entry.claim = claim;
         entry.explanation_short = reason;
         const std::string id = rule;
         if (id == "defint.interval")
@@ -267,6 +275,14 @@ struct Calculation {
             entry.explanation_detailed = "Use the fundamental theorem after finding an antiderivative and proving continuity on the whole interval. Upper minus lower also handles reversed bounds without changing the requested sign.";
         else if (id == "defint.subtract")
             entry.explanation_detailed = "Once both endpoints have been substituted, combine their exact values. Keep the subtraction order and retain any symbolic constants without rounding.";
+        else if (id == "tangent.point-value")
+            entry.explanation_detailed = "A tangent line touches the curve at the point, so the function has to be defined there. Evaluate it exactly before any slope is taken, because an undefined value has no tangent to report.";
+        else if (id == "tangent.slope")
+            entry.explanation_detailed = "The derivative is a function of the variable. Substituting the point turns it into the one number the tangent line uses as its slope.";
+        else if (id == "tangent.line")
+            entry.explanation_detailed = "The point-slope form passes through the point with the derivative as its slope. That is an exact description of the line itself and says nothing yet about how far it stays near the curve.";
+        else if (id == "tangent.linearization")
+            entry.explanation_detailed = "The linearization is the tangent line read as an approximation of the function near the point. It is not an equality. The two agree at the point and drift apart as the variable moves away from it.";
         else if (id == "limit.continuity")
             entry.explanation_detailed = "Direct substitution determines a limit only when the expression is continuous at the approach point. Check denominators and real function domains before substituting.";
         else if (id == "limit.real-domain")
@@ -723,6 +739,149 @@ struct Calculation {
         }
     }
 
+    // CALC-010. The supported envelope is an expression whose value and whose derivative both fold
+    // to exact rationals at the requested point, which covers the polynomials and rational functions
+    // the native differentiation engine already handles. Anything that leaves a symbol standing at
+    // the point is refused rather than approximated, and a point outside the domain is refused as a
+    // statement about the expression rather than about this build.
+    void tangent() {
+        result.approximate = command.kind == CommandKind::Linearize;
+        Rational point;
+        if (!evaluate_rational(arena, command.point, {}, &point)) {
+            refuse(Form::Unsupported, degree_ceiling,
+                   "the tangent point must be an exact number");
+            return;
+        }
+        const NodeId at_point = folded(substitute(command.expression, command.point));
+        Rational height;
+        if (at_point == kNoNode || !evaluate_rational(arena, at_point, {}, &height)) {
+            if (!work()) return;
+            refuse(Form::Unsupported, degree_ceiling,
+                   "the expression has no exact value at that point, so it has no tangent line there");
+            return;
+        }
+        if (step("tangent.point-value", "Evaluate the function at the point", call(command.expression),
+                 at_point, "Substitute the point into the expression",
+                 "The expression is defined at the point, so the tangent line touches the curve there")
+            == kNoStep)
+            return;
+        const size_t child_mark = derivation.mark();
+        const DiffResult differentiated =
+            differentiate(arena, derivation, command.expression, command.variable, meter, identity_backend);
+        (void)child_mark;
+        if (differentiated.outcome != DiffOutcome::Differentiated || differentiated.derivative == kNoNode) {
+            switch (differentiated.outcome) {
+                case DiffOutcome::Cancelled:
+                    result.outcome = CalculusOutcome::Cancelled;
+                    result.status = DerivationStatus::Cancelled;
+                    break;
+                case DiffOutcome::ResourceExceeded:
+                    result.outcome = CalculusOutcome::ResourceExceeded;
+                    result.status = DerivationStatus::ResourceLimitReached;
+                    break;
+                case DiffOutcome::Refused:
+                    result.outcome = CalculusOutcome::Refused;
+                    result.status = DerivationStatus::Unsupported;
+                    break;
+                default:
+                    result.outcome = CalculusOutcome::UnsupportedForm;
+                    result.status = DerivationStatus::Unsupported;
+                    break;
+            }
+            result.detail = differentiated.detail.empty()
+                ? "the native differentiation engine has no rule for this expression"
+                : differentiated.detail;
+            return;
+        }
+        const NodeId slope = folded(substitute(differentiated.derivative, command.point));
+        Rational gradient;
+        if (slope == kNoNode || !evaluate_rational(arena, slope, {}, &gradient)) {
+            if (!work()) return;
+            refuse(Form::Unsupported, degree_ceiling,
+                   "the derivative has no exact value at that point, so the slope is undefined there");
+            return;
+        }
+        if (step("tangent.slope", "Evaluate the derivative at the point", differentiated.derivative,
+                 slope, "Substitute the point into the derivative",
+                 "The derivative is defined at the point, so it is the slope of the tangent line")
+            == kNoStep)
+            return;
+        result.slope = slope;
+        result.point_value = at_point;
+        const NodeId offset = arena.binary(Kind::Add, command.variable,
+                                           arena.unary(Kind::Neg, command.point));
+        const NodeId line = folded(arena.binary(Kind::Add, at_point,
+                                                arena.binary(Kind::Mul, slope, offset)));
+        if (line == kNoNode || !work()) return;
+        const bool approximate = result.approximate;
+        if (step(approximate ? "tangent.linearization" : "tangent.line",
+                 approximate ? "Assemble the linearization" : "Assemble the tangent line",
+                 call(command.expression), line,
+                 approximate ? "Write the point-slope line as the local approximation"
+                             : "Write the point-slope line through the point",
+                 approximate
+                     ? "Near the point the function is approximated by this line. The relation is an "
+                       "approximation rather than an equality away from the point"
+                     : "The line passes through the point with the derivative as its slope",
+                 false, approximate ? ClaimType::NoClaim : ClaimType::Definition)
+            == kNoStep)
+            return;
+        if (!verify_line(line, height, gradient, point)) return;
+        result.outcome = CalculusOutcome::Evaluated;
+        result.value = line;
+    }
+
+    // The final check the family is required to have. The assembled line is evaluated exactly at the
+    // point and one unit away, which pins both the value it must match and the slope it must have,
+    // and it fails if either does. An affine function is determined by those two readings.
+    bool verify_line(NodeId line, const Rational &height, const Rational &gradient,
+                     const Rational &point) {
+        Rational shifted;
+        Rational at_point;
+        Rational away;
+        const bool stepped = rational_add(point, {1, 1}, &shifted);
+        const bool read = stepped &&
+            evaluate_rational(arena, line, {{command.variable_name, point}}, &at_point) &&
+            evaluate_rational(arena, line, {{command.variable_name, shifted}}, &away);
+        Rational rise;
+        const bool matched = read && rational_sub(away, at_point, &rise) &&
+                             compare(at_point, height) == 0 && compare(rise, gradient) == 0;
+        if (!meter.step() || arena.failed()) return false;
+        Step check;
+        check.phase = "check";
+        check.goal = "Check the line against the point and the slope";
+        check.rule_id = "tangent.check-line";
+        check.rule_name = "Tangent agreement at the point";
+        check.claim = ClaimType::EquivalentExpression;
+        check.explanation_short =
+            "Evaluate the assembled line at the point and one unit away, which reads back its value "
+            "and its slope";
+        check.proof_obligations.push_back(
+            {"obl.calculus.tangent-agreement",
+             "the line meets the curve at the point and has the derivative as its slope"});
+        VerificationRecord evidence;
+        evidence.method = "exact evaluation at the point and one unit away";
+        evidence.outcome = matched ? VerificationOutcome::Passed
+                         : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive;
+        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+        evidence.detail = matched
+            ? "the line matches the function value at the point and rises by the derivative"
+            : read ? "the line disagrees with the function value or the derivative at the point"
+                   : "the assembled line could not be evaluated exactly";
+        check.verifications.push_back(std::move(evidence));
+        CheckPayload payload;
+        payload.target_claim = "the assembled line is tangent to the curve at the point";
+        payload.check_method = "exact evaluation at the point and one unit away";
+        payload.expected_relation = "the function value at the point and the derivative as the rise";
+        payload.observed_result = read ? print(arena, line) : "not exactly evaluable";
+        derivation.add_check(kNoStep, std::move(check), std::move(payload));
+        if (matched) return true;
+        result.outcome = CalculusOutcome::VerificationFailed;
+        result.status = DerivationStatus::VerificationFailed;
+        result.detail = "the assembled line failed its tangency check, so the answer is withheld";
+        return false;
+    }
+
     void record_comparison(VerificationOutcome outcome, const std::string &detail,
                            CheckPayload comparison_record) {
         Step check;
@@ -776,6 +935,7 @@ struct Calculation {
     }
 
     void cross_check(Backend &backend) {
+        if (linear_family()) return;
         if (arena.failed() || meter.stopped() || result.infinity != 0 || result.does_not_exist ||
             (result.value == kNoNode && result.status != DerivationStatus::Unsupported &&
              result.status != DerivationStatus::PartiallySolved)) return;
@@ -857,8 +1017,11 @@ struct Calculation {
         }
         ContextInputs context;
         context.application_version = application_version();
-        context.problem_family_id = command.kind == CommandKind::Limit ? "calculus.limit.single-variable"
-                                                                      : "calculus.integral.definite.single-variable";
+        context.problem_family_id =
+            command.kind == CommandKind::Tangent ? "calculus.tangent-line.single-variable"
+          : command.kind == CommandKind::Linearize ? "calculus.linearization.single-variable"
+          : command.kind == CommandKind::Limit ? "calculus.limit.single-variable"
+                                               : "calculus.integral.definite.single-variable";
         context.requested_method = command_kind_name(command.kind);
         context.original_expression = derivation.request.original_expression;
         context.normalized_problem_model = model;
@@ -900,6 +1063,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         present(command.variable) && arena.at(command.variable).kind == Kind::Symbol &&
         command.variable_name == arena.text(command.variable) &&
         ((command.kind == CommandKind::DefiniteIntegral && present(command.lower) && present(command.upper)) ||
+         ((command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) &&
+          present(command.point)) ||
          (command.kind == CommandKind::Limit && present(command.point) && command.direction >= -1 && command.direction <= 1));
     if (!complete) {
         calculation.result.outcome = CalculusOutcome::InvalidInput;
@@ -910,6 +1075,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
     } else if (calculation.work()) {
         if (command.kind == CommandKind::DefiniteIntegral) calculation.integral();
         else if (command.kind == CommandKind::Limit) calculation.limit();
+        else if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize)
+            calculation.tangent();
     }
     if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact)
         calculation.cross_check(*backend);

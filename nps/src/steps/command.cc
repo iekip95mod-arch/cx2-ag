@@ -14,6 +14,8 @@ CommandKind named_command(const std::string &name) {
     if (name == "diff" || name == "d") return CommandKind::Differentiate;
     if (name == "int" || name == "integrate") return CommandKind::Integrate;
     if (name == "limit" || name == "lim") return CommandKind::Limit;
+    if (name == "tangent") return CommandKind::Tangent;
+    if (name == "linearize") return CommandKind::Linearize;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
     if (name == "factor") return CommandKind::Factor;
@@ -34,6 +36,8 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Integrate: return "integrate";
         case CommandKind::DefiniteIntegral: return "definite integral";
         case CommandKind::Limit: return "limit";
+        case CommandKind::Tangent: return "tangent";
+        case CommandKind::Linearize: return "linearize";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
         case CommandKind::Factor: return "factor";
@@ -123,12 +127,15 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
     const bool rewrite = command.kind == CommandKind::Simplify || command.kind == CommandKind::Expand ||
                          command.kind == CommandKind::Factor;
     const bool limit = command.kind == CommandKind::Limit;
-    const size_t minimum = limit ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
-    const size_t maximum = limit || command.kind == CommandKind::Integrate ? 4
+    const bool tangent = command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
+    const size_t minimum = limit || tangent ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
+    const size_t maximum = tangent ? 3 : limit || command.kind == CommandKind::Integrate ? 4
                          : command.kind == CommandKind::Differentiate ? 3 : rewrite ? 1 : 2;
     if (arguments.size() < minimum || arguments.size() > maximum) {
         command.status = CommandStatus::Unsupported;
-        command.detail = command.kind == CommandKind::Integrate
+        command.detail = tangent
+                             ? "tangent lines and linearizations require an expression, a variable and the point"
+                         : command.kind == CommandKind::Integrate
                              ? "integrals require an expression, a variable and optional lower and upper bounds"
                          : command.kind == CommandKind::Differentiate
                              ? "walkthroughs support only the first derivative with one variable"
@@ -153,6 +160,7 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         command.lower = arguments[2];
         command.upper = arguments[3];
     }
+    if (tangent) command.point = arguments[2];
     if (limit) {
         command.point = arguments[2];
         if (arguments.size() == 4) {
