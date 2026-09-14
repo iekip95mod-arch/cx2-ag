@@ -26,6 +26,8 @@ jobs:
        contains(github.event.comment.body, '@gemini'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      GEMINI_FORCE_FILE_STORAGE: 'true'
     # Read on contents for the reason agent-codex.yml gives: this lane posts an answer and never
     # pushes a branch.
     permissions:
@@ -34,29 +36,19 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      # Two ways in. A Google sign in reaches the CLI as the oauth_creds.json it writes itself, which
-      # survives because the action only ever writes the project's .gemini directory and never the
-      # one under HOME. Code Assist is then selected by use_gemini_code_assist below, which is the
-      # input that sets GOOGLE_GENAI_USE_GCA. Failing that, an AI Studio key.
       - name: Decide whether credentials are configured
         id: key
         env:
-          GEMINI: ${{ secrets.GEMINI_API_KEY }}
           OAUTH_CREDS: ${{ secrets.GEMINI_OAUTH_CREDS }}
         run: |
           if [ -n "$OAUTH_CREDS" ]; then
             mkdir -p "$HOME/.gemini"
             printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/oauth_creds.json"
             chmod 600 "$HOME/.gemini/oauth_creds.json"
-            echo "code_assist=true" >> "$GITHUB_OUTPUT"
-            echo "have=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "$GEMINI" ]; then
-            echo "code_assist=false" >> "$GITHUB_OUTPUT"
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
-            echo "have=false" >> "$GITHUB_OUTPUT"
-            echo "Neither GEMINI_OAUTH_CREDS nor GEMINI_API_KEY is set, so Gemini did not run." \
-              >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::GEMINI_OAUTH_CREDS is required for subscription authentication."
+            exit 1
           fi
 
       - uses: actions/checkout@v7
@@ -111,10 +103,9 @@ jobs:
         # v0.1.22 as of this commit. See agent.yml for why these are pinned by digest.
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
         with:
-          # Empty when Code Assist is in use. The action warns if it is given both, and a sign in
-          # that silently falls back to a key is the kind of thing nobody notices until the bill.
-          gemini_api_key: ${{ steps.key.outputs.code_assist != 'true' && secrets.GEMINI_API_KEY || '' }}
-          use_gemini_code_assist: ${{ steps.key.outputs.code_assist }}
+          gemini_cli_version: '0.59.0'
+          use_gemini_code_assist: 'true'
+          settings: '{"security":{"auth":{"selectedType":"oauth-personal"}}}'
           prompt: ${{ env.GEMINI_PROMPT }}
 
       # The action returns its answer rather than posting it, so the reply is written to a file and
