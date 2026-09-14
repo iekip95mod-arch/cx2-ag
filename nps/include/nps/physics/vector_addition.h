@@ -21,6 +21,7 @@ enum class VectorAdditionOutcome : uint8_t {
     FrameMismatch,
     DimensionMismatch,
     ArithmeticOverflow,
+    VerificationFailed,
     Cancelled,
     ResourceExceeded,
 };
