@@ -2246,6 +2246,8 @@ menu = {
          { "Limit from the right", function() template("limit(,x,0,1)", 7) end },
          { "Limit at positive infinity", function() template("limit(,x,infinity)", 12) end },
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
+         { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
+         { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2350,6 +2352,8 @@ menu = {
        	 { "Derivative  diff(expr,var)",	function() menustring( "diff(" ) end },
        	 { "Integral  int(expr,var)",	function() menustring( "int(" ) end },
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
+       	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
+       	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -2822,7 +2826,8 @@ local function resultClass(r)
 	-- result test below, which would otherwise report their own escape key back to them as a failure.
 	if r.outcome == "cancelled" or r.status == "cancelled" then return "STOPPED" end
 	if not hasAnswer(r) then return "NO RESULT" end
-	local approximate = form == "numerical approximation" or
+	local approximate = r.approximation == true or
+	                    form == "numerical approximation" or
 	                    r.status == "numerically approximated" or
 	                    r.giac_tag == "approximate" or
 	                    (type(r.precision) == "table" and r.precision.kind == "measured")
@@ -3082,6 +3087,7 @@ local function displayExpression(expr, native)
 			local supported = ((word == "int" or word == "integrate") and (count == 2 or count == 4))
 				or ((word == "d" or word == "diff") and (count == 2 or count == 3))
 				or ((word == "limit" or word == "lim") and (count == 3 or count == 4))
+				or ((word == "tangent" or word == "linearize") and count == 3)
 				or (word == "sqrt" and count == 1)
 				or ((word == "sum" or word == "product") and count == 4)
 			out[#out + 1] = (sign and supported) and sign
@@ -3327,6 +3333,8 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit from the right"] = "Approach from larger values. The last argument is 1.",
     ["Limit at positive infinity"] = "Find the behavior as the variable increases without bound.",
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
+    ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
+    ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
 }
 
 function openTemplatePicker()

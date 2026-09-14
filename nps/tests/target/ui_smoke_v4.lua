@@ -897,7 +897,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 182, "the palette holds every retained entry: " .. entries .. " of 182")
+    check(entries == 186, "the palette holds every retained entry: " .. entries .. " of 186")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -1404,6 +1404,14 @@ local approximate_conditional_result_class =
     painted():find("APPROXIMATE + CONDITIONAL", 1, true) ~= nil
 steps.result.precision = nil
 steps.result.assumptions = nil
+-- CALC-010. A linearization is an approximation away from the point, so the shell must not label
+-- its answer exact just because every number in it is rational.
+steps.result.approximation = true
+check(painted():find("APPROXIMATE", 1, true) ~= nil and painted():find("EXACT", 1, true) == nil,
+      "a linearization answer is labelled an approximation rather than exact")
+steps.result.approximation = nil
+check(painted():find("EXACT", 1, true) ~= nil,
+      "an ordinary exact answer keeps its exact label when no approximation is declared")
 
 -- Section 17 wants an unverified answer labelled where the student is already reading. A check that
 -- could not run and a solve the student stopped are both named outcomes, so the label reads the
@@ -6423,7 +6431,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 20 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 22 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6433,12 +6441,17 @@ do
     end
     check(state.descriptions[17]:find("smaller values", 1, true) and
           state.descriptions[18]:find("larger values", 1, true), "one-sided guidance distinguishes both approach directions")
+    -- CALC-010. The two new templates are the last of the calculus block and their guidance has to
+    -- keep the linearization an approximation rather than promising an equality.
+    check(state.labels[21] == "Tangent line at a point" and state.labels[22] == "Linearization at a point" and
+          state.descriptions[22]:find("approximation", 1, true) ~= nil,
+          "the tangent templates are offered and the linearization says it approximates")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 20, "up from the first template reaches the final template")
+    check(state.selected == 22, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()

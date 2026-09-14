@@ -1,5 +1,6 @@
 #include "nps/steps/calculus.h"
 
+#include "nps/core/evaluate.h"
 #include "nps/core/canonical.h"
 #include "nps/core/print.h"
 #include "golden/golden.h"
@@ -570,6 +571,93 @@ void run_calculus_tests(TestSink &t) {
                     result.outcome == (failure == 2 ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded) &&
                     result.status == (failure == 2 ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached),
                     "root domain proofs share cancellation and resource limits without backend fallback: " +
+                    std::string(text) + " failure " + std::to_string(failure) + ": " + result.detail);
+        }
+    }
+    // CALC-010. The tangent line and the linearization share one engine, and the difference between
+    // them is whether the answer is stated as an equality.
+    for (const auto &fixture : {std::pair{"tangent", false}, std::pair{"linearize", true}}) {
+        const std::string text = std::string(fixture.first) + "(x^2,x,3)";
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        t.check(result.outcome == CalculusOutcome::Evaluated && result.value != kNoNode &&
+                result.status == DerivationStatus::SolvedAndVerified,
+                "the tangent family answers a polynomial at a rational point: " + text + ": " + result.detail);
+        t.check(result.slope != kNoNode && print(arena, result.slope) == "6" &&
+                result.point_value != kNoNode && print(arena, result.point_value) == "9",
+                "the tangent family reports the slope and the value it built the line from: " + text);
+        t.check(result.approximate == fixture.second,
+                "only the linearization states its answer as an approximation: " + text);
+        Rational at_point;
+        Rational away;
+        t.check(evaluate_rational(arena, result.value, {{"x", Rational{3, 1}}}, &at_point) &&
+                at_point.num == 9 && at_point.den == 1 &&
+                evaluate_rational(arena, result.value, {{"x", Rational{4, 1}}}, &away) &&
+                away.num == 15 && away.den == 1,
+                "the assembled line meets the curve at the point and rises by the derivative: " + text);
+        // VER-002. Both point substitutions instantiate the function at one point instead of
+        // rewriting it, so a claim of equivalence would be false away from the point.
+        size_t substitutions = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id != "tangent.point-value" && recorded.rule_id != "tangent.slope")
+                continue;
+            ++substitutions;
+            t.check(recorded.claim == ClaimType::Definition,
+                    "the tangent family states its point substitutions as definitions rather than "
+                    "equivalences: " + recorded.rule_id + " in " + text);
+        }
+        t.check(substitutions == 2,
+                "the tangent family records both point substitutions: " + text + " has " +
+                std::to_string(substitutions));
+        const std::string rendered = render_derivation(arena, derivation);
+        t.check(rendered.find("tangent.check-line") != std::string::npos,
+                "the tangent family records its final tangency check: " + text);
+        t.check(rendered.find(fixture.second ? "tangent.linearization" : "tangent.line") != std::string::npos,
+                "the assembly step names the family that was asked for: " + text);
+        check_golden(t, fixture.second ? "tangent_linearization" : "tangent_line",
+                     "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" + rendered);
+    }
+    // Neighboring refusals. A point outside the domain, a value that is not exact there, and a form
+    // the differentiation engine has no rule for are each refused rather than answered.
+    for (const char *text : {"tangent(1/x,x,0)", "linearize(1/x,x,0)", "tangent(sqrt(x),x,2)",
+                             "tangent(x^2,x,sqrt(2))"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        t.check(result.value == kNoNode && !result.detail.empty() &&
+                (result.outcome == CalculusOutcome::UnsupportedForm ||
+                 result.outcome == CalculusOutcome::Refused),
+                "the tangent family refuses outside its envelope: " + std::string(text) + ": " +
+                std::string(calculus_outcome_name(result.outcome)));
+    }
+    {
+        Arena arena;
+        const Command missing = parse_command(arena, "tangent(x^2,x)", "x");
+        t.check(missing.status == CommandStatus::Unsupported && !missing.detail.empty(),
+                "a tangent request without a point is refused before any work: " + missing.detail);
+    }
+    for (const char *text : {"tangent(x^2,x,3)", "linearize(x^3+x,x,2)"}) {
+        for (unsigned failure = 0; failure < 3; ++failure) {
+            Arena arena;
+            Derivation derivation;
+            Budget budget;
+            if (failure == 0) budget.max_steps = 1;
+            if (failure == 1) budget.max_rewrites = 2;
+            if (failure == 2) budget.poll = [](void *) { return true; };
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                parse_command(arena, text, "x"), budget);
+            t.check(result.value == kNoNode &&
+                    result.outcome == (failure == 2 ? CalculusOutcome::Cancelled
+                                                    : CalculusOutcome::ResourceExceeded) &&
+                    result.status == (failure == 2 ? DerivationStatus::Cancelled
+                                                   : DerivationStatus::ResourceLimitReached),
+                    "the tangent family stops for cancellation and for its budgets: " +
                     std::string(text) + " failure " + std::to_string(failure) + ": " + result.detail);
         }
     }
