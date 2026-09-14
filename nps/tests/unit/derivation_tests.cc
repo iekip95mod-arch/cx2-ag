@@ -573,6 +573,67 @@ void test_verified_prefix(TestSink &t) {
         payload.resolution_evidence = "substitution";
         return payload;
     };
+    const auto retains_complete_split = [&](BranchPayload first_payload,
+                                            BranchPayload second_payload) {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split =
+            d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        d.add_branch(meter, split, checked, std::move(first_payload));
+        const StepId first = d.add_branch(meter, split, checked, std::move(second_payload));
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        return first != kNoStep && d.verified_prefix_end(0) == after;
+    };
+
+    t.check(retains_complete_split(exhaustive_case(), exhaustive_case()),
+            "a consistent resolved split remains in the verified prefix");
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_exhaustive = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about exhaustiveness roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_exclusive = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about exclusivity roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.siblings_domain_consistent = false;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that disagree about domain consistency roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.exhaustive_evidence = "different reconstruction";
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "siblings that name different exhaustive evidence roll back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.resolution = BranchResolution::Unresolved;
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "an unresolved sibling rolls back before the split");
+    }
+    {
+        BranchPayload changed = exhaustive_case();
+        changed.resolution_evidence.clear();
+        t.check(!retains_complete_split(exhaustive_case(), std::move(changed)),
+                "a sibling without resolution evidence rolls back before the split");
+    }
 
     {
         Derivation d;
