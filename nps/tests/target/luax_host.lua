@@ -280,25 +280,21 @@ check(manifest.schema_version == 2 and manifest.schema_versions[1].id == "capabi
        manifest.schema_versions[2].id == "solution-context" and
        manifest.schema_versions[2].version == 3,
        "the published manifest names both schema versions")
-check(type(manifest.integrity_identifiers) == "table" and #manifest.integrity_identifiers == 4,
-      "the split manifest carries source, platform, package and UI identities")
+check(type(manifest.integrity_identifiers) == "table" and #manifest.integrity_identifiers == 3,
+      "the split manifest carries source, package and UI identities")
 check(manifest.integrity_identifiers[1].component == "stepcas.build-inputs" and
       manifest.integrity_identifiers[1].scheme == "sha256" and
       is_sha256(manifest.integrity_identifiers[1].value),
       "the split manifest identifies its StepCAS source inputs")
-check(manifest.integrity_identifiers[2].component == "ndl.build-inputs" and
-      manifest.integrity_identifiers[2].scheme == "sha256" and
-      is_sha256(manifest.integrity_identifiers[2].value),
-      "the split manifest identifies its patched Ndl inputs")
-check(manifest.integrity_identifiers[3].component == "artifact.package" and
-      manifest.integrity_identifiers[3].scheme == "runtime-sha256-sidecar" and
-      manifest.integrity_identifiers[3].value == "nps_split.luax.sha256.tns",
+check(manifest.integrity_identifiers[2].component == "artifact.package" and
+      manifest.integrity_identifiers[2].scheme == "runtime-sha256-sidecar" and
+      manifest.integrity_identifiers[2].value == "nps_split.luax.sha256.tns",
       "the split manifest points at the package digest it checks for itself")
-check(nps.test_native_artifact_package_scheme() == manifest.integrity_identifiers[3].scheme,
+check(nps.test_native_artifact_package_scheme() == manifest.integrity_identifiers[2].scheme,
       "the Lua bridge preserves the native artifact package integrity scheme")
-check(manifest.integrity_identifiers[4].component == "ui.document" and
-      manifest.integrity_identifiers[4].scheme == "external-sha256-sidecar" and
-      manifest.integrity_identifiers[4].value == "nps_v3.sha256.tns",
+check(manifest.integrity_identifiers[3].component == "ui.document" and
+      manifest.integrity_identifiers[3].scheme == "external-sha256-sidecar" and
+      manifest.integrity_identifiers[3].value == "nps_v3.sha256.tns",
       "the split manifest points at its UI document digest, which stays external")
 
 -- The wording matches run_tests.cc's PLAT-009 row on purpose. That row is written from a host
