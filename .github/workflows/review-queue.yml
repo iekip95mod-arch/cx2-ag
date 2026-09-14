@@ -1,0 +1,41 @@
+name: Recover reviewer queue
+on:
+  pull_request_target:
+    types: [synchronize, closed, converted_to_draft]
+  issues:
+    types: [closed]
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_run:
+    workflows: [agent-review-request]
+    types: [completed]
+
+concurrency:
+  group: reviewer-queue-recovery
+  cancel-in-progress: false
+  queue: max
+
+permissions:
+  actions: write
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  recover:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: "24"
+      - name: Reconcile review work
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node .github/scripts/review-queue.mjs
