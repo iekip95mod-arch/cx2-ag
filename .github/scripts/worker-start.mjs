@@ -7,7 +7,7 @@ import { publishProgress } from './agent-progress.mjs';
 
 export async function announceWorker({ context, task = '', model, effort, run, attempt = 1, phase = 'running' }, api) {
   const { repository, issue, branch, login, userId, legacyOwner = '' } = context;
-  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude'].some(provider => branch === `${provider}/issue-${issue}`) || !/^[a-z0-9-]+\[bot\]$/.test(login) || !Number.isSafeInteger(userId) || userId < 1) throw Error('Invalid executor announcement target');
+  if (repository !== 'iekip95mod-arch/cx2-ag' || !Number.isSafeInteger(issue) || issue < 1 || !['codex', 'claude', 'gemini'].some(provider => branch === `${provider}/issue-${issue}`) || !/^[a-z0-9-]+\[bot\]$/.test(login) || !Number.isSafeInteger(userId) || userId < 1) throw Error('Invalid executor announcement target');
   if (!/^[a-zA-Z0-9_.:\[\]-]+$/.test(model) || !['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(effort) || !/^[1-9][0-9]*$/.test(String(run))) throw Error('Configured model, effort and run are required');
   const reviewTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), review ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);
   const ciTarget = /^Continue the existing issue lease and branch for PR #([1-9][0-9]*), CI run ([1-9][0-9]*), attempt ([1-9][0-9]*), head ([a-f0-9]{40})\./.exec(task);

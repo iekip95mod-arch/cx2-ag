@@ -61,7 +61,7 @@ test('closing or drafting a PR cancels even its current review', async () => {
 });
 
 test('capacity release retries a waiting assignment only on its current revision', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(); f.pr.head.ref = `${provider}/issue-17`;
     f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
     assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ [provider]: 1 })), [42]);

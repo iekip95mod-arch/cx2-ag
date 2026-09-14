@@ -8,12 +8,12 @@ root = File.expand_path('../..', __dir__)
 workflow = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml'))
 job = workflow.fetch('jobs').fetch('review-approved')
 raise 'Approval gate must run for failed assignment reviews only' unless job.fetch('if') == "${{ always() && startsWith(github.event.label.name, 'reviewer:') }}"
-raise 'Approval gate must wait for selection and both reviewers' unless job.fetch('needs').sort == ['codex-review', 'review', 'select-reviewer']
+raise 'Approval gate must wait for selection and all reviewers' unless job.fetch('needs').sort == ['codex-review', 'gemini-review', 'review', 'select-reviewer']
 gate_step = job.fetch('steps').find { |step| step['name'] == 'Require a fresh approval from the selected reviewer' }
 gate = gate_step.fetch('run')
 raise 'Approval gate must execute the shared lease verifier' unless gate == 'node .github/scripts/wait-for-review.mjs --approval-gate'
 raise 'Approval lookup needs the durable lease' unless job.fetch('permissions').fetch('contents') == 'read'
-%w[review codex-review].each do |name|
+%w[review codex-review gemini-review].each do |name|
   raise 'Ordinary labels must not spend a review' unless workflow.fetch('jobs').fetch(name).fetch('if').include?("needs.select-reviewer.outputs.requested == 'true'")
 end
 raise 'Ordinary labels must not cancel requested reviews' unless workflow.fetch('concurrency').fetch('group').include?("startsWith(github.event.label.name, 'reviewer:') && 'requested' || 'metadata'")
@@ -22,9 +22,12 @@ roster = JSON.parse(File.read(File.join(root, '.github/scripts/bot-identities.js
 roster.each_with_index { |identity, index| identity.merge!('appId' => index + 100, 'userId' => index + 200, 'clientId' => "Iv1.fixture#{index}") }
 codex = roster.find { |identity| identity['provider'] == 'codex' && identity['role'] == 'reviewer' }
 claude = roster.find { |identity| identity['provider'] == 'claude' && identity['role'] == 'reviewer' }
+gemini = roster.find { |identity| identity['provider'] == 'gemini' && identity['role'] == 'reviewer' }
 reviewed_sha = 'a' * 40
 approval = { id: 2, commit_id: reviewed_sha, user: { login: codex.fetch('login'), id: codex.fetch('userId'), type: 'Bot' }, state: 'APPROVED' }
 fixtures = [
+  ['gemini', 'gemini', 'reviewed-sha', [approval.merge(user: { login: gemini.fetch('login'), id: gemini.fetch('userId'), type: 'Bot' })], 'success', true],
+  ['gemini-failed', 'gemini', 'reviewed-sha', [approval.merge(user: { login: gemini.fetch('login'), id: gemini.fetch('userId'), type: 'Bot' })], 'failure', false],
   ['codex', 'codex', 'reviewed-sha', [approval], 'success', true],
   ['linked-branch', 'codex', 'reviewed-sha', [approval], 'success', true],
   ['claude', 'claude', 'reviewed-sha', [approval.merge(user: { login: claude.fetch('login'), id: claude.fetch('userId'), type: 'Bot' })], 'success', true],
@@ -61,7 +64,7 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
   FileUtils.mkdir_p(scripts)
   %w[wait-for-review.mjs agent-progress.mjs bot-identities.mjs].each { |file| FileUtils.cp(File.join(root, '.github/scripts', file), scripts) }
   File.write(File.join(scripts, 'bot-identities.json'), roster.to_json)
-  identity = reviewer == 'claude' ? claude : codex
+  identity = { 'codex' => codex, 'claude' => claude, 'gemini' => gemini }.fetch(reviewer, codex)
   branch = name == 'linked-branch' ? 'codex/named-bot-identities' : "#{reviewer}/issue-42"
   assignment = { key: "#{reviewer}/reviewer/issue-42", provider: reviewer, role: 'reviewer', issue: 42, pr: 84, branch: branch, slug: identity.fetch('slug'), released: false }
   encoded = [{ version: 1, assignments: [assignment] }.to_json].pack('m0')
@@ -92,7 +95,7 @@ fixtures.each do |name, reviewer, current_sha, reviews, provider_status, expecte
   environment = {
     'PATH' => "#{directory}:#{ENV.fetch('PATH')}", 'FIXTURE_DIR' => directory,
     'REVIEWER' => reviewer, 'PR_HEAD_SHA' => reviewed_sha,
-    'BEFORE' => '[1]', 'CLAUDE_RESULT' => provider_status, 'CODEX_RESULT' => provider_status,
+    'BEFORE' => '[1]', 'CLAUDE_RESULT' => provider_status, 'CODEX_RESULT' => provider_status, 'GEMINI_RESULT' => provider_status,
     'SELECT_RESULT' => selection_status || 'success',
     'REVIEW_REQUESTED' => requested || 'true',
     'GITHUB_REPOSITORY' => 'iekip95mod-arch/cx2-ag', 'PR_NUMBER' => '84', 'GITHUB_EVENT_NAME' => 'pull_request'
