@@ -8,7 +8,7 @@ const root = `repos/${repository}`;
 
 async function ownedBranch(pr, api, assignment) {
   if (pr.state !== 'open' || pr.base?.ref !== 'main' || pr.base.repo?.full_name !== repository || pr.head?.repo?.full_name !== repository) return null;
-  const provider = /^(codex|claude)\//.exec(pr.head.ref)?.[1];
+  const provider = /^(codex|claude|gemini)\//.exec(pr.head.ref)?.[1];
   if (!provider) return null;
   let identity;
   try { identity = await assignment({ repository, provider, role: 'executor', pr: pr.number }, api); }

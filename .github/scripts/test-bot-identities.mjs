@@ -97,9 +97,9 @@ function fixture() {
 }
 
 test('the catalogue contains twelve identities per provider and role', () => {
-  assert.equal(roster.length, 48);
-  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, 12);
-  assert.equal(new Set(roster.map(identity => identity.login)).size, 48);
+  assert.equal(roster.length, 72);
+  for (const provider of ['codex', 'claude', 'gemini']) for (const role of ['executor', 'reviewer']) assert.equal(roster.filter(identity => identity.provider === provider && identity.role === role).length, 12);
+  assert.equal(new Set(roster.map(identity => identity.login)).size, 72);
   assert.throws(() => findIdentity(roster, 'unknown[bot]'), /Unknown/);
   assert.throws(() => findIdentity(roster, roster[0].login, 'claude', 'executor'), /Unknown/);
   assert.throws(() => findIdentity([{ ...roster[0], appId: null }], roster[0].login), /unconfigured/);
@@ -136,7 +136,7 @@ test('issue and PR aliases reuse the original identity without another write', a
 });
 
 test('twelve executor slots per provider retain ownership and reject overflow', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const github = fixture();
     const workers = [];
     for (let issue = 1; issue <= 12; issue++) workers.push(await allocateIdentity({ ...options(issue), provider }, github.api, roster));
@@ -162,7 +162,7 @@ test('reviewer capacity retains open issue leases and reports pool exhaustion di
 });
 
 test('twelve reviewer slots retain assignments and reject overflow per provider', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const github = fixture();
     const reviewers = [];
     for (let issue = 1; issue <= 12; issue++) reviewers.push(await allocateIdentity(options(issue, provider, 'reviewer'), github.api, roster));
@@ -402,7 +402,7 @@ test('assignment corruption cannot authorize an unknown identity or duplicate li
 test('the CLI waits only for reviewer capacity and never publishes credentials while waiting', () => {
   const scratch = new URL('../../.Internal/workspaces/bot-identity-tests/', import.meta.url);
   mkdirSync(scratch, { recursive: true });
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const directory = mkdtempSync(join(fileURLToPath(scratch), 'capacity-'));
     const gh = join(directory, 'gh');
     copyFileSync(new URL('./fixtures/bot-gh.mjs', import.meta.url), gh);

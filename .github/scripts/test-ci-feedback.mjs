@@ -24,21 +24,21 @@ function fixture(provider = 'codex') {
 }
 
 test('failed CI resumes both providers on the same issue even while the PR is draft', async () => {
-  for (const provider of ['codex', 'claude']) for (const draft of [false, true]) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const draft of [false, true]) {
     const f = fixture(provider); f.pr.draft = draft;
     assert.equal(await dispatchCiFeedback(f.options, f.api), true);
     const sent = f.calls.filter(call => call.method === 'POST');
     assert.equal(sent.length, 1);
     assert.equal(sent[0].body.inputs.issue_number, '42');
     assert.equal(sent[0].body.ref, 'main');
-    assert.match(sent[0].endpoint, provider === 'codex' ? /agent-codex.yml/ : /agent.yml/);
+    assert.match(sent[0].endpoint, provider === 'codex' ? /agent-codex.yml/ : provider === 'gemini' ? /agent-gemini.yml/ : /agent.yml/);
     assert.match(sent[0].body.inputs.task, /all failed jobs/);
     assert.match(sent[0].body.inputs.task, /untrusted task content/);
   }
 });
 
 test('draft review gates do not dispatch repair workers', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     f.pr.draft = true;
     f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = { total_count: 4, jobs: [
@@ -51,7 +51,7 @@ test('draft review gates do not dispatch repair workers', async () => {
 });
 
 test('a ready review gate failure without a reviewer assignment resumes the executor', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     f.responses[`repos/${f.repository}/actions/runs/77/attempts/1/jobs?per_page=100&page=1`] = {
       total_count: 1,
@@ -64,7 +64,7 @@ test('a ready review gate failure without a reviewer assignment resumes the exec
 });
 
 test('a ready review gate failure without a terminal verdict resumes the executor', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     const reviewer = loadRoster().find(bot => bot.provider === provider && bot.role === 'reviewer');
     const path = `repos/${f.repository}/contents/assignments.json?ref=bot-assignments`;
@@ -115,7 +115,7 @@ test('duplicate CI delivery is suppressed and a retry starting during validation
 });
 
 test('rejected-review gate failures do not dispatch a second executor but real CI failures do', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     const reviewer = loadRoster().find(bot => bot.provider === provider && bot.role === 'reviewer');
     const path = `repos/${f.repository}/contents/assignments.json?ref=bot-assignments`;
