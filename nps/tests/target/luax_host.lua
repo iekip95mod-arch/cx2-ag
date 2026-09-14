@@ -391,6 +391,33 @@ do
         check(record.outcome == "evaluated" and record.outcome ~= record.status,
               case[1] .. " names what the calculus engine did rather than repeating its status")
     end
+    -- CALC-010. The tangent family answers without a backend comparison of its own, so the bridge
+    -- has to carry the slope, the point value and whether the relation is an approximation.
+    for _, case in ipairs({
+        {"tangent(x^2,x,3)", "tangent.line", false, "equal"},
+        {"linearize(x^2,x,3)", "tangent.linearization", true, "approximately equal"},
+    }) do
+        script("0", "0")
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and
+              command_has_rule(record, case[2]) and command_has_rule(record, "tangent.check-line"),
+              case[1] .. " exposes the native tangent walkthrough with its final check")
+        check(record.tangent_slope == "6" and record.tangent_point_value == "9",
+              case[1] .. " reports the slope and the point value the line was built from")
+        check(record.approximation == case[3] and record.relation == case[4],
+              case[1] .. " states whether its answer is an equality or an approximation")
+        check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+    end
+    for _, case in ipairs({
+        {"tangent(1/x,x,0)", "unsupported form"},
+        {"tangent(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the tangent envelope and says why")
+    end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
         {"limit(1/x,x,0,-1)", "-infinity", "infinite limit"},
