@@ -204,6 +204,34 @@ bool derivation_status_in_range(uint64_t value) {
     return value <= static_cast<uint64_t>(DerivationStatus::SolvedAndCorroborated);
 }
 
+bool status_carries_answer(DerivationStatus s) {
+    switch (s) {
+        // The weaker claims are still claims about an answer that exists. Withholding the node
+        // beside one of them reports a refusal under a status that says the opposite.
+        case DerivationStatus::SolvedAndVerified:
+        case DerivationStatus::ConditionallySolved:
+        case DerivationStatus::NumericallyApproximated:
+        case DerivationStatus::SolvedButUnchecked:
+        case DerivationStatus::SolvedAndCorroborated:
+            return true;
+        // PartiallySolved keeps a checked prefix rather than a result, so it belongs here.
+        case DerivationStatus::NotRecorded:
+        case DerivationStatus::PartiallySolved:
+        case DerivationStatus::Unsupported:
+        case DerivationStatus::InvalidInput:
+        case DerivationStatus::ClarificationRequired:
+        case DerivationStatus::InterpretationUnsupported:
+        case DerivationStatus::ModelCommitFailed:
+        case DerivationStatus::VerificationFailed:
+        case DerivationStatus::ResourceLimitReached:
+        case DerivationStatus::OpaqueSubproblem:
+        case DerivationStatus::DependencyUnavailable:
+        case DerivationStatus::Cancelled:
+            return false;
+    }
+    return false;
+}
+
 const char *numeric_mode_name(NumericMode m) {
     switch (m) {
         case NumericMode::Exact: return "exact";

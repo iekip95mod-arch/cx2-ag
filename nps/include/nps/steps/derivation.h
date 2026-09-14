@@ -249,6 +249,10 @@ const char *derivation_status_name(DerivationStatus s);
 // status added above cannot be forgotten in a file that never mentions DerivationStatus.
 bool derivation_status_in_range(uint64_t value);
 
+// Whether a status is one an engine reports beside an answer, rather than instead of one. Asked once
+// here so another solved-with-a-weaker-claim status does not need every caller amended.
+bool status_carries_answer(DerivationStatus s);
+
 enum class NumericMode : uint8_t {
     Exact,
     Decimal,

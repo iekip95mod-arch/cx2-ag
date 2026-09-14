@@ -1400,6 +1400,35 @@ void test_implication_owes_a_check(TestSink &t) {
     }
 }
 
+// Every status, so adding one forces a decision here rather than leaving it to whichever caller
+// happens to compare against a list.
+void test_status_carries_answer(TestSink &t) {
+    const DerivationStatus carrying[] = {
+        DerivationStatus::SolvedAndVerified,    DerivationStatus::ConditionallySolved,
+        DerivationStatus::NumericallyApproximated, DerivationStatus::SolvedButUnchecked,
+        DerivationStatus::SolvedAndCorroborated};
+    const DerivationStatus withholding[] = {
+        DerivationStatus::NotRecorded,        DerivationStatus::PartiallySolved,
+        DerivationStatus::Unsupported,        DerivationStatus::InvalidInput,
+        DerivationStatus::ClarificationRequired, DerivationStatus::InterpretationUnsupported,
+        DerivationStatus::ModelCommitFailed,  DerivationStatus::VerificationFailed,
+        DerivationStatus::ResourceLimitReached, DerivationStatus::OpaqueSubproblem,
+        DerivationStatus::DependencyUnavailable, DerivationStatus::Cancelled};
+    size_t counted = 0;
+    for (const DerivationStatus status : carrying) {
+        ++counted;
+        t.check(status_carries_answer(status),
+                std::string(derivation_status_name(status)) + " reports an answer beside itself");
+    }
+    for (const DerivationStatus status : withholding) {
+        ++counted;
+        t.check(!status_carries_answer(status),
+                std::string(derivation_status_name(status)) + " reports no answer at all");
+    }
+    t.check(counted == static_cast<size_t>(DerivationStatus::SolvedAndCorroborated) + 1,
+            "the two lists together name every status the enumeration holds");
+}
+
 // Asked here rather than through an engine because the three answers need three different
 // verification outcomes in the record, and an engine that produces a Failed one refuses long before
 // it reaches this predicate. Testing the mapping directly is what makes the third answer more than
@@ -1859,6 +1888,7 @@ void run_derivation_tests(TestSink &t) {
     test_verified_prefix(t);
     test_branch_and_cycle_limits(t);
     test_outcome_from(t);
+    test_status_carries_answer(t);
     test_evidence_strength(t);
     test_failure_behavior(t);
     test_implication_owes_a_check(t);
