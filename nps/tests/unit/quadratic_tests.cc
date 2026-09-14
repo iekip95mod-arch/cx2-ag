@@ -212,9 +212,8 @@ void test_capacity_refusals_are_not_a_shape_claim(TestSink &t) {
     }
 }
 
-// PERF-008's branch limit landing inside a split, which derivation.h:246 names as the hazard the
-// counter exists to catch. A split whose second case is refused would leave the first standing with
-// siblings_exhaustive set, which is a complete-looking answer that is missing a root.
+// PERF-008's branch limit landing inside a split. A split whose second case is refused would leave
+// the first standing with siblings_exhaustive set, which is a complete-looking answer missing a root.
 void test_branch_budget_inside_a_split(TestSink &t) {
     Arena arena;
     Derivation d;
@@ -224,9 +223,12 @@ void test_branch_budget_inside_a_split(TestSink &t) {
     t.equal(quadratic_outcome_name(r.outcome), "resource exceeded",
             "a budget of one branch cannot record a split of two");
     t.check(r.solutions.empty(), "and no root is offered");
-    t.evidence("STEP-024", d.size() == 0,
-               "a split that ran out of branch budget partway keeps no case at all, so a set of one "
-               "cannot be read as the exhaustive set of two it was going to be");
+    size_t branches = 0;
+    for (size_t i = 0; i < d.size(); ++i)
+        if (d.branch(static_cast<StepId>(i)) != nullptr) ++branches;
+    t.evidence("STEP-024", d.size() == 2 && branches == 0,
+               "a split that ran out of branch budget keeps the checked setup but no case, so a set "
+               "of one cannot be read as the exhaustive set of two it was going to be");
     t.check(derivation_status_name(r.status) == std::string("resource limit reached"),
             "with the status naming the limit rather than claiming a partial answer");
 }
