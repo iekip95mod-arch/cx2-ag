@@ -2436,8 +2436,8 @@ toolpalette.register(menu)
 -- families it covers, and a viewer shows it one step at a time: a focused step in the list, the
 -- step on its own with its fuller explanation, its restrictions and what checked it, and a detail
 -- level that decides how much of that appears (PRD sections 9 and 17, UI-003, STEP-009, STEP-010,
--- MATH-005). No expression is parsed here, which is section 12.3's boundary: the shell hands the
--- typed text to the module as it is, and the only text inspected is the prefix that names a mode.
+-- MATH-005). No solver expression is parsed here, which is section 12.3's boundary: the shell hands
+-- it to the module as typed, while inspecting only the command prefix and the !v identifier.
 --
 -- A request is "!d expr", "!i expr" or "!s equation", or any line at all once a mode has been
 -- chosen as a mode. "!h on" selects hints and "!h off" restores the full walkthrough.
@@ -2481,6 +2481,26 @@ STEP_MODES = {
 STEP_DETAILS = { "standard", "beginner" }
 STEP_LINE = 15
 STEP_MARGIN = 3
+-- Mirrors core is_identifier because save and restore must validate without invoking a solver.
+STEP_VARIABLE_MAX_BYTES = 4096
+STEP_VARIABLE_ERROR = "variable must be a single identifier without whitespace"
+
+function isStepsVariable(value)
+	if type(value) ~= "string" or value == "" or #value > STEP_VARIABLE_MAX_BYTES then return false end
+	if value == "\207\128" or value == "\226\136\158" then return true end
+	local byte = value:byte(1)
+	if not ((byte >= 65 and byte <= 90) or (byte >= 97 and byte <= 122) or byte == 95) then
+		return false
+	end
+	for i = 2, #value do
+		byte = value:byte(i)
+		if not ((byte >= 48 and byte <= 57) or (byte >= 65 and byte <= 90) or
+		        (byte >= 97 and byte <= 122) or byte == 95) then
+			return false
+		end
+	end
+	return true
+end
 
 local function startResourceProfile(operation)
 	steps.pendingResourceProfile = nil
@@ -3524,7 +3544,11 @@ end
 -- A solve opens the derivation and returns either its answer or a hint-safe history placeholder.
 function runSteps(mode, text)
 	if mode == "variable" then
-		if text ~= "" then steps.variable = text end
+		if not isStepsVariable(text) then
+			steps.status = STEP_VARIABLE_ERROR
+			return steps.status
+		end
+		steps.variable = text
 		steps.status = "steps in " .. steps.variable
 		return "variable " .. steps.variable
 	end
@@ -4764,11 +4788,12 @@ end)
 -- is type checked and ranged before it is used.
 function on.save()
 	local expression
+	local variable = isStepsVariable(steps.variable) and steps.variable or "x"
 	if fctEditor and fctEditor.editor and fctEditor.editor:getExpression() then
 		local typed = fctEditor:getExpression()
 		if type(typed) == "string" and typed ~= "" then expression = typed end
 	end
-	return { variable = steps.variable, mode = steps.mode, detail = steps.detail,
+	return { variable = variable, mode = steps.mode, detail = steps.detail,
 	         progression = steps.progression, automatic = steps.automatic,
 	         history = steps.histText, expression = expression }
 end
@@ -4776,7 +4801,7 @@ end
 function on.restore(saved)
 	if type(saved) ~= "table" then return end
 	if type(saved.automatic) == "boolean" then steps.automatic = saved.automatic end
-	if type(saved.variable) == "string" and saved.variable ~= "" then
+	if isStepsVariable(saved.variable) then
 		steps.variable = saved.variable
 	end
 	if saved.mode == nil or saved.mode == "differentiate" or saved.mode == "integrate"
