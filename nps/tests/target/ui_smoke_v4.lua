@@ -3353,6 +3353,131 @@ assert((function()
     return true
 end)())
 
+-- Issue 211. A version query that threw is not an answer about the version, so the memo it leaves
+-- has to stay open to a retry, while a version that did answer stays the verdict it already was.
+do
+    local queries = 0
+    local module = copyModule()
+    module.caseval = function(command)
+        calls.giac = calls.giac + 1
+        if command ~= "version()" then return "giac(" .. command .. ")" end
+        queries = queries + 1
+        if queries == 1 then error("version query interrupted", 0) end
+        return "giac for TI Nspire CX 1.9.0, (c) B. Parisse and R. De Graeve, Institut Fourier"
+    end
+    local env = loadIsolated(module)
+    drawn = {}
+    check(pcall(env.on.paint, gc) and queries == 1 and env.giacLabel() == "Giac :",
+          "a version query that raises at first paint leaves no version behind")
+    for _ = 1, 8 do env.on.paint(gc) end
+    check(queries == 1, "and a repaint reuses that attempt rather than asking the backend again")
+    local solved_before = calls.integrate
+    local result = env.runSteps("integrate", "1/x")
+    check(queries == 2 and calls.integrate == solved_before + 1 and
+          result ~= "StepCAS needs Giac 1.9.0, found no version",
+          "the next solve retries the query and runs once the backend answers")
+    check(env.giacLabel() == "Giac 1.9.0 :" and env.stepRefusal() == nil,
+          "and the answered version replaces the failed attempt for every later surface")
+    env.on.escapeKey()
+    drawn = {}
+    env.on.paint(gc)
+    local screen = table.concat(drawn, "\n")
+    check(screen:find("OK.", 1, true) ~= nil and screen:find("found no version", 1, true) == nil,
+          "so the launch screen stops naming a refusal the backend no longer earns")
+end
+
+-- The typed surface and the guided browser each decide on their own, so each one retries its own way in.
+do
+    local queries = 0
+    local module = copyModule()
+    module.caseval = function(command)
+        calls.giac = calls.giac + 1
+        if command ~= "version()" then return "giac(" .. command .. ")" end
+        queries = queries + 1
+        if queries == 1 then error("version query interrupted", 0) end
+        return "giac for TI Nspire CX 1.9.0, (c) B. Parisse and R. De Graeve, Institut Fourier"
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    env.fctEditor.editor:setExpression("\\0el {1+1}")
+    env.on.enterKey()
+    check(queries == 2 and env.steps.status == nil,
+          "a typed line retries the failed query instead of restating a refusal it inherited")
+
+    local browser = loadIsolated(module)
+    queries = 0
+    browser.on.paint(gc)
+    browser.openPhysicsFixtures()
+    check(queries == 2 and browser.physicsBrowser.active == true,
+          "and the guided browser opens once its retry answers")
+    browser.on.escapeKey()
+end
+
+-- The control. A backend that answered is refused on what it said, and asking it twice would only
+-- get the same sentence back.
+do
+    local queries = 0
+    local module = copyModule()
+    module.caseval = function(command)
+        calls.giac = calls.giac + 1
+        if command ~= "version()" then return "giac(" .. command .. ")" end
+        queries = queries + 1
+        return "giac for TI Nspire CX, (c) B. Parisse and R. De Graeve"
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local solved_before = calls.integrate
+    check(env.runSteps("integrate", "1/x") == "StepCAS needs Giac 1.9.0, found no version" and
+          env.runSteps("integrate", "1/x") == "StepCAS needs Giac 1.9.0, found no version" and
+          calls.integrate == solved_before and queries == 1,
+          "a backend that answered without a version is refused for good rather than asked again")
+
+    local mismatch = copyModule()
+    local mismatch_manifest = copyManifest()
+    mismatch_manifest.symbolic_backend.version = "1.9.1"
+    mismatch.capability_manifest = function() return mismatch_manifest end
+    local mismatch_queries = 0
+    mismatch.caseval = function(command)
+        calls.giac = calls.giac + 1
+        if command ~= "version()" then return "giac(" .. command .. ")" end
+        mismatch_queries = mismatch_queries + 1
+        return "giac for TI Nspire CX 1.9.0, (c) B. Parisse and R. De Graeve, Institut Fourier"
+    end
+    local mismatch_env = loadIsolated(mismatch)
+    mismatch_env.on.paint(gc)
+    solved_before = calls.integrate
+    check(mismatch_env.runSteps("integrate", "1/x") == "StepCAS needs Giac 1.9.1, found 1.9.0" and
+          mismatch_env.runSteps("integrate", "1/x") == "StepCAS needs Giac 1.9.1, found 1.9.0" and
+          calls.integrate == solved_before and mismatch_queries == 1,
+          "and a version that disagrees with the manifest is a verdict, not an attempt to repeat")
+end
+
+-- Nothing answered at all, so the diagnosis says the query failed rather than naming the type of a
+-- response there never was.
+do
+    local queries = 0
+    local module = copyModule()
+    module.caseval = function(command)
+        calls.giac = calls.giac + 1
+        if command ~= "version()" then return "giac(" .. command .. ")" end
+        queries = queries + 1
+        error({ code = 7 }, 0)
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    env.readFullText()
+    drawn = {}
+    for _ = 1, 64 do
+        env.on.paint(gc)
+        env.on.arrowDown()
+    end
+    local paragraphs = table.concat(drawn, " ")
+    check(paragraphs:find("Version response: ", 1, true) ~= nil and
+          paragraphs:find("Query failed", 1, true) ~= nil and
+          paragraphs:find("Unexpected table response", 1, true) == nil,
+          "a raised error object reads as a query that failed rather than a response that arrived")
+end
+
 plat010.guided_before = calls.unit_conversion
 plat010.version_env.openPhysicsFixtures()
 check(plat010.version_env.physicsBrowser.active == false and
