@@ -116,6 +116,7 @@ jobs:
             --model gemini-3.8-flash-high --effort high --dangerously-skip-permissions \
             --print-timeout 25m --output-format json \
             --print "$GEMINI_PROMPT" > "$RUNNER_TEMP/gemini-result.json"
+          jq '{status, error, response}' "$RUNNER_TEMP/gemini-result.json"
           jq -e '.status == "SUCCESS" and (.response | type == "string" and length > 0)' \
             "$RUNNER_TEMP/gemini-result.json"
           jq -r '.response' "$RUNNER_TEMP/gemini-result.json" > gemini-reply.md
