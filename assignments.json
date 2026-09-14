@@ -631,6 +631,16 @@
       "branch": "codex/issue-31",
       "slug": "cx2-ag-codex-review-prism",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-6",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 6,
+      "pr": 124,
+      "branch": "claude/issue-6",
+      "slug": "cx2-ag-claude-review-anchor",
+      "released": false
     }
   ]
 }
