@@ -246,7 +246,7 @@ exact_special_function_and_numerical_result_policy exact rational SI conversion 
 parser_module_ids src/units/units.cc, src/physics/vector_addition.cc
 required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab"
 test_group_ids vector addition, units
-proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
+proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.vector-add.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
 supported_methods exact SI conversion followed by matching component addition
 unsupported_near_neighbors three-dimensional addition in this archetype, implicit frame transformation, unequal dimensions
 solution_soundness_status verified by rank, frame, dimension, exact conversion and exact rational addition records

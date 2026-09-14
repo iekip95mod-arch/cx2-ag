@@ -631,7 +631,7 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
 
     std::string reported;
     HalfPlace rounding = HalfPlace::Within;
-    if (!reported_vector_text(relative, &reported, &rounding)) {
+    if (!reported_vector_text(relative, &reported, rounding)) {
         return failed(RelativeMotionOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached,
                       "reporting the measured precision exceeds exact integer arithmetic");
@@ -639,7 +639,8 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
     Vector exact_display = relative;
     exact_display.precision = Precision();
     std::string exact_text;
-    if (!reported_vector_text(exact_display, &exact_text)) {
+    HalfPlace exact_rounding = HalfPlace::Within;
+    if (!reported_vector_text(exact_display, &exact_text, exact_rounding)) {
         return failed(RelativeMotionOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached,
                       "the exact relative velocity cannot be formatted");
