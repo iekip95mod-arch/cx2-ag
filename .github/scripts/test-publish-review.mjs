@@ -13,7 +13,7 @@ const head = 'a'.repeat(40);
 const inline = { path: files[0].filename, line: 11, side: 'RIGHT', body: '[P2] Preserve the refusal condition' };
 
 test('environment blockers publish a nonapproving review without code findings', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider, 'BLOCKED');
     f.options.review.comments = [];
     f.published.state = 'COMMENTED';
@@ -53,7 +53,7 @@ test('inline requests retain exact left, right and context anchors', () => {
 });
 
 test('both providers submit one native formal review with attached comments for either verdict', async () => {
-  for (const provider of ['codex', 'claude']) for (const verdict of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const verdict of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, verdict);
     assert.equal((await publishReview(f.options, f.api)).id, 456);
     assert.deepEqual(f.calls.filter(call => call.method === 'POST'), [{ method: 'POST', path: `${f.endpoint}/reviews`, body: { commit_id: head, event: verdict === 'APPROVED' ? 'APPROVE' : 'REQUEST_CHANGES', body: f.options.review.body, comments: [inline] } }]);
@@ -116,7 +116,7 @@ test('unexpected publication response reports uncertainty without retrying', asy
 test('actual CLI uses JSON stdin, assigned token and exact native review arguments', () => {
   const scripts = dirname(fileURLToPath(import.meta.url));
   const root = join(scripts, '../../.Internal/workspaces/publish-review-tests'); mkdirSync(root, { recursive: true });
-  for (const provider of ['codex', 'claude']) for (const fail of [false, true]) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const fail of [false, true]) {
     const directory = mkdtempSync(join(root, 'cli-')); const bin = join(directory, 'bin'); mkdirSync(bin);
     copyFileSync(join(scripts, 'fixtures/review-feedback-gh.mjs'), join(bin, 'gh')); chmodSync(join(bin, 'gh'), 0o755);
     const f = fixture(provider); const log = join(directory, 'calls.jsonl'); const config = join(directory, 'fixture.json'); const review = join(directory, 'review.json');
