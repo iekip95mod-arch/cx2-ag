@@ -114,11 +114,11 @@ jobs:
       cancel-in-progress: false
       queue: max
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       WORKER_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}
       WORKER_EFFORT: ${{ vars.GEMINI_EFFORT || 'high' }}
-      AGENT_JOB_TIMEOUT_MINUTES: 30
+      AGENT_JOB_TIMEOUT_MINUTES: 20
     permissions:
       contents: read
       issues: read
