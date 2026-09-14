@@ -209,11 +209,9 @@ local CHAN_PROBE = false
 -- that is actually loaded. Not read at load time on purpose: a caseval before the UI is up is what
 -- the channel probe was doing when it took the calculator down.
 -- A local, so the memo belongs to the document that scanned it rather than to whichever ran first.
--- Three states, not two: never asked is giacVer nil, asked and answered is a string with
--- giacVerUnanswered false, and asked without an answer is a string with it true. A call that raised
--- said nothing about the backend's version, so caching its silence as "no version" would refuse
--- every later solve for a failure that lasted one paint. Retried at the surfaces a student drives,
--- rather than on every paint, because the deferral to first paint was about not asking Giac often.
+-- Three states rather than two, because a query that raised said nothing about the version and
+-- memoising its silence as "no version" refused every later solve for a failure that lasted one
+-- paint. Retried at the surfaces a student drives, since the deferral was about asking Giac rarely.
 local giacVer, giacVersionDetails, giacVerUnanswered
 
 local function giacRuntimeVersion(retry)
@@ -288,8 +286,7 @@ end
 -- One answer for every surface that solves. The load-time refusals are decided before the UI is up
 -- and the version cannot be, so a caller asking whether it may solve has to ask about both. The
 -- default remedy fits this one: the artefact carries both the manifest and the backend that answered.
--- retry asks for one more version query when the last one raised. The surfaces a student drives
--- pass it, the ones that only draw what is already known do not.
+-- retry asks again when the last query raised. Solving surfaces pass it, drawing ones do not.
 function stepRefusal(retry)
 	return stepSurfaceError or backendVersionRefusal(retry)
 end
