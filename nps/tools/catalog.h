@@ -125,21 +125,34 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
         return false;
     std::string line;
     while (std::getline(in, line)) {
+        const std::string text = trimmed(line);
+        if (text.empty() || text[0] == '#')
+            continue;
         std::string word, rest;
-        if (!first_word(line, &word, &rest))
-            continue;
-        if (word[0] == '#')
-            continue;
+        if (!first_word(text, &word, &rest)) {
+            word = text;
+            rest.clear();
+        }
         if (word == "family") {
             std::string field, value;
-            if (!first_word(rest, &field, &value) || field != "id")
+            if (!first_word(rest, &field, &value) || field != "id" ||
+                value.find_first_of(" \t") != std::string::npos) {
+                if (!out->empty()) {
+                    if (fault != nullptr)
+                        *fault = "family header is malformed: " + text;
+                    out->clear();
+                    return false;
+                }
                 continue;
+            }
             Family f;
             f.id = value;
             f.fields.insert("id");
             out->push_back(f);
             continue;
         }
+        if (rest.empty())
+            continue;
         if (out->empty())
             continue;
         Family &f = out->back();

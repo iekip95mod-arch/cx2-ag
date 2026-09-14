@@ -280,7 +280,9 @@ int selftest() {
     };
     for (size_t i = 0; i < sizeof(header_cases) / sizeof(header_cases[0]); ++i) {
         std::ofstream staged(header_catalog.c_str());
-        staged << header_cases[i].header_line << "\n"
+        staged << "family id staged.previous\n"
+               << "rule eq.divide-both-sides fixture\n"
+               << header_cases[i].header_line << "\n"
                << "rule eq.divide-both-sides fixture\n";
         staged.close();
         std::vector<Family> staged_families;
@@ -289,8 +291,8 @@ int selftest() {
         const bool as_expected =
             ok == header_cases[i].reads &&
             (header_cases[i].reads
-                 ? fault.empty() && staged_families.size() == 1 &&
-                       staged_families[0].id == "staged.one"
+                 ? fault.empty() && staged_families.size() == 2 &&
+                       staged_families[1].id == "staged.one"
                  : staged_families.empty() &&
                        fault.find(header_cases[i].fault_names) != std::string::npos);
         if (!as_expected)
@@ -319,7 +321,9 @@ int selftest() {
     }
     {
         std::ofstream staged(header_catalog.c_str());
-        staged << "family ix staged.bad\nrule eq.divide-both-sides fixture\n";
+        staged << "family id staged.first\n"
+               << "rule eq.divide-both-sides fixture\n"
+               << "family ix staged.bad\nrule eq.divide-both-sides fixture\n";
         staged.close();
         const bool refused = coverage(header_catalog, fixtures_dir, refused_report, nullptr) != 0 &&
                              !std::filesystem::exists(refused_report);
