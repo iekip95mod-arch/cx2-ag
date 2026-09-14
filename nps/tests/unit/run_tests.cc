@@ -916,8 +916,9 @@ int main_body() {
     run_vector_addition_tests(sink);
     sink.begin_group("vector components");
     run_vector_components_tests(sink);
-    sink.begin_group("work");
+    sink.begin_group("forces");
     run_forces_tests(sink);
+    sink.begin_group("work");
     run_work_tests(sink);
     sink.begin_group("context");
     run_context_tests(sink);

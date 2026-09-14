@@ -190,13 +190,12 @@ Rational absolute(const Rational &value) {
     return out;
 }
 
-int compare(const Rational &a, const Rational &b) {
+bool compare(const Rational &a, const Rational &b, int *out) {
     Rational difference;
     if (!rational_sub(a, b, &difference))
-        return 0;
-    if (difference.num < 0)
-        return -1;
-    return difference.num > 0 ? 1 : 0;
+        return false;
+    *out = difference.num < 0 ? -1 : (difference.num > 0 ? 1 : 0);
+    return true;
 }
 
 void add_entry(ForcesResult *result, ForceKind kind, const std::string &label,
@@ -594,7 +593,6 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     Rational friction;
     friction.num = 0;
     friction.den = 1;
-    bool friction_unknown = problem.unknown == ForcesUnknown::FrictionForce;
     if (problem.friction == FrictionModel::Kinetic) {
         friction = problem.motion == MotionSense::UpTheAxis ? negated(maximum_static.value)
                                                             : maximum_static.value;
@@ -628,7 +626,14 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         result.static_checked = true;
         result.required_friction = friction;
         result.maximum_static_friction = maximum_static.value;
-        const bool holds = compare(absolute(friction), maximum_static.value) <= 0;
+        int ordering = 0;
+        if (!compare(absolute(friction), maximum_static.value, &ordering)) {
+            return failed(ForcesOutcome::ArithmeticOverflow,
+                          DerivationStatus::ResourceLimitReached,
+                          "comparing the required friction against its limit exceeds exact "
+                          "arithmetic");
+        }
+        const bool holds = ordering <= 0;
         const std::string observed = "the balance needs " + newtons(absolute(friction)) +
                                      " against a maximum of " + newtons(maximum_static.value);
         if (!add_check(derivation, meter, plan_id, "physics.forces.static-friction-limit",
@@ -714,7 +719,6 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
                       "solving for the requested unknown exceeds exact arithmetic");
     }
-    (void)friction_unknown;
 
     if (!add_transformation(
             derivation, meter, plan_id, "physics.forces.solve-unknown",
@@ -738,14 +742,20 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
 
     // Put the answer back into the axis sum it came from. A residual that is not exactly zero means
     // the inventory and the answer disagree, and then no value is offered.
+    // Rebuilt from the published inventory rather than from the running total the answer came out
+    // of, so an entry that disagrees with the sum shows up here instead of cancelling itself.
+    Exact inventory_along = exact(0);
+    for (const ForceEntry &entry : result.inventory)
+        inventory_along = add(inventory_along, exact(entry.along));
     Exact residual;
     if (problem.unknown == ForcesUnknown::Acceleration) {
-        residual = sub(along_total, mul(exact(mass), answer));
+        residual = sub(inventory_along, mul(exact(mass), answer));
     } else if (problem.unknown == ForcesUnknown::AppliedForce) {
-        residual = sub(add(along_total, answer), required);
+        residual = sub(add(inventory_along, answer), required);
     } else {
-        residual = sub(along_total, required);
+        residual = sub(inventory_along, required);
     }
+    residual.ok = residual.ok && inventory_along.ok;
     if (!residual.ok) {
         return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
                       "evaluating the force-balance residual exceeds exact arithmetic");

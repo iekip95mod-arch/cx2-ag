@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 21,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 22,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -1383,7 +1383,7 @@ before_forces = giac_calls
 r = nps.forces(forces_input)
 check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
       "the forces bridge returns a verified typed solution")
-check(r.value == "3.5" and r.exact_value == "7/2" and r.unit == "m/s^2" and
+check(r.value == "3.5" and r.exact_value == "3.5" and r.unit == "m/s^2" and
       r.result == "acceleration = 3.5 m/s^2" and r.unknown == "acceleration",
       "the forces bridge reports the acceleration with its SI unit and exact value")
 check(giac_calls == before_forces and r.giac_calls == 0,
@@ -1393,13 +1393,14 @@ check(type(r.inventory) == "table" and #r.inventory == 4 and
       "the forces bridge emits the whole force inventory and both axis equations")
 by_kind = {}
 for _, entry in ipairs(r.inventory) do by_kind[entry.kind] = entry end
-check(by_kind.weight ~= nil and by_kind.weight.magnitude == "20" and
-      by_kind.normal ~= nil and by_kind.normal.across == "20" and
-      by_kind.applied ~= nil and by_kind.applied.along == "12" and
-      by_kind.friction ~= nil and by_kind.friction.along == "-5",
+check(by_kind.weight ~= nil and by_kind.weight.magnitude == "20 N" and
+      by_kind.normal ~= nil and by_kind.normal.across == "20 N" and
+      by_kind.applied ~= nil and by_kind.applied.along == "12 N" and
+      by_kind.friction ~= nil and by_kind.friction.along == "-5 N",
       "each inventory entry carries the components #158 draws its labels from")
-check(type(r.pairs) == "table" and #r.pairs == 1 and r.pairs[1].on_body == "block" and
-      r.pairs[1].reaction_on == "table",
+check(type(r.pairs) == "table" and #r.pairs == 2 and r.pairs[1].on_body == "block" and
+      r.pairs[1].reaction_on == "table" and r.pairs[2].on_body == "block" and
+      r.pairs[2].reaction_on == "the Earth",
       "the third-law pair travels beside the inventory rather than inside it")
 forces_rules = {}
 for _, s2 in ipairs(r.steps) do if s2.rule then forces_rules[s2.rule] = true end end

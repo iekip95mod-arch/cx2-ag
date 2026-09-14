@@ -568,7 +568,7 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
-    catch_up = 0, relative_motion = 0, forces = 0,
+    forces = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
 }
 local profile_events = {}
