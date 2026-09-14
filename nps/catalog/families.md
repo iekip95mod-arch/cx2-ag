@@ -137,62 +137,6 @@ rule physics.catch-up.verify-first-position fixture
 rule physics.catch-up.verify-second-position fixture
 rule physics.catch-up.significant-figures fixture
 
-family id physics.kinematics.constant-acceleration.two-dimension
-reference_curriculum_set_ids StepCAS product requirements PHYS-019, PHYS-028
-curriculum_source_locations StepCAS_Product_Requirements_Document.md section 9
-topic_and_level Two-dimensional constant-acceleration kinematics with declared axes
-family_envelope_version 1
-accepted_expression_grammar existing scalar expression grammar for each vector component and for the elapsed time
-accepted_input_forms one typed PlanarKinematicsProblem naming the body, a framed rank-two initial velocity, a framed rank-two constant acceleration, one shared elapsed time, a declared coordinate convention and each quantity's motion stage
-domains_and_parameter_assumptions both vectors are rank two, declare the same named frame, carry dimensions L T^-1 and L T^-2, and the elapsed time is a positive quantity with dimension T
-supported_branches_and_degenerate_cases exact and measured components, zero and negative components, a zero acceleration, and compatible units with different SI scales
-exact_special_function_and_numerical_result_policy exact rational SI conversion and per-axis exact arithmetic, with measured precision applied only to the final report
-word_language_profile_ids none, typed entry only
-parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
-required_assumptions the acceleration is constant over the whole interval, one shared time links both axes, and the declared axes carry positive i to the right and positive j up
-test_group_ids planar kinematics
-proof_obligation_ids obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.definition-after-checks, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time, obl.physics.converts-by-table, obl.plan.preconditions-hold
-strategy_ids physics.planar-kinematics.plan
-supported_methods validate the declared axes, motion stages, ranks, frames and dimensions, convert every input exactly to SI, integrate each axis under the one shared time using the existing vector operations, then check the result against the average-velocity identity
-unsupported_near_neighbors non-constant acceleration, drag, rank-three motion, implicit frame transformation, rotating frames, and solving for the elapsed time from a stated displacement
-solution_soundness_status verified by rank, frame declaration, frame identity, stage identity, input and result dimensions, and an average-velocity identity check with an optional Giac comparison
-solution_completeness_status partial, forward evaluation of displacement and final velocity from a stated interval
-explanation_review_status independent explanation review not yet recorded
-learner_transfer_status not measured
-device_performance_status not measured
-direct_keypad_entry_status not implemented, no Lua bridge entry point yet
-isolated_runtime_status host only, ARM package and calculator runtime not yet measured
-capability_manifest_ids none, not registered in the host capability manifest until the Lua bridge entry point lands
-release_status in development, unreleased
-
-family id physics.kinematics.constant-acceleration.projectile.two-dimension
-reference_curriculum_set_ids StepCAS product requirements PHYS-019, PHYS-028
-curriculum_source_locations StepCAS_Product_Requirements_Document.md section 9
-topic_and_level Projectile motion as the specialization of planar constant acceleration
-family_envelope_version 1
-accepted_expression_grammar existing scalar expression grammar for each vector component and for the elapsed time
-accepted_input_forms the same typed PlanarKinematicsProblem with its projectile flag set
-domains_and_parameter_assumptions the horizontal acceleration component is exactly zero and the vertical one is negative in the declared axes
-supported_branches_and_degenerate_cases horizontal launch, launch with an upward or downward vertical component, and any downward acceleration magnitude the caller states
-exact_special_function_and_numerical_result_policy exact rational SI conversion and per-axis exact arithmetic, with measured precision applied only to the final report
-word_language_profile_ids none, typed entry only
-parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
-required_assumptions gravity is the only acceleration, it is constant over the interval, and the declared axes carry positive j up
-test_group_ids planar kinematics
-proof_obligation_ids obl.planar-kinematics.projectile, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.definition-after-checks, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time, obl.physics.converts-by-table, obl.plan.preconditions-hold
-strategy_ids physics.planar-kinematics.plan
-supported_methods the planar constant-acceleration method with an added check that the horizontal axis is unaccelerated and the vertical acceleration points down
-unsupported_near_neighbors air resistance, an upward or horizontal acceleration, range and time-of-flight solving, and rank-three trajectories
-solution_soundness_status verified by the projectile precondition on top of every planar constant-acceleration check
-solution_completeness_status partial, forward evaluation only
-explanation_review_status independent explanation review not yet recorded
-learner_transfer_status not measured
-device_performance_status not measured
-direct_keypad_entry_status not implemented, no Lua bridge entry point yet
-isolated_runtime_status host only, ARM package and calculator runtime not yet measured
-capability_manifest_ids none, not registered in the host capability manifest until the Lua bridge entry point lands
-release_status in development, unreleased
-
 family id physics.kinematics.relative-motion.components.two-dimension
 reference_curriculum_set_ids StepCAS product requirements PHYS-016, M1 archetype 7
 curriculum_source_locations StepCAS_Product_Requirements_Document.md section 11, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 7
