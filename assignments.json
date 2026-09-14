@@ -1103,6 +1103,16 @@
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-gemini-review-facet",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-222",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 222,
+      "pr": 253,
+      "branch": "gemini/issue-222",
+      "slug": "cx2-ag-gemini-review-gauge",
+      "released": false
     }
   ]
 }
