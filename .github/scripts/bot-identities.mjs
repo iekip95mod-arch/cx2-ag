@@ -8,12 +8,12 @@ const assignmentPath = 'assignments.json';
 
 export function loadRoster(path = new URL('./bot-identities.json', import.meta.url)) {
   const roster = JSON.parse(readFileSync(path, 'utf8'));
-  if (!Array.isArray(roster) || roster.length !== 36) throw Error('The bot roster must contain 36 identities');
+  if (!Array.isArray(roster) || roster.length !== 48) throw Error('The bot roster must contain 48 identities');
   for (const field of ['slug', 'login', 'secretName']) {
     if (new Set(roster.map(identity => identity[field])).size !== roster.length) throw Error(`Duplicate bot ${field}`);
   }
   for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) {
-    if (roster.filter(identity => identity.provider === provider && identity.role === role).length !== (role === 'executor' ? 12 : 6)) throw Error('Each provider must contain twelve executors and six reviewers');
+    if (roster.filter(identity => identity.provider === provider && identity.role === role).length !== 12) throw Error('Each bot pool must contain twelve identities');
   }
   for (const identity of roster) {
     const slug = `cx2-ag-${identity.provider}-${identity.role === 'reviewer' ? 'review-' : ''}${identity.name}`;
