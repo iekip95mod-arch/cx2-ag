@@ -245,23 +245,23 @@ Everything an agent reads from a comment or a dispatch payload is written by som
 
 None of the agents run without credentials. The workflows check first and say so in the run summary when they are missing, rather than failing red on every issue anybody opens. Each agent takes something different, and the differences are not cosmetic.
 
-Use subscription credentials for this repository. Codex rejects API-key authentication and the Claude worker and reviewer use their OAuth subscription token. Gemini retains API-key fallback code, but do not configure it or use API billing for this setup.
+Use subscription credentials for this repository. Codex rejects API-key authentication and the Claude worker and reviewer use their OAuth subscription token. Gemini uses Antigravity CLI with a saved subscription sign in and no API-key fallback.
 
 | Agent | Sign in | Key | Where the sign in comes from |
 | --- | --- | --- | --- |
 | Claude | CLAUDE_CODE_OAUTH_TOKEN | Not used | claude setup-token |
 | Codex | CODEX_AUTH_JSON | Not used | ~/.codex/auth.json, after codex login |
-| Gemini | GEMINI_OAUTH_CREDS | GEMINI_API_KEY | ~/.gemini/oauth_creds.json, after gemini signs in |
+| Gemini | ANTIGRAVITY_OAUTH_CREDS | Not used | ~/.gemini/antigravity-cli/antigravity-oauth-token, after agy signs in |
 
 ~~~sh
 gh secret set CLAUDE_CODE_OAUTH_TOKEN --body "$(claude setup-token)"
 gh secret set CODEX_AUTH_JSON < ~/.codex/auth.json
-gh secret set GEMINI_OAUTH_CREDS < ~/.gemini/oauth_creds.json
+gh secret set ANTIGRAVITY_OAUTH_CREDS < ~/.gemini/antigravity-cli/antigravity-oauth-token
 ~~~
 
 Claude's action accepts its subscription token directly. Codex runs its CLI with a private home directory holding auth.json. The GitHub-hosted subscription smoke test passed on 2026-09-12. Missing Codex credentials skip with a summary. Configured credentials that are malformed or contain an API key fail visibly.
 
-Gemini reads its saved sign in under HOME. Its subscription execution remains unverified here. Say which authentication method actually ran when reporting a result.
+Gemini reads its saved sign in under HOME. Its hosted subscription smoke test passed on 2026-09-14 with gemini-3.8-flash-high and high reasoning effort. Older GEMINI_OAUTH_CREDS files belong to the retired consumer CLI and cannot replace the Antigravity token. Missing credentials skip with a summary. The current Gemini lane reads trusted source and posts replies. It does not execute commands, change files or claim a named worker identity.
 
 Saved sign ins can expire or be invalidated. These jobs do not save refreshed credentials back to repository secrets, so replace a stale secret after signing in again. The successful smoke test does not establish future token renewal.
 
