@@ -821,6 +821,16 @@
       "branch": "claude/issue-15",
       "slug": "cx2-ag-claude-review-summit",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-196",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 196,
+      "pr": 219,
+      "branch": "claude/issue-196",
+      "slug": "cx2-ag-claude-review-arch",
+      "released": false
     }
   ]
 }
