@@ -504,6 +504,31 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends ccache libgmp-dev php
           npm install -g @openai/codex@0.154.0
+      - name: Verify command sandbox before review setup
+        env:
+          CODEX_HOME: ${{ steps.key.outputs.home }}
+        run: |
+          codex sandbox linux -c 'sandbox_mode="workspace-write"' -- python3 - <<'PY'
+          import errno
+          import os
+          import socket
+          from pathlib import Path
+          outside = Path.home() / ('sandbox-denial-' + os.environ['GITHUB_RUN_ID'])
+          try:
+              outside.open('x').close()
+          except PermissionError:
+              pass
+          else:
+              raise RuntimeError('Sandbox allowed a write outside the workspace')
+          try:
+              with socket.socket() as connection:
+                  connection.connect(('127.0.0.1', 9))
+          except OSError as error:
+              assert error.errno in (errno.EACCES, errno.EPERM), error
+          else:
+              raise RuntimeError('Sandbox allowed a network connection')
+          print('Sandbox commands execute and deny outside writes and network connections')
+          PY
       - name: Restore the reviewer cross toolchain
         id: reviewer-toolchain-cache
         uses: actions/cache/restore@v6
