@@ -26,6 +26,11 @@ struct CalculusResult {
     NodeId value = kNoNode;
     int infinity = 0;
     bool does_not_exist = false;
+    // The tangent-line family. slope and point_value are the two exact facts the line is
+    // built from, and approximate says the answer is a linearization rather than an equality.
+    NodeId slope = kNoNode;
+    NodeId point_value = kNoNode;
+    bool approximate = false;
     bool answer_only = false;
     bool backend_attempted = false;
     bool backend_compared = false;

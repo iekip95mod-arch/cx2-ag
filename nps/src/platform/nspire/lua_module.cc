@@ -2548,6 +2548,15 @@ int calculus_into(lua_State *L) {
     if (!answer.empty()) set_field(L, "result", answer);
     if (command.kind == CommandKind::Limit && !answer.empty())
         set_field(L, "limit_exists", !result.does_not_exist);
+    // The tangent family reports what the line was built from and whether the relation it states is
+    // an equality. A linearization is an approximation away from the point and says so here.
+    if (result.slope != kNoNode) set_field(L, "tangent_slope", print(arena, result.slope));
+    if (result.point_value != kNoNode)
+        set_field(L, "tangent_point_value", print(arena, result.point_value));
+    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) {
+        set_field(L, "approximation", result.approximate);
+        set_field(L, "relation", result.approximate ? "approximately equal" : "equal");
+    }
     if (result.infinity != 0) set_field(L, "infinite_limit", true);
     const ResultForm backend_form =
         result.backend_attempted ? result_form(result.backend_result) : ResultForm::NoResult;
@@ -2602,7 +2611,8 @@ int l_walkthrough(lua_State *L) {
             lua_setfield(L, -2, "request_expression");
             return 1;
         }
-        if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral) {
+        if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
         lua_settop(L, 3);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2611,7 +2621,8 @@ int l_walkthrough(lua_State *L) {
         lua_replace(L, 2);
         }
     }
-    if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral)
+    if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
+        kind == CommandKind::Tangent || kind == CommandKind::Linearize)
         return calculus_into(L);
     int count;
     if (kind == CommandKind::Solve)
