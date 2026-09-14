@@ -48,6 +48,48 @@ bool poll(void *p) {
 }
 
 void run_solve_task_tests(TestSink &t) {
+    {
+        // A wrapper the sample evaluator cannot work out leaves the substitution check inconclusive
+        // rather than passed, which is the solved-but-unchecked answer the two-status comparison
+        // used to throw away here while leaving the status saying it had one.
+        const std::string source = "y=x+sin(z)";
+        Arena arena;
+        Derivation reference;
+        const RearrangeResult synchronous =
+            rearrange(arena, reference, parse(arena, source).root, arena.symbol("x"));
+        t.check(synchronous.outcome == RearrangeOutcome::Isolated &&
+                    synchronous.status == DerivationStatus::SolvedButUnchecked &&
+                    synchronous.formula != kNoNode,
+                "an uncheckable wrapper reaches solved but unchecked with an answer in hand");
+        SolveTask task(SolveOperation::Rearrange, SolveRequest{source}, "x", 65536);
+        for (size_t i = 0; i < 10000 && task.state() == TaskState::Pending; ++i)
+            task.advance(1);
+        t.check(task.result() != nullptr, "an uncheckable rearrangement finishes incrementally");
+        if (task.result()) {
+            const RearrangeResult &incremental = std::get<RearrangeResult>(*task.result());
+            t.check(incremental.status == synchronous.status,
+                    "the incremental rearrangement keeps the synchronous status");
+            t.equal(incremental.formula == kNoNode ? std::string("withheld")
+                                                   : print(task.arena(), incremental.formula),
+                    print(arena, synchronous.formula),
+                    "a solved but unchecked rearrangement keeps its answer through the task");
+            t.equal(incremental.expression == kNoNode ? std::string("withheld")
+                                                      : print(task.arena(), incremental.expression),
+                    print(arena, synchronous.expression),
+                    "a solved but unchecked rearrangement keeps its isolated side through the task");
+        }
+        Budget budget;
+        budget.max_steps = 2;
+        SolveTask bounded(SolveOperation::Rearrange, SolveRequest{source}, "x", 65536, Limits{},
+                          budget);
+        while (bounded.state() == TaskState::Pending)
+            bounded.advance(1);
+        t.check(bounded.result() && std::get<RearrangeResult>(*bounded.result()).status ==
+                                        DerivationStatus::ResourceLimitReached &&
+                    std::get<RearrangeResult>(*bounded.result()).formula == kNoNode &&
+                    std::get<RearrangeResult>(*bounded.result()).expression == kNoNode,
+                "a resource refusal on the same input still withholds both nodes");
+    }
     for (const size_t steps : {size_t{0}, size_t{4}, size_t{5}}) {
         SolveRequest request{steps == 0 ? "0.5*x=1" : "2*x=1"};
         request.numeric_mode = NumericMode::Decimal;
