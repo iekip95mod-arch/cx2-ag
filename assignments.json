@@ -801,6 +801,16 @@
       "branch": "claude/issue-143",
       "slug": "cx2-ag-claude-nebula",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-208",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 208,
+      "pr": null,
+      "branch": "claude/issue-208",
+      "slug": "cx2-ag-claude-pulsar",
+      "released": false
     }
   ]
 }
