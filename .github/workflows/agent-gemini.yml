@@ -26,43 +26,42 @@ jobs:
        contains(github.event.comment.body, '@gemini'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      AGENT_JOB_TIMEOUT_MINUTES: 30
     # Read on contents for the reason agent-codex.yml gives: this lane posts an answer and never
     # pushes a branch.
     permissions:
       contents: read
       issues: write
       pull-requests: write
-      id-token: write
     steps:
-      # Two ways in. A Google sign in reaches the CLI as the oauth_creds.json it writes itself, which
-      # survives because the action only ever writes the project's .gemini directory and never the
-      # one under HOME. Code Assist is then selected by use_gemini_code_assist below, which is the
-      # input that sets GOOGLE_GENAI_USE_GCA. Failing that, an AI Studio key.
+      - name: Record job start
+        run: echo "AGENT_JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Decide whether credentials are configured
         id: key
         env:
-          GEMINI: ${{ secrets.GEMINI_API_KEY }}
-          OAUTH_CREDS: ${{ secrets.GEMINI_OAUTH_CREDS }}
+          OAUTH_CREDS: ${{ secrets.ANTIGRAVITY_OAUTH_CREDS }}
         run: |
           if [ -n "$OAUTH_CREDS" ]; then
-            mkdir -p "$HOME/.gemini"
-            printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/oauth_creds.json"
-            chmod 600 "$HOME/.gemini/oauth_creds.json"
-            echo "code_assist=true" >> "$GITHUB_OUTPUT"
-            echo "have=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "$GEMINI" ]; then
-            echo "code_assist=false" >> "$GITHUB_OUTPUT"
+            umask 077
+            mkdir -p "$HOME/.gemini/antigravity-cli"
+            printf '%s' "$OAUTH_CREDS" > "$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+            jq -n --arg home "$HOME" --arg workspace "$GITHUB_WORKSPACE" \
+              '{permissions: {allow: [("read_file(" + $workspace + ")")], deny: ["command(*)", "unsandboxed(*)", "write_file(*)", "read_url(*)", "execute_url(*)", "mcp(*)", ("read_file(" + $home + "/.gemini)")]}}' \
+              > "$HOME/.gemini/antigravity-cli/settings.json"
             echo "have=true" >> "$GITHUB_OUTPUT"
           else
             echo "have=false" >> "$GITHUB_OUTPUT"
-            echo "Neither GEMINI_OAUTH_CREDS nor GEMINI_API_KEY is set, so Gemini did not run." \
-              >> "$GITHUB_STEP_SUMMARY"
+            echo "No ANTIGRAVITY_OAUTH_CREDS is configured. Gemini subscription execution was skipped." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - uses: actions/checkout@v7
         if: steps.key.outputs.have == 'true'
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
@@ -81,12 +80,12 @@ jobs:
         run: |
           {
             echo "Read AGENTS.md and GEMINI.md before anything else. They are the working agreement"
-            echo "for this repository. Work under .Internal/workspaces/, ship tests in the same"
-            echo "commit as the code they cover, reach for what already exists before writing your"
-            echo "own, and prove each new guard dies when the fix is reverted."
+            echo "for this repository. This lane answers questions from the trusted checkout."
+            echo "Read relevant source files. Do not edit files, execute commands or publish changes."
             echo
             echo "Say which stages you actually reached. Host build and host suite are what a commit"
             echo "can claim."
+            echo "You are Gemini 3.8 Flash (High) with high reasoning effort. State this in your final response."
             echo "Calculator execution is emulator only. Physical handheld runs are outside scope."
             echo "Do not request hardware runs, add unfinished physical-test checkboxes or block on their absence."
             echo "Keep relevant host tests and package builds. Distinguish emulator regressions from package execution."
@@ -105,20 +104,25 @@ jobs:
             echo "${delimiter}"
           } >> "$GITHUB_ENV"
 
+      - name: Install Antigravity CLI
+        if: steps.key.outputs.have == 'true'
+        run: |
+          curl --fail --silent --show-error --location \
+            https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-x64/cli_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/antigravity.tar.gz"
+          printf '%s  %s\n' \
+            74342cf2a78b344392e573b638a648a6ad1f8e877f494b96e20f9c2b79158d5c423c40b2dcf788703362bb0a9150f09c707fde599d7557ce01c12208802a63cb \
+            "$RUNNER_TEMP/antigravity.tar.gz" | sha512sum --check
+          mkdir -p "$RUNNER_TEMP/antigravity-bin"
+          tar -xzf "$RUNNER_TEMP/antigravity.tar.gz" -C "$RUNNER_TEMP/antigravity-bin" antigravity
+          chmod +x "$RUNNER_TEMP/antigravity-bin/antigravity"
+
       - name: Run Gemini
         id: gemini
         if: steps.key.outputs.have == 'true'
-        # v0.1.22 as of this commit. See agent.yml for why these are pinned by digest.
-        uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489
-        with:
-          # Empty when Code Assist is in use. The action warns if it is given both, and a sign in
-          # that silently falls back to a key is the kind of thing nobody notices until the bill.
-          gemini_api_key: ${{ steps.key.outputs.code_assist != 'true' && secrets.GEMINI_API_KEY || '' }}
-          use_gemini_code_assist: ${{ steps.key.outputs.code_assist }}
-          prompt: ${{ env.GEMINI_PROMPT }}
+        timeout-minutes: 26
+        run: node .github/scripts/run-gemini.mjs
 
-      # The action returns its answer rather than posting it, so the reply is written to a file and
-      # posted from there.
       - name: Post the reply
         # A review comment carries a pull request rather than an issue, and gh issue comment takes
         # either number. Without the fallback the answer is produced and then dropped.
@@ -128,7 +132,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-          SUMMARY: ${{ steps.gemini.outputs.summary }}
         run: |
-          printf '%s\n' "$SUMMARY" > gemini-reply.md
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body-file gemini-reply.md
