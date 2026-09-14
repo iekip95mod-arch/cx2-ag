@@ -246,7 +246,7 @@ exact_special_function_and_numerical_result_policy exact rational SI conversion 
 parser_module_ids src/units/units.cc, src/physics/vector_addition.cc
 required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab"
 test_group_ids vector addition, units
-proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
+proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.vector-add.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
 supported_methods exact SI conversion followed by matching component addition
 unsupported_near_neighbors three-dimensional addition in this archetype, implicit frame transformation, unequal dimensions
 solution_soundness_status verified by rank, frame, dimension, exact conversion and exact rational addition records
@@ -726,3 +726,65 @@ rule matrix.det-row-scale fixture
 rule matrix.det-row-add-multiple fixture
 rule matrix.det-diagonal-product fixture
 rule matrix.det-correction fixture
+
+family id calculus.tangent-line.single-variable
+topic_and_level Tangent lines to a supported expression at a rational point, PRD section 9 CALC-010
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms tangent(expression,variable,point), with the point an exact rational
+domains_and_parameter_assumptions the expression and its derivative both have an exact rational value at the point. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases a point where the function and the derivative are exact, including a constant expression whose tangent is the horizontal line through it
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping or approximating the point value or the slope
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family, a condition a form needs is recorded as a domain restriction on the step that introduces it
+test_group_ids calculus, context
+supported_methods evaluate the function at the point, differentiate by the registered rules, evaluate the derivative at the point, and assemble the point-slope line
+unsupported_near_neighbors normal lines, tangents at a symbolic point, tangents at an irrational point, secant lines, implicit and higher-order tangency, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.tangent-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled line is read back exactly at the point and one unit away, which pins its value and its slope and withholds the result when either disagrees
+solution_completeness_status partial, the expressions the differentiation engine covers at a rational point and no others
+corpus_case_ids tangent_line
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu template implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.tangent-line.single-variable
+release_status in development, unreleased
+rule tangent.point-value fixture
+rule calculus.differentiate.rules fixture
+rule d.power fixture
+rule tangent.slope fixture
+rule tangent.line fixture
+rule tangent.check-line fixture
+
+family id calculus.linearization.single-variable
+topic_and_level Local linear approximation of a supported expression at a rational point, PRD section 9 CALC-010
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms linearize(expression,variable,point), with the point an exact rational
+domains_and_parameter_assumptions the expression and its derivative both have an exact rational value at the point. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases a point where the function and the derivative are exact, including a constant expression whose linearization is that constant
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping. The answer is stated as an approximation near the point rather than as an equality
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family, a condition a form needs is recorded as a domain restriction on the step that introduces it
+test_group_ids calculus, context
+supported_methods evaluate the function at the point, differentiate by the registered rules, evaluate the derivative at the point, and state the point-slope line as the local approximation
+unsupported_near_neighbors an error bound on the approximation, higher-order Taylor approximations, differentials quoted as a change in the function, a symbolic or irrational point, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.tangent-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled line is read back exactly at the point and one unit away, which pins its value and its slope and withholds the result when either disagrees. The approximation claim itself is stated rather than proved away from the point
+solution_completeness_status partial, the expressions the differentiation engine covers at a rational point and no others
+corpus_case_ids tangent_linearization
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu template implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.linearization.single-variable
+release_status in development, unreleased
+rule tangent.point-value fixture
+rule calculus.differentiate.rules fixture
+rule d.power fixture
+rule tangent.slope fixture
+rule tangent.linearization fixture
+rule tangent.check-line fixture

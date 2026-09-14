@@ -184,6 +184,16 @@ const ObligationSchema kLimitClassification[] = {
 const EvidenceAlternative kCalculusGiacEvidence[] = {
     {"Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
 };
+const EvidenceAlternative kTangentAgreementEvidence[] = {
+    {"exact evaluation at the point and one unit away",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kTangentAgreement[] = {
+    {"obl.calculus.tangent-agreement",
+     "the line meets the curve at the point and has the derivative as its slope",
+     kTangentAgreementEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -655,6 +665,11 @@ const ObligationSchema kVectorAddRank[] = {
 const ObligationSchema kVectorAddRounding[] = {
     {"obl.vector-add.rounding-final",
      "precision is applied once after exact component addition", kSignificantFigures, 1},
+    // Separate from the obligation above for the reason given at kUnitRoundingFinal: when the
+    // report was rounded and whether it was rounded correctly are different claims.
+    {"obl.vector-add.rounding-within-half-place",
+     "the reported vector is within half a unit in the last place of the exact one",
+     kHalfPlaceComparison, 1},
 };
 const EvidenceAlternative kExactRationalAddition[] = {
     {"exact rational addition", EvidenceStrength::StructurallyValid},
@@ -943,6 +958,13 @@ const RuleSchema kRules[] = {
     {"limit.classify", ClaimType::NoClaim, kLimitClassification, 1, FailureBehavior::CannotFail},
     {"calculus.check-giac", ClaimType::EquivalentExpression, kCalculusGiac, 1, FailureBehavior::WithholdResult},
 
+    // calculus.tangent-line, CALC-010
+    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
+
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,
      FailureBehavior::WithholdResult},
@@ -1144,7 +1166,7 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"vec.add.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
      FailureBehavior::WithholdResult},
-    {"vec.add.report-precision", ClaimType::Definition, kVectorAddRounding, 1,
+    {"vec.add.report-precision", ClaimType::Definition, kVectorAddRounding, 2,
      FailureBehavior::WithholdResult},
 
     // vectors.components and vectors.polar
