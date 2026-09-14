@@ -127,6 +127,10 @@ void run_vector_addition_tests(TestSink &t) {
                 "the day the record stops carrying it");
         t.equal(derivation_status_name(result.status), "solved and verified",
                 "a rounding within half a place keeps the run verified");
+        t.equal(vector_addition_outcome_name(VectorAdditionOutcome::VerificationFailed),
+                "verification failed",
+                "a rounding the comparison rejects has an outcome of its own, so it can no longer "
+                "reach the caller as the arithmetic overflow it is not");
     }
 
     {
