@@ -1113,6 +1113,16 @@
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-gemini-review-gauge",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-235",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 235,
+      "pr": 238,
+      "branch": "claude/issue-235",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
