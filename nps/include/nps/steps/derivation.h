@@ -347,8 +347,8 @@ class Derivation {
     DerivationStatus outcome_from(size_t checkpoint) const;
 
     // Where the run of checked records starting at the checkpoint ends, which is what STEP-025 asks
-    // a halted solve to keep. An unfilled composite is a hole rather than a step, so it ends the run
-    // even when its own verification passed: nothing below it ever returned.
+    // a halted solve to keep. An unfilled composite is a hole rather than a step. A split is one
+    // group, so an incomplete or internally inconsistent group ends the prefix before its first case.
     size_t verified_prefix_end(size_t checkpoint, bool retain_plans = false) const;
 
     // Whether any real work landed below a step, which is how a composite rule that failed partway

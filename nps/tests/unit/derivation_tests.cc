@@ -563,6 +563,78 @@ void test_verified_prefix(TestSink &t) {
     // looked at is where the prefix ends, whatever came after it.
     Step checked = envelope("Isolate x", ClaimType::SolutionSetPreserved);
     checked.verifications.push_back(verification("sample agreement", VerificationOutcome::Passed));
+    const auto exhaustive_case = []() {
+        BranchPayload payload;
+        payload.siblings_exhaustive = true;
+        payload.siblings_exclusive = true;
+        payload.siblings_domain_consistent = true;
+        payload.exhaustive_evidence = "case reconstruction";
+        payload.resolution = BranchResolution::Solved;
+        payload.resolution_evidence = "substitution";
+        return payload;
+    };
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(
+            kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+
+        Step unchecked = envelope("Take the other square root", ClaimType::SolutionSetNarrowed);
+        const StepId second =
+            d.add_branch(meter, split, std::move(unchecked), exhaustive_case());
+
+        t.check(second != kNoStep && d.verified_prefix_end(0) == first,
+                "a prefix ending in the second case rolls back to before the split");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == first,
+                "so retaining it keeps the checked setup and no half split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(
+            kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId only = d.add_branch(meter, split, checked, exhaustive_case());
+
+        t.check(d.verified_prefix_end(0) == only,
+                "an individually checked case without its split completion is not a valid prefix");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == only,
+                "so an end-of-record halt also keeps no half split");
+    }
+
+    {
+        Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+        Step closing = envelope("Check every case", ClaimType::SolutionSetPreserved);
+        closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        d.add_check(split, std::move(closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        t.check(d.verified_prefix_end(0) == after,
+                "a completed split remains in the prefix when later work is unchecked");
+        t.check(keep_verified_prefix(d, 0, arena) && d.size() == after,
+                "so the group guard does not discard a valid completed split");
+    }
 
     {
         Derivation d;
