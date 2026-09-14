@@ -750,6 +750,37 @@ void test_verified_prefix(TestSink &t) {
 
     {
         Derivation d;
+        TransformationPayload split_payload;
+        split_payload.concrete_action = "Isolate the square";
+        const StepId split = d.add_transformation(kNoStep, checked, std::move(split_payload));
+        d.complete_transformation(split, 1);
+
+        Meter meter(Budget{});
+        const StepId first = d.add_branch(meter, split, checked, exhaustive_case());
+        d.add_branch(meter, split, checked, exhaustive_case());
+
+        TransformationPayload inner_payload;
+        inner_payload.concrete_action = "Split the first result";
+        const StepId inner = d.add_transformation(first, checked, std::move(inner_payload));
+        d.complete_transformation(inner, 2);
+        d.add_branch(meter, inner, checked, exhaustive_case());
+        d.add_branch(meter, inner, checked, exhaustive_case());
+        Step inner_closing = envelope("Check every inner case", ClaimType::SolutionSetPreserved);
+        inner_closing.verifications.push_back(
+            verification("case reconstruction", VerificationOutcome::Passed));
+        const StepId inner_check = d.add_check(inner, std::move(inner_closing), CheckPayload{});
+        const StepId after = d.add_transformation(
+            kNoStep, envelope("Unfinished later work", ClaimType::SolutionSetPreserved),
+            TransformationPayload{});
+
+        t.check(d.verified_prefix_end(0) == first,
+                "a nested split cannot supply its enclosing split's completion evidence");
+        t.check(d.at(inner_check).parent == inner && d.verified_prefix_end(inner) == after,
+                "the evidence-scope control still recognizes the completed inner split");
+    }
+
+    {
+        Derivation d;
         PlanPayload strategy = plan_payload("strategy.inverse-operations");
         Step plan_step = plan_envelope(strategy.strategy_id.c_str());
         register_strategy_precondition(strategy, plan_step, "pre.registered",

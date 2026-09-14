@@ -522,6 +522,7 @@ size_t Derivation::verified_prefix_end(size_t checkpoint, bool retain_plans) con
                         records.push_back(child);
                 }
             }
+            const size_t split_record_count = records.size();
             for (size_t record = 0; record < records.size(); ++record) {
                 for (StepId child : steps_[records[record]].children)
                     records.push_back(child);
@@ -548,7 +549,8 @@ size_t Derivation::verified_prefix_end(size_t checkpoint, bool retain_plans) con
             // group reached its closing check rather than stopping after an individually valid case.
             if (first_payload.siblings_exhaustive) {
                 bool passing = false;
-                for (StepId record : records) {
+                for (size_t record_index = 0; record_index < split_record_count; ++record_index) {
+                    const StepId record = records[record_index];
                     for (const VerificationRecord &verification : steps_[record].verifications) {
                         if (verification.method == first_payload.exhaustive_evidence &&
                             verification.outcome == VerificationOutcome::Passed)
