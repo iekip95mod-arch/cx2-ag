@@ -62,7 +62,39 @@ struct Outcome {
     size_t untagged_groups = 0;
     size_t universal_family_gaps = 0;
     size_t universal_scope_faults = 0;
+    bool input_refused = false;
 };
+
+// Every return from analyse writes the Outcome it was handed. A refusal counted nothing, and a
+// zeroed Outcome alone cannot be told apart from a clean run, so it says which it was.
+int refuse_input(Outcome *out) {
+    if (out != nullptr) {
+        *out = Outcome();
+        out->input_refused = true;
+    }
+    return 1;
+}
+
+// A value no run of analyse can produce, so a check reading one back knows the call left it alone.
+Outcome poisoned(bool refused) {
+    Outcome out;
+    out.unknown = 7;
+    out.failing = 7;
+    out.missing_groups = 7;
+    out.untagged_groups = 7;
+    out.universal_family_gaps = 7;
+    out.universal_scope_faults = 7;
+    out.input_refused = refused;
+    return out;
+}
+
+bool counts_equal(const Outcome &left, const Outcome &right) {
+    return left.unknown == right.unknown && left.failing == right.failing &&
+           left.missing_groups == right.missing_groups &&
+           left.untagged_groups == right.untagged_groups &&
+           left.universal_family_gaps == right.universal_family_gaps &&
+           left.universal_scope_faults == right.universal_scope_faults;
+}
 
 std::vector<std::string> split(const std::string &line, char on) {
     std::vector<std::string> fields;
@@ -232,14 +264,14 @@ int analyse(const std::string &prd, const std::string &evidence_path,
             std::cout << "traceability: the PRD lists " << repeated << " twice\n";
         else
             std::cout << "traceability: no requirements read from " << prd << "\n";
-        return 1;
+        return refuse_input(out);
     }
     std::vector<Evidence> evidence;
     std::set<std::string> groups_run;
     if (!read_evidence(evidence_path, &evidence, &groups_run)) {
         std::cout << "traceability: no evidence file at " << evidence_path
                   << ", run the unit tests first\n";
-        return 1;
+        return refuse_input(out);
     }
 
     // Section 19.9 wants a requirement linked to catalog families as well as to tests. The link runs
@@ -248,7 +280,7 @@ int analyse(const std::string &prd, const std::string &evidence_path,
     std::vector<Family> families;
     if (!read_catalog(catalog_path, &families) || families.empty()) {
         std::cout << "traceability: no families read from " << catalog_path << "\n";
-        return 1;
+        return refuse_input(out);
     }
     std::map<std::string, std::vector<std::string> > families_of_group;
     for (size_t i = 0; i < families.size(); ++i) {
@@ -632,6 +664,31 @@ int selftest() {
     Outcome absent;
     const int absent_status = analyse(good_prd, evidence_file, absent_catalog, report, &absent);
 
+    const std::string familyless_catalog = std::string(made) + "/catalog-familyless.md";
+    {
+        // A catalog that reads and names no family, which leaves the requirements linked to nothing.
+        std::ofstream out(familyless_catalog.c_str());
+        out << "This catalog names no family.\n";
+    }
+    const std::string absent_evidence = std::string(made) + "/evidence-that-no-run-wrote.txt";
+    const std::string unwritable_report = std::string(made) + "/no-such-directory/report.md";
+
+    // The three input refusals, each handed an Outcome carrying counts no run produced, so a return
+    // that leaves the out-parameter alone is visible instead of reading back as a clean run.
+    Outcome repeated_ids = poisoned(false);
+    const int repeated_ids_status = analyse(twice_path, evidence_file, good_catalog, report,
+                                            &repeated_ids);
+    Outcome no_evidence = poisoned(false);
+    const int no_evidence_status = analyse(good_prd, absent_evidence, good_catalog, report,
+                                           &no_evidence);
+    Outcome no_families = poisoned(false);
+    const int no_families_status = analyse(good_prd, evidence_file, familyless_catalog, report,
+                                           &no_families);
+    // The control on the other side of that line: a run that counted and then failed on its report.
+    Outcome unwritable = poisoned(true);
+    const int unwritable_status = analyse(good_prd, evidence_file, absent_catalog, unwritable_report,
+                                          &unwritable);
+
     std::vector<Requirement> once;
     std::string once_repeated;
     const bool once_read = read_requirements(once_path, &once, &once_repeated);
@@ -671,6 +728,18 @@ int selftest() {
          "a group that ran with nothing tagged stays a gap the run survives"},
         {absent_status == 1 && absent.missing_groups == 1,
          "a catalog group no run reports still fails, which keeps this gate live"},
+        {repeated_ids_status == 1 && repeated_ids.input_refused &&
+             counts_equal(repeated_ids, Outcome()),
+         "a PRD listing an id twice reports a refusal and counts nothing"},
+        {no_evidence_status == 1 && no_evidence.input_refused &&
+             counts_equal(no_evidence, Outcome()),
+         "an evidence file no run wrote reports a refusal and counts nothing"},
+        {no_families_status == 1 && no_families.input_refused &&
+             counts_equal(no_families, Outcome()),
+         "a catalog naming no family reports a refusal and counts nothing"},
+        {unwritable_status == 1 && !unwritable.input_refused && unwritable.missing_groups == 1 &&
+             counts_equal(unwritable, absent),
+         "a report the tool cannot write keeps the counts it reached and is no input refusal"},
     };
     for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); ++i) {
         if (!checks[i].ok)
