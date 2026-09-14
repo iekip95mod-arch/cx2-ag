@@ -2,7 +2,7 @@ import { workerWorkflow } from './agent-providers.mjs';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadRoster, readAssignment } from './bot-identities.mjs';
+import { assignedReviewProvider, loadRoster, readAssignment } from './bot-identities.mjs';
 import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
 
 const repositoryName = 'iekip95mod-arch/cx2-ag';
@@ -45,7 +45,13 @@ async function lateSecurityIssue(repository, pr, review, api) {
   return created;
 }
 
-async function alreadyDelivered(repository, review, run, attempt, api, eventName = 'pull_request_review', title = `Review feedback ${review}`, stepName = dispatchStep) {
+async function alreadyDelivered(repository, review, run, attempt, api, eventName = 'pull_request_review', title = `Review feedback ${review}`, stepName = dispatchStep, since) {
+  let created = '';
+  if (since !== undefined) {
+    const timestamp = Date.parse(since);
+    if (!Number.isFinite(timestamp)) throw Error('Invalid feedback event creation time');
+    created = `&created=${encodeURIComponent('>=' + new Date(timestamp).toISOString())}`;
+  }
   for (let previous = attempt - 1; previous >= 1; previous--) {
     if (attempt - previous > 10) throw Error('Feedback attempt history exceeds the lookup limit');
     const history = await api('GET', `repos/${repository}/actions/runs/${run}/attempts/${previous}/jobs?per_page=100`);
@@ -53,7 +59,7 @@ async function alreadyDelivered(repository, review, run, attempt, api, eventName
     if (history.jobs.some(job => job.steps?.some(step => step.name === stepName && step.conclusion === 'success'))) return true;
   }
   for (let page = 1; page <= 10; page++) {
-    const history = await api('GET', `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=${eventName}&per_page=100${page === 1 ? '' : `&page=${page}`}`);
+    const history = await api('GET', `repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=${eventName}${created}&per_page=100${page === 1 ? '' : `&page=${page}`}`);
     if (!Array.isArray(history.workflow_runs)) throw Error('Invalid feedback workflow history');
     for (const previous of history.workflow_runs.filter(candidate => candidate.id !== run && candidate.display_title === title)) {
       const jobs = await api('GET', `repos/${repository}/actions/runs/${previous.id}/jobs?per_page=100`);
@@ -107,7 +113,7 @@ export async function dispatchFeedback({ repository, event, run, attempt = 1, le
   if (await alreadyDelivered(repository, review.id, run, attempt, api)) return false;
   let reviewer, executor;
   try {
-    if (!security) reviewer = await readAssignment({ repository, provider, role: 'reviewer', pr: number }, api, roster);
+    if (!security) reviewer = await readAssignment({ repository, provider: await assignedReviewProvider({ repository, pr: number, branch: pr.head.ref }, api, roster) ?? provider, role: 'reviewer', pr: number }, api, roster);
     executor = await readAssignment({ repository, provider, role: 'executor', issue }, api, roster);
   } catch (error) {
     if (error.message === 'No active bot assignment for this target') return false;
@@ -189,7 +195,7 @@ async function rejectedReviewGate(repository, ci, pr, provider, issue, api, rost
   }
   if (!failed.length || failed.some(job => !['review-ready', 'review-approved'].includes(job.name))) return false;
   let reviewer;
-  try { reviewer = await readAssignment({ repository, provider, role: 'reviewer', issue }, api, roster); }
+  try { reviewer = await readAssignment({ repository, provider: await assignedReviewProvider({ repository, pr: pr.number, branch: pr.head.ref }, api, roster) ?? provider, role: 'reviewer', pr: pr.number }, api, roster); }
   catch (error) { if (error.message === 'No active bot assignment for this target') return pr.draft; throw error; }
   if (reviewer.branch !== pr.head.ref || reviewer.issue !== issue) return false;
   let latest;
@@ -236,7 +242,8 @@ export async function dispatchCiFeedback({ repository, event, run, attempt = 1, 
   if (executor.branch !== pr.head.ref || executor.issue !== issue || (pr.user.login !== executor.login && pr.user.login !== legacyOwner)) return false;
   if (pr.user.login === executor.login && (pr.user.id !== executor.userId || pr.user.type !== 'Bot')) return false;
   if (await rejectedReviewGate(repository, ci, { ...pr, number }, provider, issue, api, roster, run)) return false;
-  if (await alreadyDelivered(repository, ci.id, run, attempt, api, 'workflow_run', `CI feedback ${ci.id} attempt ${ci.run_attempt}`)) return false;
+  if (typeof ci.created_at !== 'string') throw Error('Missing CI run creation time');
+  if (await alreadyDelivered(repository, ci.id, run, attempt, api, 'workflow_run', `CI feedback ${ci.id} attempt ${ci.run_attempt}`, dispatchStep, ci.created_at)) return false;
   const current = await api('GET', `repos/${repository}/pulls/${number}`);
   if (current.state !== 'open' || current.head?.repo?.full_name !== repository || current.head.ref !== pr.head.ref || current.head.sha !== ci.head_sha) return false;
   const latest = await api('GET', `repos/${repository}/actions/runs/${ci.id}`);

@@ -197,6 +197,8 @@ jobs:
           branch_prefix: claude/
           prompt: |
             ${{ env.AGENT_TIME_BUDGET }}
+            The hard limit is 160 turns. Begin wrapping up by turn 120 and preserve pushed
+            progress before the earlier of the turn limit and the supplied wall-clock cutoff.
             Read AGENTS.md in the prepared checkout ${{ steps.worker.outputs.directory }}.
             Work only in that checkout on branch ${{ steps.worker.outputs.branch }} for issue
             ${{ steps.worker.outputs.issue }}. Read the issue and comments with gh before implementation.
@@ -230,7 +232,7 @@ jobs:
           claude_args: |
             --model ${{ env.WORKER_MODEL }}
             --effort ${{ env.WORKER_EFFORT }}
-            --max-turns 80
+            --max-turns 160
             --dangerously-skip-permissions
 
       - name: Show executor publication
