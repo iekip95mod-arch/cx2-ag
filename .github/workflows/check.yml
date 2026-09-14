@@ -96,12 +96,9 @@ jobs:
         run: ccache --show-stats
 
   # Everything ctest knows about.
-  # Gated on the fast suite. If the quick suites are already red, the full run would only report the
-  # same failures more slowly, and a runner spent on that is a runner another agent is waiting for.
-  # That matters more here than it did on Linux, because five macOS jobs run at once rather than
-  # twenty.
+  # Reserve macOS capacity for revisions that passed fast checks and review.
   full:
-    needs: fast
+    needs: [fast, review-ready]
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -226,7 +223,7 @@ jobs:
   # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
   # the analysis an empty database and the job would still pass.
   review-ready:
-    needs: [fast, full, emulator]
+    needs: fast
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -297,7 +294,7 @@ jobs:
           category: /language:${{ matrix.language }}
 
   emulator:
-    needs: fast
+    needs: [fast, review-ready]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
