@@ -270,7 +270,7 @@ test('workflow review budget handling enforces fail-closed fallback and preserve
 
   // Turn limits are preserved (not merely removed)
   const claudeReview = reviewWorkflow.jobs.review.steps.find(step => step.name === 'Review the pull request');
-  assert.match(claudeReview.with.claude_args, /--max-turns\s+\d+/);
+  assert.equal(claudeReview.run, 'node .github/scripts/run-claude-review.mjs');
   const claudeAgent = agentWorkflow.jobs.respond.steps.find(step => step.name === 'Run the agent');
   assert.match(claudeAgent.with.claude_args, /--max-turns\s+\d+/);
 
