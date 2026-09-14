@@ -50,7 +50,7 @@ fixtures.each do |name, credential, expectation|
     raise "#{name}: wrong credential home" unless outputs.lines.include?("home=#{File.dirname(auth_file)}\n")
     raise "#{name}: credential bytes changed" unless File.binread(auth_file) == credential
     raise "#{name}: credential permissions too broad" unless (File.stat(auth_file).mode & 0o777) == 0o600
-    raise "#{name}: Linux sandbox compatibility is missing" unless File.read(File.join(directory, 'codex-home/config.toml')).include?("use_legacy_landlock = true")
+    raise "#{name}: deprecated sandbox override must not be installed" if File.exist?(File.join(directory, 'codex-home/config.toml'))
   when :skip
     raise "#{name}: missing login did not skip cleanly" unless status.success? && outputs.lines.include?("have=false\n") && summary.include?('did not run')
     raise "#{name}: credentials unexpectedly written" if File.exist?(auth_file)
