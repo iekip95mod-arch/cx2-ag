@@ -1924,10 +1924,45 @@ on.escapeKey()
 check(steps.active and steps.view == "list", "Escape from the result returns to the completed hints")
 on.escapeKey()
 
-type_line("!h off")
-on.enterKey()
-check(steps.progression == "full" and steps.active == false,
-      "!h off restores full progression deterministically")
+-- !h off is a setting for the next solve, so the record already on the shelf keeps the steps it
+-- withheld and the message that says so. Only reopening the viewer over it can see either, and
+-- without that reopen this check passed over a progression message that claimed the wrong thing.
+do
+    local shelved_relative = calls.relative_motion
+    openPhysicsFixtures()
+    on.enterKey()
+    check(steps.active == true and steps.walkthrough == "hint" and steps.revealed == 1 and
+          calls.relative_motion == shelved_relative + 1,
+          "a fresh hint solve shelves ten of its eleven steps before hints go off")
+    on.escapeKey()
+    check(steps.active == false, "and its viewer is closed when the setting changes")
+
+    type_line("!h off")
+    on.enterKey()
+    check(steps.progression == "full" and steps.active == false,
+          "!h off restores full progression deterministically")
+    check(steps.status == "walkthrough: full from the next solve",
+          "and reports full progression as reaching the next solve, not the shelved record")
+
+    type_line("!!")
+    on.enterKey()
+    check(steps.active == true and steps.walkthrough == "hint" and steps.revealed == 1 and
+          #steps.visibleSteps == 1 and calls.relative_motion == shelved_relative + 1,
+          "reopening with hints off reinstates the recorded hint walkthrough without recomputing")
+    check(steps.status == "walkthrough: full from the next solve",
+          "and the reopened viewer keeps the message written for that record: " ..
+              tostring(steps.status))
+    text = painted()
+    check(text:find("HINT", 1, true) ~= nil and text:find("TAB next hint", 1, true) ~= nil and
+          text:find("hint 1/11", 1, true) ~= nil,
+          "the reopened viewer still labels itself a hint walkthrough")
+    check(text:find("ANSWER", 1, true) == nil and text:find("TRUST", 1, true) == nil and
+          paintedRun():find("southeast relative to wind", 1, true) == nil and
+          paintedRun():find("(7 i - 6 j) m/s", 1, true) == nil,
+          "and turning hints off releases none of the answer that record withheld")
+    on.escapeKey()
+    check(steps.active == false, "the reopened hint viewer closes again")
+end
 local full_relative_before = calls.relative_motion
 local full_history_before = #steps.histText
 openPhysicsFixtures()
