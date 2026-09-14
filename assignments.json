@@ -601,6 +601,16 @@
       "branch": "codex/issue-2",
       "slug": "cx2-ag-codex-review-aegis",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-48",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 48,
+      "pr": 122,
+      "branch": "codex/issue-48",
+      "slug": "cx2-ag-codex-review-beacon",
+      "released": false
     }
   ]
 }
