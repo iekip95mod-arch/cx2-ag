@@ -1093,6 +1093,16 @@
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-review-dial",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-207",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 207,
+      "pr": 251,
+      "branch": "gemini/issue-207",
+      "slug": "cx2-ag-gemini-review-facet",
+      "released": false
     }
   ]
 }
