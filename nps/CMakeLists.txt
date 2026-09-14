@@ -494,6 +494,14 @@ nps_hash_inputs(NPS_LUNA_HASH ${NPS_LUNA_MANIFEST_INPUTS})
 function(nps_add_manifest target artifact release_targets diagnostic_only backend_name
          backend_version backend_interface backend_deployment step_hash ndl_hash giac_hash
          sidecar ui_sidecar)
+    # Keep the verification claim tied to the artifact behavior rather than individual call sites.
+    if(artifact STREQUAL "probe")
+        set(sidecar_scheme "external-sha256-sidecar")
+    elseif(artifact STREQUAL "split" OR artifact STREQUAL "unified")
+        set(sidecar_scheme "runtime-sha256-sidecar")
+    else()
+        set(sidecar_scheme "")
+    endif()
     if(ndl_hash)
         set(NPS_CFG_HAS_NDL 1)
     else()
@@ -539,7 +547,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
     string(APPEND build_profile "|retained_ui=${NPS_RETAINED_UI}")
     string(APPEND build_profile "|retained_fault_injection=${NPS_RETAINED_FAULT_INJECTION}")
     string(SHA256 identity
-           "schema=2\nartifact=${artifact}\ntargets=${release_targets}\ndiagnostic=${diagnostic_only}\nprofile=${build_profile}\nstepcas=${step_hash}\nndl=${ndl_hash}\ngiac=${giac_hash}\nbackend=${backend_name}\nversion=${backend_version}\ninterface=${backend_interface}\ndeployment=${backend_deployment}\nsidecar=${sidecar}\nui_sidecar=${ui_sidecar}\n")
+           "schema=2\nartifact=${artifact}\ntargets=${release_targets}\ndiagnostic=${diagnostic_only}\nprofile=${build_profile}\nstepcas=${step_hash}\nndl=${ndl_hash}\ngiac=${giac_hash}\nbackend=${backend_name}\nversion=${backend_version}\ninterface=${backend_interface}\ndeployment=${backend_deployment}\nsidecar=${sidecar}\nsidecar_scheme=${sidecar_scheme}\nui_sidecar=${ui_sidecar}\n")
     if(artifact STREQUAL "host")
         set(identity_kind "semantic-inputs-sha256")
     else()
@@ -557,6 +565,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
     set(NPS_CFG_NDL_HASH "${ndl_hash}")
     set(NPS_CFG_GIAC_HASH "${giac_hash}")
     set(NPS_CFG_SIDECAR "${sidecar}")
+    set(NPS_CFG_SIDECAR_SCHEME "${sidecar_scheme}")
     set(NPS_CFG_UI_SIDECAR "${ui_sidecar}")
     set(config_dir "${CMAKE_CURRENT_BINARY_DIR}/manifest/${artifact}")
     file(MAKE_DIRECTORY "${config_dir}")
@@ -578,6 +587,7 @@ function(nps_add_manifest target artifact release_targets diagnostic_only backen
 #define NPS_MANIFEST_GIAC_HASH "@NPS_CFG_GIAC_HASH@"
 #define NPS_MANIFEST_HAS_SIDECAR @NPS_CFG_HAS_SIDECAR@
 #define NPS_MANIFEST_SIDECAR "@NPS_CFG_SIDECAR@"
+#define NPS_MANIFEST_SIDECAR_SCHEME "@NPS_CFG_SIDECAR_SCHEME@"
 #define NPS_MANIFEST_HAS_UI_SIDECAR @NPS_CFG_HAS_UI_SIDECAR@
 #define NPS_MANIFEST_UI_SIDECAR "@NPS_CFG_UI_SIDECAR@"
 #endif
@@ -1101,6 +1111,29 @@ else()
                      "${NPS_HOST_STEP_HASH}" "" "" "" "")
     target_link_libraries(nps_manifest_host PRIVATE nps_flags)
 
+    nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
+                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}" "")
+    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
+    add_executable(nps_manifest_probe_test tests/unit/manifest_scheme_tests.cc
+                   $<TARGET_OBJECTS:nps_manifest_probe_host>)
+    target_compile_definitions(nps_manifest_probe_test PRIVATE
+                               NPS_EXPECTED_ARTIFACT="probe"
+                               NPS_EXPECTED_SIDECAR_SCHEME="external-sha256-sidecar")
+    target_include_directories(nps_manifest_probe_test PRIVATE include)
+    target_link_libraries(nps_manifest_probe_test PRIVATE nps_flags)
+
+    nps_add_manifest(nps_manifest_unified_host unified 1 0 Giac bundled-static
+                     nps.giac.typed-v1 bundled-static
+                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
+    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags)
+    add_executable(nps_manifest_unified_test tests/unit/manifest_scheme_tests.cc
+                   $<TARGET_OBJECTS:nps_manifest_unified_host>)
+    target_compile_definitions(nps_manifest_unified_test PRIVATE
+                               NPS_EXPECTED_ARTIFACT="unified"
+                               NPS_EXPECTED_SIDECAR_SCHEME="runtime-sha256-sidecar")
+    target_include_directories(nps_manifest_unified_test PRIVATE include)
+    target_link_libraries(nps_manifest_unified_test PRIVATE nps_flags)
+
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
     target_include_directories(nps_core PUBLIC include)
@@ -1405,6 +1438,8 @@ add_custom_target(tidy
 
 if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME unit COMMAND nps_host)
+    add_test(NAME manifest_probe COMMAND nps_manifest_probe_test)
+    add_test(NAME manifest_unified COMMAND nps_manifest_unified_test)
     set_tests_properties(unit PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         ENVIRONMENT "NPS_EVIDENCE=${CMAKE_BINARY_DIR}/evidence.txt"
         FIXTURES_SETUP nps_evidence_unit)
@@ -1600,7 +1635,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
-                nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
+                nps_manifest_probe_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
                 nps_acceptance_corpus nps_device_run
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)

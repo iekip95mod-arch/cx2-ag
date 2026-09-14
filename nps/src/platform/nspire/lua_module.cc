@@ -1151,12 +1151,7 @@ int l_capability_manifest(lua_State *L) {
         lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
         lua_newtable(L);
         set_field(L, "component", manifest.integrity_identifiers[i].component);
-        const char *scheme = manifest.integrity_identifiers[i].scheme;
-        // Both builds now check their own package before registering, so both say so. The document
-        // sidecar keeps the external scheme because nothing on the calculator can read it.
-        if (std::strcmp(manifest.integrity_identifiers[i].component, "artifact.package") == 0)
-            scheme = "runtime-sha256-sidecar";
-        set_field(L, "scheme", scheme);
+        set_field(L, "scheme", manifest.integrity_identifiers[i].scheme);
         set_field(L, "value", manifest.integrity_identifiers[i].value);
         lua_settable(L, -3);
     }
