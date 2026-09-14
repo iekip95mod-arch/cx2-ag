@@ -4,7 +4,8 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { diffAnchors, reviewRequest, publishReview } from './publish-review.mjs';
+import { agentDeadline } from './agent-deadline.mjs';
+import { diffAnchors, reviewRequest, publishReview, fallbackBlockedReview } from './publish-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const patch = '@@ -10,3 +10,4 @@ function solve()\n context\n-old\n+new\n+extra\n tail\n@@ -30 +31 @@\n-last\n+final\n\\ No newline at end of file';
@@ -134,3 +135,164 @@ test('actual CLI uses JSON stdin, assigned token and exact native review argumen
     if (fail) assert.match(run.stderr, /Inspect the PR before retrying/);
   }
 });
+
+test('fallbackBlockedReview produces an empty-comment blocked review explaining budget exhaustion', () => {
+  const fallback = fallbackBlockedReview();
+  assert.equal(fallback.verdict, 'BLOCKED');
+  assert.match(fallback.body, /budget.*exhausted|verification/i);
+  assert.deepEqual(fallback.comments, []);
+  const custom = fallbackBlockedReview('Custom deadline exceeded');
+  assert.equal(custom.verdict, 'BLOCKED');
+  assert.equal(custom.body, 'Custom deadline exceeded');
+  assert.deepEqual(custom.comments, []);
+});
+
+test('review-budget exhaustion preserves completed trustworthy reviews and yields explicit blocked review on incomplete output', async () => {
+  for (const provider of ['codex', 'claude', 'gemini']) {
+    // Completed trustworthy review (e.g. APPROVED or CHANGES_REQUESTED) must NOT be replaced with BLOCKED
+    for (const verdict of ['APPROVED', 'CHANGES_REQUESTED']) {
+      const f = fixture(provider, verdict);
+      f.published.state = verdict;
+      await publishReview({ ...f.options, fallbackBlocked: true }, f.api);
+      assert.equal(f.calls.at(-1).body.event, verdict === 'APPROVED' ? 'APPROVE' : 'REQUEST_CHANGES');
+      assert.deepEqual(f.calls.at(-1).body.comments, [inline]);
+    }
+
+    // Incomplete/missing review must yield explicit BLOCKED review when fallbackBlocked is true
+    for (const incomplete of [null, undefined, {}, { verdict: 'INVALID' }, { verdict: 'APPROVED', body: '', comments: [] }, { verdict: 'APPROVED', body: 'Valid', comments: [{ path: 'wrong.cc', line: 1, side: 'RIGHT', body: 'b' }] }]) {
+      const f = fixture(provider, 'BLOCKED');
+      f.options.review = incomplete;
+      f.published.state = 'COMMENTED';
+      await publishReview({ ...f.options, fallbackBlocked: true }, f.api);
+      assert.equal(f.calls.at(-1).body.event, 'COMMENT');
+      assert.match(f.calls.at(-1).body.body, /<!-- review-blocked -->/);
+      assert.match(f.calls.at(-1).body.body, /budget.*exhausted|verification/i);
+      assert.deepEqual(f.calls.at(-1).body.comments, []);
+    }
+
+    // Without fallbackBlocked, incomplete review must fail closed
+    const f = fixture(provider);
+    f.options.review = null;
+    await assert.rejects(publishReview({ ...f.options, fallbackBlocked: false }, f.api));
+    assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  }
+});
+
+test('CLI publishes trustworthy reviews when present and falls back to explicit blocked reviews on missing or malformed output only when enabled', () => {
+  const scripts = dirname(fileURLToPath(import.meta.url));
+  const root = join(scripts, '../../.Internal/workspaces/publish-review-tests'); mkdirSync(root, { recursive: true });
+  for (const provider of ['codex', 'claude', 'gemini']) {
+    const directory = mkdtempSync(join(root, 'cli-budget-')); const bin = join(directory, 'bin'); mkdirSync(bin);
+    copyFileSync(join(scripts, 'fixtures/review-feedback-gh.mjs'), join(bin, 'gh')); chmodSync(join(bin, 'gh'), 0o755);
+
+    // 1. Missing review file with FALLBACK_BLOCKED=true publishes BLOCKED review
+    const fMissing = fixture(provider, 'BLOCKED'); fMissing.published.state = 'COMMENTED';
+    const logMissing = join(directory, 'missing-calls.jsonl'); const configMissing = join(directory, 'missing-fixture.json');
+    writeFileSync(configMissing, JSON.stringify({ responses: fMissing.responses, log: logMissing }));
+    const runMissing = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: configMissing, REVIEW_FILE: join(directory, 'nonexistent.json'), REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fMissing.options.appSlug, EXPECTED_LOGIN: fMissing.options.login, FALLBACK_BLOCKED: 'true' } });
+    assert.equal(runMissing.status, 0, runMissing.stderr);
+    const callsMissing = readFileSync(logMissing, 'utf8').trim().split('\n').map(JSON.parse);
+    const postsMissing = callsMissing.filter(call => call.args[2] === 'POST');
+    assert.equal(postsMissing.length, 1);
+    assert.equal(postsMissing[0].body.event, 'COMMENT');
+    assert.match(postsMissing[0].body.body, /<!-- review-blocked -->/);
+    assert.deepEqual(postsMissing[0].body.comments, []);
+
+    // 2. Malformed review file with FALLBACK_BLOCKED=true publishes BLOCKED review
+    const fBad = fixture(provider, 'BLOCKED'); fBad.published.state = 'COMMENTED';
+    const logBad = join(directory, 'bad-calls.jsonl'); const configBad = join(directory, 'bad-fixture.json'); const badReview = join(directory, 'bad.json');
+    writeFileSync(badReview, '{ invalid json');
+    writeFileSync(configBad, JSON.stringify({ responses: fBad.responses, log: logBad }));
+    const runBad = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: configBad, REVIEW_FILE: badReview, REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fBad.options.appSlug, EXPECTED_LOGIN: fBad.options.login, FALLBACK_BLOCKED: 'true' } });
+    assert.equal(runBad.status, 0, runBad.stderr);
+    const callsBad = readFileSync(logBad, 'utf8').trim().split('\n').map(JSON.parse);
+    const postsBad = callsBad.filter(call => call.args[2] === 'POST');
+    assert.equal(postsBad.length, 1);
+    assert.equal(postsBad[0].body.event, 'COMMENT');
+    assert.match(postsBad[0].body.body, /<!-- review-blocked -->/);
+
+    // 3. Valid completed review with FALLBACK_BLOCKED=true publishes the actual review (not overwritten with BLOCKED)
+    const fValid = fixture(provider, 'APPROVED'); fValid.published.state = 'APPROVED';
+    const logValid = join(directory, 'valid-calls.jsonl'); const configValid = join(directory, 'valid-fixture.json'); const validReview = join(directory, 'valid.json');
+    writeFileSync(validReview, JSON.stringify(fValid.options.review));
+    writeFileSync(configValid, JSON.stringify({ responses: fValid.responses, log: logValid }));
+    const runValid = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: configValid, REVIEW_FILE: validReview, REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fValid.options.appSlug, EXPECTED_LOGIN: fValid.options.login, FALLBACK_BLOCKED: 'true' } });
+    assert.equal(runValid.status, 0, runValid.stderr);
+    const callsValid = readFileSync(logValid, 'utf8').trim().split('\n').map(JSON.parse);
+    const postsValid = callsValid.filter(call => call.args[2] === 'POST');
+    assert.equal(postsValid.length, 1);
+    assert.equal(postsValid[0].body.event, 'APPROVE');
+    assert.deepEqual(postsValid[0].body.comments, fValid.options.review.comments);
+
+    // 4. Missing review file WITHOUT FALLBACK_BLOCKED fails closed
+    const runNoFallback = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', REVIEW_FILE: join(directory, 'nonexistent2.json'), REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fMissing.options.appSlug, EXPECTED_LOGIN: fMissing.options.login } });
+    assert.equal(runNoFallback.status, 1);
+    assert.match(runNoFallback.stderr, /The structured review file could not be read/);
+  }
+});
+
+
+test('Claude native output survives a missing file and failed execution cannot approve', () => {
+  const scripts = dirname(fileURLToPath(import.meta.url));
+  const root = join(scripts, '../../.Internal/workspaces/publish-review-tests');
+  mkdirSync(root, { recursive: true });
+  for (const [native, outcome, expected] of [
+    [JSON.stringify({ verdict: 'APPROVED', body: 'Verified the current diff.', comments: [] }), 'success', 'APPROVED'],
+    [JSON.stringify({ verdict: 'APPROVED', body: 'Partial checkpoint.', comments: [] }), 'failure', 'COMMENTED'],
+    ['', 'success', 'COMMENTED'],
+    ['not json', 'success', 'COMMENTED']
+  ]) {
+    const directory = mkdtempSync(join(root, 'native-'));
+    const bin = join(directory, 'bin'); mkdirSync(bin);
+    copyFileSync(join(scripts, 'fixtures/review-feedback-gh.mjs'), join(bin, 'gh')); chmodSync(join(bin, 'gh'), 0o755);
+    const f = fixture('claude', expected); f.published.state = expected;
+    const log = join(directory, 'calls.jsonl'); const config = join(directory, 'fixture.json');
+    const checkpoint = join(directory, 'checkpoint.json');
+    writeFileSync(checkpoint, JSON.stringify({ verdict: 'APPROVED', body: 'Stale checkpoint.', comments: [] }));
+    writeFileSync(config, JSON.stringify({ responses: f.responses, log }));
+    const invocation = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: {
+      ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: config,
+      REVIEW_FILE: expected === 'APPROVED' ? join(directory, 'missing.json') : checkpoint,
+      REVIEW_JSON: native, REVIEW_OUTCOME: outcome, FALLBACK_BLOCKED: 'true',
+      REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: f.options.appSlug, EXPECTED_LOGIN: f.options.login
+    } });
+    assert.equal(invocation.status, 0, invocation.stderr);
+    const published = readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).find(call => call.args[2] === 'POST');
+    assert.equal(published.body.event, expected === 'APPROVED' ? 'APPROVE' : 'COMMENT');
+    if (expected !== 'APPROVED') assert.match(published.body.body, /review-blocked/);
+  }
+});
+
+test('workflow review budget handling enforces fail-closed fallback and preserves turn limits', () => {
+  const scripts = dirname(fileURLToPath(import.meta.url));
+  const reviewWorkflow = JSON.parse(spawnSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', join(scripts, '../workflows/agent-review.yml')], { encoding: 'utf8' }).stdout);
+  const agentWorkflow = JSON.parse(spawnSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', join(scripts, '../workflows/agent.yml')], { encoding: 'utf8' }).stdout);
+
+  // Turn limits are preserved (not merely removed)
+  const claudeReview = reviewWorkflow.jobs.review.steps.find(step => step.name === 'Review the pull request');
+  assert.match(claudeReview.with.claude_args, /--max-turns\s+\d+/);
+  const claudeAgent = agentWorkflow.jobs.respond.steps.find(step => step.name === 'Run the agent');
+  assert.match(claudeAgent.with.claude_args, /--max-turns\s+\d+/);
+
+  // Review step continues on error to preserve completed trustworthy output or fall back to BLOCKED
+  assert.equal(claudeReview['continue-on-error'], true);
+  const codexReview = reviewWorkflow.jobs['codex-review'].steps.find(step => step.name === 'Review with subscription login');
+  assert.equal(codexReview['continue-on-error'], true);
+  const geminiJob = reviewWorkflow.jobs['gemini-review'];
+  const geminiReview = geminiJob.steps.find(step => step.name === 'Review with subscription login');
+  const deadline = geminiJob.steps.find(step => step.name === 'Set execution deadline');
+  assert.equal(deadline.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
+  assert.equal(geminiReview.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
+  const afterSetup = agentDeadline({ startedAt: 1000, now: 1000 + 32 * 60, timeoutMinutes: geminiJob['timeout-minutes'] });
+  assert.ok(afterSetup.remaining >= 20 * 60, 'A cold toolchain setup must leave a usable review budget');
+  assert.ok(geminiJob['timeout-minutes'] < reviewWorkflow.jobs.review['timeout-minutes']);
+  assert.ok(geminiJob['timeout-minutes'] < reviewWorkflow.jobs['codex-review']['timeout-minutes']);
+  assert.equal(geminiReview['continue-on-error'], true);
+
+  // Each reviewer job configures fallback blocked publishing
+  for (const jobName of ['review', 'codex-review', 'gemini-review']) {
+    const publishStep = reviewWorkflow.jobs[jobName].steps.find(step => step.name === 'Publish the review for the reviewed commit');
+    assert.equal(publishStep.env.FALLBACK_BLOCKED, 'true');
+  }
+});
+
