@@ -100,11 +100,17 @@ raise 'Codex review must be published by the assigned identity' unless codex_pub
   publish = steps.find { |step| step['name'] == 'Publish the review for the reviewed commit' }
   raise 'Both providers must use the native inline publisher' unless publish.fetch('run') == 'node .github/scripts/publish-review.mjs'
   raise 'Native reviews must use the assigned identity' unless publish.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
-  file = name == 'review' ? 'claude-review.json' : 'codex-review.json'
-  raise 'Publish the provider output file' unless publish.fetch('env').fetch('REVIEW_FILE') == "${{ runner.temp }}/#{file}"
+  if name == 'review'
+    raise 'Publish Claude native structured output' unless publish.fetch('env').fetch('REVIEW_JSON') == '${{ steps.review.outputs.structured_output }}'
+  else
+    raise 'Publish the Codex output file' unless publish.fetch('env').fetch('REVIEW_FILE') == '${{ runner.temp }}/codex-review.json'
+  end
+  raise 'Failed executions cannot publish approval checkpoints' unless publish.fetch('env').fetch('REVIEW_OUTCOME') == '${{ steps.review.outcome }}'
   raise 'Disclose only after publication' unless steps.index(publish) < steps.index { |step| step.fetch('run', '').include?('--review-disclosure') }
 end
-raise 'Claude must write its verdict artifact' unless claude.fetch('prompt').include?('${{ runner.temp }}/claude-review.json') && claude.fetch('claude_args').include?(',Write,')
+raise 'Claude must return its verdict through the native schema' unless claude.fetch('prompt').include?('required structured output schema') && claude.fetch('claude_args').include?("--json-schema '${{ steps.review-schema.outputs.json }}'")
+schema_step = claude_steps.find { |step| step['id'] == 'review-schema' }
+raise 'Claude schema must be the shared review schema' unless schema_step && schema_step.fetch('run').include?('jq -c . .github/scripts/review-schema.json')
 raise 'Claude must not post a competing summary-only verdict' if claude.fetch('claude_args').include?('Bash(gh pr review:*)')
 workspace = File.join(root, '.Internal/workspaces/codex-review-tests')
 FileUtils.mkdir_p(workspace)
