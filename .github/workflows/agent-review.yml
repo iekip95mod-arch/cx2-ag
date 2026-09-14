@@ -240,8 +240,14 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
+      - name: Load the review output schema
+        id: review-schema
+        run: echo "json=$(jq -c . .github/scripts/review-schema.json)" >> "$GITHUB_OUTPUT"
+
       - name: Review the pull request
+        id: review
         if: steps.key.outputs.have == 'true'
+        continue-on-error: true
         # The reviewer runs a single allowed command per stage, so anything a command needs from the
         # shell has to reach it as an environment variable.
         env:
@@ -344,7 +350,10 @@ jobs:
             NDL_SDK and GIAC_ROOT stay pointed at the branch tree on purpose. Both sides should
             build against the same dependency, so that nps is the only thing that differs.
 
-            Write your final review as JSON to ${{ runner.temp }}/claude-review.json using Write.
+            Return your final review through the required structured output schema.
+            The action captures it directly. Do not rely on writing a separate review file.
+            The hard limit is 256 turns. Stop investigation by turn 200 and return the verdict,
+            preserving time for structured output and publication. The wall-clock cutoff takes precedence.
             The object must contain verdict (APPROVED, CHANGES_REQUESTED or BLOCKED), body (a nonempty
             verification summary), and comments (an array of inline findings). Each comment contains
             path (repository-relative file), line (positive integer), side (LEFT for old lines or
@@ -386,7 +395,8 @@ jobs:
           claude_args: |
             --model ${{ env.REVIEW_MODEL }}
             --effort ${{ env.REVIEW_EFFORT }}
-            --max-turns 80
+            --max-turns 256
+            --json-schema '${{ steps.review-schema.outputs.json }}'
             --allowedTools "Bash(date:*),Bash(cmake -S:*),Bash(cmake --build:*),Bash(ctest --test-dir:*),Bash(luajit:*),Bash(git diff:*),Bash(git apply:*),Bash(git log:*),Bash(git show:*),Bash(git status:*),Bash(git rev-parse:*),Bash(git fetch:*),Bash(git worktree:*),Bash(git merge-base:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue create:*),Write,Read,Grep,Glob"
 
       - name: Show reviewer publication
@@ -407,7 +417,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
-          REVIEW_FILE: ${{ runner.temp }}/claude-review.json
+          REVIEW_JSON: ${{ steps.review.outputs.structured_output }}
+          FALLBACK_BLOCKED: 'true'
+          REVIEW_OUTCOME: ${{ steps.review.outcome }}
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
@@ -576,6 +588,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
       - name: Review with subscription login
+        id: review
+        continue-on-error: true
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -643,6 +657,8 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
           REVIEW_FILE: ${{ runner.temp }}/codex-review.json
+          FALLBACK_BLOCKED: 'true'
+          REVIEW_OUTCOME: ${{ steps.review.outcome }}
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
@@ -668,7 +684,7 @@ jobs:
     needs: select-reviewer
     if: needs.select-reviewer.outputs.reviewer == 'gemini' && needs.select-reviewer.outputs.requested == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       REVIEW_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}
       REVIEW_EFFORT: ${{ vars.GEMINI_EFFORT || 'high' }}
@@ -722,7 +738,7 @@ jobs:
 
       - name: Set execution deadline
         env:
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 60
         run: node .github/scripts/agent-deadline.mjs
       - name: Authenticate the assigned reviewer
         id: bot
@@ -748,12 +764,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
       - name: Review with subscription login
+        id: review
+        continue-on-error: true
         env:
           GEMINI_MODE: reviewer
           GEMINI_PROMPT_FILE: ${{ runner.temp }}/review-prompt.txt
           GEMINI_SCHEMA: ${{ github.workspace }}/.github/scripts/review-schema.json
           GEMINI_OUTPUT: ${{ runner.temp }}/gemini-review.json
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 60
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -815,6 +833,8 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
           REVIEW_FILE: ${{ runner.temp }}/gemini-review.json
+          FALLBACK_BLOCKED: 'true'
+          REVIEW_OUTCOME: ${{ steps.review.outcome }}
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
