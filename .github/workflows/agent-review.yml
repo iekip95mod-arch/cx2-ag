@@ -241,7 +241,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
       - name: Review the pull request
+        id: review
         if: steps.key.outputs.have == 'true'
+        continue-on-error: true
         # The reviewer runs a single allowed command per stage, so anything a command needs from the
         # shell has to reach it as an environment variable.
         env:
@@ -408,6 +410,7 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
           REVIEW_FILE: ${{ runner.temp }}/claude-review.json
+          FALLBACK_BLOCKED: 'true'
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
@@ -576,6 +579,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
       - name: Review with subscription login
+        id: review
+        continue-on-error: true
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -643,6 +648,7 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
           REVIEW_FILE: ${{ runner.temp }}/codex-review.json
+          FALLBACK_BLOCKED: 'true'
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
@@ -748,6 +754,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node .github/scripts/review-history.mjs
       - name: Review with subscription login
+        id: review
+        continue-on-error: true
         env:
           GEMINI_MODE: reviewer
           GEMINI_PROMPT_FILE: ${{ runner.temp }}/review-prompt.txt
@@ -815,6 +823,7 @@ jobs:
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
           EXPECTED_LOGIN: ${{ needs.select-reviewer.outputs.login }}
           REVIEW_FILE: ${{ runner.temp }}/gemini-review.json
+          FALLBACK_BLOCKED: 'true'
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
