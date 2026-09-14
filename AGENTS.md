@@ -279,7 +279,7 @@ cmake and ctest are deliberately absent, which is the surprising one, because th
 
 What is not in them is a deny list, also on purpose. One was written and then taken out. Denying gh secret leaves gh api reaching the same endpoint, denying Read on .env leaves .env.local, and any rule over a shell is one spelling away from being wrong. A guard that holds for the spellings somebody thought of reads as coverage, and the next agent trusts it. The boundary that actually holds is the permissions block on each workflow job, which scopes the token the agent is handed. That one is enforced by GitHub rather than by a pattern match, so that is where a restriction belongs.
 
-On a pull request event the Claude action restores .claude, CLAUDE.md and .mcp.json from the base branch before it runs, so a pull request cannot widen its own reviewer's permissions by editing them. That is the action's behavior rather than ours, and it is worth knowing before you rely on a change to these files taking effect in the same pull request that makes it.
+On a pull request event the Claude review job restores .claude, CLAUDE.md, AGENTS.md and .mcp.json from the base commit before the reviewer runs, so a pull request cannot widen its own reviewer's permissions by editing them. A path the base commit does not carry is removed rather than kept, because adding one is the same widening as editing one. That restore is ours now rather than the action's, it is asserted by test-codex-review.rb, and it is worth knowing before you rely on a change to these files taking effect in the same pull request that makes it.
 
 ## Locate the code
 
