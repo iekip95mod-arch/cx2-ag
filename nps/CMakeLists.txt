@@ -252,6 +252,7 @@ function(nps_hash_inputs output)
         file(RELATIVE_PATH label "${CMAKE_CURRENT_SOURCE_DIR}" "${input}")
         string(APPEND material "${label}\n${digest}\n")
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${input}")
+        set_property(GLOBAL APPEND PROPERTY nps_manifest_inputs "${input}")
     endforeach()
     string(SHA256 combined "${material}")
     set(${output} "${combined}" PARENT_SCOPE)
@@ -346,6 +347,16 @@ else()
     target_link_libraries(nps_gmp INTERFACE PkgConfig::NPS_GMP)
 endif()
 
+# Inputs that #222 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
+# bytes depend on them. The check below cannot hold those to the tracked-source rule until #222 moves
+# those hashes onto sources, so the call that hashed one says so here. Naming the call rather than a
+# path pattern keeps the exemption from covering a tracked source that happens to sit beside one.
+function(nps_defer_manifest_inputs)
+    foreach(input IN LISTS ARGN)
+        set_property(GLOBAL APPEND PROPERTY nps_manifest_inputs_deferred "${input}")
+    endforeach()
+endfunction()
+
 function(nps_hash_ndl_inputs output)
     set(sdk "${NPS_NDL_SDK}")
     execute_process(COMMAND ${CMAKE_COMMAND} -E env
@@ -418,6 +429,8 @@ function(nps_hash_ndl_inputs output)
         "${sdk}/toolchain/install/bin/arm-none-eabi-ld"
         "${sdk}/toolchain/install/include/gmp.h"
         "${sdk}/toolchain/install/lib/libgmp.a")
+    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #222.
+    nps_defer_manifest_inputs(${inputs})
     nps_hash_inputs(hash ${inputs})
     set(${output} "${hash}" PARENT_SCOPE)
 endfunction()
@@ -437,6 +450,11 @@ function(nps_hash_giac_inputs output)
         "${NPS_GIAC_ROOT}/configure.ac"
         "${NPS_GIAC_SRC}/Makefile.ki"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/giac-objs.mk"
+        "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
+        "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
+        "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
+    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #222.
+    nps_defer_manifest_inputs(
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
@@ -472,6 +490,23 @@ endif()
 foreach(source IN LISTS CORE_SOURCES)
     list(APPEND NPS_COMMON_MANIFEST_INPUTS "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
 endforeach()
+
+# The packager reaches the packaged bytes through what it was compiled from, so its tracked sources
+# answer the same question the compiled luna answered and exist in a checkout nobody has built yet.
+# Hashing the binary made the manifest id depend on whether somebody had already run bootstrap, and
+# a fresh worktree could not configure the host build at all.
+file(GLOB NPS_LUNA_MANIFEST_INPUTS CONFIGURE_DEPENDS LIST_DIRECTORIES false
+     "${NPS_NDL_SDK}/tools/luna/Makefile"
+     "${NPS_NDL_SDK}/tools/luna/*.c"
+     "${NPS_NDL_SDK}/tools/luna/*.h"
+     "${NPS_NDL_SDK}/tools/luna/minizip-1.1/*.c"
+     "${NPS_NDL_SDK}/tools/luna/minizip-1.1/*.h")
+if(NOT NPS_LUNA_MANIFEST_INPUTS)
+    message(FATAL_ERROR "no luna packager sources under ${NPS_NDL_SDK}/tools/luna")
+endif()
+# Hashed here rather than only inside the branches that package, so an input only a warm tree owns
+# fails the first configure of every checkout instead of the first configure that finds LuaJIT.
+nps_hash_inputs(NPS_LUNA_HASH ${NPS_LUNA_MANIFEST_INPUTS})
 
 function(nps_add_manifest target artifact release_targets diagnostic_only backend_name
          backend_version backend_interface backend_deployment step_hash ndl_hash giac_hash
@@ -603,7 +638,7 @@ if(CMAKE_CROSSCOMPILING)
         ${NPS_DEVICE_BUILD_INPUTS}
         "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/lua/nps_v3.lua"
-        "${NPS_NDL_SDK}/tools/luna/luna")
+        ${NPS_LUNA_MANIFEST_INPUTS})
     nps_hash_inputs(NPS_SPLIT_STEP_HASH ${NPS_SPLIT_BUILD_INPUTS})
     set(NPS_UNIFIED_BUILD_INPUTS
         ${NPS_DEVICE_BUILD_INPUTS}
@@ -612,7 +647,7 @@ if(CMAKE_CROSSCOMPILING)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/native_menu_policy.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/cas/giac/giac_typed.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/lua/nps_v4.lua"
-        "${NPS_NDL_SDK}/tools/luna/luna")
+        ${NPS_LUNA_MANIFEST_INPUTS})
     if(NPS_RESOURCE_PROFILE)
         list(APPEND NPS_UNIFIED_BUILD_INPUTS
              "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/allocation_probe.cc")
@@ -1246,7 +1281,7 @@ else()
             "${CMAKE_CURRENT_SOURCE_DIR}/cmake/toolchains/ndl-arm926ej-s.cmake"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc"
             "${CMAKE_CURRENT_SOURCE_DIR}/lua/nps_v3.lua"
-            "${NPS_NDL_SDK}/tools/luna/luna")
+            ${NPS_LUNA_MANIFEST_INPUTS})
         nps_hash_ndl_inputs(NPS_SPLIT_HOST_NDL_HASH)
         nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
                          lua5.1.luagiac.caseval-v1 external-required-unvalidated
@@ -1474,6 +1509,31 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME resident_exit COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/lint-resident-exit.sh")
     set_tests_properties(resident_exit PROPERTIES ENVIRONMENT "NDL_SDK=${NPS_NDL_SDK};CPATH=${NPS_UI_LINT_CPATH}")
     add_test(NAME clang_tidy COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/tidy.sh")
+
+    # What this configure hashed into its manifests, so the check below reads the real list rather
+    # than a second copy of it that could drift from the lists above.
+    get_property(NPS_MANIFEST_INPUTS GLOBAL PROPERTY nps_manifest_inputs)
+    list(REMOVE_DUPLICATES NPS_MANIFEST_INPUTS)
+    list(SORT NPS_MANIFEST_INPUTS)
+    string(REPLACE ";" "\n" NPS_MANIFEST_INPUT_LINES "${NPS_MANIFEST_INPUTS}")
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/manifest-inputs.txt"
+         CONTENT "${NPS_MANIFEST_INPUT_LINES}\n")
+    get_property(NPS_MANIFEST_DEFERRED GLOBAL PROPERTY nps_manifest_inputs_deferred)
+    list(REMOVE_DUPLICATES NPS_MANIFEST_DEFERRED)
+    list(SORT NPS_MANIFEST_DEFERRED)
+    string(REPLACE ";" "\n" NPS_MANIFEST_DEFERRED_LINES "${NPS_MANIFEST_DEFERRED}")
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/manifest-inputs-deferred.txt"
+         CONTENT "${NPS_MANIFEST_DEFERRED_LINES}\n")
+    add_test(NAME manifest_inputs COMMAND "${CMAKE_COMMAND}"
+             "-DINPUTS=${CMAKE_BINARY_DIR}/manifest-inputs.txt"
+             "-DDEFERRED=${CMAKE_BINARY_DIR}/manifest-inputs-deferred.txt"
+             "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+             -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/check-manifest-inputs.cmake")
+    add_test(NAME manifest_inputs_check COMMAND "${CMAKE_COMMAND}"
+             "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/tools/check-manifest-inputs.cmake"
+             "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+             "-DWORK_DIR=${CMAKE_BINARY_DIR}/manifest-inputs-check"
+             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/manifest_inputs_check_test.cmake")
     add_test(NAME lua_bridge_prologue COMMAND "${Python3_EXECUTABLE}"
              "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/lua_bridge_prologue_test.py"
              "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc")
