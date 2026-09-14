@@ -1163,6 +1163,16 @@
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-gemini-review-lens",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-239",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 239,
+      "pr": 250,
+      "branch": "gemini/issue-239",
+      "slug": "cx2-ag-claude-review-ridge",
+      "released": false
     }
   ]
 }
