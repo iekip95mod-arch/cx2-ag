@@ -318,10 +318,6 @@ const EvidenceAlternative kLawApplicability[] = {
 const EvidenceAlternative kGiacZero[] = {
     {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
 };
-const EvidenceAlternative kGiacSimplify[] = {
-    {"Giac Simplify and local canonical comparison",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
-};
 const EvidenceAlternative kRelativeComponentSubtraction[] = {
     {"nps vector_sub", EvidenceStrength::StructurallyValid},
     {"Giac Simplify and local canonical comparison",
