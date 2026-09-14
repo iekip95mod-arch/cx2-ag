@@ -1269,7 +1269,7 @@ else()
         target_link_libraries(nps_luax PRIVATE nps_manifest_split_host nps_flags nps_gmp)
         target_include_directories(nps_luax PRIVATE include tests tests/target/host_os
                                    "${NPS_GIAC_SRC}" ${LUAJIT_INCLUDE_DIRS})
-        target_link_options(nps_luax PRIVATE -Wl,-undefined,dynamic_lookup)
+        target_link_options(nps_luax PRIVATE $<$<PLATFORM_ID:Darwin>:-Wl,-undefined,dynamic_lookup>)
 
         add_library(nps_container_probe_host SHARED tests/target/container_probe_host.cc tests/ui/container_workload.cc
                     src/platform/nspire/integrity.cc "${NPS_GIAC_SRC}/sha256.c")
@@ -1277,7 +1277,7 @@ else()
         target_include_directories(nps_container_probe_host PRIVATE include tests tests/target/host_os
                                    "${NPS_GIAC_SRC}" ${LUAJIT_INCLUDE_DIRS})
         target_link_libraries(nps_container_probe_host PRIVATE nps_flags)
-        target_link_options(nps_container_probe_host PRIVATE -Wl,-undefined,dynamic_lookup)
+        target_link_options(nps_container_probe_host PRIVATE $<$<PLATFORM_ID:Darwin>:-Wl,-undefined,dynamic_lookup>)
 
         add_library(nps_luax_profile SHARED tests/target/profile_host.cc
                     src/platform/nspire/integrity.cc "${NPS_GIAC_SRC}/sha256.c"
@@ -1288,7 +1288,7 @@ else()
         target_link_libraries(nps_luax_profile PRIVATE nps_manifest_split_host nps_flags nps_gmp)
         target_include_directories(nps_luax_profile PRIVATE include tests tests/target/host_os
                                    "${NPS_GIAC_SRC}" ${LUAJIT_INCLUDE_DIRS})
-        target_link_options(nps_luax_profile PRIVATE -Wl,-undefined,dynamic_lookup)
+        target_link_options(nps_luax_profile PRIVATE $<$<PLATFORM_ID:Darwin>:-Wl,-undefined,dynamic_lookup>)
         if(NPS_RETAINED_UI)
             foreach(module nps_luax nps_luax_profile)
                 target_compile_definitions(${module} PRIVATE NPS_RETAINED_UI=1)

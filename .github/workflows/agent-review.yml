@@ -78,8 +78,8 @@ jobs:
     needs: select-reviewer
     # Metadata labels reuse the existing approval without starting another review.
     if: needs.select-reviewer.outputs.reviewer == 'claude' && needs.select-reviewer.outputs.requested == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
     env:
       REVIEW_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
       REVIEW_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
@@ -195,26 +195,21 @@ jobs:
       # Same set the full job installs.
       - name: Install prerequisites
         if: steps.key.outputs.have == 'true'
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          brew install ccache gmp php
-          # Published here rather than written into the step below, because the prefix is brew's to
-          # report and not ours to spell.
-          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ccache libgmp-dev php
 
       - name: Restore the reviewer cross toolchain
         id: reviewer-toolchain-cache
         uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
+          key: ndl-toolchain-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/prepare-review.sh', 'vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
       - name: Prepare complete reviewer prerequisites
         id: reviewer-prerequisites
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: bash .github/scripts/prepare-review.sh > "$RUNNER_TEMP/review-prerequisites.log" 2>&1
       - name: Save the complete reviewer cross toolchain
         if: steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'
@@ -226,7 +221,7 @@ jobs:
       - name: Set execution deadline
         if: steps.key.outputs.have == 'true'
         env:
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 120
         run: node .github/scripts/agent-deadline.mjs
 
       - name: Show that the assigned reviewer is starting
@@ -248,9 +243,7 @@ jobs:
       - name: Review the pull request
         if: steps.key.outputs.have == 'true'
         # The reviewer runs a single allowed command per stage, so anything a command needs from the
-        # shell has to reach it as an environment variable rather than as an export it cannot
-        # perform. PKG_CONFIG_PATH comes from the install step above, because nps/CMakeLists.txt:345
-        # asks pkg-config for gmp=6.3.0 exactly and brew keeps that file off the default search path.
+        # shell has to reach it as an environment variable.
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
         # v1 as of this commit. See agent.yml for why these are pinned by digest.
@@ -475,8 +468,8 @@ jobs:
   codex-review:
     needs: select-reviewer
     if: needs.select-reviewer.outputs.reviewer == 'codex' && needs.select-reviewer.outputs.requested == 'true'
-    runs-on: macos-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
     env:
       REVIEW_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
       REVIEW_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
@@ -507,24 +500,21 @@ jobs:
         with:
           node-version: "24"
       - name: Install reviewer prerequisites
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: |
-          brew install ccache gmp php
-          echo "PKG_CONFIG_PATH=$(brew --prefix gmp)/lib/pkgconfig" >> "$GITHUB_ENV"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ccache libgmp-dev php
           npm install -g @openai/codex@0.154.0
       - name: Restore the reviewer cross toolchain
         id: reviewer-toolchain-cache
         uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
-          key: ndl-toolchain-${{ runner.os }}-${{ hashFiles('vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
+          key: ndl-toolchain-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/prepare-review.sh', 'vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
       - name: Prepare complete reviewer prerequisites
         id: reviewer-prerequisites
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_NO_AUTO_UPDATE: 1
         run: bash .github/scripts/prepare-review.sh > "$RUNNER_TEMP/review-prerequisites.log" 2>&1
       - name: Save the complete reviewer cross toolchain
         if: steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'
@@ -535,7 +525,7 @@ jobs:
 
       - name: Set execution deadline
         env:
-          AGENT_JOB_TIMEOUT_MINUTES: 45
+          AGENT_JOB_TIMEOUT_MINUTES: 120
         run: node .github/scripts/agent-deadline.mjs
       - name: Authenticate the assigned reviewer
         id: bot
