@@ -570,7 +570,7 @@
       "pr": null,
       "branch": "codex/issue-38",
       "slug": "cx2-ag-codex-elm",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-6",
@@ -620,7 +620,7 @@
       "pr": 123,
       "branch": "codex/issue-38",
       "slug": "cx2-ag-codex-review-lantern",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-31",
@@ -660,7 +660,7 @@
       "pr": null,
       "branch": "codex/issue-129",
       "slug": "cx2-ag-codex-willow",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-129",
@@ -670,6 +670,16 @@
       "pr": 130,
       "branch": "codex/issue-129",
       "slug": "cx2-ag-codex-review-aegis",
+      "released": true
+    },
+    {
+      "key": "claude/executor/issue-194",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 194,
+      "pr": null,
+      "branch": "claude/issue-194",
+      "slug": "cx2-ag-claude-comet",
       "released": false
     }
   ]
