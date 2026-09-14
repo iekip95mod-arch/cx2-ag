@@ -51,7 +51,7 @@ export async function retryWaitingReviews(api, capacity = reviewerCapacity) {
   const pulls = await pages(api, `${root}/pulls?state=open&base=main`);
   const retried = [];
   for (const pr of pulls.sort((a, b) => a.number - b.number)) {
-    const provider = /^(codex|claude)\/issue-[1-9][0-9]*$/.exec(pr.head.ref)?.[1];
+    const provider = /^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.exec(pr.head.ref)?.[1];
     if (!provider || !available[provider] || pr.draft || pr.head.repo?.full_name !== repository) continue;
     const runs = (await pages(api, `${root}/actions/workflows/agent-review-request.yml/runs?event=pull_request&head_sha=${pr.head.sha}`, 'workflow_runs'))
       .filter(run => matches(run, pr, 'agent-review-request.yml') && run.head_sha === pr.head.sha && run.display_title === `Assign reviewer for PR #${pr.number} (requested)`)

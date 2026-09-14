@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 async function resolveIssue(repository, number, api, provider = 'codex') {
   if (repository !== 'iekip95mod-arch/cx2-ag' || !/^[1-9][0-9]*$/.test(String(number))) throw Error('A repository issue number is required');
   const issue = await api('GET', `repos/${repository}/issues/${number}`);
-  if (!['codex', 'claude'].includes(provider)) throw Error('Unknown executor provider');
+  if (!['codex', 'claude', 'gemini'].includes(provider)) throw Error('Unknown executor provider');
   if (!issue.pull_request) return { issue, number: Number(number), branch: `${provider}/issue-${number}` };
   const pr = await api('GET', `repos/${repository}/pulls/${number}`);
   const match = pr.head.ref.match(new RegExp(`^${provider}/issue-([1-9][0-9]*)$`));
@@ -27,7 +27,7 @@ export async function claimIssue({ repository, number, run, expectedBranch, prov
   if (identity.type !== 'Bot' || identity.login !== bot.login || identity.id !== bot.id) throw Error('The leased GitHub App identity does not match GitHub');
   if (issue.state !== 'open') throw Error('The issue or pull request is closed');
   if (issue.assignees.some(assignee => assignee.login !== identity.login && assignee.login !== legacyOwner)) throw Error('Another account already owns this issue');
-  if (issue.labels.some(label => label.name === (provider === 'codex' ? 'claude' : 'codex'))) throw Error('This issue is already assigned to another provider');
+  if (issue.labels.some(label => ['codex', 'claude', 'gemini'].includes(label.name) && label.name !== provider)) throw Error('This issue is already assigned to another provider');
   if (author !== undefined && author !== identity.login && author !== legacyOwner) throw Error('Only the leased bot\'s pull requests can be resumed');
   const existing = await api('GET', `repos/${repository}/git/ref/heads/${branch}`, undefined, true);
   if (!expectedBranch) throw Error('A durable branch lease is required');
