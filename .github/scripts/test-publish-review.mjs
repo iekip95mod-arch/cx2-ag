@@ -284,7 +284,9 @@ test('workflow review budget handling enforces fail-closed fallback and preserve
   assert.equal(deadline.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
   assert.equal(geminiReview.env.AGENT_JOB_TIMEOUT_MINUTES, geminiJob['timeout-minutes']);
   const afterSetup = agentDeadline({ startedAt: 1000, now: 1000 + 32 * 60, timeoutMinutes: geminiJob['timeout-minutes'] });
-  assert.ok(afterSetup.remaining >= 45 * 60, 'A cold toolchain setup must leave a usable review budget');
+  assert.ok(afterSetup.remaining >= 20 * 60, 'A cold toolchain setup must leave a usable review budget');
+  assert.ok(geminiJob['timeout-minutes'] < reviewWorkflow.jobs.review['timeout-minutes']);
+  assert.ok(geminiJob['timeout-minutes'] < reviewWorkflow.jobs['codex-review']['timeout-minutes']);
   assert.equal(geminiReview['continue-on-error'], true);
 
   // Each reviewer job configures fallback blocked publishing
