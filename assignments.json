@@ -591,6 +591,16 @@
       "branch": "codex/issue-125",
       "slug": "cx2-ag-codex-aspen",
       "released": false
+    },
+    {
+      "key": "codex/reviewer/issue-2",
+      "provider": "codex",
+      "role": "reviewer",
+      "issue": 2,
+      "pr": 121,
+      "branch": "codex/issue-2",
+      "slug": "cx2-ag-codex-review-aegis",
+      "released": false
     }
   ]
 }
