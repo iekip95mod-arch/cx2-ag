@@ -890,7 +890,8 @@ void run_units_tests(TestSink &t) {
             vector_of("m", 1, std::numeric_limits<int64_t>::min());
         const std::string expected = "(1 i - 9223372036854775808 j) m";
         std::string reported;
-        const bool report_ok = reported_vector_text(minimum_component, &reported);
+        HalfPlace exact_checked = HalfPlace::Unreadable;
+        const bool report_ok = reported_vector_text(minimum_component, &reported, exact_checked);
         t.check(vector_text(minimum_component) == expected && report_ok && reported == expected,
                 "exact vector formatting handles a later minimum numerator without signed negation");
     }
@@ -901,7 +902,7 @@ void run_units_tests(TestSink &t) {
         measured.precision.last_significant_decimal_place = -1;
         std::string reported;
         HalfPlace checked = HalfPlace::Unreadable;
-        t.check(reported_vector_text(measured, &reported, &checked) && reported == "(3.0 i + 4.0 j) m/s",
+        t.check(reported_vector_text(measured, &reported, checked) && reported == "(3.0 i + 4.0 j) m/s",
                 "a measured vector still gets its rounded spelling");
         t.check(checked == HalfPlace::Within,
                 "and the comparison that allowed it comes back with the text, so the caller is not "
