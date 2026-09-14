@@ -211,6 +211,56 @@ int selftest() {
     std::ofstream fixture(fixtures_dir + "/metadata.txt");
     fixture << "problem family: staged.complete\nrule: eq.divide-both-sides, staged rule\n";
     fixture.close();
+
+    // The evidence word on a rule line names a closed set, so an unknown one is a typo that took the
+    // device path at every consumer and removed the rule from the join with nothing said about it.
+    const std::string evidence_catalog = std::string(made) + "/evidence-class.md";
+    const struct {
+        const char *rule_line;
+        bool reads;
+        const char *what;
+    } evidence_cases[] = {
+        {"rule eq.divide-both-sides fixture", true, "a rule claiming fixture evidence reads back"},
+        {"rule eq.divide-both-sides device", true, "and so does one declaring device evidence"},
+        {"rule eq.divide-both-sides devicex", false,
+         "a misspelled device is refused rather than read as one"},
+        {"rule eq.divide-both-sides Fixture", false, "and so is a capitalised fixture"},
+        {"rule eq.divide-both-sides fixture device", false, "and so is a line naming two classes"},
+        {"rule eq.divide-both-sides", false, "a rule line naming no evidence class is refused"},
+    };
+    for (size_t i = 0; i < sizeof(evidence_cases) / sizeof(evidence_cases[0]); ++i) {
+        std::ofstream staged(evidence_catalog.c_str());
+        staged << "family id staged.evidence\n" << evidence_cases[i].rule_line << "\n";
+        staged.close();
+        std::vector<Family> staged_families;
+        std::string fault;
+        const bool ok = read_catalog(evidence_catalog, &staged_families, &fault);
+        const bool as_expected =
+            ok == evidence_cases[i].reads &&
+            (evidence_cases[i].reads
+                 ? fault.empty() && staged_families.size() == 1 &&
+                       staged_families[0].rules.size() == 1
+                 : staged_families.empty() &&
+                       fault.find("eq.divide-both-sides") != std::string::npos);
+        if (!as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                  << evidence_cases[i].what << "\n";
+    }
+    // A consumer of the catalog refuses that input rather than reporting over it, so no report is
+    // written for a catalog whose evidence class nobody defined.
+    const std::string refused_report = std::string(made) + "/refused.md";
+    {
+        std::ofstream staged(evidence_catalog.c_str());
+        staged << "family id staged.evidence\nrule eq.divide-both-sides devicex\n";
+        staged.close();
+        const bool refused = coverage(evidence_catalog, fixtures_dir, refused_report, nullptr) != 0 &&
+                             !std::filesystem::exists(refused_report);
+        if (!refused)
+            ++failures;
+        std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
+                  << "the coverage report is not written over an unknown evidence class\n";
+    }
     for (const std::string answer : {"complete", "omitted", "none", ""}) {
         std::ofstream metadata(metadata_path);
         for (const std::string id : {"staged.complete", "staged.incomplete"}) {
@@ -261,7 +311,10 @@ int selftest() {
 int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
              const std::string &report_path, const char *evidence_path) {
     std::vector<Family> families;
-    if (!read_catalog(catalog_path, &families) || families.empty()) {
+    std::string fault;
+    if (!read_catalog(catalog_path, &families, &fault) || families.empty()) {
+        if (!fault.empty())
+            std::cout << "coverage: " << catalog_path << ": " << fault << "\n";
         std::cout << "coverage: no families read from " << catalog_path << "\n";
         return 1;
     }
