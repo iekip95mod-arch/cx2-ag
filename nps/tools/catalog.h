@@ -42,10 +42,12 @@ inline std::string trimmed(const std::string &s) {
     return s.substr(begin, end - begin);
 }
 
-// The first word of a line and the rest of it, which is the whole of the catalog's syntax.
+// The first word of a line and the rest of it, which is the whole of the catalog's syntax. A tab
+// separates a word from its value as well as a space does, because an editor that expands one into
+// the other must not turn a rule line into a field name nobody wrote.
 inline bool first_word(const std::string &line, std::string *word, std::string *rest) {
     const std::string s = trimmed(line);
-    const size_t space = s.find(' ');
+    const size_t space = s.find_first_of(" \t");
     if (space == std::string::npos)
         return false;
     *word = s.substr(0, space);
@@ -125,11 +127,17 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
         return false;
     std::string line;
     while (std::getline(in, line)) {
+        const std::string text = trimmed(line);
+        if (text.empty() || text[0] == '#')
+            continue;
         std::string word, rest;
-        if (!first_word(line, &word, &rest))
-            continue;
-        if (word[0] == '#')
-            continue;
+        // A line carrying a word and no value is still that word. first_word answers the narrower
+        // question of a field and a value, and a rule line whose id went missing has to be seen
+        // before anything can refuse it.
+        if (!first_word(text, &word, &rest)) {
+            word = text;
+            rest.clear();
+        }
         if (word == "family") {
             std::string field, value;
             if (!first_word(rest, &field, &value) || field != "id")
@@ -149,7 +157,7 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
             // anyway hands every consumer a rule that silently joins against nothing.
             if (!first_word(rest, &id, &evidence) || !known_evidence(evidence)) {
                 if (fault != nullptr)
-                    *fault = "rule line names no known evidence class: " + rest;
+                    *fault = "rule line names no known evidence class: " + text;
                 out->clear();
                 return false;
             }
@@ -160,6 +168,11 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
             f.fields.insert("rule_ids");
             continue;
         }
+        // A field line with no value stays skipped, which is the omitted field the report already
+        // counts. Only a rule line is refused for it, because a rule leaving the catalog in silence
+        // is what removes it from the join.
+        if (rest.empty())
+            continue;
         // A repeated line adds to the list rather than replacing it, the same as a rule line does.
         if (word == "test_group_ids") {
             const std::vector<std::string> more = comma_separated(rest);
