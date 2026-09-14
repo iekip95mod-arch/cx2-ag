@@ -7,7 +7,7 @@ function fixture(provider = 'codex') {
   const repository = 'iekip95mod-arch/cx2-ag';
   const executor = loadRoster().find(bot => bot.provider === provider && bot.role === 'executor');
   const branch = `${provider}/issue-42`, head = 'a'.repeat(40);
-  const ci = { id: 77, run_attempt: 1, status: 'completed', conclusion: 'failure', event: 'pull_request', head_repository: { full_name: repository }, head_sha: head, path: '.github/workflows/check.yml', pull_requests: [{ number: 90 }] };
+  const ci = { id: 77, created_at: '2026-09-14T12:00:00Z', run_attempt: 1, status: 'completed', conclusion: 'failure', event: 'pull_request', head_repository: { full_name: repository }, head_sha: head, path: '.github/workflows/check.yml', pull_requests: [{ number: 90 }] };
   const pr = { state: 'open', draft: false, head: { sha: head, ref: branch, repo: { full_name: repository } }, user: { login: executor.login, id: executor.userId, type: 'Bot' } };
   const responses = {
     [`repos/${repository}/actions/runs/77`]: ci,
@@ -15,7 +15,7 @@ function fixture(provider = 'codex') {
     [`repos/${repository}/pulls/90`]: pr,
     [`repos/${repository}/issues/42`]: { state: 'open' },
     [`repos/${repository}/contents/assignments.json?ref=bot-assignments`]: { sha: 'lease', content: Buffer.from(JSON.stringify({ version: 1, assignments: [{ key: `${provider}/executor/issue-42`, provider, role: 'executor', issue: 42, pr: 90, branch, slug: executor.slug, released: false }] })).toString('base64') },
-    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&per_page=100`]: { workflow_runs: [] },
+    [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&created=%3E%3D2026-09-14T12%3A00%3A00.000Z&per_page=100`]: { workflow_runs: [] },
     [`repos/${repository}/actions/workflows/agent-review-feedback.yml/runs?event=pull_request_review&per_page=100`]: { workflow_runs: [] },
   };
   const calls = [];
@@ -98,9 +98,27 @@ test('successful, superseded, foreign and worker-generated failures never dispat
   }
 });
 
+test('CI feedback ignores the old archive but still detects duplicates on later pages', async () => {
+  const f = fixture();
+  const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&created=%3E%3D2026-09-14T12%3A00%3A00.000Z&per_page=100`;
+  const archive = { workflow_runs: Array.from({ length: 100 }, (_, id) => ({ id: 1000 + id, display_title: 'Unrelated old delivery' })) };
+  const filtered = { workflow_runs: [{ id: 99, display_title: 'CI feedback 77 attempt 1' }] };
+  f.responses[history] = archive;
+  f.responses[`${history}&page=2`] = filtered;
+  f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
+  assert.equal(await dispatchCiFeedback(f.options, async (method, endpoint, body) => {
+    if (endpoint.includes('/runs?event=workflow_run') && !endpoint.includes('&created=')) return archive;
+    return f.api(method, endpoint, body);
+  }), false);
+  assert.ok(f.calls.some(call => call.endpoint === `${history}&page=2`));
+  assert.equal(f.calls.some(call => call.method === 'POST'), false);
+  f.ci.created_at = 'invalid';
+  await assert.rejects(dispatchCiFeedback(f.options, f.api), /creation time/);
+});
+
 test('duplicate CI delivery is suppressed and a retry starting during validation prevents dispatch', async () => {
   const f = fixture();
-  const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&per_page=100`;
+  const history = `repos/${f.repository}/actions/workflows/agent-review-feedback.yml/runs?event=workflow_run&created=%3E%3D2026-09-14T12%3A00%3A00.000Z&per_page=100`;
   f.responses[history].workflow_runs = [{ id: 99, display_title: 'CI feedback 77 attempt 1', conclusion: 'success' }];
   f.responses[`repos/${f.repository}/actions/runs/99/jobs?per_page=100`] = { total_count: 1, jobs: [{ steps: [{ name: 'Confirm executor dispatch', conclusion: 'success' }] }] };
   assert.equal(await dispatchCiFeedback(f.options, f.api), false);
