@@ -540,7 +540,7 @@
       "pr": null,
       "branch": "codex/issue-48",
       "slug": "cx2-ag-codex-flint",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-31",
@@ -610,7 +610,7 @@
       "pr": 122,
       "branch": "codex/issue-48",
       "slug": "cx2-ag-codex-review-beacon",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-38",
@@ -700,6 +700,16 @@
       "pr": null,
       "branch": "claude/issue-211",
       "slug": "cx2-ag-claude-nova",
+      "released": false
+    },
+    {
+      "key": "claude/executor/issue-204",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 204,
+      "pr": null,
+      "branch": "claude/issue-204",
+      "slug": "cx2-ag-claude-orion",
       "released": false
     }
   ]
