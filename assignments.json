@@ -871,6 +871,17 @@
       "branch": "claude/issue-143",
       "slug": "cx2-ag-claude-review-dune",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-228",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 228,
+      "pr": 229,
+      "branch": "codex/gemini-subscription",
+      "legacyOwner": "iekip95mod-arch",
+      "slug": "cx2-ag-codex-amber",
+      "released": false
     }
   ]
 }
