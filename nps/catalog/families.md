@@ -236,39 +236,6 @@ rule eq.linear.check-by-substitution fixture
 rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
 
-family id physics.forces.newton-second-law
-topic_and_level Newton's laws on one body, free-body force sums, weight, normal force, tension and friction, PRD section 9 and M1 mechanics
-accepted_expression_grammar existing quantity grammar for mass, gravity, applied force, tension and acceleration, with the incline declared by its exact sine and cosine
-accepted_input_forms one named body on a named support, a positive mass and gravity, an optional applied force, tension and acceleration, a friction model with its coefficient, a declared motion sense and one requested unknown
-domains_and_parameter_assumptions the body is a particle in contact with the surface, the axes run along and across it, the across-axis acceleration is zero, a string is massless and inextensible, and an incline angle must have exact rational sine and cosine
-supported_branches_and_degenerate_cases horizontal surfaces and exact-angle inclines, frictionless, static and kinetic friction, equilibrium and accelerated motion, solving for the acceleration, the applied force, the normal force or the friction force
-exact_special_function_and_numerical_result_policy exact rational SI arithmetic throughout with no floating point and no trigonometric evaluation, since the incline is supplied as an exact sine and cosine
-parser_module_ids src/units/units.cc, src/physics/forces.cc
-required_assumptions the particle model, the axis choice, the maintained contact and, when a string is present, the massless inextensible string
-test_group_ids forces, units
-proof_obligation_ids obl.forces.input-dimensions, obl.forces.exact-angle, obl.forces.pairs-separate, obl.forces.static-within-limit, obl.forces.residual-zero, obl.forces.result-dimension, obl.plan.preconditions-hold
-supported_methods force inventory resolved onto both axes, the across-axis sum for the normal force, the along-axis sum for Newton's second law, and exact isolation of the single requested unknown
-unsupported_near_neighbors connected bodies over a pulley, more than one body, circular motion, drag, springs, torque, inclines whose angle has no exact rational sine and cosine, and more than one unknown
-solution_soundness_status verified by dimensional analysis on input and result, by the static friction limit when equilibrium is assumed, and by a force-balance residual that withholds the value when it is not zero
-solution_completeness_status complete for one body and one unknown within the stated envelope, with typed refusals for the arrangements outside it
-corpus_case_ids not yet registered, unit and bridge coverage only
-device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
-isolated_runtime_status ARM module not yet packaged for this family
-release_status in development, unreleased
-rule physics.forces.plan fixture
-rule physics.forces.check-input-dimensions fixture
-rule physics.forces.check-angle fixture
-rule physics.forces.weight fixture
-rule physics.forces.normal-force fixture
-rule physics.forces.third-law-pairs fixture
-rule physics.forces.kinetic-friction fixture
-rule physics.forces.static-friction-limit fixture
-rule physics.forces.newton-second-law fixture
-rule physics.forces.solve-unknown fixture
-rule physics.forces.check-residual fixture
-rule physics.forces.check-result-dimension fixture
-
 family id physics.vectors.cartesian-addition.two-dimension
 topic_and_level Two-dimensional Cartesian vector addition, PRD section 11 and M1 archetype 5
 accepted_expression_grammar existing vector grammar for each addend, either unit-vector form such as 3 i + 4 j m/s or an ordered tuple such as (3, 4) m/s
