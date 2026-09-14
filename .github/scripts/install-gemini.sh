@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "${RUNNER_OS:-}" = Linux ] && [ "${GITHUB_ACTIONS:-}" = true ]; then
-  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-fi
 curl --fail --silent --show-error --location \
   https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-x64/cli_linux_x64.tar.gz \
   --output "$RUNNER_TEMP/antigravity.tar.gz"

@@ -125,3 +125,24 @@ test('Gemini review execution receives history without the publication credentia
   assert.match(publish.run, /publish-review.mjs/);
   assert.match(review.steps.at(-1).run, /wait-for-review.mjs --review-final/);
 });
+
+test('only GitHub-hosted Linux jobs use the runner instead of the native sandbox', async () => {
+  const { githubHostedGemini, geminiSettings } = await import('./prepare-gemini.mjs');
+  const { runGemini } = await import('./run-gemini.mjs');
+  const environment = { GITHUB_ACTIONS: 'true', RUNNER_ENVIRONMENT: 'github-hosted' };
+  assert.equal(githubHostedGemini(environment, 'linux'), true);
+  assert.equal(githubHostedGemini(environment, 'darwin'), false);
+  assert.equal(githubHostedGemini({ ...environment, RUNNER_ENVIRONMENT: 'self-hosted' }, 'linux'), false);
+  assert.equal(githubHostedGemini({ ...environment, GITHUB_ACTIONS: '' }, 'linux'), false);
+  for (const sandbox of [true, false]) {
+    const settings = geminiSettings({ mode: 'executor', home: '/home/runner', workspace: '/workspace', temporary: '/temporary', sandbox });
+    assert.equal(settings.enableTerminalSandbox, sandbox);
+    assert.ok(settings.permissions.allow.includes('command(*)'));
+    assert.ok(settings.permissions.deny.includes('read_file(/home/runner/.gemini)'));
+    runGemini({ startedAt: 1789232400, timeoutMinutes: 30, now: 1789232401, mode: 'executor', sandbox }, (binary, args) => {
+      assert.equal(args.includes('--sandbox'), sandbox);
+      assert.equal(args[args.indexOf('--mode') + 1], 'accept-edits');
+      return { status: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: 'Finished' }) };
+    });
+  }
+});
