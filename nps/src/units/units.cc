@@ -962,9 +962,8 @@ std::string vector_text(const Vector &v) {
     return body + " " + unit;
 }
 
-bool reported_vector_text(const Vector &v, std::string *out, HalfPlace *checked) {
-    if (checked)
-        *checked = HalfPlace::Within;
+bool reported_vector_text(const Vector &v, std::string *out, HalfPlace &checked) {
+    checked = HalfPlace::Within;
     if (v.precision.kind == NumberKind::Exact) {
         *out = vector_text(v);
         return true;
@@ -976,17 +975,16 @@ bool reported_vector_text(const Vector &v, std::string *out, HalfPlace *checked)
         if (components[axis].num == 0)
             continue;
         std::string number;
-        // Only the rounder produces false, so it stays the answer for a place nothing can reach.
+        // Only the rounder produces false, and the comparison below leaves through checked, so a
+        // refused rounding is never spelled as the place the exact arithmetic cannot reach.
         if (!precision_rounded_text(components[axis], v.precision, &number))
             return false;
         const HalfPlace axis_checked =
             precision_rounding_valid(components[axis], number, v.precision);
-        if (axis_checked != HalfPlace::Within) {
-            if (!checked)
-                return false;
-            // A disagreement on one axis outranks an inconclusive one on another, as in outcome_from.
-            if (*checked == HalfPlace::Within || axis_checked == HalfPlace::Outside)
-                *checked = axis_checked;
+        // A disagreement on one axis outranks an inconclusive one on another, as in outcome_from.
+        if (axis_checked != HalfPlace::Within &&
+            (checked == HalfPlace::Within || axis_checked == HalfPlace::Outside)) {
+            checked = axis_checked;
         }
         const bool negative = !number.empty() && number.front() == '-';
         if (!body.empty())
