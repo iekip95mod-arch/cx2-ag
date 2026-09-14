@@ -917,6 +917,7 @@ int main_body() {
     sink.begin_group("vector components");
     run_vector_components_tests(sink);
     sink.begin_group("work");
+    run_forces_tests(sink);
     run_work_tests(sink);
     sink.begin_group("context");
     run_context_tests(sink);

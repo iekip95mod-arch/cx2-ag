@@ -116,6 +116,7 @@ void run_relative_motion_tests(TestSink &sink);
 void run_unit_conversion_tests(TestSink &sink);
 void run_vector_addition_tests(TestSink &sink);
 void run_vector_components_tests(TestSink &sink);
+void run_forces_tests(TestSink &sink);
 void run_work_tests(TestSink &sink);
 void run_context_tests(TestSink &sink);
 void run_fuzz_tests(TestSink &sink);
