@@ -762,7 +762,8 @@ struct Calculation {
         }
         if (step("tangent.point-value", "Evaluate the function at the point", call(command.expression),
                  at_point, "Substitute the point into the expression",
-                 "The expression is defined at the point, so the tangent line touches the curve there")
+                 "The expression is defined at the point, so the tangent line touches the curve there",
+                 false, ClaimType::Definition)
             == kNoStep)
             return;
         const DiffResult differentiated =
@@ -799,9 +800,13 @@ struct Calculation {
                    "the derivative has no exact value at that point, so the slope is undefined there");
             return;
         }
+        // A point substitution instantiates the function at one point rather than rewriting it, so
+        // neither of these two states an equivalent expression: VER-002 reads the derivative and its
+        // value at the point as disagreeing everywhere else.
         if (step("tangent.slope", "Evaluate the derivative at the point", differentiated.derivative,
                  slope, "Substitute the point into the derivative",
-                 "The derivative is defined at the point, so it is the slope of the tangent line")
+                 "The derivative is defined at the point, so it is the slope of the tangent line",
+                 false, ClaimType::Definition)
             == kNoStep)
             return;
         result.slope = slope;

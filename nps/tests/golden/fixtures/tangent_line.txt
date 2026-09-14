@@ -18,7 +18,7 @@ steps
     phase: calculus
     goal: Evaluate the function at the point
     rule: tangent.point-value, Evaluate the function at the point
-    claim: equivalent expression
+    claim: definition
     explanation: The expression is defined at the point, so the tangent line touches the curve there
     detail: A tangent line touches the curve at the point, so the function has to be defined there. Evaluate it exactly before any slope is taken, because an undefined value has no tangent to report.
     proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
@@ -60,7 +60,7 @@ steps
     phase: calculus
     goal: Evaluate the derivative at the point
     rule: tangent.slope, Evaluate the derivative at the point
-    claim: equivalent expression
+    claim: definition
     explanation: The derivative is defined at the point, so it is the slope of the tangent line
     detail: The derivative is a function of the variable. Substituting the point turns it into the one number the tangent line uses as its slope.
     proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value

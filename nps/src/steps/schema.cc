@@ -954,8 +954,8 @@ const RuleSchema kRules[] = {
     {"calculus.check-giac", ClaimType::EquivalentExpression, kCalculusGiac, 1, FailureBehavior::WithholdResult},
 
     // calculus.tangent-line, CALC-010
-    {"tangent.point-value", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
-    {"tangent.slope", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"tangent.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},

@@ -598,6 +598,21 @@ void run_calculus_tests(TestSink &t) {
                 evaluate_rational(arena, result.value, {{"x", Rational{4, 1}}}, &away) &&
                 away.num == 15 && away.den == 1,
                 "the assembled line meets the curve at the point and rises by the derivative: " + text);
+        // VER-002. Both point substitutions instantiate the function at one point instead of
+        // rewriting it, so a claim of equivalence would be false away from the point.
+        size_t substitutions = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id != "tangent.point-value" && recorded.rule_id != "tangent.slope")
+                continue;
+            ++substitutions;
+            t.check(recorded.claim == ClaimType::Definition,
+                    "the tangent family states its point substitutions as definitions rather than "
+                    "equivalences: " + recorded.rule_id + " in " + text);
+        }
+        t.check(substitutions == 2,
+                "the tangent family records both point substitutions: " + text + " has " +
+                std::to_string(substitutions));
         const std::string rendered = render_derivation(arena, derivation);
         t.check(rendered.find("tangent.check-line") != std::string::npos,
                 "the tangent family records its final tangency check: " + text);
