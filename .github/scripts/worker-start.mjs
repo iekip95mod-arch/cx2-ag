@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readAssignment } from './bot-identities.mjs';
+import { assignedReviewProvider, readAssignment } from './bot-identities.mjs';
 import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
 import { publishProgress } from './agent-progress.mjs';
 
@@ -39,7 +39,7 @@ export async function announceWorker({ context, task = '', model, effort, run, a
     if (security && !await hasSecurityFindings(repository, prNumber, review, api)) return false;
     let reviewer;
     try {
-      if (!security) reviewer = await readAssignment({ repository, provider: branch.split('/')[0], role: 'reviewer', issue }, api);
+      if (!security) reviewer = await readAssignment({ repository, provider: await assignedReviewProvider({ repository, pr: Number(prNumber), branch }, api) ?? branch.split('/')[0], role: 'reviewer', pr: Number(prNumber) }, api);
     } catch (error) {
       if (error.message === 'No active bot assignment for this target') return false;
       throw error;

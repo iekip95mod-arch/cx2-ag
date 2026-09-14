@@ -67,7 +67,8 @@ export async function trustedRequester(read, repository, event, actor, actorId, 
   if (current.head.repo?.full_name !== repository || sender?.login !== actor || sender?.id !== Number(actorId) || !Number.isSafeInteger(sender?.id) || sender.id < 1) throw Error('The review requester does not match the event actor');
   if (sender.type === 'User') return '';
   if (sender.type !== 'Bot') throw Error('Unknown review requester type');
-  const identity = await assignedIdentity(read, repository, current.number, await selectedProvider(read, repository, current.number, current, options), 'executor', options);
+  const executorProvider = /^(codex|claude|gemini)\//.exec(current.head.ref)?.[1] ?? await selectedProvider(read, repository, current.number, current, options);
+  const identity = await assignedIdentity(read, repository, current.number, executorProvider, 'executor', options);
   if (identity.login !== sender.login || identity.userId !== sender.id) throw Error('Only the assigned executor can request a bot review');
   return identity.login;
 }
@@ -91,6 +92,7 @@ export async function dispatchReview(api, repository, pr, sha, appSlug, options 
   if (current.head.repo?.full_name !== repository || current.head.sha !== sha || current.state !== 'open' || current.draft) throw Error('The review request is superseded, closed or draft');
   const identity = await assignedIdentity(read, repository, pr, await selectedProvider(read, repository, pr, current, options), 'reviewer', options);
   if (identity.slug !== appSlug) throw Error('The routing token does not belong to the assigned reviewer');
+  await (options.selectProvider ?? selectReviewProvider)({ repository, pr, branch: current.head.ref, login: identity.login }, api, options.roster);
   const label = `reviewer:${identity.slug}`;
   const endpoint = `repos/${repository}/labels/${encodeURIComponent(label)}`;
   if (!await api('GET', endpoint, undefined, true)) await api('POST', `repos/${repository}/labels`, { name: label, description: 'Assigned reviewer identity', color: '8250df' });
@@ -120,7 +122,7 @@ export async function clearReviewLabels(api, repository, pr, sha, identity, runI
   if (events.some(event => !Number.isFinite(Date.parse(event.created_at)) || Date.parse(event.created_at) >= started)) return;
   const latest = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (latest.head.sha !== sha) return;
-  if (!/^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.test(latest.head.ref)) await selectReviewProvider({ repository, pr, branch: latest.head.ref, login: identity.login }, api, options.roster);
+  await (options.selectProvider ?? selectReviewProvider)({ repository, pr, branch: latest.head.ref, login: identity.login }, api, options.roster);
   for (const label of labels) {
     if (latest.labels.some(entry => entry.name === label)) await api('DELETE', `${endpoint}/labels/${encodeURIComponent(label)}`, undefined, true);
   }
