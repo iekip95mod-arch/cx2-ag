@@ -294,6 +294,8 @@ check(manifest.integrity_identifiers[3].component == "artifact.package" and
       manifest.integrity_identifiers[3].scheme == "runtime-sha256-sidecar" and
       manifest.integrity_identifiers[3].value == "nps_split.luax.sha256.tns",
       "the split manifest points at the package digest it checks for itself")
+check(nps.test_native_artifact_package_scheme() == manifest.integrity_identifiers[3].scheme,
+      "the Lua bridge preserves the native artifact package integrity scheme")
 check(manifest.integrity_identifiers[4].component == "ui.document" and
       manifest.integrity_identifiers[4].scheme == "external-sha256-sidecar" and
       manifest.integrity_identifiers[4].value == "nps_v3.sha256.tns",
