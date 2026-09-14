@@ -305,6 +305,29 @@ void run_forces_tests(TestSink &t) {
         t.check(solved.derivation.all_verified_from(0),
                 "a normal force answer carries passing evidence throughout");
     }
+    {
+        // Static friction takes whatever value the balance needs, so it absorbs any applied force
+        // inside its limit. One equation with both unknown does not fix either of them.
+        ForcesProblem problem = base(ForcesUnknown::AppliedForce);
+        problem.friction = FrictionModel::Static;
+        problem.friction_coefficient = Rational{1, 2};
+        Run refused(problem);
+        t.check(refused.result.outcome == ForcesOutcome::Underdetermined,
+                "static friction with the applied force requested reports the missing constraint");
+        t.check(!refused.result.has_value,
+                "the underdetermined static-friction arrangement offers no value");
+    }
+    {
+        // An unbalanced push with equilibrium assumed leaves the along-axis residual non-zero, so
+        // the answer is withheld rather than published.
+        ForcesProblem problem = base(ForcesUnknown::NormalForce);
+        problem.applied = parsed("4 N");
+        problem.has_applied = true;
+        Run refused(problem);
+        t.check(refused.result.outcome == ForcesOutcome::VerificationFailed,
+                "an answer that leaves a non-zero along-axis residual is refused");
+        t.check(!refused.result.has_value, "a failed residual check offers no value");
+    }
 }
 
 }

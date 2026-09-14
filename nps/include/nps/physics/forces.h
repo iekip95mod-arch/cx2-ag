@@ -113,7 +113,6 @@ struct ForcesProblem {
 enum class ForcesOutcome : uint8_t {
     Solved,
     InvalidProblem,
-    ClarificationRequired,
     UnsupportedArrangement,
     InclineAngleNotExact,
     DimensionMismatch,

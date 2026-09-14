@@ -315,6 +315,14 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                       "static friction applies while the body is not sliding, so it cannot be "
                       "combined with a declared acceleration along the surface");
     }
+    if (problem.friction == FrictionModel::Static &&
+        problem.unknown == ForcesUnknown::AppliedForce) {
+        // Static friction takes whatever value the balance needs, so it absorbs any applied force
+        // inside its limit and one equation leaves both of them unfixed.
+        return failed(ForcesOutcome::Underdetermined, DerivationStatus::InvalidInput,
+                      "static friction adapts to the applied force, so an equilibrium with both "
+                      "unknown does not determine the applied force");
+    }
 
     Rational applied;
     applied.num = 0;
@@ -860,7 +868,6 @@ const char *forces_outcome_name(ForcesOutcome outcome) {
     switch (outcome) {
         case ForcesOutcome::Solved: return "solved";
         case ForcesOutcome::InvalidProblem: return "invalid problem";
-        case ForcesOutcome::ClarificationRequired: return "clarification required";
         case ForcesOutcome::UnsupportedArrangement: return "unsupported arrangement";
         case ForcesOutcome::InclineAngleNotExact: return "incline angle not exact";
         case ForcesOutcome::DimensionMismatch: return "dimension mismatch";
