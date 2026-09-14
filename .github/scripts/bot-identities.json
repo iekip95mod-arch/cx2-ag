@@ -394,5 +394,137 @@
     "userId": 328876468,
     "login": "cx2-ag-codex-pine[bot]",
     "secretName": "CX2_AG_CODEX_PINE_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "arch",
+    "slug": "cx2-ag-claude-review-arch",
+    "appId": 4935134,
+    "clientId": "Iv23litBczLywadtyMTF",
+    "userId": 328883976,
+    "login": "cx2-ag-claude-review-arch[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_ARCH_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "brook",
+    "slug": "cx2-ag-claude-review-brook",
+    "appId": 4935137,
+    "clientId": "Iv23li8QHgj0BQLKJqzS",
+    "userId": 328884059,
+    "login": "cx2-ag-claude-review-brook[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_BROOK_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "crest",
+    "slug": "cx2-ag-claude-review-crest",
+    "appId": 4935139,
+    "clientId": "Iv23liITt1U6AF5FBibQ",
+    "userId": 328884145,
+    "login": "cx2-ag-claude-review-crest[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_CREST_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "dune",
+    "slug": "cx2-ag-claude-review-dune",
+    "appId": 4935140,
+    "clientId": "Iv23lidMRxwCkISIjrku",
+    "userId": 328884185,
+    "login": "cx2-ag-claude-review-dune[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_DUNE_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "ridge",
+    "slug": "cx2-ag-claude-review-ridge",
+    "appId": 4935144,
+    "clientId": "Iv23li2JPMwVNQT6tbKG",
+    "userId": 328884255,
+    "login": "cx2-ag-claude-review-ridge[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_RIDGE_PRIVATE_KEY"
+  },
+  {
+    "provider": "claude",
+    "role": "reviewer",
+    "name": "vale",
+    "slug": "cx2-ag-claude-review-vale",
+    "appId": 4935147,
+    "clientId": "Iv23liUPFeKfcsNVuIj4",
+    "userId": 328884284,
+    "login": "cx2-ag-claude-review-vale[bot]",
+    "secretName": "CX2_AG_CLAUDE_REVIEW_VALE_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "bastion",
+    "slug": "cx2-ag-codex-review-bastion",
+    "appId": 4935096,
+    "clientId": "Iv23liWaFRvCmxjWRpWz",
+    "userId": 328883361,
+    "login": "cx2-ag-codex-review-bastion[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_BASTION_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "citadel",
+    "slug": "cx2-ag-codex-review-citadel",
+    "appId": 4935101,
+    "clientId": "Iv23livMkUQHWQzkaFAw",
+    "userId": 328883427,
+    "login": "cx2-ag-codex-review-citadel[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_CITADEL_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "lookout",
+    "slug": "cx2-ag-codex-review-lookout",
+    "appId": 4935108,
+    "clientId": "Iv23liQAZAgMDedDZkgL",
+    "userId": 328883553,
+    "login": "cx2-ag-codex-review-lookout[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_LOOKOUT_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "sentinel",
+    "slug": "cx2-ag-codex-review-sentinel",
+    "appId": 4935120,
+    "clientId": "Iv23li7czF1EI7s5qF78",
+    "userId": 328883767,
+    "login": "cx2-ag-codex-review-sentinel[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_SENTINEL_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "shield",
+    "slug": "cx2-ag-codex-review-shield",
+    "appId": 4935125,
+    "clientId": "Iv23li6857F8oZGtpEya",
+    "userId": 328883860,
+    "login": "cx2-ag-codex-review-shield[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_SHIELD_PRIVATE_KEY"
+  },
+  {
+    "provider": "codex",
+    "role": "reviewer",
+    "name": "warden",
+    "slug": "cx2-ag-codex-review-warden",
+    "appId": 4935131,
+    "clientId": "Iv23liM5QQBuJo6AwjBm",
+    "userId": 328883934,
+    "login": "cx2-ag-codex-review-warden[bot]",
+    "secretName": "CX2_AG_CODEX_REVIEW_WARDEN_PRIVATE_KEY"
   }
 ]
