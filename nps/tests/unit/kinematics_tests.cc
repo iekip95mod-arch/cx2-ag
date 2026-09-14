@@ -761,6 +761,18 @@ void run_kinematics_tests(TestSink &t) {
                 "a verified no-solution answer does not ask a backend for a scalar rearrangement");
     }
     {
+        Solved s = run("find v; x = 1 m; a = 3 m/s^2; t = 0 s");
+        t.equal(s.outcome, "no solution",
+                "a contradiction found while deriving an intermediate remains terminal");
+        t.check(has(s.rationale, "while deriving v0 on the way to v") &&
+                    has(s.rationale,
+                        "x = v0*t + (1/2)*a*t^2 for v0 reduces to a contradiction"),
+                "the plan identifies the contradictory intermediate instead of a direct solve");
+        t.check(!has(s.rationale, "first that has v") && has(s.goals, "Find v") &&
+                    has(s.goals, "Isolate v0") && !has(s.goals, "Isolate v |"),
+                "the plan and solver steps keep their distinct requested and intermediate targets");
+    }
+    {
         Solved s = run("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 m");
         t.evidence("VER-007", s.outcome, "dimension mismatch", "a time given in metres is refused");
         t.check(has(s.detail, "time has dimension T, and m has L"), "with both dimensions named");

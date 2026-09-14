@@ -261,8 +261,6 @@ struct Search {
     std::vector<bool> used;
     bool halted = false;
     bool cancelled = false;
-    // A verified contradiction ends the search even when it appears while deriving an intermediate.
-    bool terminal_answer = false;
     std::string halt_detail;
     // Only what a probe spent on its own meter. Ours is read directly, so copying it here doubles it.
     Cost halt_cost;
@@ -284,6 +282,12 @@ enum class Probe : uint8_t {
     NoSolution,
     Refused,
     Halted,
+};
+
+enum class RouteOutcome : uint8_t {
+    NotFound,
+    Complete,
+    Contradiction,
 };
 
 // One equation offered to the linear solver with the given knowns substituted in. The solver is
@@ -368,12 +372,12 @@ std::string joined(const std::vector<std::string> &v) {
 // bounded by the table, and a branch is kept only when every quantity it needs is either given or
 // produced by an earlier hop. The caller deepens one hop at a time, so a one-hop answer always wins
 // over a two-hop one and the shortest derivation is the one recorded.
-bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> *route) {
+RouteOutcome chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> *route) {
     // The limit is on the whole route rather than on this branch, so two missing quantities cannot
     // each spend it. Counting the hops already committed is what makes the depth the caller asked
     // for the depth it gets, and what makes a shorter route win.
     if (route->size() >= limit || s.halted)
-        return false;
+        return RouteOutcome::NotFound;
     const size_t hops_left = limit - route->size();
     // What an equation the search passed over is judged against: the givens, plus whatever the route
     // produced on the way, and never the target itself. Substituting the target would leave nothing
@@ -427,30 +431,30 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
         const size_t names_before = s.names.size();
         const size_t route_before = route->size();
         s.used[i] = true;
-        bool reached = true;
+        RouteOutcome reached = RouteOutcome::Complete;
         // One less than the limit, because this level's own hop is not in the route yet and has to
         // be paid for. Siblings share what is left, so two missing quantities cannot each spend it.
-        for (size_t m = 0; m < missing.size() && reached; ++m)
+        for (size_t m = 0; m < missing.size() && reached == RouteOutcome::Complete; ++m)
             reached = chain(s, missing[m], limit - 1, route);
-        if (s.terminal_answer)
-            return true;
+        if (reached == RouteOutcome::Contradiction)
+            return RouteOutcome::Contradiction;
         Hop hop;
         std::string reason;
-        const Probe probe = reached ? try_equation(s, e, target, &hop, &reason) : Probe::Refused;
+        const Probe probe = reached == RouteOutcome::Complete
+                                ? try_equation(s, e, target, &hop, &reason)
+                                : Probe::Refused;
         if (probe == Probe::Solved || probe == Probe::NoSolution) {
             taken = i;
             route->push_back(hop);
-            if (probe == Probe::NoSolution) {
-                s.terminal_answer = true;
-                return true;
-            }
+            if (probe == Probe::NoSolution)
+                return RouteOutcome::Contradiction;
             known_names = s.names;
             known_values = s.values;
             s.names.push_back(target);
             s.values.push_back(hop.value);
             continue;
         }
-        if (reached && target == s.goal && missing.empty() &&
+        if (reached == RouteOutcome::Complete && target == s.goal && missing.empty() &&
             hop.refusal_status == DerivationStatus::Unsupported && !s.has_answer_candidate) {
             s.has_answer_candidate = true;
             s.answer_candidate = hop;
@@ -473,7 +477,7 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
                 alternatives.push_back(std::string(s.table[i].text) + ": " + reasons[i]);
         }
         route->back().alternatives = std::move(alternatives);
-        return true;
+        return RouteOutcome::Complete;
     }
     // Only the outermost call's reasons are worth reporting. A deeper one explains a branch the
     // reader never asked about.
@@ -482,7 +486,7 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
         for (size_t i = 0; i < s.count; ++i)
             s.goal_reasons.push_back(std::string(s.table[i].text) + ": " + reasons[i]);
     }
-    return false;
+    return RouteOutcome::NotFound;
 }
 
 // Deepening one hop at a time. kMaxHops is a bound on the search rather than a physics claim: with
@@ -490,14 +494,15 @@ bool chain(Search &s, const std::string &target, size_t limit, std::vector<Hop> 
 // the third is headroom for the families that come next.
 const size_t kMaxHops = 3;
 
-bool find_route(Search &s, const std::string &target, std::vector<Hop> *route) {
+RouteOutcome find_route(Search &s, const std::string &target, std::vector<Hop> *route) {
     s.goal = target;
     for (size_t hops = 1; hops <= kMaxHops && !s.halted; ++hops) {
         route->clear();
-        if (chain(s, target, hops, route))
-            return true;
+        const RouteOutcome outcome = chain(s, target, hops, route);
+        if (outcome != RouteOutcome::NotFound)
+            return outcome;
     }
-    return false;
+    return RouteOutcome::NotFound;
 }
 
 // The dimension of an expression over the kinematics symbols. A sum of unlike dimensions is the
@@ -815,7 +820,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
     const Equation *table = equations(&count);
     Search search(arena, ctx.derivation, table, count, budget, ctx.meter, names, values);
     std::vector<Hop> route;
-    const bool routed = find_route(search, problem.unknown, &route);
+    const RouteOutcome route_outcome = find_route(search, problem.unknown, &route);
     if (search.halted) {
         ctx.halted = true;
         ctx.cancelled = search.cancelled;
@@ -823,7 +828,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
         ctx.halt_cost = search.halt_cost;
         return result;
     }
-    if (!routed) {
+    if (route_outcome == RouteOutcome::NotFound) {
         result.outcome = KinematicsOutcome::NoApplicableEquation;
         result.detail = "no constant-acceleration equation reaches " + problem.unknown +
                         " from what is given";
@@ -858,6 +863,8 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
     const Equation *chosen = final_hop.equation;
     NodeId symbolic = final_hop.symbolic;
     *model = symbolic;
+    const bool recursive_contradiction =
+        route_outcome == RouteOutcome::Contradiction && final_hop.produces != problem.unknown;
 
     // What the search passed over. On one hop that is the other three equations and why not, which
     // is what it has always been. On a route it is per hop, labelled with the quantity being looked
@@ -892,7 +899,11 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
     }
     plan.matched_problem_facts.push_back("find " + problem.unknown + ", the " + target->name);
     plan.alternatives_considered = alternatives;
-    if (route.size() == 1) {
+    if (recursive_contradiction) {
+        plan.selection_rationale = "while deriving " + final_hop.produces + " on the way to " +
+                                   problem.unknown + ", " + route_text +
+                                   " reduces to a contradiction, so the given data have no solution";
+    } else if (route.size() == 1) {
         plan.selection_rationale = std::string("of the four constant-acceleration equations, ") +
                                    chosen->text + " is the first that has " + problem.unknown +
                                    " with every other quantity known and is linear in it once the "
@@ -916,11 +927,16 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
     plan_step.rule_id = plan.strategy_id;
     plan_step.rule_name = "Constant acceleration in one dimension";
     plan_step.claim = ClaimType::NoClaim;
-    plan_step.explanation_short =
-        route.size() == 1
-            ? std::string("Use ") + chosen->text + ": put the values in SI into it and solve for " +
-                  problem.unknown
-            : std::string("Use ") + route_text + ", each with the values in SI";
+    if (recursive_contradiction) {
+        plan_step.explanation_short = "Use " + route_text + " while finding " + problem.unknown +
+                                      "; its contradiction means the givens admit no solution";
+    } else {
+        plan_step.explanation_short =
+            route.size() == 1
+                ? std::string("Use ") + chosen->text +
+                      ": put the values in SI into it and solve for " + problem.unknown
+                : std::string("Use ") + route_text + ", each with the values in SI";
+    }
     plan_step.assumptions_before.push_back(kConstantAcceleration);
     register_strategy_precondition(
         plan, plan_step, "pre.kinematics.constant-acceleration",
