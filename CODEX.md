@@ -40,14 +40,14 @@ The first meaningful regression or implementation commit triggers publication: p
 | --- | --- |
 | Codex executors | Amber, Birch, Cedar, Flint, Maple, Willow, Aspen, Elm, Hazel, Juniper, Oak, Pine |
 | Claude executors | Atlas, Comet, Ember, Nova, Orion, Vega, Aurora, Lyra, Meteor, Nebula, Pulsar, Sirius |
-| Codex reviewers | Aegis, Beacon, Compass, Harbor, Lantern, Prism |
-| Claude reviewers | Anchor, Cairn, Delta, Echo, Grove, Summit |
+| Codex reviewers | Aegis, Beacon, Compass, Harbor, Lantern, Prism, Bastion, Citadel, Lookout, Sentinel, Shield, Warden |
+| Claude reviewers | Anchor, Cairn, Delta, Echo, Grove, Summit, Arch, Brook, Crest, Dune, Ridge, Vale |
 
 The trusted catalogue is .github/scripts/bot-identities.json. Each entry maps a provider and role to an App ID, numeric Bot user ID and private-key secret name. Unconfigured entries cannot run. Executor logins use cx2-ag-PROVIDER-NAME[bot] and reviewers use cx2-ag-PROVIDER-review-NAME[bot].
 
 The bot-assignments branch stores durable claims. Allocation uses the file's current SHA to prevent simultaneous runs from taking the same slot. Retries and resumed PR work reuse the saved identity. A slot becomes available only after its linked issue and all associated PRs close. A full pool refuses new work rather than borrowing another live worker's identity. Closing a task does not rename or delete its bot, so historical comments and commits retain their author.
 
-Each provider has twelve executor identities and six reviewer identities. The reviewer uses the same model provider as the executor, with a different GitHub identity. More executor identities do not increase subscription credits or GitHub runner limits. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
+Each provider has twelve executor identities and twelve reviewer identities. The reviewer uses the same model provider as the executor, with a different GitHub identity. More executor identities do not increase subscription credits or GitHub runner limits. Existing human-authored PRs retain their original author. Changing the credential cannot change past PR authorship.
 
 A coordinator can reserve an executor for an existing noncanonical provider branch using an explicit legacy-owner migration. The PR must have that owner's authorship and link exactly one issue in this repository. The allocator preserves and revalidates the original issue, PR and branch. Hosted issue workers and automatic review feedback still require canonical issue branches. The desktop coordinator completes legacy setup PRs.
 
@@ -62,7 +62,7 @@ Executors and reviewers announce their selected model and effort at startup and 
 | GITHUB_TOKEN | Automatic Actions token for trusted routing and durable identity allocation |
 | CODEX_GITHUB_TOKEN | Existing owner credential used only by the trusted native-assignment router |
 
-Named workers mint short-lived installation tokens for cx2-ag from their assigned App's private key. Executor Apps can write contents, issues, PRs and workflows. All twelve reviewer Apps have contents write permission and can publish issues and reviews. Reviewer execution remains independent of implementation, and only publication steps receive the reviewer credential where the workflow isolates it. The App credentials change GitHub attribution only. Codex continues using CODEX_AUTH_JSON and Claude uses CLAUDE_CODE_OAUTH_TOKEN for subscription model execution. The former personal CODEX_GITHUB_TOKEN is not the named workers' publishing identity.
+Named workers mint short-lived installation tokens for cx2-ag from their assigned App's private key. Executor Apps can write contents, issues, PRs and workflows. All twenty-four reviewer Apps have contents write permission and can publish issues and reviews. Reviewer execution remains independent of implementation, and only publication steps receive the reviewer credential where the workflow isolates it. The App credentials change GitHub attribution only. Codex continues using CODEX_AUTH_JSON and Claude uses CLAUDE_CODE_OAUTH_TOKEN for subscription model execution. The former personal CODEX_GITHUB_TOKEN is not the named workers' publishing identity.
 
 The assignment router reads trusted code from main and verifies the commenting executor against its durable lease before using the owner credential. That credential is never passed to a model or a publication hook. Bot App tokens were rejected for native assignment in live checks, even when the owner credential could assign the same bot to a PR. The router reports rejected assignments rather than treating an empty response as success.
 
