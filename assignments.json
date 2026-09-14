@@ -811,6 +811,16 @@
       "branch": "claude/issue-208",
       "slug": "cx2-ag-claude-pulsar",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-15",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 15,
+      "pr": 218,
+      "branch": "claude/issue-15",
+      "slug": "cx2-ag-claude-review-summit",
+      "released": false
     }
   ]
 }
