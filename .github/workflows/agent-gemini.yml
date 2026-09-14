@@ -76,7 +76,7 @@ jobs:
             echo
             echo "Say which stages you actually reached. Host build and host suite are what a commit"
             echo "can claim."
-            echo "You are Gemini 3.1 Pro with high reasoning effort. State this in your final response."
+            echo "You are Gemini 3.8 Flash (High) with high reasoning effort. State this in your final response."
             echo "You have 25 minutes. Finish your answer before that limit, leaving time for publication."
             echo "Calculator execution is emulator only. Physical handheld runs are outside scope."
             echo "Do not request hardware runs, add unfinished physical-test checkboxes or block on their absence."
@@ -113,7 +113,7 @@ jobs:
         timeout-minutes: 26
         run: |
           "$RUNNER_TEMP/antigravity-bin/antigravity" \
-            --model gemini-3.1-pro-high --effort high --dangerously-skip-permissions \
+            --model gemini-3.8-flash-high --effort high --dangerously-skip-permissions \
             --print-timeout 25m --output-format json \
             --print "$GEMINI_PROMPT" > "$RUNNER_TEMP/gemini-result.json"
           jq -e '.status == "SUCCESS" and (.response | type == "string" and length > 0)' \
