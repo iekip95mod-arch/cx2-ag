@@ -1033,6 +1033,16 @@
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-cobalt",
       "released": false
+    },
+    {
+      "key": "gemini/executor/issue-207",
+      "provider": "gemini",
+      "role": "executor",
+      "issue": 207,
+      "pr": null,
+      "branch": "gemini/issue-207",
+      "slug": "cx2-ag-gemini-copper",
+      "released": false
     }
   ]
 }
