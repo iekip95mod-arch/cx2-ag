@@ -475,7 +475,15 @@ endforeach()
 
 function(nps_add_manifest target artifact release_targets diagnostic_only backend_name
          backend_version backend_interface backend_deployment step_hash ndl_hash giac_hash
-         sidecar sidecar_scheme ui_sidecar)
+         sidecar ui_sidecar)
+    # Keep the verification claim tied to the artifact behavior rather than individual call sites.
+    if(artifact STREQUAL "probe")
+        set(sidecar_scheme "external-sha256-sidecar")
+    elseif(artifact STREQUAL "split" OR artifact STREQUAL "unified")
+        set(sidecar_scheme "runtime-sha256-sidecar")
+    else()
+        set(sidecar_scheme "")
+    endif()
     if(ndl_hash)
         set(NPS_CFG_HAS_NDL 1)
     else()
@@ -615,15 +623,15 @@ if(CMAKE_CROSSCOMPILING)
 
     nps_add_manifest(nps_manifest_probe probe 1 1 none not-installed none absent
                      "${NPS_PROBE_STEP_HASH}" "${NPS_NDL_HASH}" ""
-                     "${NPS_PROBE_SIDECAR}" external-sha256-sidecar "")
+                     "${NPS_PROBE_SIDECAR}" "")
     nps_add_manifest(nps_manifest_split split 1 0 Giac runtime-unverified
                      lua5.1.luagiac.caseval-v1 external-required-unvalidated
                      "${NPS_SPLIT_STEP_HASH}" "${NPS_NDL_HASH}" ""
-                     "${NPS_SPLIT_SIDECAR}" runtime-sha256-sidecar "${NPS_V3_SIDECAR}")
+                     "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
     nps_add_manifest(nps_manifest_unified unified 1 ${NPS_RESOURCE_PROFILE} Giac "${NPS_GIAC_VERSION}"
                       nps.giac.typed-v1 bundled-static
                       "${NPS_UNIFIED_STEP_HASH}" "${NPS_NDL_HASH}" "${NPS_GIAC_HASH}"
-                      "${NPS_UNIFIED_SIDECAR}" runtime-sha256-sidecar "${NPS_V4_SIDECAR}")
+                      "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
     if(NPS_RETAINED_FAULT_INJECTION)
         target_compile_definitions(nps_manifest_unified PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
     endif()
@@ -1082,12 +1090,11 @@ else()
 
     nps_hash_inputs(NPS_HOST_STEP_HASH ${NPS_COMMON_MANIFEST_INPUTS})
     nps_add_manifest(nps_manifest_host host 0 0 none not-installed none absent
-                     "${NPS_HOST_STEP_HASH}" "" "" "" "" "")
+                     "${NPS_HOST_STEP_HASH}" "" "" "" "")
     target_link_libraries(nps_manifest_host PRIVATE nps_flags)
 
     nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
-                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}"
-                     external-sha256-sidecar "")
+                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}" "")
     target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
     add_executable(nps_manifest_probe_test tests/unit/manifest_probe_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_probe_host>)
@@ -1229,7 +1236,7 @@ else()
         nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
                          lua5.1.luagiac.caseval-v1 external-required-unvalidated
                          "${NPS_SPLIT_HOST_STEP_HASH}" "${NPS_SPLIT_HOST_NDL_HASH}"
-                         "" "${NPS_SPLIT_SIDECAR}" runtime-sha256-sidecar "${NPS_V3_SIDECAR}")
+                         "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
         target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
         if(NPS_RETAINED_FAULT_INJECTION)
             target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
