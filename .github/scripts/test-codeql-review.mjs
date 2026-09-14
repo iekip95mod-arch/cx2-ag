@@ -10,9 +10,20 @@ const roster = [
   { provider: 'claude', role: 'reviewer', slug: 'cx2-claude-review-amber', login: 'cx2-claude-review-amber[bot]', userId: 201, appId: 302, clientId: 'Iv1.review-fixture' },
   { provider: 'codex', role: 'executor', login: 'cx2-codex-amber[bot]', userId: 100, appId: 300, clientId: 'Iv1.fixture' }
 ];
-const options = { roster, providerLookup: async () => undefined, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
+const options = { roster, selectProvider: async () => {}, providerLookup: async () => undefined, assignment: async ({ provider }) => roster.find(identity => identity.provider === provider && identity.role === 'reviewer') };
 const reviewState = (read, repository, pr, sha, overrides = options) => checkReview(read, repository, pr, sha, overrides);
 const waitForReview = (read, repository, pr, sha, sleep, attempts) => wait(read, repository, pr, sha, sleep, attempts, options);
+
+test('rerouting validates the executor provider rather than the requested reviewer provider', async () => {
+  const executor = roster.find(bot => bot.role === 'executor');
+  const event = { pull_request: { number: 85, labels: [{ name: 'claude-review' }], head: { ref: 'codex/issue-42', repo: { full_name: repository } } }, sender: { type: 'Bot', login: executor.login, id: executor.userId } };
+  const configured = { ...options, assignment: async ({ provider, role }) => {
+    assert.equal(provider, 'codex');
+    assert.equal(role, 'executor');
+    return executor;
+  } };
+  assert.equal(await reviewRuntime.trustedRequester(async () => {}, repository, event, executor.login, executor.userId, configured), executor.login);
+});
 
 test('finished reviewers clear their request and identity labels without erasing a later request', async () => {
   for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
@@ -38,8 +49,8 @@ test('finished reviewers clear their request and identity labels without erasing
 });
 
 test('a completed custom-branch review retains its leased provider after label cleanup', async () => {
-  for (const identity of roster.filter(bot => bot.role === 'reviewer')) {
-    const current = { state: 'open', draft: false, head: { sha, ref: 'feature/manual-issue', repo: { full_name: repository } }, user: { login: 'owner', id: 1 }, labels: [{ name: `${identity.provider}-review` }, { name: `reviewer:${identity.slug}` }] };
+  for (const identity of roster.filter(bot => bot.role === 'reviewer')) for (const branch of ['feature/manual-issue', 'gemini/issue-42']) {
+    const current = { state: 'open', draft: false, head: { sha, ref: branch, repo: { full_name: repository } }, user: { login: 'owner', id: 1 }, labels: [{ name: `${identity.provider}-review` }, { name: `reviewer:${identity.slug}` }] };
     const lease = { key: `${identity.provider}/reviewer/issue-42`, role: 'reviewer', provider: identity.provider, issue: 42, pr: 85, branch: current.head.ref, slug: identity.slug, released: false };
     const previous = roster.find(bot => bot.role === 'reviewer' && bot.provider !== identity.provider);
     let assignments = [{ ...lease, provider: previous.provider, key: `${previous.provider}/reviewer/issue-42`, slug: previous.slug }, lease];
@@ -52,7 +63,7 @@ test('a completed custom-branch review retains its leased provider after label c
       if (endpoint.includes('/attempts/')) return { run_started_at: '2026-09-13T12:00:00Z' };
       return current;
     };
-    const configured = { ...options, providerLookup: undefined, model: 'test-model', effort: 'high', phase: 'succeeded' };
+    const configured = { ...options, selectProvider: undefined, providerLookup: undefined, model: 'test-model', effort: 'high', phase: 'succeeded' };
     await reviewRuntime.publishReviewNote(api, repository, 85, sha, identity.slug, '100', '1', 'final', [], configured);
     assert.deepEqual(current.labels, []);
     assert.equal(await approvalState(endpoint => api('GET', endpoint), repository, 85, sha, { ...configured, provider: identity.provider }), 'approved');
