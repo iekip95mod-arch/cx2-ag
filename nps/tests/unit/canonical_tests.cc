@@ -848,6 +848,41 @@ void run_canonical_tests(TestSink &t) {
         t.check(c == c2, "canonical form survives a print and reparse");
     }
 
+    // kNoNode from canonicalize is two different answers, and only the arena says which. A shape the
+    // canonicalizer does not handle leaves the arena clean, so a caller that reads kNoNode as a limit
+    // reports a size that was never reached.
+    {
+        Arena arena;
+        ParseResult r = parse(arena, "x");
+        const NodeId malformed = arena.nary(Kind::Pow, {r.root});
+        t.check(malformed != kNoNode, "a one-child power is held by the arena");
+        t.check(canonicalize(arena, malformed) == kNoNode,
+                "a shape outside the node grammar has no canonical form");
+        t.check(!arena.failed(),
+                "that refusal leaves the arena unfailed, so it is not a limit");
+    }
+
+    // The other answer, for the same return value. Here the arena really did run out, and it records
+    // a resource status, which is what tells the two apart.
+    {
+        // The bound that parses the input and then starves canonicalization is a property of the
+        // fixture rather than a number worth writing down, so it is searched for.
+        bool starved = false;
+        for (size_t bound = 4; bound < 64 && !starved; ++bound) {
+            Limits limits;
+            limits.max_nodes = bound;
+            Arena arena(limits);
+            ParseResult r = parse(arena, "-(a + b + c) * (d + e + f)");
+            if (!r.ok())
+                continue;
+            if (canonicalize(arena, r.root) != kNoNode)
+                continue;
+            starved = arena.failed() && resource_status(arena.status());
+        }
+        t.check(starved,
+                "an arena that runs out during canonical form records a resource status");
+    }
+
     {
         Arena arena;
         ParseResult r = parse(arena, "(0 * x) * (y * 0^-1)");

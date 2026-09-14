@@ -1383,6 +1383,25 @@ int parse_failed(lua_State *L, const ParseResult &r) {
     return 2;
 }
 
+// canonicalize answers kNoNode for a form it does not handle as well as for a limit it hit, and the
+// arena is the only thing that knows which. Naming the limit unconditionally sent a reader to
+// shorten an expression whose size was never the problem.
+int canonical_refused(lua_State *L, const Arena &arena) {
+    lua_pushnil(L);
+    if (!arena.failed()) {
+        lua_pushliteral(L, "this expression has no canonical form in StepCAS");
+        return 2;
+    }
+    std::string msg;
+    if (resource_status(arena.status()))
+        msg = "the expression outgrew the limits while being put in canonical form: ";
+    else
+        msg = "canonical form was refused: ";
+    msg += status_name(arena.status());
+    lua_pushlstring(L, msg.data(), msg.size());
+    return 2;
+}
+
 int expression_resource_failure(lua_State *L, const std::string &detail) {
     return typed_failure(L, "resource exceeded", "resource limit reached", detail);
 }
@@ -1779,11 +1798,8 @@ int l_canonical(lua_State *L) {
         return parse_failed(L, parsed);
 
     NodeId c = canonicalize(arena, parsed.root);
-    if (c == kNoNode) {
-        lua_pushnil(L);
-        lua_pushstring(L, "the expression outgrew the limits while being put in canonical form");
-        return 2;
-    }
+    if (c == kNoNode)
+        return canonical_refused(L, arena);
 
     std::string out = print(arena, c);
     lua_pushlstring(L, out.data(), out.size());
