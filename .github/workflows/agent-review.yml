@@ -508,7 +508,7 @@ jobs:
         env:
           CODEX_HOME: ${{ steps.key.outputs.home }}
         run: |
-          codex sandbox linux -c 'sandbox_mode="workspace-write"' -- python3 - <<'PY'
+          codex sandbox -c 'sandbox_mode="workspace-write"' -- python3 - <<'PY'
           import errno
           import os
           import socket
