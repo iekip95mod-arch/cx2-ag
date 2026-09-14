@@ -46,7 +46,7 @@ export async function resolveTarget({ repository, provider, role, issue, pr, leg
   const pull = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (pull.head.repo?.full_name !== repository) throw Error('A bot cannot own a fork PR');
   const canonical = /^(codex|claude|gemini)\/issue-([1-9][0-9]*)$/.exec(pull.head.ref);
-  if (canonical && canonical[1] !== provider) throw Error('The PR belongs to another provider');
+  if (canonical && canonical[1] !== provider && role === 'executor') throw Error('The PR belongs to another provider');
   if (canonical) {
     const ticket = await api('GET', `repos/${repository}/issues/${canonical[2]}`);
     if (ticket.pull_request) throw Error('The canonical branch must refer to an issue, not a PR');

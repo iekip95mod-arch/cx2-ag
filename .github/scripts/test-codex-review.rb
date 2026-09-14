@@ -11,7 +11,7 @@ emulator_contract = ['Calculator execution is emulator only', 'Physical handheld
   steps = workflow.fetch('jobs').fetch(name).fetch('steps')
   history = steps.find { |step| step['name'] == 'Prepare cumulative review history' }
   raise 'Reviewers need prior findings on the exact head' unless history && history.fetch('run') == 'node .github/scripts/review-history.mjs' && history.fetch('env').fetch('HEAD_SHA') == '${{ github.event.pull_request.head.sha }}'
-  prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('with').fetch('prompt') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
+  prompt = name == 'review' ? steps.find { |step| step['name'] == 'Review the pull request' }.fetch('env').fetch('REVIEW_PROMPT') : steps.find { |step| step['name'] == 'Review with subscription login' }.fetch('run')
   raise 'Every review must cover the full PR and track earlier findings' unless prompt.include?('entire cumulative PR') && prompt.include?('review-history.json') && prompt.include?('superseded') && prompt.include?('suggestion block')
   raise 'Reviewer environment blockers must not request code changes' unless prompt.include?('BLOCKED') && prompt.include?('CI evidence') && prompt.include?('review-prerequisites.log')
   raise "#{name}: reviewer prompt must make emulator validation the final device stage" unless emulator_contract.all? { |text| prompt.include?(text) }
@@ -20,7 +20,7 @@ emulator_contract = ['Calculator execution is emulator only', 'Physical handheld
   restore = steps.find { |step| step['name'] == 'Restore the reviewer cross toolchain' }
   save = steps.find { |step| step['name'] == 'Save the complete reviewer cross toolchain' }
   raise 'Reviewer cache restoration must not save partial prerequisites' unless restore && restore.fetch('uses') == 'actions/cache/restore@v6' && restore.fetch('id') == 'reviewer-toolchain-cache'
-  raise 'Reviewer cache save must follow successful preparation' unless save && save.fetch('uses') == 'actions/cache/save@v6' && save.fetch('if') == "steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'"
+  raise 'Reviewer cache save must follow successful preparation' unless save && save.fetch('uses') == 'actions/cache/save@v6' && save.fetch('if') == "steps.reviewer-prerequisites.outcome == 'success' && steps.reviewer-prerequisites.outputs.native != 'false' && steps.reviewer-toolchain-cache.outputs.cache-hit != 'true'"
   raise 'Reviewer cache save must use the restored primary key' unless save.fetch('with').fetch('key') == '${{ steps.reviewer-toolchain-cache.outputs.cache-primary-key }}'
   raise 'Reviewer cache lifecycle is out of order' unless steps.index(restore) < steps.index(preparation) && steps.index(preparation) < steps.index(save)
   raise 'Review history needs CI read permission without exposing a token to Codex' unless workflow.fetch('jobs').fetch(name).fetch('permissions')['actions'] == 'read'
@@ -52,15 +52,14 @@ request_workflow = YAML.load_file(File.join(root, '.github/workflows/agent-revie
   lock = review_workflow.fetch('concurrency')
   raise 'Queued and terminal reviewer progress must share a serialized PR lane' unless lock.fetch('group').start_with?('agent-review-${{ github.event.pull_request.number }}-') && lock.fetch('cancel-in-progress') == false && lock.fetch('queue') == 'max'
 end
-claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['uses']&.start_with?('anthropics/claude-code-action@') }.fetch('with')
-claude_prompt = claude.fetch('prompt')
+claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['name'] == 'Review the pull request' }.fetch('env')
+claude_prompt = claude.fetch('REVIEW_PROMPT')
 raise 'Claude must be told that reviewer prerequisites include the cross toolchain and host Lua' unless claude_prompt.include?('prepares the cross toolchain and host Lua')
 raise 'Claude must not be told that prepared reviewer prerequisites are unavailable' if claude_prompt.include?('never unpacks the cross toolchain') || claude_prompt.include?('for want of host Lua')
-raise 'Claude review must use the assigned GitHub identity' unless claude.fetch('github_token') == '${{ steps.bot.outputs.token }}'
+raise 'Claude review must use subscription OAuth' unless claude.fetch('CLAUDE_CODE_OAUTH_TOKEN') == '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
-raise 'Claude must invoke the disclosed model and effort' unless claude.fetch('claude_args').include?('--model ${{ env.REVIEW_MODEL }}') && claude.fetch('claude_args').include?('--effort ${{ env.REVIEW_EFFORT }}')
-raise 'Claude must only allow the verified requesting executor' unless claude.fetch('allowed_bots') == '${{ needs.select-reviewer.outputs.allowed_bots }}'
-raise 'Claude built-in progress would duplicate the persistent reviewer status' unless claude.fetch('track_progress') == false
+raise 'Claude review must use the CLI adapter' unless workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['id'] == 'review' }.fetch('run') == 'node .github/scripts/run-claude-review.mjs'
+raise 'Claude review must not depend on the workflow equality guard' if workflow.fetch('jobs').fetch('review').fetch('steps').any? { |step| step['id'] == 'mine' || step['uses'].to_s.start_with?('anthropics/') }
 selection = workflow.fetch('jobs').fetch('select-reviewer')
 raise 'Review execution must use verified assignment metadata' unless selection.fetch('outputs').fetch('allowed_bots') == '${{ steps.identity.outputs.allowed_bots }}'
 raise 'Review execution must validate the assignment event' unless selection.fetch('steps').find { |step| step['id'] == 'identity' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-assignment'
@@ -101,17 +100,17 @@ raise 'Codex review must be published by the assigned identity' unless codex_pub
   raise 'Both providers must use the native inline publisher' unless publish.fetch('run') == 'node .github/scripts/publish-review.mjs'
   raise 'Native reviews must use the assigned identity' unless publish.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
   if name == 'review'
-    raise 'Publish Claude native structured output' unless publish.fetch('env').fetch('REVIEW_JSON') == '${{ steps.review.outputs.structured_output }}'
+    raise 'Publish Claude native structured output' unless publish.fetch('env').fetch('REVIEW_FILE') == '${{ runner.temp }}/claude-review.json'
   else
     raise 'Publish the Codex output file' unless publish.fetch('env').fetch('REVIEW_FILE') == '${{ runner.temp }}/codex-review.json'
   end
   raise 'Failed executions cannot publish approval checkpoints' unless publish.fetch('env').fetch('REVIEW_OUTCOME') == '${{ steps.review.outcome }}'
   raise 'Disclose only after publication' unless steps.index(publish) < steps.index { |step| step.fetch('run', '').include?('--review-disclosure') }
 end
-raise 'Claude must return its verdict through the native schema' unless claude.fetch('prompt').include?('required structured output schema') && claude.fetch('claude_args').include?("--json-schema '${{ steps.review-schema.outputs.json }}'")
+raise 'Claude must return its verdict through the native schema' unless claude.fetch('REVIEW_PROMPT').include?('required structured output schema') && claude.fetch('REVIEW_SCHEMA') == '${{ steps.review-schema.outputs.json }}'
 schema_step = claude_steps.find { |step| step['id'] == 'review-schema' }
 raise 'Claude schema must be the shared review schema' unless schema_step && schema_step.fetch('run').include?('jq -c . .github/scripts/review-schema.json')
-raise 'Claude must not post a competing summary-only verdict' if claude.fetch('claude_args').include?('Bash(gh pr review:*)')
+raise 'Claude must not post a competing summary-only verdict' if claude.fetch('REVIEW_ALLOWED_TOOLS').include?('Bash(gh pr review:*)')
 workspace = File.join(root, '.Internal/workspaces/codex-review-tests')
 FileUtils.mkdir_p(workspace)
 run_directory = Dir.mktmpdir('run-', workspace)
