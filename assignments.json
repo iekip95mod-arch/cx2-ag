@@ -923,6 +923,16 @@
       "branch": "claude/issue-202",
       "slug": "cx2-ag-claude-atlas",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-235",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 235,
+      "pr": null,
+      "branch": "claude/issue-235",
+      "slug": "cx2-ag-claude-ember",
+      "released": false
     }
   ]
 }
