@@ -580,7 +580,7 @@
       "pr": null,
       "branch": "claude/issue-6",
       "slug": "cx2-ag-claude-atlas",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-125",
@@ -640,7 +640,7 @@
       "pr": 124,
       "branch": "claude/issue-6",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/reviewer/issue-17",
@@ -840,6 +840,16 @@
       "pr": 221,
       "branch": "claude/issue-195",
       "slug": "cx2-ag-claude-review-brook",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-208",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 208,
+      "pr": 225,
+      "branch": "claude/issue-208",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
