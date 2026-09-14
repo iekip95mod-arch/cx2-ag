@@ -41,6 +41,8 @@ jobs:
           node-version: "24"
       - name: Install Gemini CLI
         run: bash .github/scripts/install-gemini.sh
+      - name: Install sandbox diagnostics
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends strace
       - name: Verify subscription tools and structured output
         env:
           OAUTH_CREDS: ${{ secrets.ANTIGRAVITY_OAUTH_CREDS }}

@@ -109,3 +109,19 @@ test('Gemini reviews use the shared native review schema without a Markdown suff
   assert.deepEqual(JSON.parse(reply), review);
   assert.throws(() => runGemini(options, () => ({ status: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: 'not a review' }) })));
 });
+
+test('Gemini review execution receives history without the publication credential', () => {
+  const review = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"]["gemini-review"])', fileURLToPath(new URL('../workflows/agent-review.yml', import.meta.url))], { encoding: 'utf8' }));
+  const infer = review.steps.find(entry => entry.name === 'Review with subscription login');
+  assert.equal(review.needs, 'select-reviewer');
+  assert.match(review.if, /reviewer == 'gemini'/);
+  assert.match(review.if, /requested == 'true'/);
+  assert.ok(!Object.keys({ ...review.env, ...infer.env }).some(key => /TOKEN|PRIVATE_KEY/.test(key)));
+  assert.match(infer.run, /entire cumulative PR/);
+  assert.match(infer.run, /review-history.json/);
+  assert.match(infer.env.GEMINI_SCHEMA, /review-schema.json/);
+  const publish = review.steps.find(entry => entry.id === 'publish');
+  assert.equal(publish.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');
+  assert.match(publish.run, /publish-review.mjs/);
+  assert.match(review.steps.at(-1).run, /wait-for-review.mjs --review-final/);
+});
