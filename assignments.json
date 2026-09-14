@@ -651,6 +651,16 @@
       "branch": "codex/issue-17",
       "slug": "cx2-ag-codex-review-harbor",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-129",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 129,
+      "pr": null,
+      "branch": "codex/issue-129",
+      "slug": "cx2-ag-codex-willow",
+      "released": false
     }
   ]
 }
