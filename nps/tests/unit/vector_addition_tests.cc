@@ -27,6 +27,14 @@ VectorAdditionResult solve(const Vector &first, const Vector &second, Derivation
     return solve_vector_addition(arena, *derivation, problem, budget);
 }
 
+StepId step_with_rule(const Derivation &derivation, const char *rule) {
+    for (size_t i = 0; i < derivation.size(); ++i) {
+        if (derivation.at(static_cast<StepId>(i)).rule_id == rule)
+            return static_cast<StepId>(i);
+    }
+    return kNoStep;
+}
+
 bool has_rule(const Derivation &derivation, const char *rule) {
     for (size_t i = 0; i < derivation.size(); ++i) {
         if (derivation.at(static_cast<StepId>(i)).rule_id == rule)
@@ -97,6 +105,28 @@ void run_vector_addition_tests(TestSink &t) {
         t.check(result.value.x.num == 7 && result.value.x.den == 2,
                 "the structured component remains exact before reporting");
         t.check(has_rule(derivation, "vec.add.report-precision"), "the final-only precision step is recorded");
+        const StepId report = step_with_rule(derivation, "vec.add.report-precision");
+        std::string half_place;
+        bool half_place_obligation = false;
+        if (report != kNoStep) {
+            for (const VerificationRecord &check : derivation.at(report).verifications) {
+                if (check.method == "exact half-place comparison")
+                    half_place = check.detail;
+            }
+            for (const ProofObligation &obligation : derivation.at(report).proof_obligations) {
+                if (obligation.id == "obl.vector-add.rounding-within-half-place")
+                    half_place_obligation = true;
+            }
+        }
+        t.equal(half_place,
+                "(3.5 i + 5.0 j) m is within half a unit in the last place of (3.5 i + 5 j) m",
+                "the reported vector is compared against the exact one, so a digit count alone "
+                "cannot carry the reporting step to verified");
+        t.check(half_place_obligation,
+                "and the step carries the obligation that comparison answers, so the join fails "
+                "the day the record stops carrying it");
+        t.equal(derivation_status_name(result.status), "solved and verified",
+                "a rounding within half a place keeps the run verified");
     }
 
     {

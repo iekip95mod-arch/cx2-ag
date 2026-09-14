@@ -652,6 +652,11 @@ const ObligationSchema kVectorAddRank[] = {
 const ObligationSchema kVectorAddRounding[] = {
     {"obl.vector-add.rounding-final",
      "precision is applied once after exact component addition", kSignificantFigures, 1},
+    // Separate from the obligation above for the reason given at kUnitRoundingFinal: when the
+    // report was rounded and whether it was rounded correctly are different claims.
+    {"obl.vector-add.rounding-within-half-place",
+     "the reported vector is within half a unit in the last place of the exact one",
+     kHalfPlaceComparison, 1},
 };
 const EvidenceAlternative kExactRationalAddition[] = {
     {"exact rational addition", EvidenceStrength::StructurallyValid},
@@ -1141,7 +1146,7 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"vec.add.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
      FailureBehavior::WithholdResult},
-    {"vec.add.report-precision", ClaimType::Definition, kVectorAddRounding, 1,
+    {"vec.add.report-precision", ClaimType::Definition, kVectorAddRounding, 2,
      FailureBehavior::WithholdResult},
 
     // vectors.components and vectors.polar
