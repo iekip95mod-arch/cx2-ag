@@ -1133,6 +1133,16 @@
       "branch": "claude/issue-237",
       "slug": "cx2-ag-claude-review-grove",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-233",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 233,
+      "pr": 240,
+      "branch": "claude/issue-233",
+      "slug": "cx2-ag-claude-review-arch",
+      "released": false
     }
   ]
 }
