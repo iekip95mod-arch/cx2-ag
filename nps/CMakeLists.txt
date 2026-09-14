@@ -1096,10 +1096,25 @@ else()
     nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}" "")
     target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
-    add_executable(nps_manifest_probe_test tests/unit/manifest_probe_tests.cc
+    add_executable(nps_manifest_probe_test tests/unit/manifest_scheme_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_probe_host>)
+    target_compile_definitions(nps_manifest_probe_test PRIVATE
+                               NPS_EXPECTED_ARTIFACT="probe"
+                               NPS_EXPECTED_SIDECAR_SCHEME="external-sha256-sidecar")
     target_include_directories(nps_manifest_probe_test PRIVATE include)
     target_link_libraries(nps_manifest_probe_test PRIVATE nps_flags)
+
+    nps_add_manifest(nps_manifest_unified_host unified 1 0 Giac bundled-static
+                     nps.giac.typed-v1 bundled-static
+                     "${NPS_HOST_STEP_HASH}" "" "" "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
+    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags)
+    add_executable(nps_manifest_unified_test tests/unit/manifest_scheme_tests.cc
+                   $<TARGET_OBJECTS:nps_manifest_unified_host>)
+    target_compile_definitions(nps_manifest_unified_test PRIVATE
+                               NPS_EXPECTED_ARTIFACT="unified"
+                               NPS_EXPECTED_SIDECAR_SCHEME="runtime-sha256-sidecar")
+    target_include_directories(nps_manifest_unified_test PRIVATE include)
+    target_link_libraries(nps_manifest_unified_test PRIVATE nps_flags)
 
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
@@ -1406,6 +1421,7 @@ add_custom_target(tidy
 if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME unit COMMAND nps_host)
     add_test(NAME manifest_probe COMMAND nps_manifest_probe_test)
+    add_test(NAME manifest_unified COMMAND nps_manifest_unified_test)
     set_tests_properties(unit PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         ENVIRONMENT "NPS_EVIDENCE=${CMAKE_BINARY_DIR}/evidence.txt"
         FIXTURES_SETUP nps_evidence_unit)
@@ -1588,7 +1604,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
-                nps_manifest_probe_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
+                nps_manifest_probe_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
                 nps_acceptance_corpus nps_device_run
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)
