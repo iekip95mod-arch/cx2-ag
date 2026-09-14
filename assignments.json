@@ -1073,6 +1073,16 @@
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-review-astrolabe",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-45",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 45,
+      "pr": 252,
+      "branch": "gemini/issue-45",
+      "slug": "cx2-ag-gemini-review-caliper",
+      "released": false
     }
   ]
 }
