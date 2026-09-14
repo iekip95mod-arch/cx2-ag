@@ -761,6 +761,16 @@
       "branch": "claude/issue-194",
       "slug": "cx2-ag-claude-review-echo",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-204",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 204,
+      "pr": 217,
+      "branch": "claude/issue-204",
+      "slug": "cx2-ag-claude-review-grove",
+      "released": false
     }
   ]
 }
