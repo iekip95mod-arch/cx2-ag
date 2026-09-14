@@ -1093,7 +1093,7 @@
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-review-dial",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "gemini/reviewer/issue-207",
@@ -1175,7 +1175,7 @@
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-claude-review-ridge",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-222",
