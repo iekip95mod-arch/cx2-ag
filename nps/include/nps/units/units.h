@@ -126,8 +126,9 @@ bool to_si(const Vector &v, Vector *out);
 // printed. The unit is the vector's own spelling, so the numbers and the unit always agree.
 std::string vector_text(const Vector &v);
 // Final measured report, skipping exact-zero components. False is a place the exact arithmetic
-// cannot reach, and checked is the half-place comparison for a caller with a record to write it in.
-bool reported_vector_text(const Vector &v, std::string *out, HalfPlace *checked = nullptr);
+// cannot reach, and checked is the half-place comparison, taken by reference so a caller cannot
+// leave the rounding unjudged or receive a rounding refusal as the arithmetic one.
+bool reported_vector_text(const Vector &v, std::string *out, HalfPlace &checked);
 
 // Addition and subtraction in compatible frames, section 11.2's first operation. The two have to
 // agree on the frame, the dimension and the rank. Disagreeing on any of them is an error with a

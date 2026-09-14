@@ -34,13 +34,19 @@ NodeId vector_model_node(Arena &arena, const Vector &value) {
 }
 
 VerificationRecord verification(const std::string &method, const std::string &detail,
-                                EvidenceStrength passing, bool passed) {
+                                EvidenceStrength passing, VerificationOutcome outcome) {
     VerificationRecord record;
     record.method = method;
-    record.outcome = passed ? VerificationOutcome::Passed : VerificationOutcome::Failed;
+    record.outcome = outcome;
     record.strength = strength_for(record.outcome, passing);
     record.detail = detail;
     return record;
+}
+
+VerificationRecord verification(const std::string &method, const std::string &detail,
+                                EvidenceStrength passing, bool passed) {
+    return verification(method, detail, passing,
+                        passed ? VerificationOutcome::Passed : VerificationOutcome::Failed);
 }
 
 Step check_step(const char *rule_id, const std::string &goal, const std::string &explanation,
@@ -147,6 +153,7 @@ const char *vector_addition_outcome_name(VectorAdditionOutcome outcome) {
         case VectorAdditionOutcome::FrameMismatch: return "frame mismatch";
         case VectorAdditionOutcome::DimensionMismatch: return "dimension mismatch";
         case VectorAdditionOutcome::ArithmeticOverflow: return "arithmetic overflow";
+        case VectorAdditionOutcome::VerificationFailed: return "verification failed";
         case VectorAdditionOutcome::Cancelled: return "cancelled";
         case VectorAdditionOutcome::ResourceExceeded: return "resource exceeded";
     }
@@ -359,7 +366,8 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
             return halted_result(arena, derivation, mark, meter, budget, model, problem);
     }
 
-    if (!reported_vector_text(sum, &result.value_text)) {
+    HalfPlace rounding = HalfPlace::Within;
+    if (!reported_vector_text(sum, &result.value_text, rounding)) {
         result.outcome = VectorAdditionOutcome::ArithmeticOverflow;
         result.detail = "reporting the measured precision exceeds exact integer arithmetic";
         result.status = DerivationStatus::ResourceLimitReached;
@@ -367,7 +375,33 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
         record_context(derivation, budget, model, result.status, problem);
         return result;
     }
+    Vector exact_display = sum;
+    exact_display.precision = Precision();
+    std::string exact_text;
+    HalfPlace exact_rounding = HalfPlace::Within;
+    if (!reported_vector_text(exact_display, &exact_text, exact_rounding)) {
+        result.outcome = VectorAdditionOutcome::ArithmeticOverflow;
+        result.detail = "the exact vector sum cannot be formatted";
+        result.status = DerivationStatus::ResourceLimitReached;
+        result.cost = meter.cost();
+        record_context(derivation, budget, model, result.status, problem);
+        return result;
+    }
+    if (rounding == HalfPlace::Outside) {
+        // Refused before the step is built, so a report the comparison rejects leaves no
+        // transformation to the value it rejected, and no answer the student can read as checked.
+        result.outcome = VectorAdditionOutcome::VerificationFailed;
+        result.detail = result.value_text +
+                        " is further than half a unit in its last place from " + exact_text;
+        result.value_text.clear();
+        result.status = DerivationStatus::VerificationFailed;
+        result.cost = meter.cost();
+        record_context(derivation, budget, model, result.status, problem);
+        return result;
+    }
     if (sum.precision.kind == NumberKind::Measured) {
+        const bool compared = rounding == HalfPlace::Within;
+        const std::string rounded_text = result.value_text;
         Step step;
         step.phase = "report";
         step.goal = "Apply final reporting precision";
@@ -375,22 +409,45 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
         step.rule_name = "Final-only precision";
         step.explanation_short = "Round only the reported vector, after exact component addition";
         step.explanation_detailed =
-            "Reach for this once, at the very end, and never partway through. A measured value is "
-            "only as good as the figures it was written with, so the answer is reported to the "
-            "fewest significant figures among the measurements it came from. Rounding a component "
-            "before adding would throw away figures the final rounding cannot get back, which is "
-            "why every step above this one keeps the exact value.";
+            compared ? "Reach for this once, at the very end, and never partway through. A measured "
+                       "value is only as good as the figures it was written with, so the answer is "
+                       "reported to the fewest significant figures among the measurements it came "
+                       "from. Rounding a component before adding would throw away figures the final "
+                       "rounding cannot get back, which is why every step above this one keeps the "
+                       "exact value."
+                     : "The rounded spelling could not be read back as a decimal, so it was never "
+                       "compared against the exact value. The exact value is reported instead, "
+                       "since showing a rounding nothing checked would be showing an answer with "
+                       "no evidence behind it.";
         step.claim = ClaimType::Definition;
         step.proof_obligations.push_back(
             {"obl.vector-add.rounding-final", "precision is applied once after exact component addition"});
         step.verifications.push_back(
             verification("significant figures", std::to_string(sum.precision.significant_digits),
                          EvidenceStrength::StructurallyValid, true));
+        // Both obligations whichever way the comparison went, since the schema belongs to the rule
+        // rather than to the branch, and only the half-place one goes unanswered on a degrade.
+        step.proof_obligations.push_back(
+            {"obl.vector-add.rounding-within-half-place",
+             "the reported vector is within half a unit in the last place of the exact one"});
+        step.verifications.push_back(verification(
+            "exact half-place comparison",
+            compared ? rounded_text + " is within half a unit in the last place of " + exact_text
+                     : rounded_text + " could not be read back as a decimal, so it was never "
+                                      "compared against " +
+                           exact_text,
+            EvidenceStrength::CandidateChecked,
+            compared ? VerificationOutcome::Passed : VerificationOutcome::Inconclusive));
+        if (!compared)
+            result.value_text = exact_text;
         const NodeId exact_vector = vector_node(arena, sum);
         if (arena.failed())
             return arena_result(arena, derivation, mark, meter, budget, model, problem);
         if (!add_transformation(derivation, meter, plan_id, std::move(step), exact_vector,
-                                exact_vector, "report " + result.value_text, false))
+                                exact_vector,
+                                compared ? "report " + rounded_text
+                                         : "report " + exact_text + " unrounded",
+                                false))
             return halted_result(arena, derivation, mark, meter, budget, model, problem);
     }
 
