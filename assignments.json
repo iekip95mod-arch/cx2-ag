@@ -892,6 +892,17 @@
       "branch": "codex/gemini-subscription",
       "slug": "cx2-ag-codex-review-aegis",
       "released": false
+    },
+    {
+      "key": "codex/executor/issue-230",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 230,
+      "pr": 231,
+      "branch": "codex/ubuntu-arm-runners",
+      "legacyOwner": "iekip95mod-arch",
+      "slug": "cx2-ag-codex-flint",
+      "released": false
     }
   ]
 }
