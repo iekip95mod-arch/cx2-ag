@@ -8,6 +8,7 @@ export function runGemini({ startedAt, timeoutMinutes, prompt, binary, now }, ex
   const budget = agentDeadline({ startedAt, timeoutMinutes, now, clockTools: false });
   const args = ['--model', 'gemini-3.8-flash-high', '--effort', 'high', '--print-timeout', `${budget.remaining}s`, '--output-format', 'json', '--print', `${budget.text}\n\n${prompt}`];
   const run = execute(binary, args, { encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 4 * 1024 * 1024 });
+  if (run.stderr) process.stderr.write(run.stderr);
   if (run.error || run.status !== 0) throw Error('Gemini did not finish successfully within its execution budget');
   const envelope = JSON.parse(run.stdout);
   if (envelope.status !== 'SUCCESS' || typeof envelope.response !== 'string' || !envelope.response.trim()) throw Error(`Gemini response status ${envelope.status}: ${envelope.error || 'empty response'}`);
