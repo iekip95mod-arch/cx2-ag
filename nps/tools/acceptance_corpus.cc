@@ -752,6 +752,10 @@ struct Broken {
 
 void reset_criteria() { g_pass.reset(); }
 
+nps::NodeId sum_of(Arena &arena, const char *left, const char *right) {
+    return arena.binary(nps::Kind::Add, arena.integer(left), arena.integer(right));
+}
+
 // A record a well behaved engine would produce: a plan with a strategy, and one verified
 // transformation under it. The flaw argument names the one thing to leave out.
 void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
@@ -776,8 +780,14 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     const nps::StepId root = d->add_plan(nps::kNoStep, plan_step, plan);
 
     nps::TransformationPayload payload;
-    payload.before = arena.integer("2");
-    payload.after = flaw == "exact value" ? arena.decimal("0.5") : arena.integer("3");
+    // The before state is the sum rather than the left operand, because the step claims an
+    // equivalent expression and VER-002 now reads that claim against the two nodes. A record whose
+    // sides are 2 and 3 asserts that two is three, and a fixture standing in for a well behaved
+    // engine cannot be built on one.
+    payload.before = sum_of(arena, "2", "1");
+    payload.after = flaw == "exact value"          ? arena.decimal("3.0")
+                    : flaw == "false equivalence"  ? arena.integer("4")
+                                                   : arena.integer("3");
     payload.concrete_action = flaw == "action" ? "" : "Add one";
     payload.reversible = true;
 
@@ -807,7 +817,7 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     // A grandchild of the plan rather than a child, so it is not a major step. Criterion 5 asks
     // only about major steps, which is what leaves an arm that breaks STEP-002 and nothing else.
     nps::TransformationPayload inner;
-    inner.before = arena.integer("3");
+    inner.before = sum_of(arena, "3", "1");
     inner.after = arena.integer("4");
     inner.concrete_action = "Add one again";
     inner.reversible = true;
@@ -844,6 +854,10 @@ int selftest() {
         {"4", "verification", false},
         {"5", "action", false},
         {"6", "exact value", false},
+        // VER-002. The record keeps its claim, its rule, its obligation and its passing
+        // verification and moves only the after node, which is the mutation the record-reading
+        // arms of this pass cannot see and the one this criterion exists for.
+        {"VER-002", "false equivalence", false},
         {"8", "", true},
         // The other half of criterion 8, and the half a check that only counts survivors cannot
         // see: a refusal whose status says it ran out, keeping a transformation nothing stands
