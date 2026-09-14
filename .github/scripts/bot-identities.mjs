@@ -8,11 +8,11 @@ const assignmentPath = 'assignments.json';
 
 export function loadRoster(path = new URL('./bot-identities.json', import.meta.url)) {
   const roster = JSON.parse(readFileSync(path, 'utf8'));
-  if (!Array.isArray(roster) || roster.length !== 48) throw Error('The bot roster must contain 48 identities');
+  if (!Array.isArray(roster) || roster.length !== 72) throw Error('The bot roster must contain 72 identities');
   for (const field of ['slug', 'login', 'secretName']) {
     if (new Set(roster.map(identity => identity[field])).size !== roster.length) throw Error(`Duplicate bot ${field}`);
   }
-  for (const provider of ['codex', 'claude']) for (const role of ['executor', 'reviewer']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const role of ['executor', 'reviewer']) {
     if (roster.filter(identity => identity.provider === provider && identity.role === role).length !== 12) throw Error('Each bot pool must contain twelve identities');
   }
   for (const identity of roster) {
@@ -29,7 +29,7 @@ export function findIdentity(roster, login, provider, role) {
 }
 
 export async function resolveTarget({ repository, provider, role, issue, pr, legacyOwner }, api) {
-  if (repository !== repositoryName || !['codex', 'claude'].includes(provider) || !['executor', 'reviewer'].includes(role)) throw Error('Invalid bot repository or pool');
+  if (repository !== repositoryName || !['codex', 'claude', 'gemini'].includes(provider) || !['executor', 'reviewer'].includes(role)) throw Error('Invalid bot repository or pool');
   if ((issue === undefined) === (pr === undefined) || !/^[1-9][0-9]*$/.test(String(issue ?? pr)) || !Number.isSafeInteger(Number(issue ?? pr))) throw Error('Specify one issue or PR number');
   if (issue !== undefined) {
     const ticket = await api('GET', `repos/${repository}/issues/${issue}`);
@@ -45,7 +45,7 @@ export async function resolveTarget({ repository, provider, role, issue, pr, leg
   }
   const pull = await api('GET', `repos/${repository}/pulls/${pr}`);
   if (pull.head.repo?.full_name !== repository) throw Error('A bot cannot own a fork PR');
-  const canonical = /^(codex|claude)\/issue-([1-9][0-9]*)$/.exec(pull.head.ref);
+  const canonical = /^(codex|claude|gemini)\/issue-([1-9][0-9]*)$/.exec(pull.head.ref);
   if (canonical && canonical[1] !== provider) throw Error('The PR belongs to another provider');
   if (canonical) {
     const ticket = await api('GET', `repos/${repository}/issues/${canonical[2]}`);
@@ -84,7 +84,7 @@ async function readState(repository, api) {
   const active = document.assignments.filter(assignment => !assignment.released);
   if (new Set(active.map(assignment => assignment.key)).size !== active.length || new Set(active.map(assignment => assignment.slug)).size !== active.length) throw Error('Conflicting active bot assignments');
   for (const assignment of document.assignments) {
-    if (!['codex', 'claude'].includes(assignment.provider) || !['executor', 'reviewer'].includes(assignment.role) || typeof assignment.branch !== 'string' || typeof assignment.slug !== 'string' || typeof assignment.released !== 'boolean') throw Error('Invalid bot assignment');
+    if (!['codex', 'claude', 'gemini'].includes(assignment.provider) || !['executor', 'reviewer'].includes(assignment.role) || typeof assignment.branch !== 'string' || typeof assignment.slug !== 'string' || typeof assignment.released !== 'boolean') throw Error('Invalid bot assignment');
     const number = assignment.issue ?? assignment.pr;
     if (!Number.isSafeInteger(number) || number <= 0 || assignment.key !== `${assignment.provider}/${assignment.role}/${assignment.issue ? 'issue' : 'pr'}-${number}`) throw Error('Invalid bot assignment target');
     if (assignment.role === 'executor' && assignment.branch !== `${assignment.provider}/issue-${assignment.issue}` && (!Number.isSafeInteger(assignment.pr) || assignment.pr <= 0 || !assignment.issue || !assignment.branch.startsWith(`${assignment.provider}/`) || assignment.legacyOwner !== repository.split('/')[0])) throw Error('Invalid legacy bot assignment branch');
@@ -141,7 +141,7 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   const allowed = new Set([identity.login]);
   if ((target.legacyOwner ?? legacyOwner) === repository.split('/')[0]) allowed.add(repository.split('/')[0]);
   if (ticket.assignees.some(assignee => !allowed.has(assignee.login))) throw Error('Another identity owns the issue');
-  if (ticket.labels.some(label => label.name === (target.provider === 'codex' ? 'claude' : 'codex'))) throw Error('Another provider owns the issue');
+  if (ticket.labels.some(label => ['codex', 'claude', 'gemini'].includes(label.name) && label.name !== target.provider)) throw Error('Another provider owns the issue');
   const branch = await api('GET', `repos/${repository}/git/ref/heads/${target.branch}`, undefined, true);
   const pulls = await branchPulls(repository, target.branch, api);
   if (pulls.some(pull => !allowed.has(pull.user.login))) throw Error('Another identity owns a branch PR');
@@ -149,7 +149,7 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
 }
 
 function reviewerMatches(state, pr, branch) {
-  const canonical = /^(codex|claude)\/issue-([1-9][0-9]*)$/.exec(branch);
+  const canonical = /^(codex|claude|gemini)\/issue-([1-9][0-9]*)$/.exec(branch);
   return state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer' && assignment.branch === branch &&
     (assignment.pr === pr || (!assignment.pr && canonical && assignment.issue === Number(canonical[2]))));
 }
@@ -193,7 +193,7 @@ export async function readAssignment(options, api, roster = loadRoster()) {
 
 export async function reviewerCapacity(repository, api, roster = loadRoster()) {
   const state = await readState(repository, api);
-  const free = Object.fromEntries(['codex', 'claude'].map(provider => [provider, roster.filter(identity => identity.provider === provider && identity.role === 'reviewer').length]));
+  const free = Object.fromEntries(['codex', 'claude', 'gemini'].map(provider => [provider, roster.filter(identity => identity.provider === provider && identity.role === 'reviewer').length]));
   for (const assignment of state.assignments.filter(assignment => !assignment.released && assignment.role === 'reviewer')) {
     findIdentity(roster, `${assignment.slug}[bot]`, assignment.provider, 'reviewer');
     if (!await closed(repository, assignment, api)) free[assignment.provider]--;
