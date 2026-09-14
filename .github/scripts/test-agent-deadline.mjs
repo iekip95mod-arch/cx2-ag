@@ -92,6 +92,10 @@ test('review and discussion deadlines precede inference and match each job limit
       const model = job.steps.find(step => step.name === modelStep);
       assert.ok(model.env.REVIEW_PROMPT.includes('${{ env.AGENT_TIME_BUDGET }}'));
       assert.ok(model.env.REVIEW_ALLOWED_TOOLS.includes('Bash(date:*)'));
+      // The allowed gh readers need a credential, and publication stays out of the model's hands.
+      assert.equal(model.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');
+      for (const reader of ['gh pr view', 'gh pr diff', 'gh issue view', 'gh issue list', 'gh issue create']) assert.ok(model.env.REVIEW_ALLOWED_TOOLS.includes(`Bash(${reader}:*)`));
+      for (const publisher of ['gh pr review', 'gh api', 'gh pr merge']) assert.ok(!model.env.REVIEW_ALLOWED_TOOLS.includes(`Bash(${publisher}`));
     } else if (jobName === 'codex-review') {
       assert.ok(job.steps.find(step => step.name === modelStep).run.includes('$AGENT_TIME_BUDGET'));
     } else {
