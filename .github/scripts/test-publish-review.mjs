@@ -230,6 +230,38 @@ test('CLI publishes trustworthy reviews when present and falls back to explicit 
   }
 });
 
+
+test('Claude native output survives a missing file and failed execution cannot approve', () => {
+  const scripts = dirname(fileURLToPath(import.meta.url));
+  const root = join(scripts, '../../.Internal/workspaces/publish-review-tests');
+  mkdirSync(root, { recursive: true });
+  for (const [native, outcome, expected] of [
+    [JSON.stringify({ verdict: 'APPROVED', body: 'Verified the current diff.', comments: [] }), 'success', 'APPROVED'],
+    [JSON.stringify({ verdict: 'APPROVED', body: 'Partial checkpoint.', comments: [] }), 'failure', 'COMMENTED'],
+    ['', 'success', 'COMMENTED'],
+    ['not json', 'success', 'COMMENTED']
+  ]) {
+    const directory = mkdtempSync(join(root, 'native-'));
+    const bin = join(directory, 'bin'); mkdirSync(bin);
+    copyFileSync(join(scripts, 'fixtures/review-feedback-gh.mjs'), join(bin, 'gh')); chmodSync(join(bin, 'gh'), 0o755);
+    const f = fixture('claude', expected); f.published.state = expected;
+    const log = join(directory, 'calls.jsonl'); const config = join(directory, 'fixture.json');
+    const checkpoint = join(directory, 'checkpoint.json');
+    writeFileSync(checkpoint, JSON.stringify({ verdict: 'APPROVED', body: 'Stale checkpoint.', comments: [] }));
+    writeFileSync(config, JSON.stringify({ responses: f.responses, log }));
+    const invocation = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: {
+      ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: config,
+      REVIEW_FILE: expected === 'APPROVED' ? join(directory, 'missing.json') : checkpoint,
+      REVIEW_JSON: native, REVIEW_OUTCOME: outcome, FALLBACK_BLOCKED: 'true',
+      REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: f.options.appSlug, EXPECTED_LOGIN: f.options.login
+    } });
+    assert.equal(invocation.status, 0, invocation.stderr);
+    const published = readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).find(call => call.args[2] === 'POST');
+    assert.equal(published.body.event, expected === 'APPROVED' ? 'APPROVE' : 'COMMENT');
+    if (expected !== 'APPROVED') assert.match(published.body.body, /review-blocked/);
+  }
+});
+
 test('workflow review budget handling enforces fail-closed fallback and preserves turn limits', () => {
   const scripts = dirname(fileURLToPath(import.meta.url));
   const reviewWorkflow = JSON.parse(spawnSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', join(scripts, '../workflows/agent-review.yml')], { encoding: 'utf8' }).stdout);

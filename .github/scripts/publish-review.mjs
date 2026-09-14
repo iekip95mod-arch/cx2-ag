@@ -49,7 +49,7 @@ export function reviewRequest(review, files, head) {
   return { commit_id: head, event: review.verdict === 'APPROVED' ? 'APPROVE' : review.verdict === 'BLOCKED' ? 'COMMENT' : 'REQUEST_CHANGES', body: review.body + (review.verdict === 'BLOCKED' ? '\n\n<!-- review-blocked -->' : ''), comments };
 }
 
-export function fallbackBlockedReview(reason = 'Review execution budget was exhausted before completing verification. A complete and trustworthy formal review was not produced.') {
+export function fallbackBlockedReview(reason = 'Review execution did not produce a complete, valid verdict. Inspect the workflow failure and verification gaps before retrying.') {
   return {
     verdict: 'BLOCKED',
     body: reason,
@@ -90,9 +90,15 @@ export async function publishReview({ repository, pr, head, appSlug, login, revi
 async function main() {
   if (!process.env.GH_TOKEN) throw Error('The assigned reviewer token is required');
   const fallbackBlocked = process.env.FALLBACK_BLOCKED === 'true' || process.argv.includes('--fallback-blocked');
-  const fallbackReason = process.env.FALLBACK_REASON || 'Review execution budget was exhausted before completing verification. A complete and trustworthy formal review was not produced.';
+  const fallbackReason = process.env.FALLBACK_REASON || `Review execution outcome: ${process.env.REVIEW_OUTCOME || 'unavailable'}. A complete, valid verdict was not produced. Inspect the workflow failure and verification gaps before retrying.`;
   let review = null;
-  if (process.env.REVIEW_FILE) {
+  if (process.env.REVIEW_OUTCOME && process.env.REVIEW_OUTCOME !== 'success') {
+    if (!fallbackBlocked) throw Error('Review execution did not succeed');
+  } else if (Object.hasOwn(process.env, 'REVIEW_JSON')) {
+    try { review = JSON.parse(process.env.REVIEW_JSON); } catch {
+      if (!fallbackBlocked) throw Error('The structured review output could not be read');
+    }
+  } else if (process.env.REVIEW_FILE) {
     try {
       review = JSON.parse(readFileSync(process.env.REVIEW_FILE, 'utf8'));
     } catch {
