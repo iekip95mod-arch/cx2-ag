@@ -14,9 +14,13 @@ for (const mode of ['executor', 'reviewer']) {
   prepareGemini({ credentials: process.env.OAUTH_CREDS, mode, home, workspace: directory, temporary });
   const nonce = randomUUID();
   const prompt = `Runtime smoke test only. In ${directory}, create smoke.txt containing exactly ${nonce} followed by a newline. Run cat smoke.txt using the command tool in the sandbox and return its actual output in body. Return APPROVED and an empty comments array only if both operations succeeded. Otherwise return BLOCKED and explain the failure. Do not read credentials, change other files or access GitHub. Finish promptly.`;
-  const response = runGemini({ startedAt: Number(process.env.AGENT_JOB_STARTED_AT), timeoutMinutes: 15, mode, directory, prompt, schema: readFileSync(new URL('./review-schema.json', import.meta.url), 'utf8'), binary: join(process.env.RUNNER_TEMP, 'antigravity-bin/antigravity') }, (binary, args, options) => spawnSync(binary, args, { ...options, env: { ...process.env, HOME: home, OAUTH_CREDS: '', GH_TOKEN: '', GITHUB_TOKEN: '' } }));
+  const response = runGemini({ startedAt: Number(process.env.AGENT_JOB_STARTED_AT), timeoutMinutes: 15, mode, directory, prompt, schema: readFileSync(new URL('./review-schema.json', import.meta.url), 'utf8'), binary: join(process.env.RUNNER_TEMP, 'antigravity-bin/antigravity') }, (binary, args, options) => spawnSync(binary, [...args, '--log-file', join(root, 'cli.log')], { ...options, env: { ...process.env, HOME: home, OAUTH_CREDS: '', GH_TOKEN: '', GITHUB_TOKEN: '' } }));
   const review = JSON.parse(response);
   assert.equal(readFileSync(join(directory, 'smoke.txt'), 'utf8'), `${nonce}\n`);
+  if (review.verdict !== 'APPROVED') {
+    const diagnostic = join(root, 'cli.log');
+    console.error(readFileSync(diagnostic, 'utf8').split('\n').filter(line => /sandbox|unshare|mount|namespace|fatal|panic|denied/i.test(line)).slice(-20).map(line => line.slice(0, 1000)).join('\n'));
+  }
   assert.equal(review.verdict, 'APPROVED', review.body);
   assert.ok(review.body.includes(nonce), 'The response must contain actual command output');
   assert.equal(reviewRequest(review, [], 'a'.repeat(40)).event, 'APPROVE');
