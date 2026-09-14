@@ -102,6 +102,8 @@ test('recovery uses trusted main on Ubuntu and waiting skips token publication',
   assert.match(workflow, /ref: main/);
   assert.match(workflow, /runs-on: ubuntu-latest/);
   assert.match(workflow, /actions: write/);
+  assert.match(workflow, /workflows: \[agent-review-request\]/);
+  assert.match(workflow, /types: \[completed\]/);
   assert.doesNotMatch(workflow, /pull_request:\s|secrets\.(?!GITHUB_TOKEN)/);
   const request = readFileSync(new URL('../workflows/agent-review-request.yml', import.meta.url), 'utf8');
   assert.match(request, /REVIEW_CAPACITY_WAIT: 'true'/);

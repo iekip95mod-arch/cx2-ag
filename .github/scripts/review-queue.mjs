@@ -76,7 +76,7 @@ async function main() {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const api = (method, endpoint, body, missing) => requestGitHub(fetch, process.env.GH_TOKEN, method, endpoint, body, missing);
   const cancelled = event.pull_request ? await cancelObsoleteReviews(event.pull_request.number, api) : [];
-  const retry = ['push', 'issues', 'workflow_dispatch'].includes(process.env.GITHUB_EVENT_NAME) || event.action === 'closed';
+  const retry = ['push', 'issues', 'workflow_dispatch', 'workflow_run'].includes(process.env.GITHUB_EVENT_NAME) || event.action === 'closed';
   const retried = retry ? await retryWaitingReviews(api) : [];
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Cancelled obsolete review runs: ${cancelled.join(', ') || 'none'}.\nRetried waiting PRs: ${retried.join(', ') || 'none'}.\n`);
 }
