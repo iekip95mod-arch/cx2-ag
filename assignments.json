@@ -1063,6 +1063,16 @@
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-garnet",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-209",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 209,
+      "pr": 249,
+      "branch": "gemini/issue-209",
+      "slug": "cx2-ag-gemini-review-astrolabe",
+      "released": false
     }
   ]
 }
