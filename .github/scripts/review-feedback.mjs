@@ -2,7 +2,7 @@ import { workerWorkflow } from './agent-providers.mjs';
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadRoster, readAssignment } from './bot-identities.mjs';
+import { assignedReviewProvider, loadRoster, readAssignment } from './bot-identities.mjs';
 import { isSecurityReview, hasSecurityFindings } from './security-review.mjs';
 
 const repositoryName = 'iekip95mod-arch/cx2-ag';
@@ -113,7 +113,7 @@ export async function dispatchFeedback({ repository, event, run, attempt = 1, le
   if (await alreadyDelivered(repository, review.id, run, attempt, api)) return false;
   let reviewer, executor;
   try {
-    if (!security) reviewer = await readAssignment({ repository, provider, role: 'reviewer', pr: number }, api, roster);
+    if (!security) reviewer = await readAssignment({ repository, provider: await assignedReviewProvider({ repository, pr: number, branch: pr.head.ref }, api, roster) ?? provider, role: 'reviewer', pr: number }, api, roster);
     executor = await readAssignment({ repository, provider, role: 'executor', issue }, api, roster);
   } catch (error) {
     if (error.message === 'No active bot assignment for this target') return false;
@@ -195,7 +195,7 @@ async function rejectedReviewGate(repository, ci, pr, provider, issue, api, rost
   }
   if (!failed.length || failed.some(job => !['review-ready', 'review-approved'].includes(job.name))) return false;
   let reviewer;
-  try { reviewer = await readAssignment({ repository, provider, role: 'reviewer', issue }, api, roster); }
+  try { reviewer = await readAssignment({ repository, provider: await assignedReviewProvider({ repository, pr: pr.number, branch: pr.head.ref }, api, roster) ?? provider, role: 'reviewer', pr: pr.number }, api, roster); }
   catch (error) { if (error.message === 'No active bot assignment for this target') return pr.draft; throw error; }
   if (reviewer.branch !== pr.head.ref || reviewer.issue !== issue) return false;
   let latest;

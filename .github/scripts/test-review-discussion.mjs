@@ -8,17 +8,17 @@ import { loadRoster } from './bot-identities.mjs';
 import { inspectQuestion, publishAnswer, dispatchAnswer } from './review-discussion.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
-function fixture(provider = 'codex', legacy = false) {
+function fixture(provider = 'codex', legacy = false, reviewerProvider = provider) {
   const roster = loadRoster();
   const executor = roster.find(bot => bot.provider === provider && bot.role === 'executor');
-  const reviewer = roster.find(bot => bot.provider === provider && bot.role === 'reviewer');
+  const reviewer = roster.find(bot => bot.provider === reviewerProvider && bot.role === 'reviewer');
   const user = bot => ({ login: bot.login, id: bot.userId, type: 'Bot' });
   const pr = { number: 90, state: 'open', draft: false, user: legacy ? { login: 'iekip95mod-arch', type: 'User', id: 1 } : user(executor), head: { sha: 'a'.repeat(40), ref: legacy ? `${provider}/setup` : `${provider}/issue-42`, repo: { full_name: repository } } };
   const root = { id: 100, pull_request_review_id: 90, body: 'Explain the bound.', user: user(reviewer), commit_id: 'b'.repeat(40), pull_request_url: `https://api.github.com/repos/${repository}/pulls/90` };
   const question = { ...root, id: 101, user: user(executor), in_reply_to_id: 100, pull_request_review_id: 91, body: '/ask-reviewer What evidence resolves this?', created_at: '2026-09-12T12:00:00Z', updated_at: '2026-09-12T12:00:00Z' };
   const review = { id: 90, state: 'CHANGES_REQUESTED', user: user(reviewer), commit_id: root.commit_id };
   const issue = { number: 42, state: 'open' };
-  const assignments = [executor, reviewer].map(bot => ({ key: `${provider}/${bot.role}/issue-42`, provider, role: bot.role, issue: 42, pr: 90, branch: pr.head.ref, slug: bot.slug, released: false, ...(legacy && bot.role === 'executor' ? { legacyOwner: 'iekip95mod-arch' } : {}) }));
+  const assignments = [executor, reviewer].map(bot => ({ key: `${bot.provider}/${bot.role}/issue-42`, provider: bot.provider, role: bot.role, issue: 42, pr: 90, branch: pr.head.ref, slug: bot.slug, released: false, ...(legacy && bot.role === 'executor' ? { legacyOwner: 'iekip95mod-arch' } : {}) }));
   const thread = [root, question];
   const calls = [];
   const event = { action: 'created', repository: { full_name: repository }, pull_request: structuredClone(pr), comment: structuredClone(question), sender: user(executor) };
@@ -47,6 +47,16 @@ function fixture(provider = 'codex', legacy = false) {
   };
   return { options, api, pr, root, question, review, issue, assignments, thread, calls, history, jobs, executor, reviewer };
 }
+
+test('a Claude answer on a Gemini PR resumes the Gemini executor', async () => {
+  const f = fixture('gemini', false, 'claude');
+  const prepared = await inspectQuestion(f.options, f.api);
+  assert.equal(prepared.reviewer.provider, 'claude');
+  assert.equal(prepared.executor.provider, 'gemini');
+  await publishAnswer(f.options, prepared, 'The focused regression covers this boundary.', f.api);
+  assert.equal(await dispatchAnswer(f.options, prepared, f.api), true);
+  assert.match(f.calls.find(call => call.endpoint.endsWith('/dispatches')).endpoint, /agent-gemini.yml/);
+});
 
 test('both providers answer old review roots on the snapshotted live head and resume their leased executor', async () => {
   for (const provider of ['codex', 'claude', 'gemini']) {
