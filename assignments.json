@@ -560,7 +560,7 @@
       "pr": null,
       "branch": "codex/issue-77",
       "slug": "cx2-ag-codex-aspen",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-38",
@@ -580,6 +580,16 @@
       "pr": null,
       "branch": "claude/issue-6",
       "slug": "cx2-ag-claude-atlas",
+      "released": false
+    },
+    {
+      "key": "codex/executor/issue-125",
+      "provider": "codex",
+      "role": "executor",
+      "issue": 125,
+      "pr": null,
+      "branch": "codex/issue-125",
+      "slug": "cx2-ag-codex-aspen",
       "released": false
     }
   ]
