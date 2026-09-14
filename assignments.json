@@ -1153,6 +1153,16 @@
       "branch": "claude/issue-154",
       "slug": "cx2-ag-claude-review-brook",
       "released": false
+    },
+    {
+      "key": "gemini/reviewer/issue-197",
+      "provider": "gemini",
+      "role": "reviewer",
+      "issue": 197,
+      "pr": 256,
+      "branch": "gemini/issue-197",
+      "slug": "cx2-ag-gemini-review-lens",
+      "released": false
     }
   ]
 }
