@@ -2171,30 +2171,47 @@ on.enterKey()
 check(last_args[2] == "t", "and the next request uses it")
 on.escapeKey()
 
--- The shell hands the variable to the module as typed, so the module is where it is refused. The
--- OS delivers enter to the focused editor's key filter rather than to on.enterKey, so this drives
--- the filter the way the calculator does. Scoped: the chunk is at the 200-local ceiling.
+-- An invalid variable is refused where it is entered, before it can poison later requests or a
+-- saved document. The OS delivers enter to the focused editor's key filter rather than to
+-- on.enterKey, so this drives the filter the way the calculator does. Scoped: the chunk is at the
+-- 200-local ceiling.
 do
     local module_solve = nps_split.solve
-    -- The bridge's refusal for a variable it will not bind: nil and the reason, as for a parse error.
-    nps_split.solve = function(text, variable, ...)
-        if variable:find(" ", 1, true) then
-            return nil, "variable must be a single identifier without whitespace"
-        end
-        return module_solve(text, variable, ...)
-    end
+    local entries = #steps.histText
     type_line("!v a b")
     fctEditor.editor.filter.enterKey()
-    check(steps.variable == "a b", "!v stores the typed variable without parsing it")
-    local entries = #steps.histText
+    check(steps.variable == "t" and #steps.histText == entries + 1 and
+          steps.histText[#steps.histText][2]:find("single identifier", 1, true) ~= nil and
+          steps.status:find("single identifier", 1, true) ~= nil,
+          "!v refuses whitespace without replacing the current variable")
+    type_line("!v 2x")
+    fctEditor.editor.filter.enterKey()
+    check(steps.variable == "t" and steps.status:find("single identifier", 1, true) ~= nil,
+          "!v refuses a name that starts with a digit")
+    type_line("!v x+y")
+    fctEditor.editor.filter.enterKey()
+    check(steps.variable == "t" and steps.status:find("single identifier", 1, true) ~= nil,
+          "!v refuses punctuation inside a name")
+    type_line("!v")
+    fctEditor.editor.filter.enterKey()
+    check(steps.variable == "t" and steps.status:find("single identifier", 1, true) ~= nil,
+          "!v refuses an empty name")
+    type_line("!v " .. string.rep("a", 4097))
+    fctEditor.editor.filter.enterKey()
+    check(steps.variable == "t" and steps.status:find("single identifier", 1, true) ~= nil,
+          "!v refuses a name beyond the bridge input limit")
+    check(runSteps("variable", "_velocity2") == "variable _velocity2" and
+          runSteps("variable", string.rep("a", 4096)):sub(1, 9) == "variable " and
+          runSteps("variable", "\207\128") == "variable \207\128" and
+          runSteps("variable", "\226\136\158") == "variable \226\136\158",
+          "the shell accepts every identifier form and the exact bridge length limit")
+    runSteps("variable", "t")
     local solves = calls.solve
     type_line("!s 2x+5=13")
     fctEditor.editor.filter.enterKey()
-    check(#steps.histText == entries + 1 and
-          steps.histText[#steps.histText][2]:find("single identifier", 1, true) ~= nil and
-          steps.status:find("single identifier", 1, true) ~= nil and
-          fctEditor:getExpression() == "" and steps.active == false and calls.solve == solves,
-          "a variable the module refuses is recorded as a refusal, and the line is consumed")
+    check(steps.active == true and calls.solve == solves + 1 and last_args[2] == "t",
+          "the next solve reaches the module with the last valid variable")
+    on.escapeKey()
 
     -- A raise, which is what a programming error or a hostile argument produces, must not leave
     -- the filter: outside pcall it unwinds into the OS and resets the calculator.
@@ -2297,6 +2314,11 @@ check(type(saved.history) == "table" and #saved.history == #steps.histText, "sav
 check(saved.variable == "t" and saved.progression == "full", "and the variable and progression setting")
 check(saved.expression == nil, "and nothing for an input line the last enter already emptied")
 
+steps.variable = "a b"
+saved = on.save()
+check(saved.variable == "x", "save replaces an invalid in-memory variable with the safe default")
+steps.variable = "t"
+
 fctEditor.editor:setExpression("\\0el {2*x+1}")
 saved = on.save()
 check(saved.expression == "2*x+1",
@@ -2311,6 +2333,10 @@ on.restore({ variable = 42, mode = "nonsense", detail = 0.5, progression = "auto
              expression = 42 })
 check(steps.variable == "t" and steps.detail == 2 and steps.progression == "full",
       "a bad restore changes no reading or progression setting")
+on.restore({ variable = "a b" })
+check(steps.variable == "t", "restore refuses an invalid identifier")
+on.restore({ variable = string.rep("a", 4097) })
+check(steps.variable == "t", "restore refuses a variable beyond the bridge input limit")
 check(steps.pendingExpression == nil, "and puts nothing on the input line either")
 
 -- The editors' own key filter, which this harness stubbed away until now, so nothing inside it had
