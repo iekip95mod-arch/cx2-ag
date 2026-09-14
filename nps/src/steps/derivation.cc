@@ -499,16 +499,106 @@ bool Derivation::completed_transformation_after(size_t checkpoint) const {
 }
 
 size_t Derivation::verified_prefix_end(size_t checkpoint, bool retain_plans) const {
+    size_t end = steps_.size();
     for (size_t i = checkpoint; i < steps_.size(); ++i) {
         if (retain_plans && steps_[i].kind == StepKind::Plan)
             continue;
-        if (!steps_[i].verified())
-            return i;
+        if (!steps_[i].verified()) {
+            end = i;
+            break;
+        }
         if (steps_[i].kind == StepKind::Transformation &&
-            transformations_[payload_index_[i]].after == kNoNode)
-            return i;
+            transformations_[payload_index_[i]].after == kNoNode) {
+            end = i;
+            break;
+        }
     }
-    return steps_.size();
+
+    // Branch siblings and the checks attached to them form one publishable unit. Reconsider after
+    // each rollback because the boundary can then land inside an enclosing split.
+    bool moved = true;
+    while (moved) {
+        moved = false;
+        for (size_t i = checkpoint; i < end; ++i) {
+            if (steps_[i].kind != StepKind::Branch)
+                continue;
+            const StepId parent = steps_[i].parent;
+            bool seen = false;
+            for (size_t prior = checkpoint; prior < i; ++prior) {
+                if (steps_[prior].kind == StepKind::Branch && steps_[prior].parent == parent) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (seen)
+                continue;
+
+            std::vector<StepId> members;
+            size_t first = steps_.size();
+            for (size_t candidate = 0; candidate < steps_.size(); ++candidate) {
+                if (steps_[candidate].kind == StepKind::Branch &&
+                    steps_[candidate].parent == parent) {
+                    members.push_back(static_cast<StepId>(candidate));
+                    first = std::min(first, candidate);
+                }
+            }
+
+            std::vector<StepId> records = members;
+            if (parent != kNoStep) {
+                for (StepId child : steps_[parent].children) {
+                    if (steps_[child].kind != StepKind::Branch)
+                        records.push_back(child);
+                }
+            }
+            const size_t split_record_count = records.size();
+            for (size_t record = 0; record < records.size(); ++record) {
+                for (StepId child : steps_[records[record]].children)
+                    records.push_back(child);
+            }
+
+            bool complete = true;
+            for (StepId record : records)
+                complete = complete && record < end;
+
+            const BranchPayload &first_payload = branches_[payload_index_[members.front()]];
+            for (StepId member : members) {
+                const BranchPayload &payload = branches_[payload_index_[member]];
+                complete = complete &&
+                           payload.siblings_exhaustive == first_payload.siblings_exhaustive &&
+                           payload.siblings_exclusive == first_payload.siblings_exclusive &&
+                           payload.siblings_domain_consistent ==
+                               first_payload.siblings_domain_consistent &&
+                           payload.exhaustive_evidence == first_payload.exhaustive_evidence &&
+                           payload.resolution != BranchResolution::Unresolved &&
+                           !payload.resolution_evidence.empty();
+            }
+
+            // The named passing evidence is the only record-level indication that an exhaustive
+            // group reached its closing check rather than stopping after an individually valid case.
+            if (first_payload.siblings_exhaustive) {
+                bool passing = false;
+                for (size_t record_index = 0; record_index < split_record_count; ++record_index) {
+                    const StepId record = records[record_index];
+                    for (const VerificationRecord &verification : steps_[record].verifications) {
+                        if (verification.method == first_payload.exhaustive_evidence &&
+                            verification.outcome == VerificationOutcome::Passed)
+                            passing = true;
+                    }
+                }
+                complete = complete && !first_payload.exhaustive_evidence.empty() && passing;
+            }
+
+            if (!complete) {
+                const size_t rollback = std::max(checkpoint, first);
+                if (rollback < end) {
+                    end = rollback;
+                    moved = true;
+                    break;
+                }
+            }
+        }
+    }
+    return end;
 }
 
 bool Derivation::adopt_roots_since(size_t checkpoint, StepId parent) {
