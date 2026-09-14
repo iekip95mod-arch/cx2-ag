@@ -16,4 +16,35 @@ context
   resource policy: rewrites<=4096 steps<=512 branches<=1 backend<=32
   derivation status: resource limit reached
 steps
-  none
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.square-root, Isolate the square and split on its roots
+    claim: no claim
+    explanation: Get x^2 alone, then find all real square roots
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Isolate the square and split on its roots
+    applicability: the equation is degree two in x with no term of degree one
+    applicability: the isolated square has an exact rational square root or is negative
+    fact: one unknown, x
+    fact: degree two in x with no term of degree one
+    alternative: the quadratic formula, which this equation does not need because it has no term of degree one
+    rationale: with no term of degree one the square can be isolated in one move, and every real x whose square is that value is then read off directly
+    verification: exact linear analysis in the squared term, passed, both sides reduced to a coefficient on x^2 and a constant term
+    verification: exact rational square root, passed, the isolated square is a rational perfect square
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Get x^2 by itself
+      rule: eq.quadratic.isolate-the-square, Isolate the square
+      claim: solution set preserved
+      explanation: x^2 is already by itself, so there is nothing to move
+      detail: Adding the same quantity to both sides and dividing by a nonzero coefficient preserve the solutions.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Read the equation as it stands, with x^2 already alone
+      before: ((x^2) = 4)
+      after: ((x^2) = 4)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the equation was already x^2 against a constant, so nothing moved
+      verified: yes

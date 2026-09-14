@@ -673,18 +673,15 @@ QuadraticResult solve_by_square_root(Arena &arena, Derivation &derivation, NodeI
 
     QuadraticResult result = solve_body(arena, derivation, equation, unknown, meter);
 
-    // A halt inside a split cannot keep the checked prefix the way a linear solve does. The prefix
-    // of a split is some of its cases, and a partial set of cases still carries siblings_exhaustive,
-    // which is the one thing a reader must not be shown when it is false. So a halt anywhere in this
-    // rule drops everything rather than keeping what was checked.
     if (meter.stopped()) {
         const bool cancelled = meter.halt() == Halt::Cancelled;
-        derivation.rewind_to(mark);
+        const bool kept = keep_verified_prefix(derivation, mark, arena);
         QuadraticResult halted;
         halted.outcome = cancelled ? QuadraticOutcome::Cancelled
                                    : QuadraticOutcome::ResourceExceeded;
         halted.detail = halt_name(meter.halt());
-        halted.status = cancelled ? DerivationStatus::NotRecorded
+        halted.status = cancelled ? kept ? DerivationStatus::Cancelled
+                                         : DerivationStatus::NotRecorded
                                   : DerivationStatus::ResourceLimitReached;
         halted.cost = meter.cost();
         record_context(derivation, budget, equation, halted.status, mode);
