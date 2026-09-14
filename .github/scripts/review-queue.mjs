@@ -60,8 +60,7 @@ export async function retryWaitingReviews(api, capacity = reviewerCapacity) {
     if (!latest || runs.some(run => run.status !== 'completed')) continue;
     const jobs = await pages(api, `${root}/actions/runs/${latest.id}/attempts/${latest.run_attempt}/jobs`, 'jobs');
     const waiting = jobs.some(job => job.steps?.some(step => step.name === 'Wait for reviewer capacity' && step.conclusion === 'success'));
-    const exhausted = latest.conclusion === 'failure' && jobs.some(job => job.steps?.some(step => step.name === 'Reserve the reviewer identity' && step.conclusion === 'failure'));
-    if (!waiting && !exhausted) continue;
+    if (!waiting) continue;
     const current = await api('GET', `${root}/pulls/${pr.number}`);
     const run = await api('GET', `${root}/actions/runs/${latest.id}`);
     if (current.state !== 'open' || current.draft || current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.head.repo?.full_name !== repository || run.run_attempt !== latest.run_attempt || run.status !== 'completed') continue;

@@ -79,10 +79,10 @@ test('no capacity, stale revision, pending work and unrelated failures never ret
   }
 });
 
-test('legacy allocation failure retries after capacity release', async () => {
+test('an allocation failure without a capacity marker is not retried', async () => {
   const f = fixture(); f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'failure' });
   f.jobs[0].steps = [{ name: 'Reserve the reviewer identity', conclusion: 'failure' }];
-  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 })), [42]);
+  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 })), []);
 });
 
 test('head movement and newer run attempts prevent retry', async () => {

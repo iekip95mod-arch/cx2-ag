@@ -399,6 +399,29 @@ test('assignment corruption cannot authorize an unknown identity or duplicate li
   await assert.rejects(readAssignment(options(20), github.api, roster), /Conflicting/);
 });
 
+test('the CLI waits only for reviewer capacity and never publishes credentials while waiting', () => {
+  const scratch = new URL('../../.Internal/workspaces/bot-identity-tests/', import.meta.url);
+  mkdirSync(scratch, { recursive: true });
+  for (const provider of ['codex', 'claude']) {
+    const directory = mkdtempSync(join(fileURLToPath(scratch), 'capacity-'));
+    const gh = join(directory, 'gh');
+    copyFileSync(new URL('./fixtures/bot-gh.mjs', import.meta.url), gh);
+    chmodSync(gh, 0o700);
+    const output = join(directory, 'outputs');
+    const env = { ...process.env, PATH: `${directory}${delimiter}${process.env.PATH}`, GH_TOKEN: 'fixture-secret-never-print', GITHUB_REPOSITORY: repository, GITHUB_OUTPUT: output, BOT_TEST_LOG: join(directory, 'requests'), BOT_TEST_ROSTER: fileURLToPath(new URL('./bot-identities.json', import.meta.url)), BOT_TEST_PROVIDER: provider, REVIEW_CAPACITY_WAIT: 'true' };
+    const cli = fileURLToPath(new URL('./bot-identities.mjs', import.meta.url));
+    const args = [cli, 'allocate', '--provider', provider, '--role', 'reviewer', '--issue', '42'];
+    const run = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(readFileSync(output, 'utf8'), 'waiting=true\n');
+    assert.doesNotMatch(run.stdout + run.stderr, /fixture-secret/);
+    const refused = spawnSync(process.execPath, args, { env: { ...env, REVIEW_CAPACITY_WAIT: 'false' }, encoding: 'utf8' });
+    assert.equal(refused.status, 1);
+    const unauthenticated = spawnSync(process.execPath, args, { env: { ...env, GH_TOKEN: '' }, encoding: 'utf8' });
+    assert.equal(unauthenticated.status, 1);
+  }
+});
+
 test('the CLI resolves an issue into workflow outputs without exposing credentials or mutating GitHub', () => {
   const scratch = new URL('../../.Internal/workspaces/bot-identity-tests/', import.meta.url);
   mkdirSync(scratch, { recursive: true });
