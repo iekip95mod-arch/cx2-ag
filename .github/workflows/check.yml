@@ -38,6 +38,9 @@ jobs:
       - name: Verify CI dependency and emulator contracts
         run: ruby .github/scripts/test-ci-scheduling.rb
 
+      - name: Verify SDK filesystem fixtures
+        run: python3 vendor/ndl-src/ndl-sdk/libsyscalls/test_open.py
+
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
