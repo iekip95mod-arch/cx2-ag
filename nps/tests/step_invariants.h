@@ -1,12 +1,14 @@
 #ifndef NPS_TEST_STEP_INVARIANTS_H
 #define NPS_TEST_STEP_INVARIANTS_H
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "nps/core/ast.h"
+#include "nps/core/evaluate.h"
 #include "nps/steps/derivation.h"
 #include "nps/steps/schema.h"
 
@@ -100,6 +102,79 @@ inline bool generic_label(const std::string &text) {
     return t == "simplify" || t == "solve" || t == "after algebra" || t == "by cas";
 }
 
+// The one reading in this pass that recomputes instead of reading a record, written because every
+// other claim here inherits the limit named at the top of the file: a rule that records a passing
+// verification it did not earn is invisible to a gate that only reads records. A step claiming
+// EquivalentExpression asserts something about two nodes in the arena, so that assertion can be put
+// to the arena rather than to the step's own paperwork.
+//
+// What it is worth is not the same on the two arms, and the split is the point rather than an
+// implementation detail. With no symbol left free on either side both expressions have one exact
+// rational value, so equality settles the claim and inequality refutes it. With symbols free the
+// most this can do is try a handful of assignments, which PRD section 17 and VER-009 both forbid
+// presenting as proof of a symbolic identity: a disagreement at one assignment is proof the two
+// differ, and agreement everywhere tried is evidence that they do not. The counts are reported
+// apart for that reason, so nobody reads the sampled population as settled.
+//
+// One shape is neither, and the exclusion is one-directional rather than symmetric. A step whose
+// after state leaves free a symbol its before state never had is not asserting that two expressions
+// are equal: it is naming a family, which is what an antiderivative's constant of integration is,
+// and the sampler would give that symbol a value the other side never carried and report a
+// disagreement about itself. Those are counted and left alone, and the count is reported so the
+// exclusion stays visible. The other direction is judged, because an after state with fewer free
+// symbols is one definite expression and comparing it against the before state at several
+// assignments is exactly the claim the step made.
+enum class EquivalenceReading {
+    // Nothing evaluated on either arm, so the claim was not reached.
+    NotComparable,
+    SymbolsChanged,
+    // Closed on both sides and equal, which settles the claim at the strength of arithmetic.
+    Exact,
+    // The same symbols free on both sides, agreeing at every assignment that evaluated.
+    Sampled,
+    Disagreed,
+};
+
+struct EquivalenceReport {
+    EquivalenceReading reading = EquivalenceReading::NotComparable;
+    size_t evaluated = 0;
+    std::string disagreement;
+};
+
+// Six assignments, the count agrees_on_samples was written around, where every third is fractional
+// so a rewrite that only holds on integers cannot pass by choosing its own points.
+const size_t kEquivalenceSamples = 6;
+
+inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, NodeId after) {
+    EquivalenceReport out;
+    if (before == kNoNode || after == kNoNode || before >= arena.node_count() ||
+        after >= arena.node_count())
+        return out;
+
+    std::vector<std::string> left, right;
+    collect_symbols(arena, before, &left);
+    collect_symbols(arena, after, &right);
+    for (size_t i = 0; i < right.size(); ++i) {
+        if (std::find(left.begin(), left.end(), right[i]) == left.end()) {
+            out.reading = EquivalenceReading::SymbolsChanged;
+            return out;
+        }
+    }
+
+    const bool closed = left.empty();
+    const SampleAgreement agreement =
+        agrees_on_samples(arena, before, after, closed ? 1 : kEquivalenceSamples);
+    out.evaluated = agreement.evaluated;
+    out.disagreement = agreement.disagreement;
+    if (!agreement.disagreement.empty())
+        out.reading = EquivalenceReading::Disagreed;
+    else if (agreement.evaluated == 0)
+        out.reading = EquivalenceReading::NotComparable;
+    else
+        out.reading = closed ? EquivalenceReading::Exact : EquivalenceReading::Sampled;
+    return out;
+}
+
 class Pass {
   public:
     Pass() {
@@ -171,6 +246,14 @@ class Pass {
              "every step whose rule declares a proof-obligation schema matches it: the claim it "
              "makes, the obligations it raises, and a verification of a declared method for each "
              "obligation, passing at the strength the schema says that method is worth",
+             0, 0},
+            {"VER-002", true,
+             "every transformation claiming an equivalent expression agrees with itself wherever "
+             "both sides can be evaluated: exactly, when neither side leaves a symbol free, and at "
+             "a series of rational assignments otherwise. Agreement at samples is evidence and not "
+             "proof, a disagreement at one assignment is proof the two differ, and a step whose "
+             "after state leaves free a symbol its before state never had is naming a family "
+             "rather than an expression, so it is counted rather than sampled",
              0, 0},
         };
         for (size_t i = 0; i < sizeof(kClaims) / sizeof(kClaims[0]); ++i)
@@ -327,6 +410,37 @@ class Pass {
                               "the transformation " + step.rule_id +
                                   " rests on numeric sampling by " + step.verifications[v].method +
                                   ", which corroborates an answer and cannot obtain one");
+                }
+
+                // VER-002 over the two nodes the step is about. Steps that declare they round are
+                // out of it for the same reason criterion 6 exempts them: their whole job is to
+                // report a value the exact one is near, so a disagreement there is the rule
+                // working. Everything else claiming an equivalent expression is asked.
+                if (step.claim == ClaimType::EquivalentExpression && p != nullptr &&
+                    !declares_the_approximation(step)) {
+                    looked_at("VER-002");
+                    ++equivalence_steps_;
+                    const EquivalenceReport reading = read_equivalence(arena, p->before, p->after);
+                    switch (reading.reading) {
+                        case EquivalenceReading::Disagreed:
+                            broke(broken, "VER-002",
+                                  "the transformation " + step.rule_id +
+                                      " claims an equivalent expression and its two sides "
+                                      "disagree, " + reading.disagreement);
+                            break;
+                        case EquivalenceReading::Exact:
+                            ++equivalence_exact_;
+                            break;
+                        case EquivalenceReading::Sampled:
+                            ++equivalence_sampled_;
+                            break;
+                        case EquivalenceReading::SymbolsChanged:
+                            ++equivalence_rebound_;
+                            break;
+                        case EquivalenceReading::NotComparable:
+                            ++equivalence_unevaluated_;
+                            break;
+                    }
                 }
             }
 
@@ -532,6 +646,16 @@ class Pass {
     // rather than folded into the count above, because the vacuous arm holding says nothing at all
     // about the arm that has never run.
     size_t restricted_splits() const { return restricted_splits_; }
+    // The four readings VER-002 separates. Reported apart rather than summed, because the exact arm
+    // settles a claim and the sampled arm corroborates one, and a single number would let the
+    // weaker evidence speak for the stronger. The last two are populations the check declined to
+    // judge, printed so an exclusion nobody can see cannot grow quietly.
+    size_t equivalence_steps() const { return equivalence_steps_; }
+    size_t equivalence_exact() const { return equivalence_exact_; }
+    size_t equivalence_sampled() const { return equivalence_sampled_; }
+    size_t equivalence_rebound() const { return equivalence_rebound_; }
+    size_t equivalence_unevaluated() const { return equivalence_unevaluated_; }
+
     size_t physical_assumptions() const { return physical_assumptions_; }
     size_t mathematical_restrictions() const { return mathematical_restrictions_; }
 
@@ -598,6 +722,11 @@ class Pass {
         restricted_splits_ = 0;
         physical_assumptions_ = 0;
         mathematical_restrictions_ = 0;
+        equivalence_steps_ = 0;
+        equivalence_exact_ = 0;
+        equivalence_sampled_ = 0;
+        equivalence_rebound_ = 0;
+        equivalence_unevaluated_ = 0;
         observed_.clear();
     }
 
@@ -1008,6 +1137,11 @@ class Pass {
     size_t branch_steps_ = 0;
     size_t split_count_ = 0;
     size_t restricted_splits_ = 0;
+    size_t equivalence_steps_ = 0;
+    size_t equivalence_exact_ = 0;
+    size_t equivalence_sampled_ = 0;
+    size_t equivalence_rebound_ = 0;
+    size_t equivalence_unevaluated_ = 0;
     size_t physical_assumptions_ = 0;
     size_t mathematical_restrictions_ = 0;
     std::map<std::string, Observed> observed_;
