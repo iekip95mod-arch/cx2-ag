@@ -1348,6 +1348,124 @@ void test_backend_step_stands_alone(TestSink &t) {
     }
 }
 
+// VER-002. The record this is built around is the one issue 237 printed: a step that keeps its
+// claim, its rule id, its registered obligation and its passing rule-local verification and moves
+// only the node it produced. Every record-reading arm of the pass is satisfied by it, which is why
+// the arm that recomputes had to exist, and why the arms below are driven from hand-built records
+// rather than from an engine: no engine writes a false equivalence today, so none can be asked for
+// the shape the gate refuses.
+void test_equivalence_is_checked_against_the_arena(TestSink &t) {
+    const auto claimed_equivalent = [](const char *rule) {
+        Step s = envelope("Rewrite the expression", ClaimType::EquivalentExpression);
+        s.rule_id = rule;
+        s.rule_name = "Selftest rewrite";
+        s.explanation_short = "Rewriting the expression";
+        s.explanation_detailed = "Reach for this when the expression has this shape.";
+        ProofObligation obligation;
+        obligation.id = "obl.selftest.rule-preserves-value";
+        obligation.text = "the rule preserves the requested value";
+        s.proof_obligations.push_back(std::move(obligation));
+        VerificationRecord v = verification("rule-local invariant", VerificationOutcome::Passed,
+                                            "the rule's own invariant held");
+        v.strength = EvidenceStrength::StructurallyValid;
+        s.verifications.push_back(std::move(v));
+        return s;
+    };
+    const auto walked = [&](Arena &arena, NodeId before, NodeId after,
+                            std::vector<std::string> *broken, invariants::Pass *pass) {
+        Derivation d;
+        TransformationPayload payload;
+        payload.before = before;
+        payload.concrete_action = "Rewrite it";
+        const StepId id = d.add_transformation(kNoStep, claimed_equivalent("selftest.rewrite"),
+                                               std::move(payload));
+        d.complete_transformation(id, after);
+        pass->walk(arena, d, false, false, broken);
+    };
+
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walked(arena, parse(arena, "2 * x").root, parse(arena, "6").root, &broken, &pass);
+        t.evidence("VER-002", mentions(broken, "claims an equivalent expression and its two sides "
+                                               "disagree"),
+                   "a step claiming 2x equals 6 is caught by the invariant pass, though its claim, "
+                   "its obligation and its passing rule-local record are all in order");
+        t.check(!mentions(broken, "STEP-002") && !mentions(broken, "VER-016"),
+                "and no record-reading arm sees anything wrong with it, which is why this one was "
+                "needed");
+    }
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walked(arena, parse(arena, "2 * x").root, parse(arena, "x + x").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_sampled() == 1 && pass.equivalence_exact() == 0,
+                "a rewrite that holds at every assignment tried is recorded as sample agreement "
+                "and never as the exact reading");
+    }
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walked(arena, parse(arena, "7 - 3").root, parse(arena, "4").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_exact() == 1 && pass.equivalence_sampled() == 0,
+                "and a rewrite with no symbol left free on either side is settled exactly, which "
+                "is the stronger of the two readings and is counted apart from it");
+    }
+    {
+        // The arm the sampler cannot answer, and the reason it is declined rather than judged: an
+        // antiderivative gains a constant of integration, so one side leaves a symbol free that the
+        // other never had. Sampling would assign C a value the left side never carried and report a
+        // disagreement about the sampler.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walked(arena, parse(arena, "x^2").root, parse(arena, "x^2 + C").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_rebound() == 1 &&
+                    pass.equivalence_sampled() == 0 && pass.equivalence_exact() == 0,
+                "a step that changes which symbols are free is counted as declined rather than "
+                "sampled, and is reported apart from the two readings that judged something");
+    }
+    {
+        // MATH-014 and VER-009 in one record: a disagreement at a single assignment is proof the
+        // two differ, so the gate fires on a rewrite that holds at five of six points.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walked(arena, parse(arena, "x^2").root, parse(arena, "x * x + 0").root, &broken, &pass);
+        t.check(broken.empty(), "an identity that holds everywhere is left alone");
+
+        invariants::Pass narrow;
+        std::vector<std::string> caught;
+        walked(arena, parse(arena, "x^2").root, parse(arena, "2 * x").root, &caught, &narrow);
+        t.check(mentions(caught, "claims an equivalent expression and its two sides disagree") &&
+                    narrow.equivalence_sampled() == 0,
+                "and a rewrite agreeing at x = 2 alone is refused, because the sampler tries more "
+                "than the one point a wrong rule happens to be right at");
+    }
+    {
+        // The exemption, held to the same shape criterion 6 uses. A step whose job is to report a
+        // rounded value disagrees with its own input by construction, and reading that as a false
+        // equivalence would make the gate fire on every rounding rule in the tree.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        Derivation d;
+        Step s = claimed_equivalent("selftest.report-significant-figures");
+        TransformationPayload payload;
+        payload.before = parse(arena, "1 / 3").root;
+        payload.concrete_action = "Report it as a decimal";
+        const StepId id = d.add_transformation(kNoStep, std::move(s), std::move(payload));
+        d.complete_transformation(id, arena.decimal("0.333"));
+        pass.walk(arena, d, false, false, &broken);
+        t.check(broken.empty() && pass.equivalence_steps() == 0,
+                "the step that declares it rounds is outside the claim, the same exemption "
+                "criterion 6 grants it, and is not counted in the population either");
+    }
+}
+
 void test_implication_owes_a_check(TestSink &t) {
     const auto squared = [](bool with_obligation, VerificationOutcome outcome) {
         Step s = envelope("Square both sides", ClaimType::Implication);
@@ -1893,6 +2011,7 @@ void run_derivation_tests(TestSink &t) {
     test_failure_behavior(t);
     test_implication_owes_a_check(t);
     test_backend_step_stands_alone(t);
+    test_equivalence_is_checked_against_the_arena(t);
     test_payload_expressions(t);
     test_plan_preconditions(t);
     test_plan_records_its_applicability(t);
