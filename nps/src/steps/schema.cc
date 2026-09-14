@@ -318,7 +318,8 @@ const EvidenceAlternative kLawApplicability[] = {
 const EvidenceAlternative kGiacZero[] = {
     {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
 };
-const EvidenceAlternative kGiacSimplify[] = {
+const EvidenceAlternative kRelativeComponentSubtraction[] = {
+    {"nps vector_sub", EvidenceStrength::StructurallyValid},
     {"Giac Simplify and local canonical comparison",
      EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
 };
@@ -513,11 +514,13 @@ const ObligationSchema kRelativeResultDimension[] = {
 };
 const ObligationSchema kRelativeComponentI[] = {
     {"obl.relative-motion.component-i",
-     "the i component equals subject velocity minus reference velocity", kGiacSimplify, 1},
+     "the i component equals subject velocity minus reference velocity",
+     kRelativeComponentSubtraction, 2},
 };
 const ObligationSchema kRelativeComponentJ[] = {
     {"obl.relative-motion.component-j",
-     "the j component equals subject velocity minus reference velocity", kGiacSimplify, 1},
+     "the j component equals subject velocity minus reference velocity",
+     kRelativeComponentSubtraction, 2},
 };
 const ObligationSchema kRelativeDefinitionAfterChecks[] = {
     {"obl.relative-motion.definition-after-checks",
