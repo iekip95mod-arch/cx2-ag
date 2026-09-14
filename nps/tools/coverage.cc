@@ -218,15 +218,27 @@ int selftest() {
     const struct {
         const char *rule_line;
         bool reads;
+        // What the refusal has to name, so a rule line that lost its id is still said out loud.
+        const char *fault_names;
         const char *what;
     } evidence_cases[] = {
-        {"rule eq.divide-both-sides fixture", true, "a rule claiming fixture evidence reads back"},
-        {"rule eq.divide-both-sides device", true, "and so does one declaring device evidence"},
-        {"rule eq.divide-both-sides devicex", false,
+        {"rule eq.divide-both-sides fixture", true, "", "a rule claiming fixture evidence reads back"},
+        {"rule eq.divide-both-sides device", true, "", "and so does one declaring device evidence"},
+        {"rule eq.divide-both-sides devicex", false, "eq.divide-both-sides",
          "a misspelled device is refused rather than read as one"},
-        {"rule eq.divide-both-sides Fixture", false, "and so is a capitalised fixture"},
-        {"rule eq.divide-both-sides fixture device", false, "and so is a line naming two classes"},
-        {"rule eq.divide-both-sides", false, "a rule line naming no evidence class is refused"},
+        {"rule eq.divide-both-sides Fixture", false, "eq.divide-both-sides",
+         "and so is a capitalised fixture"},
+        {"rule eq.divide-both-sides fixture device", false, "eq.divide-both-sides",
+         "and so is a line naming two classes"},
+        {"rule eq.divide-both-sides", false, "eq.divide-both-sides",
+         "a rule line naming no evidence class is refused"},
+        {"rule", false, "rule", "a rule line that lost its id as well is refused, not skipped"},
+        {"rule\teq.divide-both-sides fixture", true, "",
+         "a tab before the rule id reads as a rule rather than as a field name"},
+        {"rule eq.divide-both-sides\tfixture", true, "",
+         "and so does a tab before its evidence word"},
+        {"rule\teq.divide-both-sides\tdevicex", false, "eq.divide-both-sides",
+         "a tab-separated rule line with an unknown evidence class is refused"},
     };
     for (size_t i = 0; i < sizeof(evidence_cases) / sizeof(evidence_cases[0]); ++i) {
         std::ofstream staged(evidence_catalog.c_str());
@@ -235,13 +247,18 @@ int selftest() {
         std::vector<Family> staged_families;
         std::string fault;
         const bool ok = read_catalog(evidence_catalog, &staged_families, &fault);
+        // A read that keeps the rule also keeps the catalog's field names clean, because a rule
+        // line misread as a field puts its own text into the union coverage reports against.
         const bool as_expected =
             ok == evidence_cases[i].reads &&
             (evidence_cases[i].reads
                  ? fault.empty() && staged_families.size() == 1 &&
-                       staged_families[0].rules.size() == 1
+                       staged_families[0].rules.size() == 1 &&
+                       staged_families[0].rules[0].id == "eq.divide-both-sides" &&
+                       staged_families[0].fields.size() == 2 &&
+                       staged_families[0].fields.count("rule_ids") == 1
                  : staged_families.empty() &&
-                       fault.find("eq.divide-both-sides") != std::string::npos);
+                       fault.find(evidence_cases[i].fault_names) != std::string::npos);
         if (!as_expected)
             ++failures;
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
