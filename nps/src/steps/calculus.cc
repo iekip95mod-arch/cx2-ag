@@ -765,10 +765,8 @@ struct Calculation {
                  "The expression is defined at the point, so the tangent line touches the curve there")
             == kNoStep)
             return;
-        const size_t child_mark = derivation.mark();
         const DiffResult differentiated =
             differentiate(arena, derivation, command.expression, command.variable, meter, identity_backend);
-        (void)child_mark;
         if (differentiated.outcome != DiffOutcome::Differentiated || differentiated.derivative == kNoNode) {
             switch (differentiated.outcome) {
                 case DiffOutcome::Cancelled:
