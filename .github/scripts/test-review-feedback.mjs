@@ -46,7 +46,7 @@ function securityFixture(provider = 'codex') {
 }
 
 test('CodeQL commented reviews resume both executors without granting review approval', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     assert.equal(await dispatchFeedback(f.options, f.api), true);
     const sent = f.calls.filter(call => call.method === 'POST');
@@ -63,7 +63,7 @@ test('CodeQL commented reviews resume both executors without granting review app
 });
 
 test('CodeQL findings after merge create a durable follow-up for both providers', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     f.pr.state = 'closed';
     f.pr.merged = true;
@@ -97,7 +97,7 @@ test('CodeQL findings after merge create a durable follow-up for both providers'
 });
 
 test('a merged CodeQL review recovers from an accepted open-PR dispatch exactly once', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     assert.equal(await dispatchFeedback(f.options, f.api), true);
 
@@ -128,7 +128,7 @@ test('a merged CodeQL review recovers from an accepted open-PR dispatch exactly 
 });
 
 test('merging a PR replays its current CodeQL review through durable recovery', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     assert.equal(await dispatchFeedback(f.options, f.api), true);
     f.pr.state = 'closed';
@@ -153,7 +153,7 @@ test('merging a PR replays its current CodeQL review through durable recovery', 
 });
 
 test('merged recovery replays every current-head CodeQL review with findings', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     const second = { ...f.review, id: 1235, submitted_at: '2026-09-12T12:01:00Z' };
     f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`] = [f.review, second];
@@ -184,7 +184,7 @@ test('merged recovery replays every current-head CodeQL review with findings', a
 });
 
 test('a completed merge batch does not suppress a later security review ID', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = securityFixture(provider);
     f.pr.state = 'closed';
     f.pr.merged = true;
@@ -215,7 +215,7 @@ test('a completed merge batch does not suppress a later security review ID', asy
 });
 
 test('merged recovery deduplicates confirmed delivery across event types', async () => {
-  for (const provider of ['codex', 'claude']) for (const firstEvent of ['pull_request', 'pull_request_review']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const firstEvent of ['pull_request', 'pull_request_review']) {
     const f = securityFixture(provider);
     f.pr.state = 'closed';
     f.pr.merged = true;
@@ -271,12 +271,12 @@ test('security feedback rejects spoofed, empty, stale and unrelated comment revi
 });
 
 test('both providers dispatch the leased issue on trusted main for both formal verdicts', async () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);
     assert.equal(await dispatchFeedback(f.options, f.api), true);
     const sent = f.calls.filter(call => call.method === 'POST');
     assert.equal(sent.length, 1);
-    assert.equal(sent[0].endpoint, `repos/${repository}/actions/workflows/${provider === 'codex' ? 'agent-codex.yml' : 'agent.yml'}/dispatches`);
+    assert.equal(sent[0].endpoint, `repos/${repository}/actions/workflows/${provider === 'claude' ? 'agent.yml' : `agent-${provider}.yml`}/dispatches`);
     assert.equal(sent[0].body.ref, 'main');
     assert.equal(sent[0].body.inputs.issue_number, '42');
     assert.deepEqual(Object.keys(sent[0].body.inputs).sort(), ['issue_number', 'task']);
@@ -292,7 +292,7 @@ test('both providers dispatch the leased issue on trusted main for both formal v
 });
 
 test('a later formal verdict from the leased reviewer supersedes the delivered review', async () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);
     f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...f.review, id: 1235, state: state === 'APPROVED' ? 'CHANGES_REQUESTED' : 'APPROVED', submitted_at: '2026-09-12T12:01:00Z' });
     assert.equal(await dispatchFeedback(f.options, f.api), false);
@@ -311,7 +311,7 @@ test('latest verdict lookup paginates and orders submissions rather than draft r
 });
 
 test('a later blocked verdict prevents replaying an older rejection', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...f.review, id: 1235, state: 'COMMENTED', body: '<!-- review-blocked -->', submitted_at: '2026-09-12T12:01:00Z' });
     assert.equal(await dispatchFeedback(f.options, f.api), false);
@@ -358,7 +358,7 @@ test('unrelated, stale, unleased, self and foreign reviews never dispatch', asyn
 });
 
 test('a rejected review still resumes the executor after a draft handoff', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     f.pr.draft = true;
     assert.equal(await dispatchFeedback(f.options, f.api), true);
@@ -442,7 +442,7 @@ function entryFixture(provider, state, security = false) {
 }
 
 test('actual CLI dispatches verified CodeQL findings for both providers', () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = entryFixture(provider, 'COMMENTED', true);
     const execution = f.execute();
     assert.equal(execution.status, 0, execution.stderr);
@@ -464,13 +464,13 @@ test('actual CLI accepts workflow history larger than the default child output b
 });
 
 test('actual CLI entry dispatches exact workflows and JSON inputs for both providers', () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = entryFixture(provider, state);
     const execution = f.execute();
     assert.equal(execution.status, 0, execution.stderr);
     const sent = f.calls().filter(call => call.args[2] === 'POST');
     assert.equal(sent.length, 1);
-    assert.deepEqual(sent[0].args, ['api', '--method', 'POST', `repos/${repository}/actions/workflows/${provider === 'codex' ? 'agent-codex.yml' : 'agent.yml'}/dispatches`, '--input', '-']);
+    assert.deepEqual(sent[0].args, ['api', '--method', 'POST', `repos/${repository}/actions/workflows/${provider === 'claude' ? 'agent.yml' : `agent-${provider}.yml`}/dispatches`, '--input', '-']);
     assert.equal(sent[0].body.ref, 'main');
     assert.equal(sent[0].body.inputs.issue_number, '42');
     assert.equal((execution.stdout + execution.stderr).includes(f.env.GH_TOKEN), false);

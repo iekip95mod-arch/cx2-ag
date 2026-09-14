@@ -45,7 +45,7 @@ test('CI continuations acknowledge on their PR and skip already recovered runs',
 });
 
 test('both executors acknowledge verified CodeQL findings on the PR', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider, 'COMMENTED');
     const review = f.responses[`repos/${repository}/pulls/90/reviews/1234`];
     review.user = { login: 'github-advanced-security[bot]', id: 62310815, type: 'Bot' };
@@ -60,7 +60,7 @@ test('both executors acknowledge verified CodeQL findings on the PR', async () =
 });
 
 test('both executors acknowledge the review with the configured model, effort and review link', async () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);
     assert.equal(await announceWorker(f.options, f.api), true);
     const sent = f.calls.filter(call => call.method === 'POST');
@@ -85,7 +85,7 @@ test('a normal assigned run announces on its issue without pretending to handle 
 });
 
 test('draft repairs acknowledge but draft approvals cannot start merge work', async () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, state);
     f.responses[`repos/${repository}/pulls/90`].draft = true;
     assert.equal(await announceWorker(f.options, f.api), state === 'CHANGES_REQUESTED');
@@ -93,7 +93,7 @@ test('draft repairs acknowledge but draft approvals cannot start merge work', as
 });
 
 test('a newer blocked review prevents stale startup acknowledgement', async () => {
-  for (const provider of ['codex', 'claude']) {
+  for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(provider);
     const delivered = f.responses[`repos/${repository}/pulls/90/reviews/1234`];
     f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...delivered, id: 1235, state: 'COMMENTED', body: '<!-- review-blocked -->', submitted_at: '2026-09-12T12:01:00Z' });
@@ -115,7 +115,7 @@ test('closed and stale review work never receives a start acknowledgement', asyn
 });
 
 test('queued verdicts superseded before worker startup receive no acknowledgement', async () => {
-  for (const provider of ['codex', 'claude']) for (const state of ['CHANGES_REQUESTED', 'APPROVED']) {
+  for (const provider of ['codex', 'claude', 'gemini']) for (const state of ['CHANGES_REQUESTED', 'APPROVED']) {
     const f = fixture(provider, state);
     const delivered = f.responses[`repos/${repository}/pulls/90/reviews/1234`];
     f.responses[`repos/${repository}/pulls/90/reviews?per_page=100&page=1`].push({ ...delivered, id: 1235, state: state === 'APPROVED' ? 'CHANGES_REQUESTED' : 'APPROVED', submitted_at: '2026-09-12T12:01:00Z' });
