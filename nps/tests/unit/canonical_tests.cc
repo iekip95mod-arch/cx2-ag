@@ -860,6 +860,8 @@ void run_canonical_tests(TestSink &t) {
                 "a shape outside the node grammar has no canonical form");
         t.check(!arena.failed(),
                 "that refusal leaves the arena unfailed, so it is not a limit");
+        t.check(canonical_refusal(arena) == CanonicalRefusal::Unsupported,
+                "the refusal reads as unsupported rather than as a limit");
     }
 
     // The other answer, for the same return value. Here the arena really did run out, and it records
@@ -881,6 +883,28 @@ void run_canonical_tests(TestSink &t) {
         }
         t.check(starved,
                 "an arena that runs out during canonical form records a resource status");
+    }
+
+    // The two answers read back through the function the bridge asks, which is the thing that has to
+    // tell them apart. A mapping that always said limit would pass every check above.
+    {
+        Arena clean;
+        ParseResult r = parse(clean, "x");
+        t.check(canonicalize(clean, clean.nary(Kind::Pow, {r.root})) == kNoNode,
+                "the unsupported shape still refuses");
+        t.check(canonical_refusal(clean) == CanonicalRefusal::Unsupported,
+                "an unfailed arena names an unsupported form");
+
+        Limits limits;
+        limits.max_nodes = 8;
+        Arena starved(limits);
+        // Distinct spellings, because the arena interns and one repeated node never costs a second.
+        for (size_t i = 0; i < limits.max_nodes + 4 && !starved.failed(); ++i)
+            starved.integer(std::to_string(i));
+        t.check(starved.failed() && resource_status(starved.status()),
+                "the starved arena records a resource status");
+        t.check(canonical_refusal(starved) == CanonicalRefusal::ResourceLimit,
+                "a failed arena names the limit it hit");
     }
 
     {

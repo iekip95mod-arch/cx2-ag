@@ -1388,15 +1388,11 @@ int parse_failed(lua_State *L, const ParseResult &r) {
 // shorten an expression whose size was never the problem.
 int canonical_refused(lua_State *L, const Arena &arena) {
     lua_pushnil(L);
-    if (!arena.failed()) {
+    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported) {
         lua_pushliteral(L, "this expression has no canonical form in StepCAS");
         return 2;
     }
-    std::string msg;
-    if (resource_status(arena.status()))
-        msg = "the expression outgrew the limits while being put in canonical form: ";
-    else
-        msg = "canonical form was refused: ";
+    std::string msg = "the expression outgrew the limits while being put in canonical form: ";
     msg += status_name(arena.status());
     lua_pushlstring(L, msg.data(), msg.size());
     return 2;
