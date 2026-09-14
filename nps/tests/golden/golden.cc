@@ -364,6 +364,27 @@ void check_golden_invariants(TestSink &sink) {
     // acceptance corpus runs the five families PRD section 22.1 names and none of them branches.
     // Both counts are printed because the claims are quantified over splits rather than over steps,
     // and a pass that met no split would print these same two sentences.
+    // VER-002 over this population, with the two readings printed apart. The exact count is the
+    // one that settles a claim: both sides closed, both evaluated, and equal. The sampled count is
+    // corroboration and is worded as such, because VER-009 forbids a spot check standing in for a
+    // symbolic proof. The two declined counts are printed beside them so an exclusion that grew
+    // would be visible rather than quiet.
+    const invariants::Claim *equivalence = g_pass.find("VER-002");
+    sink.evidence("VER-002",
+                  equivalence != nullptr && equivalence->broken == 0 &&
+                      g_pass.equivalence_exact() > 0 && g_pass.equivalence_sampled() > 0,
+                  std::to_string(g_pass.equivalence_exact()) +
+                      " fixture steps claiming an equivalent expression were settled exactly, both "
+                      "sides closed and equal, and " +
+                      std::to_string(g_pass.equivalence_sampled()) +
+                      " more agreed at every rational assignment tried, which corroborates them "
+                      "and does not prove them. " +
+                      std::to_string(g_pass.equivalence_rebound()) +
+                      " changed which symbols are free and " +
+                      std::to_string(g_pass.equivalence_unevaluated()) +
+                      " had no rational value on either side, and both are declined rather than "
+                      "judged");
+
     const invariants::Claim *branching = g_pass.find("STEP-024");
     sink.evidence("STEP-024",
                   branching != nullptr && branching->checked > 0 && branching->broken == 0 &&
