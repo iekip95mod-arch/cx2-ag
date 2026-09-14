@@ -6,8 +6,19 @@ workflow = YAML.load_file(ARGV.fetch(0, File.join(root, '.github/workflows/check
 events = workflow.fetch('on', workflow[true])
 jobs = workflow.fetch('jobs')
 failures = []
-{ 'fast' => 'ubuntu-24.04', 'emulator' => 'ubuntu-24.04', 'full' => 'macos-latest' }.each do |name, runner|
+{ 'fast' => 'ubuntu-24.04', 'emulator' => 'ubuntu-24.04', 'full' => 'ubuntu-24.04-arm' }.each do |name, runner|
   failures << "#{name} must use #{runner}" unless jobs.fetch(name)['runs-on'] == runner
+end
+reviews = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml')).fetch('jobs')
+['review', 'codex-review'].each do |name|
+  failures << "#{name} must use Ubuntu ARM" unless reviews.fetch(name)['runs-on'] == 'ubuntu-24.04-arm'
+end
+full = jobs.fetch('full')
+failures << 'Full must prepare the complete SDK without allowing prerequisite failure' unless full.fetch('steps').any? { |step| step['run'] == 'bash .github/scripts/prepare-review.sh' && !step['continue-on-error'] }
+failures << 'Full must require the bridge suite unconditionally' unless full.fetch('steps').any? { |step| step['name'] == 'Check the bridge suite registered' && !step.key?('if') }
+['check.yml', 'agent-review.yml'].each do |file|
+  source = File.read(File.join(root, '.github/workflows', file))
+  failures << "#{file} must not schedule macOS or install with Homebrew" if source.match?(/runs-on: macos|brew install/)
 end
 ['agent-codex.yml', 'agent.yml', 'agent-gemini.yml'].each do |file|
   executor = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch('respond')
