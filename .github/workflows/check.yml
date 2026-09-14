@@ -102,13 +102,20 @@ jobs:
 
       - name: Restore the cross toolchain
         id: toolchain
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: vendor/ndl-src/ndl-sdk/toolchain/install
           key: ndl-toolchain-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/scripts/prepare-review.sh', 'vendor/ndl-src/ndl-sdk/toolchain/build_toolchain.sh', 'vendor/deps/build-gmp.sh', 'vendor/deps/build-mpfr-mpfi.sh') }}
 
       - name: Prepare complete SDK and bridge prerequisites
         run: bash .github/scripts/prepare-review.sh
+
+      - name: Save the complete cross toolchain
+        if: steps.toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: vendor/ndl-src/ndl-sdk/toolchain/install
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
 
       - name: Restore compiler cache
         uses: actions/cache@v6
