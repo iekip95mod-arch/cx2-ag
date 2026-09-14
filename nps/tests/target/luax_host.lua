@@ -559,6 +559,14 @@ local decimal_integer = nps.walkthrough("factorial(5)", "x", "decimal")
 check(decimal_integer.outcome == "unsupported form" and decimal_integer.numeric_mode == "decimal" and
       decimal_integer.result == nil and giac_calls == 0, "integer commands preserve an unsupported numeric mode")
 
+script("1/2", "0")
+local decimal_diff = nps.walkthrough("diff(0.5*x,x)", "x", "decimal")
+check(type(decimal_diff) == "table" and decimal_diff.solved, "decimal differentiate walkthrough succeeds")
+check(decimal_diff.result_form == "elementary closed form",
+      "decimal mode classifies an exact decimal rewrite as elementary closed form")
+check(decimal_diff.numeric_mode == "decimal",
+      "and records decimal numeric mode")
+
 script("2*x", "0")
 local wrapped_command = nps.walkthrough(" ((diff(x^2,x))) ", "y")
 check(type(wrapped_command) == "table" and wrapped_command.solved,

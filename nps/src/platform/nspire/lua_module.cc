@@ -351,8 +351,8 @@ constexpr IntegrateCrossCheckRoute integrate_cross_check_route(bool cross,
 }
 
 // MATH-015 for the answer the viewer shows, which is the backend's whenever we withheld our own.
-ResultForm primary_result_form(bool has_local_result, bool answer_only, DerivationStatus status,
-                               ResultForm backend_form) {
+constexpr ResultForm primary_result_form(bool has_local_result, bool answer_only,
+                                         DerivationStatus status, ResultForm backend_form) {
     if (answer_only)
         return backend_form;
     if (has_local_result)
