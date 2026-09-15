@@ -189,13 +189,16 @@ test('a merged reviewer PR frees its identity while its issue stays open', async
   await assert.rejects(allocateIdentity(target(201), github.api, roster), /already closed/);
 });
 
-test('an executor lease survives its merged PR while the issue stays open', async () => {
+test('an executor lease allocated from its PR survives that PR closing while the issue stays open', async () => {
   const github = fixture();
-  const worker = await allocateIdentity(options(20, 'claude'), github.api, roster);
+  github.pull(87, 20, 'claude');
+  const worker = await allocateIdentity({ repository, provider: 'claude', role: 'executor', pr: 87 }, github.api, roster);
+  assert.equal(github.assignments[0].pr, 87);
   github.pull(87, 20, 'claude').state = 'closed';
   assert.equal(github.ticket(20).state, 'open');
+  await allocateIdentity(options(42, 'claude'), github.api, roster);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, false);
   assert.equal((await readAssignment(options(20, 'claude'), github.api, roster)).login, worker.login);
-  assert.equal(github.assignments[0].released, false);
 });
 
 test('twelve reviewer slots retain assignments and reject overflow per provider', async () => {
