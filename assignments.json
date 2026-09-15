@@ -1117,7 +1117,7 @@
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-gemini-review-gauge",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "claude/reviewer/issue-235",
@@ -1190,7 +1190,7 @@
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-claude-review-vale",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-209",
