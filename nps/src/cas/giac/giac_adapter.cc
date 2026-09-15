@@ -493,6 +493,16 @@ Response Adapter::interpret(const Request &request, const std::string &raw) {
         note_backend_reply(r.tag, r.detail);
         return r;
     }
+    // The learner asked to stop, which is its own terminal condition rather than the backend
+    // failing. Read after the resource clause on purpose: giac's other interruption message names a
+    // stack overflow as an alternative cause and cannot say which happened, so that spelling keeps
+    // the resource reading rather than claiming a request the learner may never have made.
+    if (mentions(text, "user interruption") || mentions(text, "Interrupted by user")) {
+        r.tag = ResultTag::Cancelled;
+        r.detail = text;
+        note_backend_reply(r.tag, r.detail);
+        return r;
+    }
     if (mentions(text, "Error") || mentions(text, "error:") || mentions(text, "Invalid")) {
         r.tag = ResultTag::BackendError;
         r.detail = text;
