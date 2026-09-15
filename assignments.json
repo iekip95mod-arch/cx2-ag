@@ -1072,7 +1072,8 @@
       "pr": 249,
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-review-astrolabe",
-      "released": false
+      "released": false,
+      "selectedReview": false
     },
     {
       "key": "gemini/reviewer/issue-45",
@@ -1196,7 +1197,8 @@
       "pr": 249,
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": false,
+      "selectedReview": true
     }
   ]
 }
