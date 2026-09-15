@@ -100,6 +100,16 @@ claude_steps = workflow.fetch('jobs').fetch('review').fetch('steps')
 claude_guard = claude_steps.index { |step| step['name'] == 'Refuse a green check over a review that was not posted' }
 claude_final = claude_steps.index { |step| step['name'] == 'Record the reviewer outcome' }
 raise 'Claude final progress must observe the review-presence guard' unless claude_guard && claude_final && claude_final > claude_guard
+%w[review codex-review gemini-review].each do |name|
+  steps = workflow.fetch('jobs').fetch(name).fetch('steps')
+  publish = steps.find { |step| step['name'] == 'Publish the review for the reviewed commit' }
+  raise "#{name}: a failed publication must still fail the review" if publish['continue-on-error']
+  ['Disclose the configured review model and effort', 'Record the reviewer outcome'].each do |housekeeping|
+    step = steps.find { |entry| entry['name'] == housekeeping }
+    raise "#{name}: #{housekeeping} must run after publication" unless step && steps.index(step) > steps.index(publish)
+    raise "#{name}: #{housekeeping} must not discard a published verdict" unless step['continue-on-error'] == true
+  end
+end
 codex_publication = workflow.fetch('jobs').fetch('codex-review').fetch('steps').find { |step| step['name'] == 'Publish the review for the reviewed commit' }
 raise 'Codex review must be published by the assigned identity' unless codex_publication.fetch('env').fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
 %w[review codex-review].each do |name|
