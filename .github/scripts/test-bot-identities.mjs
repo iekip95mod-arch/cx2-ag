@@ -196,6 +196,18 @@ test('a refused allocation records the dead leases it verified', async () => {
   assert.equal(github.revision, revision + 1);
 });
 
+test('a refusal still reports pool exhaustion when its sweep write fails', async () => {
+  const github = fixture();
+  for (let issue = 1; issue <= 12; issue++) await allocateIdentity(options(issue, 'claude', 'reviewer'), github.api, roster);
+  await allocateIdentity(options(20, 'codex', 'reviewer'), github.api, roster);
+  github.ticket(20).state = 'closed';
+  const api = async (method, endpoint, body, missing) => {
+    if (method === 'PUT') throw Object.assign(Error('server'), { status: 500 });
+    return github.api(method, endpoint, body, missing);
+  };
+  await assert.rejects(allocateIdentity(options(13, 'claude', 'reviewer'), api, roster), { code: 'BOT_POOL_OCCUPIED' });
+});
+
 test('the reaper releases dead leases without an allocation and writes only when one dies', async () => {
   const github = fixture();
   const live = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);

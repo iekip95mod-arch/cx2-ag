@@ -256,7 +256,7 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
     if (target.role === 'executor' && state.assignments.some(assignment => !assignment.released && assignment.role === 'executor' && assignment.issue === target.issue)) throw Error('Another provider already has this issue');
     const candidate = roster.find(identity => identity.provider === target.provider && identity.role === target.role && !state.assignments.some(assignment => !assignment.released && assignment.slug === identity.slug));
     if (!candidate) {
-      if (released) await writeAssignments(options.repository, state, 'Release finished worker identities', api).catch(error => { if (![409, 422].includes(error.status)) throw error; });
+      if (released) await writeAssignments(options.repository, state, 'Release finished worker identities', api).catch(() => {});
       throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
     }
     const identity = findIdentity(roster, candidate.login, target.provider, target.role);
