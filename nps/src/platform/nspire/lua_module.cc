@@ -192,7 +192,9 @@ inline void trace_mem(lua_State *, const char *) {}
 // so this only carries a string the native side built.
 class LuaGiacBackend : public Backend {
   public:
-    explicit LuaGiacBackend(lua_State *L) : L_(L) {}
+    // The keypad poll the solver budget already uses, lent to the adapter so giac's combined
+    // interruption and stack overflow message can be read as the stop the learner asked for.
+    explicit LuaGiacBackend(lua_State *L) : L_(L) { watch_stop(escape_pressed, nullptr); }
 
     // Raw, because getglobal and getfield run __index, and a raise here longjmps past a live arena.
     static bool push_caseval(lua_State *L) {
@@ -258,7 +260,7 @@ class LuaGiacBackend : public Backend {
 // lua_State constructor and the availability answer the two builds share.
 class DirectGiacBackend : public TypedGiacBackend {
   public:
-    explicit DirectGiacBackend(lua_State *) {}
+    explicit DirectGiacBackend(lua_State *) { watch_stop(escape_pressed, nullptr); }
 
     // Giac is linked in, so there is nothing to look for and nothing that can be missing.
     static bool available(lua_State *) { return true; }
