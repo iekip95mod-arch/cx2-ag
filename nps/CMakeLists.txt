@@ -80,6 +80,7 @@ set(CORE_SOURCES
     src/physics/unit_conversion.cc
     src/physics/vector_addition.cc
     src/physics/vector_components.cc
+    src/physics/forces.cc
     src/physics/work.cc
     src/units/units.cc
     src/platform/nspire/device_identity.cc
@@ -118,6 +119,7 @@ set(TEST_SOURCES
     tests/unit/unit_conversion_tests.cc
     tests/unit/vector_addition_tests.cc
     tests/unit/vector_components_tests.cc
+    tests/unit/forces_tests.cc
     tests/unit/work_tests.cc
     tests/unit/context_tests.cc
     tests/unit/golden_tests.cc
