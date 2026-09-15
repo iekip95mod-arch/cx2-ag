@@ -76,6 +76,17 @@ struct InteractionPair {
     std::string magnitude_text;
 };
 
+// The along-axis force-balance residual, rebuilt from a published inventory rather than from the
+// running total an answer came out of. Exposed so the gate can be exercised on an inventory that a
+// solved problem cannot itself produce.
+struct ForceBalance {
+    Rational residual;
+    bool exact = false;
+    bool balanced = false;
+};
+
+ForceBalance forces_along_balance(const std::vector<ForceEntry> &inventory, const Rational &target);
+
 enum class ForcesUnknown : uint8_t {
     Acceleration,
     AppliedForce,
