@@ -220,6 +220,17 @@ The account now supports 40 concurrent Actions jobs. Executor and reviewer ident
 - agent-review-request.yml selects and reserves a Claude, Codex or Gemini reviewer when a pull request is opened, taken out of draft or given the corresponding review label. It applies the assigned bot's reviewer label. That event starts agent-review.yml, which verifies the assignment before using subscription credentials. Re-requesting review retains that bot. The review-approved check requires its fresh approval on the exact current commit. A missing credential, skipped review, stale review or changes-requested verdict cannot satisfy it.
 - agent-review-feedback.yml resumes the assigned executor after its reviewer approves or requests changes on the current commit. Codex resumes Codex, Claude resumes Claude and Gemini resumes Gemini. All keep the existing issue, identity, branch and PR. Verify live state before acting on a continuation because delivery may repeat.
 
+Which Claude model runs is chosen in two places. A model:sonnet or model:opus label decides one task, and repository variables decide everything else. Executors read CLAUDE_MODEL. Reviewers and their clarification answers read CLAUDE_REVIEW_MODEL first and fall back to CLAUDE_MODEL, so a cheap executor with an expensive reviewer is one variable rather than a workflow change. CLAUDE_EFFORT and CLAUDE_REVIEW_EFFORT work the same way. Unset, everything is opus at high effort.
+
+~~~sh
+gh variable set CLAUDE_MODEL --body sonnet --repo iekip95mod-arch/cx2-ag
+gh issue edit 42 --repo iekip95mod-arch/cx2-ag --add-label model:opus
+~~~
+
+Three things about the label are worth knowing before you use it. It starts nothing on its own, because every agent trigger waits for a different label. It is read from the issue or pull request that raised the event, so a label on the issue reaches the executor and a label on the pull request reaches its reviewer, and neither carries to the other. And two model labels at once is an error rather than a pick, the same way two review labels already are, so an unknown one such as model:haiku fails the job rather than quietly running the default.
+
+Resolution is inline workflow shell rather than a script under .github/scripts, and that is deliberate. agent-review-request.yml and agent-review.yml check out at AGENT_CONTROL_SHA, so a new script file is absent from those jobs until that variable is bumped past the merge, while GitHub reads the workflow body itself from the base branch. test-review-routing.rb runs all four resolution blocks against one shared table, which is what keeps the copies honest.
+
 Every one of those triggers is somebody asking, and that is deliberate. The agents run on a subscription rather than on metered runners, so a trigger that fires without being asked spends something real.
 
 Two places this was nearly got wrong, both worth knowing before you add a trigger. Opening an issue does not wake anything, because filing a finding so it outlives the session is the most common thing that happens here and none of those want an agent. And a push to a pull request branch does not restart the review, because a branch under repair gets several pushes and each one would review a diff that is about to change. Ask for the second review with the label when the branch is ready for it.

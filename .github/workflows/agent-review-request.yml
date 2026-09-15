@@ -37,8 +37,8 @@ jobs:
         env:
           CODEX_MODEL: ${{ vars.CODEX_MODEL || 'gpt-5.6-sol' }}
           CODEX_EFFORT: ${{ vars.CODEX_EFFORT || 'high' }}
-          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
-          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || vars.CLAUDE_MODEL || 'opus' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_REVIEW_EFFORT || vars.CLAUDE_EFFORT || 'high' }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash-high' }}
           GEMINI_EFFORT: ${{ vars.GEMINI_EFFORT || 'high' }}
         run: |
@@ -70,18 +70,30 @@ jobs:
               ;;
             *) exit 1 ;;
           esac
+          if [ "$reviewer" = codex ]; then
+            model=$CODEX_MODEL
+            effort=$CODEX_EFFORT
+          elif [ "$reviewer" = gemini ]; then
+            model=$GEMINI_MODEL
+            effort=$GEMINI_EFFORT
+          else
+            model=$CLAUDE_MODEL
+            effort=$CLAUDE_EFFORT
+            selected=$(jq -r '[((.issue.labels // []) + (.pull_request.labels // []))[].name | select(startswith("model:"))] | unique | .[]' "$GITHUB_EVENT_PATH")
+            if [ "$(printf '%s\n' "$selected" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+              echo "::error::Keep only one model label."
+              exit 1
+            fi
+            case "$selected" in
+              model:opus|model:sonnet) model=${selected#model:} ;;
+              '') ;;
+              *) echo "::error::$selected is not a Claude model label."; exit 1 ;;
+            esac
+          fi
           echo "reviewer=$reviewer" >> "$GITHUB_OUTPUT"
           echo "requested=$requested" >> "$GITHUB_OUTPUT"
-          if [ "$reviewer" = codex ]; then
-            echo "model=$CODEX_MODEL" >> "$GITHUB_OUTPUT"
-            echo "effort=$CODEX_EFFORT" >> "$GITHUB_OUTPUT"
-          elif [ "$reviewer" = gemini ]; then
-            echo "model=$GEMINI_MODEL" >> "$GITHUB_OUTPUT"
-            echo "effort=$GEMINI_EFFORT" >> "$GITHUB_OUTPUT"
-          else
-            echo "model=$CLAUDE_MODEL" >> "$GITHUB_OUTPUT"
-            echo "effort=$CLAUDE_EFFORT" >> "$GITHUB_OUTPUT"
-          fi
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          echo "effort=$effort" >> "$GITHUB_OUTPUT"
       - name: Require a trusted review requester
         id: requester
         env:
