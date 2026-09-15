@@ -36,6 +36,11 @@ enum class ClaimType : uint8_t {
     Definition,
     NoClaim,
     RowEquivalent,
+    // The after state names every expression of one shape rather than one expression. An
+    // antiderivative gaining its constant of integration is the case this exists for: the two sides
+    // differ by exactly that constant at every assignment giving it a nonzero value, so a step of
+    // this shape claiming EquivalentExpression is asserting something false about them.
+    FamilyUpToConstant,
 };
 
 const char *claim_type_name(ClaimType c);

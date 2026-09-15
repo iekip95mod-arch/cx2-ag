@@ -118,15 +118,18 @@ inline bool generic_label(const std::string &text) {
 //
 // One shape is neither, and the exclusion is one-directional rather than symmetric. A step whose
 // after state leaves free a symbol its before state never had is not asserting that two expressions
-// are equal: it is naming a family, which is what an antiderivative's constant of integration is,
-// and the sampler would give that symbol a value the other side never carried and report a
-// disagreement about itself. Those are counted and left alone, and the count is reported so the
-// exclusion stays visible. The other direction is judged, because an after state with fewer free
+// are equal: it is naming a family, which is what an antiderivative's constant of integration is.
+// That shape is a fault in the claim rather than a limit of the sampler, so it is reported here and
+// the step that means it says FamilyUpToConstant instead, which read_family below judges on its own
+// terms. The other direction is judged as an equivalence, because an after state with fewer free
 // symbols is one definite expression and comparing it against the before state at several
 // assignments is exactly the claim the step made.
 enum class EquivalenceReading {
     // Nothing evaluated on either arm, so the claim was not reached.
     NotComparable,
+    // The after state leaves free a symbol the before state never had, so no assignment makes the
+    // two one comparison. Reported rather than counted, because an equivalence is not what the step
+    // means.
     SymbolsChanged,
     // Closed on both sides and equal, which settles the claim at the strength of arithmetic.
     Exact,
@@ -139,11 +142,35 @@ struct EquivalenceReport {
     EquivalenceReading reading = EquivalenceReading::NotComparable;
     size_t evaluated = 0;
     std::string disagreement;
+    // The symbol the after state introduced, when that is what the reading found.
+    std::string introduced;
 };
 
 // Six assignments, the count agrees_on_samples was written around, where every third is fractional
 // so a rewrite that only holds on integers cannot pass by choosing its own points.
 const size_t kEquivalenceSamples = 6;
+
+// The symbols a comparison is about. A unit's name is the first argument of the unit() call that
+// carries it, and that argument is a label rather than a free variable: cm^3 becoming m^3 is the
+// conversion working rather than a symbol appearing from nowhere. Everything else is collected the
+// way collect_symbols collects it.
+inline void collect_value_symbols(const Arena &arena, NodeId id, std::vector<std::string> *out) {
+    if (id == kNoNode || id >= arena.node_count())
+        return;
+    const Node &n = arena.at(id);
+    if (n.kind == Kind::Symbol) {
+        if (std::find(out->begin(), out->end(), arena.text(id)) == out->end())
+            out->push_back(arena.text(id));
+        return;
+    }
+    const bool unit_call = n.kind == Kind::Call && arena.text(id) == "unit";
+    const ChildView kids = arena.children(id);
+    for (size_t i = 0; i < kids.size(); ++i) {
+        if (unit_call && i == 0)
+            continue;
+        collect_value_symbols(arena, kids[i], out);
+    }
+}
 
 inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, NodeId after) {
     EquivalenceReport out;
@@ -152,11 +179,12 @@ inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, Nod
         return out;
 
     std::vector<std::string> left, right;
-    collect_symbols(arena, before, &left);
-    collect_symbols(arena, after, &right);
+    collect_value_symbols(arena, before, &left);
+    collect_value_symbols(arena, after, &right);
     for (size_t i = 0; i < right.size(); ++i) {
         if (std::find(left.begin(), left.end(), right[i]) == left.end()) {
             out.reading = EquivalenceReading::SymbolsChanged;
+            out.introduced = right[i];
             return out;
         }
     }
@@ -172,6 +200,94 @@ inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, Nod
         out.reading = EquivalenceReading::NotComparable;
     else
         out.reading = closed ? EquivalenceReading::Exact : EquivalenceReading::Sampled;
+    return out;
+}
+
+// What a FamilyUpToConstant step owes, put to the arena the same way the equivalence reading above
+// is. The claim is that the after state names every expression differing from the before state by a
+// constant, so the reading finds the symbol the after state introduced, takes it back off, and asks
+// the equivalence question of what is left. That is judgeable: a rule adding its constant to the
+// wrong expression, adding more than one free symbol, or claiming a family while naming a single
+// expression all come back faulted.
+enum class FamilyReading {
+    Faulted,
+    // The constant came off and the remainder agrees with the before state.
+    Judged,
+    // The remainder had no rational value at any assignment, so the comparison was never reached.
+    NotComparable,
+};
+
+struct FamilyReport {
+    FamilyReading reading = FamilyReading::Faulted;
+    std::string fault;
+};
+
+inline FamilyReport read_family(const Arena &arena, NodeId before, NodeId after) {
+    FamilyReport out;
+    if (before == kNoNode || after == kNoNode || before >= arena.node_count() ||
+        after >= arena.node_count()) {
+        out.fault = "one of its two states is missing";
+        return out;
+    }
+
+    std::vector<std::string> left, right, introduced;
+    collect_value_symbols(arena, before, &left);
+    collect_value_symbols(arena, after, &right);
+    for (size_t i = 0; i < right.size(); ++i) {
+        if (std::find(left.begin(), left.end(), right[i]) == left.end() &&
+            std::find(introduced.begin(), introduced.end(), right[i]) == introduced.end())
+            introduced.push_back(right[i]);
+    }
+    if (introduced.empty()) {
+        out.fault = "its after state leaves no new symbol free, so it names one expression rather "
+                    "than a family";
+        return out;
+    }
+    if (introduced.size() != 1) {
+        out.fault = "its after state introduces " + std::to_string(introduced.size()) +
+                    " free symbols where a family up to a constant introduces one";
+        return out;
+    }
+
+    const ChildView kids = arena.children(after);
+    if (arena.at(after).kind != Kind::Add || kids.size() != 2) {
+        out.fault = "its after state is not the before state with a constant added to it";
+        return out;
+    }
+    NodeId constant = kNoNode;
+    NodeId body = kNoNode;
+    for (size_t i = 0; i < kids.size(); ++i) {
+        const bool is_the_constant = arena.at(kids[i]).kind == Kind::Symbol &&
+                                     arena.text(kids[i]) == introduced[0];
+        if (is_the_constant && constant == kNoNode)
+            constant = kids[i];
+        else
+            body = kids[i];
+    }
+    if (constant == kNoNode || body == kNoNode) {
+        out.fault = "the symbol " + introduced[0] +
+                    " its after state introduced is not a constant added to the before state";
+        return out;
+    }
+
+    const EquivalenceReport rest = read_equivalence(arena, before, body);
+    switch (rest.reading) {
+        case EquivalenceReading::Exact:
+        case EquivalenceReading::Sampled:
+            out.reading = FamilyReading::Judged;
+            break;
+        case EquivalenceReading::NotComparable:
+            out.reading = FamilyReading::NotComparable;
+            break;
+        case EquivalenceReading::SymbolsChanged:
+            out.fault = "what is left under its constant still leaves free a symbol the before "
+                        "state never had";
+            break;
+        case EquivalenceReading::Disagreed:
+            out.fault = "what is left under its constant disagrees with the state it was given, " +
+                        rest.disagreement;
+            break;
+    }
     return out;
 }
 
@@ -435,10 +551,36 @@ class Pass {
                             ++equivalence_sampled_;
                             break;
                         case EquivalenceReading::SymbolsChanged:
-                            ++equivalence_rebound_;
+                            broke(broken, "VER-002",
+                                  "the transformation " + step.rule_id +
+                                      " claims an equivalent expression while its after state "
+                                      "leaves free the symbol " + reading.introduced +
+                                      ", which its before state never had, so the two are a family "
+                                      "rather than one expression");
                             break;
                         case EquivalenceReading::NotComparable:
                             ++equivalence_unevaluated_;
+                            break;
+                    }
+                }
+
+                // The other half of the same criterion. A step naming a family is judged on what a
+                // family claims rather than declined, which is what #244 asked of the arm above.
+                if (step.claim == ClaimType::FamilyUpToConstant && p != nullptr) {
+                    looked_at("VER-002");
+                    ++family_steps_;
+                    const FamilyReport reading = read_family(arena, p->before, p->after);
+                    switch (reading.reading) {
+                        case FamilyReading::Faulted:
+                            broke(broken, "VER-002",
+                                  "the transformation " + step.rule_id +
+                                      " claims a family up to a constant and " + reading.fault);
+                            break;
+                        case FamilyReading::Judged:
+                            ++family_judged_;
+                            break;
+                        case FamilyReading::NotComparable:
+                            ++family_unevaluated_;
                             break;
                     }
                 }
@@ -653,7 +795,9 @@ class Pass {
     size_t equivalence_steps() const { return equivalence_steps_; }
     size_t equivalence_exact() const { return equivalence_exact_; }
     size_t equivalence_sampled() const { return equivalence_sampled_; }
-    size_t equivalence_rebound() const { return equivalence_rebound_; }
+    size_t family_steps() const { return family_steps_; }
+    size_t family_judged() const { return family_judged_; }
+    size_t family_unevaluated() const { return family_unevaluated_; }
     size_t equivalence_unevaluated() const { return equivalence_unevaluated_; }
 
     size_t physical_assumptions() const { return physical_assumptions_; }
@@ -725,7 +869,9 @@ class Pass {
         equivalence_steps_ = 0;
         equivalence_exact_ = 0;
         equivalence_sampled_ = 0;
-        equivalence_rebound_ = 0;
+        family_steps_ = 0;
+        family_judged_ = 0;
+        family_unevaluated_ = 0;
         equivalence_unevaluated_ = 0;
         observed_.clear();
     }
@@ -1140,7 +1286,9 @@ class Pass {
     size_t equivalence_steps_ = 0;
     size_t equivalence_exact_ = 0;
     size_t equivalence_sampled_ = 0;
-    size_t equivalence_rebound_ = 0;
+    size_t family_steps_ = 0;
+    size_t family_judged_ = 0;
+    size_t family_unevaluated_ = 0;
     size_t equivalence_unevaluated_ = 0;
     size_t physical_assumptions_ = 0;
     size_t mathematical_restrictions_ = 0;

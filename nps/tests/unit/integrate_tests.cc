@@ -536,6 +536,18 @@ void run_integrate_tests(TestSink &t) {
             t.evidence("VER-005", p && p->observed_result == "(x^2)",
                        "the derivative of the answer is the integrand");
         }
+        // #244. The constant step is the one rule in this engine whose after state is not the value
+        // it was handed, so it says which of the two it is claiming.
+        if (plan != kNoStep && d.at(plan).children.size() == 3) {
+            const Step &constant = d.at(d.at(plan).children[1]);
+            t.equal(constant.rule_id, "i.constant-of-integration", "the second child is the constant");
+            t.equal(claim_type_name(constant.claim), "family up to a constant",
+                    "which names a family of antiderivatives rather than an equivalent expression");
+            t.check(constant.proof_obligations.size() == 1 &&
+                        constant.proof_obligations[0].id == "obl.calculus.family-adds-a-constant",
+                    "and owes the family obligation rather than the value-preserving one every "
+                    "other rule in this engine raises");
+        }
         t.equal(d.context.problem_family_id, "calculus.integral.indefinite.single-variable",
                 "the context names the problem family");
         t.check(d.context.active_assumptions.empty(), "a polynomial assumes nothing");
