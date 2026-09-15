@@ -56,6 +56,7 @@ claude = workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| ste
 claude_prompt = claude.fetch('REVIEW_PROMPT')
 raise 'Claude must be told that reviewer prerequisites include the cross toolchain and host Lua' unless claude_prompt.include?('prepares the cross toolchain and host Lua')
 raise 'Claude must not be told that prepared reviewer prerequisites are unavailable' if claude_prompt.include?('never unpacks the cross toolchain') || claude_prompt.include?('for want of host Lua')
+raise 'Claude needs its assigned GitHub identity for issue context' unless claude.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
 raise 'Reviewer builds must carry a bounded job count' unless claude.fetch('CMAKE_BUILD_PARALLEL_LEVEL').to_s.match?(/\A[1-9]\d*\z/)
 raise 'A bare --parallel ignores CMAKE_BUILD_PARALLEL_LEVEL and can exhaust the runner' if claude_prompt.match?(/--parallel(?!\s+[1-9])/)
 raise 'Claude review must use subscription OAuth' unless claude.fetch('CLAUDE_CODE_OAUTH_TOKEN') == '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
@@ -75,6 +76,11 @@ raise 'Review execution must not allocate identities' if selection.fetch('steps'
 request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml')).fetch('jobs').fetch('assign')
 trust = request.fetch('steps').index { |step| step['name'] == 'Require a trusted PR author' }
 checkouts = request.fetch('steps').select { |step| step['uses']&.start_with?('actions/checkout@') }
+[selection, workflow.fetch('jobs').fetch('review-approved'), request].each do |job|
+  control = job.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout@') }
+  raise 'Control pin must retain the trusted base fallback' unless control.fetch('with').fetch('ref').start_with?('${{ vars.AGENT_CONTROL_SHA || ') && control.fetch('with').fetch('ref').end_with?('|| github.event.pull_request.base.sha }}')
+  raise 'Control checkout must not retain credentials' unless control.fetch('with').fetch('persist-credentials') == false
+end
 raise 'Credentialed assignment scripts must stay on the trusted initial checkout' unless trust && checkouts.length == 1 && checkouts[0].fetch('with').fetch('ref').include?('github.event.pull_request.base.sha')
 raise 'Validate the requester before reserving a reviewer' unless request.fetch('steps').index { |step| step['id'] == 'requester' } < request.fetch('steps').index { |step| step['id'] == 'identity' }
 raise 'Execute the requester verifier' unless request.fetch('steps').find { |step| step['id'] == 'requester' }.fetch('run') == 'node .github/scripts/wait-for-review.mjs --trust-requester'

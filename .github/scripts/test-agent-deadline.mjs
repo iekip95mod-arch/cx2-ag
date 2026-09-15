@@ -189,7 +189,8 @@ test('review and discussion deadlines precede inference and match each job limit
     assert.ok(budgetIndex < job.steps.findIndex(step => step.name === modelStep));
     if (jobName === 'review') {
       const model = job.steps.find(step => step.name === modelStep);
-      assert.ok(model.env.REVIEW_PROMPT.includes('${{ env.AGENT_TIME_BUDGET }}'));
+      assert.ok(!model.env.REVIEW_PROMPT.includes('${{ env.AGENT_TIME_BUDGET }}'));
+      assert.equal(model.run, 'node .github/scripts/run-claude-review.mjs');
       assert.ok(model.env.REVIEW_ALLOWED_TOOLS.includes('Bash(date:*)'));
       // The allowed gh readers need a credential, and publication stays out of the model's hands.
       assert.equal(model.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');

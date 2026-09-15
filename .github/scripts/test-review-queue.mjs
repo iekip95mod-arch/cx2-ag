@@ -73,6 +73,16 @@ test('capacity release retries a waiting assignment only on its current revision
   }
 });
 
+test('a Gemini PR waiting for Claude uses Claude capacity', async () => {
+  for (const slots of [0, 1]) {
+    const f = fixture();
+    f.pr.head.ref = 'gemini/issue-17';
+    f.pr.labels = [{ name: 'claude-review' }];
+    f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ gemini: 12, claude: slots })), slots ? [42] : []);
+  }
+});
+
 test('a failing reaper still lets the capacity sweep retry a waiting assignment', async () => {
   const f = fixture(); f.pr.head.ref = 'claude/issue-17';
   f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
