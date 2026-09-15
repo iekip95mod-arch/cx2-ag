@@ -460,7 +460,11 @@ Run calculator validation through the emulator. Do not upload to a physical hand
 
 ### Drive the emulator yourself
 
-You have the images in CI. Both the executor and the reviewer job check out with lfs true, asserted by test-ci-scheduling.rb, because a default checkout leaves 130 byte pointers that look like files and are not images. Build the emulator yourself when you want one, which takes a couple of seconds:
+Both the executor and the reviewer job check out with lfs true, asserted by test-ci-scheduling.rb, because a default checkout leaves 130 byte pointers that look like files and are not images.
+
+That is the transport rather than the images. images/nspire-os.img reaches main with #366 and not before, so until that merges a hosted job has the harness and nothing to boot, and both the emulator job and emurun say so rather than failing on a missing file. Check for the image before promising a screenshot.
+
+Build the emulator yourself when you want one, which takes a couple of seconds:
 
 ~~~sh
 make -C vendor/firebird-src/headless -j"$(nproc)"
