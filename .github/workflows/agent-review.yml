@@ -128,10 +128,13 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # lfs so a reviewer can boot the calculator itself rather than taking an executor's word for
+      # what appeared on the screen, which AGENTS.md says is the half of a review nobody can delegate.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
+          lfs: true
 
       - name: Restore agent configuration from the base branch
         env:
@@ -197,7 +200,7 @@ jobs:
         if: steps.key.outputs.have == 'true'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache libgmp-dev php
+          sudo apt-get install -y --no-install-recommends ccache libgmp-dev php zlib1g-dev
 
       - name: Restore the reviewer cross toolchain
         id: reviewer-toolchain-cache

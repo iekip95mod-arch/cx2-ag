@@ -460,7 +460,16 @@ Run calculator validation through the emulator. Do not upload to a physical hand
 
 ### Drive the emulator yourself
 
-No CI job boots the calculator for you. tools/emu is how you do it, and it runs anywhere the emulator binary and two images are present.
+You have the images in CI. Both the executor and the reviewer job check out with lfs true, asserted by test-ci-scheduling.rb, because a default checkout leaves 130 byte pointers that look like files and are not images. Build the emulator yourself when you want one, which takes a couple of seconds:
+
+~~~sh
+make -C vendor/firebird-src/headless -j"$(nproc)"
+python3 tools/emu/emurun.py --png screen.png --out screen.ppm
+~~~
+
+That means a claim about what the calculator displayed is checkable rather than taken on trust. A reviewer can boot the branch and photograph the screen itself, which is the part of a review AGENTS.md says cannot be delegated back to the author.
+
+The emulator job in check.yml boots TI OS on every pull request and uploads the frame as the emulator-screen artifact, so a change that stops the calculator booting fails there rather than later.
 
 ~~~sh
 make -C vendor/firebird-src/headless -j3
