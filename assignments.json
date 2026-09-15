@@ -1545,6 +1545,16 @@
       "branch": "claude/issue-163",
       "slug": "cx2-ag-claude-review-echo",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-294",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 294,
+      "pr": 310,
+      "branch": "claude/issue-294",
+      "slug": "cx2-ag-claude-review-brook",
+      "released": false
     }
   ]
 }
