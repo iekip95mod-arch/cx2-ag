@@ -1671,8 +1671,9 @@ r = nps.components_to_magnitude_angle({
     x = "1", y = "2", z = "3", rank = 4, frame = "lab", unit = "m",
     precision = exact_precision, angle_unit = "radians",
 })
-check(r.outcome == "invalid input" and r.has_polar == false and r.giac_calls == 0,
-      "the inverse component bridge preserves the family rank refusal")
+check(r.outcome == "invalid input" and r.detail:find("rank must be 2 or 3", 1, true) ~= nil and
+      r.has_polar == nil and r.giac_calls == 0,
+      "the inverse component bridge rejects an out-of-envelope rank before it reaches the engine")
 r = nps.components_to_magnitude_angle({
     x = "x^^2", y = "1", rank = 2, frame = "lab", unit = "m",
     precision = exact_precision, angle_unit = "radians",
