@@ -263,6 +263,7 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           AGENT_JOB_TIMEOUT_MINUTES: 120
+          AGENT_CYCLE_STARTED_AT: ${{ github.event.pull_request.created_at }}
           REVIEW_SCHEMA: ${{ steps.review-schema.outputs.json }}
           REVIEW_OUTPUT: ${{ runner.temp }}/claude-review.json
           REVIEW_PROMPT: |

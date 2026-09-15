@@ -122,6 +122,22 @@ test('a spent pull request budget still lets the job run, so a branch cannot be 
   assert.equal(cycleBudgetMinutes, 240);
 });
 
+// The Claude reviewer does not read AGENT_TIME_BUDGET. It calls agentDeadline itself, so the cycle
+// has to reach it through its own environment or the longest job in the loop escapes the cap.
+test('the Claude review runner is given the cycle and the workflow supplies it', async () => {
+  const { runClaudeReview } = await import('./run-claude-review.mjs');
+  const spent = startedAt - cycleBudgetMinutes * 60;
+  let seen = '';
+  const execute = (_cmd, _args, options) => { seen = options.input; return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: { verdict: 'APPROVE' } }) }; };
+  runClaudeReview({ startedAt, timeoutMinutes: 120, cycleStartedAt: spent, now: startedAt, prompt: 'body', schema: '{}', model: 'sonnet', effort: 'high', allowedTools: '' }, execute);
+  assert.match(seen, /shares one 240 minute budget/, 'the reviewer prompt must carry the shared budget');
+  assert.match(seen, /over its allowance/, 'a spent cycle must reach the reviewer rather than being invisible to it');
+
+  const job = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"]["review"])', join(scripts, '../workflows/agent-review.yml')], { encoding: 'utf8' }));
+  const step = job.steps.find(entry => entry.name === 'Review the pull request');
+  assert.equal(step.env.AGENT_CYCLE_STARTED_AT, '${{ github.event.pull_request.created_at }}');
+});
+
 test('the cycle start reads the pull request timestamp the workflow has', () => {
   // date -u -r 1789474640 prints this timestamp, so the constant is checked outside the code under test.
   assert.equal(cycleStart('2026-09-15T12:17:20Z'), 1789474640);
