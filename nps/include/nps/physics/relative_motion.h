@@ -17,6 +17,16 @@ enum class RelativeMotionAxes : uint8_t {
 
 const char *relative_motion_axes_name(RelativeMotionAxes axes);
 
+// Which of the three velocities in v(A/C) = v(A/B) + v(B/C) a problem is solving for. The frames
+// are the subject A, the medium B it moves through, and the reference C the answer is quoted in.
+enum class RelativeMotionUnknown : uint8_t {
+    SubjectRelativeToReference,
+    SubjectRelativeToMedium,
+    MediumRelativeToReference,
+};
+
+const char *relative_motion_unknown_name(RelativeMotionUnknown unknown);
+
 struct RelativeMotionProblem {
     std::string subject_name;
     std::string reference_name;
@@ -67,6 +77,24 @@ struct RelativeMotionResult {
     DerivationStatus status = DerivationStatus::NotRecorded;
     Cost cost;
 };
+
+// The three-frame statement. Two of the three velocities are read and the third is the unknown,
+// so the arrangement is a property of the problem rather than of the family.
+struct RelativeMotionIdentity {
+    std::string subject_name;
+    std::string medium_name;
+    std::string reference_name;
+    Vector subject_relative_to_medium;
+    Vector medium_relative_to_reference;
+    Vector subject_relative_to_reference;
+    RelativeMotionUnknown unknown = RelativeMotionUnknown::SubjectRelativeToReference;
+    RelativeMotionAxes axes = RelativeMotionAxes::EastNorth;
+};
+
+RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &derivation,
+                                                    const RelativeMotionIdentity &problem,
+                                                    const Budget &budget = Budget(),
+                                                    Backend *giac = nullptr);
 
 RelativeMotionResult solve_relative_motion(Arena &arena, Derivation &derivation,
                                             const RelativeMotionProblem &problem,

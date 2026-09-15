@@ -1,5 +1,6 @@
 #include "nps/physics/relative_motion.h"
 
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -793,6 +794,158 @@ RelativeMotionResult solve_relative_motion(Arena &arena, Derivation &derivation,
     }
     result.cost = meter.cost();
     record_context(derivation, budget, model, result.status, problem);
+    return result;
+}
+
+namespace {
+
+// v(X/Y) read backwards. Reversing a pair of subscripts negates the vector, which is the move that
+// turns the sum in the identity into the subtraction the component solver already performs.
+bool reversed_subscripts(const Vector &source, Vector *out) {
+    *out = source;
+    const Rational components[3] = {source.x, source.y, source.z};
+    Rational *targets[3] = {&out->x, &out->y, &out->z};
+    for (size_t axis = 0; axis < 3; ++axis) {
+        if (components[axis].num == std::numeric_limits<int64_t>::min())
+            return false;
+        targets[axis]->num = -components[axis].num;
+    }
+    return true;
+}
+
+NodeId relative_symbol(Arena &arena, const std::string &subject, const std::string &reference) {
+    return arena.call("relative_velocity", {arena.symbol(subject), arena.symbol(reference)});
+}
+
+std::string pair_text(const std::string &subject, const std::string &reference) {
+    return "v(" + subject + "/" + reference + ")";
+}
+
+}  // namespace
+
+const char *relative_motion_unknown_name(RelativeMotionUnknown unknown) {
+    switch (unknown) {
+        case RelativeMotionUnknown::SubjectRelativeToReference:
+            return "subject relative to reference";
+        case RelativeMotionUnknown::SubjectRelativeToMedium: return "subject relative to medium";
+        case RelativeMotionUnknown::MediumRelativeToReference:
+            return "medium relative to reference";
+    }
+    return "unknown";
+}
+
+RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &derivation,
+                                                    const RelativeMotionIdentity &problem,
+                                                    const Budget &budget, Backend *giac) {
+    if (problem.subject_name.empty() || problem.medium_name.empty() ||
+        problem.reference_name.empty() || problem.subject_name == problem.medium_name ||
+        problem.medium_name == problem.reference_name ||
+        problem.subject_name == problem.reference_name) {
+        return failed(RelativeMotionOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                      "the three frames must have distinct nonempty names");
+    }
+
+    const std::string &a = problem.subject_name;
+    const std::string &b = problem.medium_name;
+    const std::string &c = problem.reference_name;
+
+    RelativeMotionProblem inner;
+    inner.axes = problem.axes;
+    std::string rearrangement;
+    bool reverse_needed = false;
+    switch (problem.unknown) {
+        case RelativeMotionUnknown::SubjectRelativeToReference:
+            inner.subject_name = a;
+            inner.reference_name = c;
+            inner.subject_velocity = problem.subject_relative_to_medium;
+            if (!reversed_subscripts(problem.medium_relative_to_reference,
+                                     &inner.reference_velocity)) {
+                return failed(RelativeMotionOutcome::ArithmeticOverflow,
+                              DerivationStatus::ResourceLimitReached,
+                              "reversing the subscripts overflows exact integer arithmetic");
+            }
+            reverse_needed = true;
+            rearrangement = pair_text(a, c) + " = " + pair_text(a, b) + " - " + pair_text(c, b);
+            break;
+        case RelativeMotionUnknown::SubjectRelativeToMedium:
+            inner.subject_name = a;
+            inner.reference_name = b;
+            inner.subject_velocity = problem.subject_relative_to_reference;
+            inner.reference_velocity = problem.medium_relative_to_reference;
+            rearrangement = pair_text(a, b) + " = " + pair_text(a, c) + " - " + pair_text(b, c);
+            break;
+        case RelativeMotionUnknown::MediumRelativeToReference:
+            inner.subject_name = b;
+            inner.reference_name = c;
+            inner.subject_velocity = problem.subject_relative_to_reference;
+            inner.reference_velocity = problem.subject_relative_to_medium;
+            rearrangement = pair_text(b, c) + " = " + pair_text(a, c) + " - " + pair_text(a, b);
+            break;
+    }
+
+    Meter meter(budget);
+    const size_t mark = derivation.mark();
+
+    const std::string identity_text =
+        pair_text(a, c) + " = " + pair_text(a, b) + " + " + pair_text(b, c);
+    if (!add_check(derivation, meter, kNoStep, "physics.relative-motion.subscript-cancellation",
+                   "Subscript cancellation", "Check that the inner frames cancel",
+                   "The medium appears as the second subscript of one velocity and the first of "
+                   "the next, so the chain closes on the outer pair",
+                   "obl.relative-motion.subscript-cancellation",
+                   "the inner subscript " + b + " cancels between the two added velocities",
+                   "subscript chain", identity_text, EvidenceStrength::StructurallyValid,
+                   VerificationOutcome::Passed, "the three frames chain into one identity",
+                   "the inner frame appears once on each side of the addition", identity_text)) {
+        return RelativeMotionResult();
+    }
+
+    const NodeId identity =
+        arena.binary(Kind::Equals, relative_symbol(arena, a, c),
+                     arena.binary(Kind::Add, relative_symbol(arena, a, b),
+                                  relative_symbol(arena, b, c)));
+    const NodeId isolated = arena.binary(
+        Kind::Equals, relative_symbol(arena, inner.subject_name, inner.reference_name),
+        arena.binary(Kind::Add,
+                     relative_symbol(arena, inner.subject_name,
+                                     reverse_needed ? b : c),
+                     arena.unary(Kind::Neg,
+                                 relative_symbol(arena, reverse_needed ? c : inner.reference_name,
+                                                 reverse_needed ? b : c))));
+    if (arena.failed()) {
+        return failed(RelativeMotionOutcome::ResourceExceeded,
+                      DerivationStatus::ResourceLimitReached, status_name(arena.status()));
+    }
+
+    Step isolate = transformation_step(
+        "physics.relative-motion.isolate-unknown", "Isolate the unknown velocity",
+        "Rearrange the identity for " + pair_text(inner.subject_name, inner.reference_name),
+        "Move the known velocities to one side before any number is substituted",
+        "Reach for this whenever the velocity you want is not the one the identity already has on "
+        "its left. Which of the three is unknown is a property of the problem rather than of the "
+        "relation, so the relation is rearranged symbolically first and the numbers go in "
+        "afterwards. Reversing a pair of subscripts negates that velocity, which is how an "
+        "addition on one side becomes a subtraction on the other.",
+        ClaimType::EquivalentExpression,
+        verification("symbolic rearrangement of the subscript identity",
+                     identity_text + " rearranged to " + rearrangement,
+                     EvidenceStrength::StructurallyValid, VerificationOutcome::Passed));
+    isolate.proof_obligations.push_back(
+        {"obl.relative-motion.isolate-before-substitute",
+         "the unknown is isolated symbolically before a number is substituted"});
+    if (!add_transformation(derivation, meter, kNoStep, std::move(isolate), identity,
+                            "Rearrange to " + rearrangement, isolated, true)) {
+        return RelativeMotionResult();
+    }
+
+    RelativeMotionResult result = solve_relative_motion(arena, derivation, inner, budget, giac);
+    if (result.outcome == RelativeMotionOutcome::Solved) {
+        result.interpretation += ", solving the identity " + identity_text + " for its " +
+                                 relative_motion_unknown_name(problem.unknown) + " term";
+        result.status = derivation.outcome_from(mark);
+    }
+    result.cost.steps += meter.cost().steps;
+    result.cost.rewrites += meter.cost().rewrites;
     return result;
 }
 
