@@ -8,8 +8,7 @@ function modelDescription(model) {
 
 function workflowCoordinates(body) {
   const match = body.match(/Workflow: https:\/\/github\.com\/iekip95mod-arch\/cx2-ag\/actions\/runs\/([1-9][0-9]*)\/attempts\/([1-9][0-9]*)/);
-  if (!match) throw Error('Invalid existing progress workflow');
-  return { run: BigInt(match[1]), attempt: BigInt(match[2]) };
+  return match ? { run: BigInt(match[1]), attempt: BigInt(match[2]) } : null;
 }
 
 function progressBody({ role, login, model, effort, repository, run, attempt, phase, detail, previous = '' }) {
@@ -50,8 +49,12 @@ export async function publishProgress(options, api) {
     if (!Array.isArray(comments)) throw Error('Invalid progress comment history');
     matching.push(...comments.filter(comment => {
       if (!comment.body?.includes(marker) || comment.user?.type !== 'Bot' || comment.user.login !== login || comment.user.id !== userId) return false;
+      // progressBody always writes the trailer, so a body without one was written by the agent
+      // rather than by this script and cannot be this attempt's comment. Refusing it instead of
+      // skipping it locks the identity out of the issue for good, and the duplicate that refusal
+      // was guarding is still caught below.
       const previous = workflowCoordinates(comment.body);
-      return previous.run === BigInt(run) && previous.attempt === BigInt(attempt);
+      return previous !== null && previous.run === BigInt(run) && previous.attempt === BigInt(attempt);
     }));
     if (comments.length < 100) break;
     if (page === 10) throw Error('Progress comment history exceeds the lookup limit');
