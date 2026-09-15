@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.vectors.magnitude-components.two-dimension
   envelope version: <not recorded>
-  normalized problem: components_to_magnitude_angle(vector(-3, -4), degrees, ground, 1, dimension(1, 0, 0), precision(exact, 0), 2)
+  normalized problem: components_to_magnitude_angle(vector(-3, -4), degrees, ground, 1, dimension(1, 0, 0, 0), precision(exact, 0), 2)
   requested method: validate typed metadata, apply the magnitude relation and atan2(y, x), verify exact formulas, then approximate only final values when measured
   active assumption: vector frame is ground
   active assumption: the supplied unit has dimension L

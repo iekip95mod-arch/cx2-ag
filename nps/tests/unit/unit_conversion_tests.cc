@@ -41,6 +41,22 @@ StepId step_with_rule(const Derivation &derivation, const char *rule) {
 
 bool cancel_now(void *) { return true; }
 
+// Everything the derivation actually published, so a record that misstates a dimension shows up
+// wherever it was written rather than only in the step a test happened to pick.
+std::string recorded_model(const Arena &arena, const Derivation &derivation) {
+    std::string text;
+    for (size_t i = 0; i < derivation.size(); ++i) {
+        const TransformationPayload *step = derivation.transformation(static_cast<StepId>(i));
+        if (step == nullptr)
+            continue;
+        if (step->before != kNoNode)
+            text += print(arena, step->before) + "\n";
+        if (step->after != kNoNode)
+            text += print(arena, step->after) + "\n";
+    }
+    return text;
+}
+
 }
 
 void run_unit_conversion_tests(TestSink &tests) {
@@ -359,6 +375,33 @@ void run_unit_conversion_tests(TestSink &tests) {
                     "an expression arena limit is reported explicitly");
         tests.check(!conversion.has_value && derivation.size() == 0,
                     "an arena limit exposes no answer or partial derivation");
+    }
+
+    {
+        UnitConversionProblem resistance;
+        UnitConversionProblem power;
+        UnitConversionProblem current;
+        if (!parse_problem(tests, "2.5 kohm", "ohm", &resistance) ||
+            !parse_problem(tests, "2.5 kW", "W", &power) ||
+            !parse_problem(tests, "2.5 mA", "A", &current))
+            return;
+        Arena arena;
+        Derivation resistance_steps;
+        Derivation power_steps;
+        Derivation current_steps;
+        solve_unit_conversion(arena, resistance_steps, resistance, Budget());
+        solve_unit_conversion(arena, power_steps, power, Budget());
+        solve_unit_conversion(arena, current_steps, current, Budget());
+        const std::string resistance_model = recorded_model(arena, resistance_steps);
+        const std::string power_model = recorded_model(arena, power_steps);
+        const std::string current_model = recorded_model(arena, current_steps);
+        tests.check(resistance_model.find("dimension(2, 1, -3, -2)") != std::string::npos,
+                    "a resistance records every base exponent it has, current included");
+        tests.check(power_model.find("dimension(2, 1, -3, 0)") != std::string::npos,
+                    "a watt records the same three mechanical exponents with no current, so it "
+                    "cannot be read as the ohm it used to share a node with");
+        tests.check(current_model.find("dimension(0, 0, 0, 1)") != std::string::npos,
+                    "and an ampere records a current rather than a dimensionless number");
     }
 }
 

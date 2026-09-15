@@ -8,7 +8,7 @@ context
   capability manifest: <current>
   problem family: units.chain-link-conversion
   envelope version: <not recorded>
-  normalized problem: convert_unit(quantity((5 * (2^-1)), unit(cm^3, (1 * (1000000^-1)), dimension(3, 0, 0)), measured, 3), unit(m^3, 1, dimension(3, 0, 0)))
+  normalized problem: convert_unit(quantity((5 * (2^-1)), unit(cm^3, (1 * (1000000^-1)), dimension(3, 0, 0, 0)), measured, 3), unit(m^3, 1, dimension(3, 0, 0, 0)))
   requested method: check dimensions, apply exact source-to-SI and SI-to-target factors, report once
   angle convention: <not recorded>
   branch convention: <not recorded>
@@ -56,8 +56,8 @@ steps
       detail: Reach for this as the first half of any unit conversion, whatever the two units are. Rather than learn a factor for every pair, the value is taken to the SI unit first and then out to the target, so a table of one factor per unit covers every pair. This step is the way in: multiply by what one source unit is worth in SI.
       proof obligation: obl.unit-conversion.source-factor-exact, the source-to-SI factor is exact
       action: multiply by 0.000001 to change cm^3 to m^3
-      before: quantity((5 * (2^-1)), unit(cm^3, (1 * (1000000^-1)), dimension(3, 0, 0)), measured, 3)
-      after: quantity(((5 * (2^-1)) * (1 * (1000000^-1))), unit(m^3, 1, dimension(3, 0, 0)), measured, 3)
+      before: quantity((5 * (2^-1)), unit(cm^3, (1 * (1000000^-1)), dimension(3, 0, 0, 0)), measured, 3)
+      after: quantity(((5 * (2^-1)) * (1 * (1000000^-1))), unit(m^3, 1, dimension(3, 0, 0, 0)), measured, 3)
       reversible: yes
       verification: unit table, passed, 0.000001
       verified: yes
@@ -70,8 +70,8 @@ steps
         detail: Reach for this as the second half, once the value is in SI and has to come back out. It divides by what one target unit is worth in SI, which is the same table entry as the step above used, read the other way. Dividing rather than multiplying is the part worth watching: going in multiplies, coming out divides, and swapping the two is the usual way a conversion lands out by the square of the factor.
         proof obligation: obl.unit-conversion.target-factor-exact, the SI-to-target factor is exact
         action: multiply by 1 to change m^3 to m^3
-        before: quantity(((5 * (2^-1)) * (1 * (1000000^-1))), unit(m^3, 1, dimension(3, 0, 0)), measured, 3)
-        after: quantity((1 * (400000^-1)), unit(m^3, 1, dimension(3, 0, 0)), measured, 3)
+        before: quantity(((5 * (2^-1)) * (1 * (1000000^-1))), unit(m^3, 1, dimension(3, 0, 0, 0)), measured, 3)
+        after: quantity((1 * (400000^-1)), unit(m^3, 1, dimension(3, 0, 0, 0)), measured, 3)
         reversible: yes
         verification: unit table, passed, 1
         verified: yes
@@ -85,8 +85,8 @@ steps
           proof obligation: obl.unit-conversion.rounding-final, precision is applied once to the final value
           proof obligation: obl.unit-conversion.rounding-within-half-place, the reported value is within half a unit in the last place of the exact one
           action: report 0.00000250
-          before: quantity((1 * (400000^-1)), unit(m^3, 1, dimension(3, 0, 0)), measured, 3)
-          after: quantity(0.00000250, unit(m^3, 1, dimension(3, 0, 0)), measured, 3)
+          before: quantity((1 * (400000^-1)), unit(m^3, 1, dimension(3, 0, 0, 0)), measured, 3)
+          after: quantity(0.00000250, unit(m^3, 1, dimension(3, 0, 0, 0)), measured, 3)
           reversible: no
           verification: significant figures, passed, 3
           verification: exact half-place comparison, passed, 0.00000250 is within half a unit in the last place of 0.0000025

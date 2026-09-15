@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.vectors.magnitude-components.two-dimension
   envelope version: <not recorded>
-  normalized problem: magnitude_angle_to_components(10, 30, degrees, lab, 1, dimension(1, 0, -1), precision(exact, 0))
+  normalized problem: magnitude_angle_to_components(10, 30, degrees, lab, 1, dimension(1, 0, -1, 0), precision(exact, 0))
   requested method: validate typed metadata, apply x = r cos(theta) and y = r sin(theta), verify exact formulas, then approximate only final components when measured
   active assumption: vector frame is lab
   active assumption: the supplied unit has dimension L T^-1
