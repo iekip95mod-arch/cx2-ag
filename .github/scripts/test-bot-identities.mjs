@@ -225,6 +225,16 @@ test('the reaper reports a reused slug only when its current lease dies', async 
   assert.equal(github.assignments.find(assignment => !assignment.released && assignment.slug === reused.slug).key, 'claude/reviewer/issue-30');
 });
 
+test('the reaper bounds contention at eight attempts and keeps the lease held', async () => {
+  const github = fixture();
+  const lease = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(20).state = 'closed';
+  github.conflicts = 10;
+  await assert.rejects(releaseDeadLeases(repository, github.api, roster), /eight attempts/);
+  assert.equal(github.collisionCount, 8);
+  assert.equal(github.assignments.find(assignment => assignment.slug === lease.slug).released, false);
+});
+
 test('a merged reviewer PR frees its identity while its issue stays open', async () => {
   const github = fixture();
   const target = pr => ({ repository, provider: 'claude', role: 'reviewer', pr });

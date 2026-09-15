@@ -224,7 +224,7 @@ export async function releaseDeadLeases(repository, api, roster = loadRoster()) 
     try {
       await writeAssignments(repository, state, 'Release finished worker identities', api);
       return released;
-    } catch (error) { if (![409, 422].includes(error.status) || attempt === 7) throw error; }
+    } catch (error) { if (![409, 422].includes(error.status)) throw error; }
   }
   throw Error('Bot assignment contention exceeded eight attempts');
 }
