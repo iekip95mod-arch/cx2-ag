@@ -1211,6 +1211,16 @@
       "slug": "cx2-ag-claude-review-cairn",
       "released": false,
       "selectedReview": true
+    },
+    {
+      "key": "claude/reviewer/issue-197",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 197,
+      "pr": 256,
+      "branch": "gemini/issue-197",
+      "slug": "cx2-ag-claude-review-delta",
+      "released": false
     }
   ]
 }
