@@ -1233,7 +1233,7 @@
       "pr": null,
       "branch": "claude/issue-270",
       "slug": "cx2-ag-claude-atlas",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-156",
@@ -1274,7 +1274,7 @@
       "pr": 271,
       "branch": "claude/issue-270",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-137",
@@ -1304,6 +1304,16 @@
       "pr": 273,
       "branch": "claude/issue-157",
       "slug": "cx2-ag-claude-review-summit",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-156",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 156,
+      "pr": 275,
+      "branch": "claude/issue-156",
+      "slug": "cx2-ag-claude-review-grove",
       "released": false
     }
   ]
