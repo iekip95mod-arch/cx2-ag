@@ -109,6 +109,19 @@ void run_gravitation_tests(TestSink &t) {
         t.check(solved.result.cost.steps > 0, "the gravitation run reports what it spent");
     }
     {
+        // The separation enters at power minus two, so a case at r other than 1 m is what
+        // distinguishes the exponent from a bare factor.
+        RelationProblem input = gravitation_problem(GravitationVariable::Force);
+        input.knowns.push_back(gravitation_known(GravitationVariable::FirstMass, quantity("2 kg")));
+        input.knowns.push_back(gravitation_known(GravitationVariable::SecondMass, quantity("3 kg")));
+        input.knowns.push_back(gravitation_known(GravitationVariable::Separation, quantity("2 m")));
+        const Run solved = run(input);
+        t.equal(relation_outcome_name(solved.result.outcome), "solved",
+                "gravitation solves at a separation other than one metre");
+        t.check(exact_value(solved.result, 10011, 100000000000000),
+                "doubling the separation divides the gravitational force by four");
+    }
+    {
         RelationProblem input = gravitation_problem(GravitationVariable::FirstMass);
         input.knowns.push_back(gravitation_known(GravitationVariable::Force, quantity("1 N")));
         input.knowns.push_back(gravitation_known(GravitationVariable::SecondMass, quantity("1 kg")));
