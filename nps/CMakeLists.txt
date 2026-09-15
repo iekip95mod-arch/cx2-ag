@@ -85,6 +85,7 @@ set(CORE_SOURCES
     src/physics/vector_components.cc
     src/physics/forces.cc
     src/physics/relation.cc
+    src/physics/ranking.cc
     src/physics/gravitation.cc
     src/physics/oscillation.cc
     src/physics/work.cc
@@ -131,6 +132,7 @@ set(TEST_SOURCES
     tests/unit/vector_addition_tests.cc
     tests/unit/vector_components_tests.cc
     tests/unit/forces_tests.cc
+    tests/unit/ranking_tests.cc
     tests/unit/work_tests.cc
     tests/unit/context_tests.cc
     tests/unit/golden_tests.cc
