@@ -1335,6 +1335,16 @@
       "branch": "claude/issue-263",
       "slug": "cx2-ag-claude-review-crest",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-244",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 244,
+      "pr": null,
+      "branch": "claude/issue-244",
+      "slug": "cx2-ag-claude-atlas",
+      "released": false
     }
   ]
 }
