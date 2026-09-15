@@ -1073,7 +1073,7 @@
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-review-astrolabe",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "gemini/reviewer/issue-45",
@@ -1201,7 +1201,7 @@
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-claude-review-anchor",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "claude/reviewer/issue-45",
