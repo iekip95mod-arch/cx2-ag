@@ -285,11 +285,9 @@ struct Run final : MatrixRowSink {
         switch (result.outcome) {
             case MatrixOutcome::Reduced:
             case MatrixOutcome::Determined:
+                // The record's own verdict is carried rather than recast, because a range nobody
+                // checked is weaker evidence than a range that disagreed and not the same fact.
                 result.status = derivation.outcome_from(mark);
-                if (result.status != DerivationStatus::SolvedAndVerified) {
-                    result.outcome = MatrixOutcome::VerificationFailed;
-                    result.expression = kNoNode;
-                }
                 break;
             case MatrixOutcome::UnsupportedForm: result.status = DerivationStatus::Unsupported; break;
             case MatrixOutcome::InvalidInput: result.status = DerivationStatus::InvalidInput; break;
