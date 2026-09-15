@@ -7433,6 +7433,82 @@ do
     end)()
 end
 
+-- An overflowing list changes how much room the footer has, not what the record is. A hint
+-- walkthrough with every step revealed has no next hint to offer, so both cues must reach that
+-- conclusion from the same visibility decision rather than from the two-valued mode alone.
+do
+    (function()
+    -- Past MATH_PREVIEW_BYTES the focused math row is drawn as text, which is what sets listOverflow.
+    local long_after = "(" .. string.rep("x + ", 700) .. "x)"
+    local function twoStepRecord(after_one, after_two)
+        return {
+            outcome = "solved", detail = "", solved = true, status = "solved and verified",
+            result = "x = 4", result_form = "exact", giac_tag = "exact", agrees = true,
+            step_count = 2, rewrites = 2, giac_calls = 0, nodes = 6,
+            original_expression = "2*x+5=13", normalized_expression = "2*x+5=13",
+            steps = {
+                { kind = "transformation", phase = "solve", name = "Isolate the term",
+                  goal = "Subtract five from both sides", short = "Undo the addition",
+                  claim = "equivalent expression", verified = true, failed = false, depth = 0,
+                  before = "2*x+5=13", after = after_one, action = "Subtract 5", rule = "s.subtract" },
+                { kind = "transformation", phase = "solve", name = "Divide by the coefficient",
+                  goal = "Divide both sides by two", short = "Undo the multiplication",
+                  claim = "equivalent expression", verified = true, failed = false, depth = 0,
+                  after = after_two, action = "Divide by 2", rule = "s.divide" },
+            },
+        }
+    end
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local function footerFor(record, progression, reveals)
+        env.closeSteps()
+        env.stepsSetProgression(progression)
+        env.steps.result = nil
+        next_step_result = record
+        env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
+        env.on.enterKey()
+        for _ = 1, reveals do env.on.tabKey() end
+        for _ = 1, 4 do env.on.paint(gc) end
+        drawn = {}
+        env.on.paint(gc)
+        return table.concat(drawn, " ")
+    end
+
+    local exhausted = footerFor(twoStepRecord(long_after, long_after), "hint", 1)
+    check(env.steps.view == "list" and env.steps.listOverflow and env.steps.walkthrough == "hint" and
+          env.steps.revealed == 2 and env.steps.focus == 2,
+          "a hint record with both steps revealed still overflows its list")
+    check(exhausted:find("hint 2/2", 1, true) ~= nil and
+          exhausted:find("ANSWER shown", 1, true) ~= nil and
+          exhausted:find("TAB next hint", 1, true) == nil,
+          "so its overflow footer states the answer is shown rather than offering a hint that is gone")
+
+    local remaining = footerFor(twoStepRecord(long_after, long_after), "hint", 0)
+    check(env.steps.listOverflow and env.steps.revealed == 1 and env.steps.focus == 1,
+          "the same record with one hint still to come overflows the same way")
+    check(remaining:find("hint 1/2", 1, true) ~= nil and
+          remaining:find("TAB next hint", 1, true) ~= nil and
+          remaining:find("ANSWER shown", 1, true) == nil,
+          "and that overflow footer still offers the hint that exists")
+
+    local fits = footerFor(twoStepRecord("x = 8", "x = 4"), "hint", 1)
+    check(not env.steps.listOverflow and env.steps.revealed == 2,
+          "the short-expression record reveals both steps without overflowing")
+    check(fits:find("hint 2/2", 1, true) ~= nil and
+          fits:find("ANSWER shown", 1, true) ~= nil and
+          fits:find("TAB next hint", 1, true) == nil,
+          "and reaches the same conclusion, so overflow decides the wording and not the fact")
+
+    local full = footerFor(twoStepRecord(long_after, long_after), "full", 0)
+    check(env.steps.listOverflow and env.steps.walkthrough == "full",
+          "a full walkthrough overflows that list too")
+    check(full:find("ENTER all work", 1, true) ~= nil and
+          full:find("ANSWER shown", 1, true) == nil and
+          full:find("TAB next hint", 1, true) == nil,
+          "and keeps its own overflow cue rather than borrowing a hint one")
+    end)()
+end
+
 -- A progression change cannot rewrite the walkthrough already on screen, so it must not say it did.
 do
     (function()
