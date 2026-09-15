@@ -1685,6 +1685,16 @@
       "branch": "claude/issue-298",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-164",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 164,
+      "pr": 335,
+      "branch": "claude/issue-164",
+      "slug": "cx2-ag-claude-review-delta",
+      "released": false
     }
   ]
 }
