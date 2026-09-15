@@ -1374,7 +1374,7 @@
       "pr": null,
       "branch": "claude/issue-220",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-83",
@@ -1464,7 +1464,7 @@
       "pr": 286,
       "branch": "claude/issue-220",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-198",
@@ -1474,6 +1474,16 @@
       "pr": 288,
       "branch": "claude/issue-198",
       "slug": "cx2-ag-claude-review-cairn",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-269",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 269,
+      "pr": 283,
+      "branch": "claude/issue-269",
+      "slug": "cx2-ag-claude-review-brook",
       "released": false
     }
   ]
