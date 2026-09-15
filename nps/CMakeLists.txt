@@ -1489,6 +1489,12 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME nspire_measurement COMMAND nps_nspire_measurement_test)
     add_test(NAME nspire_allocation_probe COMMAND nps_nspire_allocation_probe_test)
 
+    # Runs where there is no emulator and no flash image, which is the half of tools/emu worth
+    # checking on a runner: whether a frame is a screen, and whether a missing image reports as a
+    # skip rather than as a passing run.
+    add_test(NAME emu_screen
+             COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/emu_screen_test.py")
+
     # The UI half, driven on the host against stubbed calculator globals. Its defects used to be
     # found by opening the document on the calculator, and each one reset the device.
     find_program(LUA_HOST NAMES luajit lua)

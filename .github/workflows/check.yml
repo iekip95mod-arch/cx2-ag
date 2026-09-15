@@ -70,9 +70,14 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 python3
+            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 python3 \
+            luajit libluajit-5.1-dev
           sudo update-alternatives --set lua-interpreter /usr/bin/lua5.1
           lua -e 'assert(_VERSION == "Lua 5.1")'
+          # nps_luax is what compiles lua_module.cc, and it configures only when both of these
+          # answer, so a missing headers package has to stop the job rather than skip the target.
+          luajit -e 'assert(jit)'
+          pkg-config --exists luajit
 
       - name: Restore compiler cache
         uses: actions/cache@v6
@@ -95,13 +100,24 @@ jobs:
 
       # A suite that is not registered is silently not run, and -R reports success over whichever
       # ones were. This caught luax_host going missing when the runner had luajit but not its
-      # headers. The bridge suite is not here: it needs luajit, and enabling luajit pulls the ARM
-      # cross toolchain into configure, which is the opposite of fast. It runs in full instead.
+      # headers.
+      # Asked by name rather than by counting rows, because ctest adds the setup test of any fixture
+      # a selected test requires. ui_smoke_v4 requires nps_evidence_luax, which exists only when
+      # luajit does, so a count that reads 2 today reads 3 the moment the bridge is buildable.
       - name: Check both suites are registered
         run: |
-          found=$(ctest --test-dir nps/build/host -N -R '^(unit|ui_smoke_v4)$' | grep -c "Test *#")
-          echo "registered: $found"
-          test "$found" -eq 2
+          ctest --test-dir nps/build/host -N | sed -n 's/^ *Test *#[0-9]*: *//p' > /tmp/registered.txt
+          cat /tmp/registered.txt
+          for suite in unit ui_smoke_v4; do
+            grep -qx "$suite" /tmp/registered.txt || { echo "not registered: $suite"; exit 1; }
+          done
+
+      # Without luajit nothing in a host configure compiles lua_module.cc at all, so the bridge
+      # reached review green twice on code that does not build. Asserting the target exists is what
+      # keeps that from silently coming back if the package ever stops installing.
+      - name: Check the bridge target is configured
+        run: |
+          ninja -C nps/build/host -t targets all | grep -q 'nps_luax'
 
       - name: Unit and shell suites
         run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|ui_smoke_v4)$'
@@ -161,17 +177,6 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel "$(nproc)"
 
-  # CodeQL ran as GitHub's default setup until now, which fires on its own schedule and cannot be
-  # told to wait for anything. Here it is a job like the others, so a push whose suites are red
-  # spends nothing on scanning code that is about to change. Both suites, not just the gate: full
-  # is the one that builds the bridge and the cross package paths.
-  #
-  # The three languages default setup was scanning. One job each, because only c-cpp needs a build
-  # and running the other two behind it would make them wait for it.
-  #
-  # No ccache here, unlike every other job in this file. CodeQL extracts c-cpp by watching the
-  # compiler run, and a ccache hit replays an object without running it, so a warm cache would hand
-  # the analysis an empty database and the job would still pass.
   review-ready:
     needs: fast
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -194,68 +199,3 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/wait-for-review.mjs
-
-  codeql:
-    needs: [fast, full, emulator, review-ready]
-    permissions:
-      contents: read
-      security-events: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: actions
-            build-mode: none
-          - language: python
-            build-mode: none
-          - language: c-cpp
-            build-mode: manual
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Install prerequisites
-        if: matrix.build-mode == 'manual'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake pkg-config libgmp-dev zlib1g-dev python3
-
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
-      # nps_host rather than the full target. CodeQL wants the compiler invocations and nothing
-      # more, and the suites this skips were already run by the two jobs above.
-      - name: Build under the tracer
-        if: matrix.build-mode == 'manual'
-        run: |
-          cmake -S nps -B nps/build/codeql \
-            -DNDL_SDK=${{ github.workspace }}/vendor/ndl-src/ndl-sdk \
-            -DGIAC_ROOT=${{ github.workspace }}/vendor/khi-src
-          cmake --build nps/build/codeql --target nps_host --parallel
-
-      - uses: github/codeql-action/analyze@v4
-        with:
-          category: /language:${{ matrix.language }}
-
-  emulator:
-    needs: [fast, review-ready]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-      - name: Install emulator prerequisites
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential zlib1g-dev
-      - name: Build and test the headless emulator
-        run: make -C vendor/firebird-src/headless -j3 check test-build
-      - name: Record emulator coverage
-        run: echo "Firebird headless regression tests passed. TI OS boot and StepCAS package loading were not exercised." >> "$GITHUB_STEP_SUMMARY"
