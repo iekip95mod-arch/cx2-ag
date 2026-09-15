@@ -3500,9 +3500,12 @@ function incrementalSolve.tick()
 	end
 	local startedAt = incrementalSolve.startedAt
 	local finished = progress.state == "complete"
+	-- release() zeroes incrementalSolve.advances, so the record has to be built from the
+	-- count the task actually reached before that reset erases it.
+	local record = finished and incrementalSolve.record(progress, startedAt) or nil
 	incrementalSolve.release()
 	if finished then
-		prepareWalkthrough(incrementalSolve.record(progress, startedAt))
+		prepareWalkthrough(record)
 		openSteps()
 	else
 		steps.status = "steps: " .. tostring(progress.state)

@@ -677,8 +677,11 @@ nps_split = {
     solve_begin = function(text, variable, operation)
         calls.solve_begin = calls.solve_begin + 1
         if type(variable) ~= "string" or variable == "" then return nil, "variable" end
+        -- Taken once here rather than per advance, since take_step_result consumes
+        -- next_step_result on first use and every advance of the same task needs the
+        -- same finished record to slice its prefix from and to complete with.
         incremental_task = { request = text, variable = variable, operation = operation or "linear",
-                             published = 0 }
+                             published = 0, whole = take_step_result(text) }
         return { state = "pending", pending = true, step_count = 0, steps = {},
                  original_expression = text, normalized_expression = text, status = "not recorded" }
     end,
@@ -688,13 +691,13 @@ nps_split = {
         incremental_task.published = incremental_task.published + 1
         if incremental_task.published < 3 then
             local prefix = {}
-            local whole = take_step_result(incremental_task.request)
+            local whole = incremental_task.whole
             for i = 1, incremental_task.published do prefix[i] = whole.steps[i] end
             return { state = "pending", pending = true, step_count = #prefix, steps = prefix,
                      original_expression = incremental_task.request,
                      normalized_expression = incremental_task.request, status = "not recorded" }
         end
-        local record = take_step_result(incremental_task.request)
+        local record = incremental_task.whole
         record.state, record.pending = "complete", false
         record.step_count = #record.steps
         incremental_task = nil
@@ -2367,6 +2370,7 @@ on.escapeKey()
 -- 200-local ceiling.
 do
     local module_solve = nps_split.solve
+    local module_solve_begin = nps_split.solve_begin
     local entries = #steps.histText
     type_line("!v a b")
     fctEditor.editor.filter.enterKey()
@@ -2396,15 +2400,20 @@ do
           runSteps("variable", "\226\136\158") == "variable \226\136\158",
           "the shell accepts every identifier form and the exact bridge length limit")
     runSteps("variable", "t")
-    local solves = calls.solve
+    local begins = calls.solve_begin
     type_line("!s 2x+5=13")
     fctEditor.editor.filter.enterKey()
-    check(steps.active == true and calls.solve == solves + 1 and last_args[2] == "t",
-          "the next solve reaches the module with the last valid variable")
+    check(calls.solve_begin == begins + 1 and incremental_task ~= nil and incremental_task.variable == "t",
+          "the next solve reaches the incremental owner with the last valid variable")
+    repeat on.timer() until not incrementalSolve.active
+    check(steps.active == true, "and the finished task opens the viewer")
     on.escapeKey()
 
     -- A raise, which is what a programming error or a hostile argument produces, must not leave
-    -- the filter: outside pcall it unwinds into the OS and resets the calculator.
+    -- the filter: outside pcall it unwinds into the OS and resets the calculator. The incremental
+    -- owner swallows a solve_begin raise and falls back to the direct call, so both have to raise
+    -- to drive the raise all the way to the guard that used to see it alone.
+    nps_split.solve_begin = function() error("bad argument #2 to 'solve_begin' (simulated raise)", 0) end
     nps_split.solve = function() error("bad argument #2 to 'solve' (simulated raise)", 0) end
     type_line("!s 2x+5=13")
     local survived, why = pcall(fctEditor.editor.filter.enterKey)
@@ -2417,6 +2426,7 @@ do
     check(survived, "nor the return filter: " .. tostring(why))
     check(pcall(on.paint, gc), "the shell paints after the trapped raise")
     nps_split.solve = module_solve
+    nps_split.solve_begin = module_solve_begin
     steps.variable = "t"
     fctEditor.editor:setText("")
     fctEditor:fixContent()
@@ -2429,6 +2439,7 @@ end
 do
     type_line("!s 2x+5=13")
     fctEditor.editor.filter.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     local entries = #steps.histText
     check(steps.active == true and steps.view == "list",
           "the viewer opens on the list: " .. tostring(steps.status))
@@ -3105,6 +3116,7 @@ do
     env.on.paint(gc)
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     env.steps.result.canonical = "(1 * (2^(-1)))"
     for _ = 1, 3 do env.on.paint(gc) end
     check(mathBoxExact("(1 / 2)") ~= nil and env.steps.result.canonical == "(1 * (2^(-1)))",
@@ -3939,6 +3951,7 @@ do
     next_step_result = branchcase.result
     type_line("x^2 = 4")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     check(steps.result == branchcase.result and steps.view == "list",
           "a split opens in the viewer like any other derivation")
 
@@ -4039,6 +4052,7 @@ do
     next_step_result = branchcase.empty
     type_line("x^2 = -4")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     branchcase.answer = (painted():gsub("\n", " "))
     check(branchcase.answer:find("NO RESULT", 1, true) == nil,
           "an empty real solution set is not reported as no result")
@@ -4068,6 +4082,7 @@ do
     next_step_result = branchcase.physics
     type_line("2t = 4*(t - 5)")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     check(steps.result == branchcase.physics, "the two-condition step opens in the viewer")
     steps.focus = 1
     steps.view = "step"
@@ -7453,6 +7468,7 @@ do
     next_step_result = nil
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     env.on.paint(gc)
     check(placed() > 0, "a healthy viewer frame places its math boxes: " .. placed())
     -- An incidental trigger: what is under test is the recovery, not this field.
@@ -7668,6 +7684,7 @@ do
         next_step_result = record
         env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
         env.on.enterKey()
+        repeat env.on.timer() until not env.incrementalSolve.active
         for _ = 1, reveals do env.on.tabKey() end
         for _ = 1, 4 do env.on.paint(gc) end
         drawn = {}
@@ -7719,6 +7736,7 @@ do
     next_step_result = nil
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     check(env.steps.active and env.steps.walkthrough == "full",
           "a full walkthrough is open before the progression changes")
     local said = env.stepsSetProgression("hint")
@@ -7747,6 +7765,8 @@ do
         record.normalized_expression = expression
         return record
     end
+    -- Unavailable, so the incremental owner declines and the direct override above is what runs.
+    module.solve_begin = nil
     local env = loadIsolated(module)
     env.on.paint(gc)
     env.stepsSetProgression("full")
