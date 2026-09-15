@@ -1084,7 +1084,7 @@
       "branch": "gemini/issue-45",
       "slug": "cx2-ag-gemini-review-caliper",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "gemini/reviewer/issue-239",
@@ -1212,7 +1212,7 @@
       "branch": "gemini/issue-45",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-197",
