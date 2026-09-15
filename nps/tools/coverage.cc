@@ -279,6 +279,77 @@ int selftest() {
         std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
                   << "the coverage report is not written over an unknown evidence class\n";
     }
+    const std::string header_catalog = std::string(made) + "/family-header.md";
+    const struct {
+        const char *header_line;
+        bool reads;
+        const char *fault_names;
+        const char *what;
+    } header_cases[] = {
+        {"family id staged.one", true, "", "a valid family header reads back"},
+        {"family ix staged.one", false, "family ix staged.one",
+         "a family header with a misspelled id word is refused"},
+        {"family", false, "malformed: family", "a bare family header is refused, not skipped"},
+        {"family id", false, "family id", "a family header with no family id is refused"},
+        {"family id.staged.one", false, "family id.staged.one",
+         "a dot instead of space after family id is refused"},
+        {"family id staged.one extra", false, "family id staged.one extra",
+         "a family header with extra tokens is refused"},
+    };
+    for (size_t i = 0; i < sizeof(header_cases) / sizeof(header_cases[0]); ++i) {
+        std::ofstream staged(header_catalog.c_str());
+        staged << "family id staged.previous\n"
+               << "rule eq.divide-both-sides fixture\n"
+               << header_cases[i].header_line << "\n"
+               << "rule eq.divide-both-sides fixture\n";
+        staged.close();
+        std::vector<Family> staged_families;
+        std::string fault;
+        const bool ok = read_catalog(header_catalog, &staged_families, &fault);
+        const bool as_expected =
+            ok == header_cases[i].reads &&
+            (header_cases[i].reads
+                 ? fault.empty() && staged_families.size() == 2 &&
+                       staged_families[1].id == "staged.one"
+                 : staged_families.empty() &&
+                       fault.find(header_cases[i].fault_names) != std::string::npos);
+        if (!as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                  << header_cases[i].what << "\n";
+    }
+    {
+        std::ofstream staged(header_catalog.c_str());
+        staged << "family id staged.first\n"
+               << "topic_and_level first topic\n"
+               << "rule eq.one fixture\n"
+               << "family ix staged.second\n"
+               << "topic_and_level second topic\n"
+               << "rule eq.two fixture\n";
+        staged.close();
+        std::vector<Family> staged_families;
+        std::string fault;
+        const bool ok = read_catalog(header_catalog, &staged_families, &fault);
+        const bool refused = !ok && staged_families.empty() &&
+                             fault.find("family ix staged.second") != std::string::npos;
+        if (!refused)
+            ++failures;
+        std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
+                  << "a malformed family header does not merge into the previous family\n";
+    }
+    {
+        std::ofstream staged(header_catalog.c_str());
+        staged << "family id staged.first\n"
+               << "rule eq.divide-both-sides fixture\n"
+               << "family ix staged.bad\nrule eq.divide-both-sides fixture\n";
+        staged.close();
+        const bool refused = coverage(header_catalog, fixtures_dir, refused_report, nullptr) != 0 &&
+                             !std::filesystem::exists(refused_report);
+        if (!refused)
+            ++failures;
+        std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
+                  << "the coverage report is not written over a malformed family header\n";
+    }
     for (const std::string answer : {"complete", "omitted", "none", ""}) {
         std::ofstream metadata(metadata_path);
         for (const std::string id : {"staged.complete", "staged.incomplete"}) {
