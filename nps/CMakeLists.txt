@@ -1637,7 +1637,8 @@ if(NOT CMAKE_CROSSCOMPILING)
 
     # Staged PRDs and catalogs, because the ones in the tree list each requirement once and carry a
     # single universal module scope. Every arm of that scope reader is driven from here: the domain
-    # it reads, the four ways it refuses one and the Every row that is not module-scoped at all.
+    # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
+    # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
