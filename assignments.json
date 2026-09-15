@@ -1695,6 +1695,16 @@
       "branch": "claude/issue-164",
       "slug": "cx2-ag-claude-review-delta",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-308",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 308,
+      "pr": 334,
+      "branch": "claude/issue-308",
+      "slug": "cx2-ag-claude-review-echo",
+      "released": false
     }
   ]
 }
