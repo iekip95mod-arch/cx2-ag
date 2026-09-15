@@ -1375,6 +1375,16 @@
       "branch": "claude/issue-220",
       "slug": "cx2-ag-claude-meteor",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-83",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 83,
+      "pr": null,
+      "branch": "claude/issue-83",
+      "slug": "cx2-ag-claude-nebula",
+      "released": false
     }
   ]
 }
