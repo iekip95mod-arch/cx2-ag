@@ -7704,6 +7704,8 @@ do
 
     -- Full progression also displays the answer.
     env.stepsSetProgression("full")
+    env.steps.walkthrough = "full"
+    env.steps.revealed = 1
     env.steps.detailLayout = nil
     drawn = {}
     env.on.paint(gc)
