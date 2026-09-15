@@ -4,11 +4,14 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { discoverBranches, updateBranch } from './update-branches.mjs';
 
+const repository = 'iekip95mod-arch/cx2-ag';
+const root = `repos/${repository}`;
+
 function fixture(provider = 'codex') {
-  const repository = 'iekip95mod-arch/cx2-ag';
   const identity = { provider, branch: `${provider}/issue-42`, login: 'executor[bot]', userId: 7, appId: 8, secretName: 'EXECUTOR_KEY' };
   const pr = { number: 90, state: 'open', draft: false, mergeable: true, user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: [{ name: `${provider}-review` }] };
   const writes = [];
+  const runs = [];
   let behind = 1;
   const api = async (method, endpoint, body) => {
     if (method !== 'GET') {
@@ -20,9 +23,17 @@ function fixture(provider = 'codex') {
     if (endpoint.endsWith('/pulls/90')) return structuredClone(pr);
     if (endpoint.includes('/git/ref/')) return { object: { sha: 'c'.repeat(40) } };
     if (endpoint.includes('/compare/')) return { behind_by: behind };
+    if (endpoint.includes('/actions/workflows/')) {
+      const workflow = endpoint.includes('agent-review-request.yml') ? 'agent-review-request.yml' : 'agent-review.yml';
+      return { workflow_runs: structuredClone(runs.filter(run => run.path.endsWith('/' + workflow))) };
+    }
+    if (/\/actions\/runs\/\d+$/.test(endpoint)) return structuredClone(runs.find(run => run.id === Number(endpoint.split('/').at(-1))));
     throw Error(endpoint);
   };
-  return { pr, identity, writes, api, assignment: async () => identity, set behind(value) { behind = value; } };
+  const review = (id, workflow = 'agent-review.yml', overrides = {}) => {
+    runs.push({ id, path: `.github/workflows/${workflow}`, event: 'pull_request', head_repository: { full_name: repository }, head_branch: pr.head.ref, head_sha: 'a'.repeat(40), status: 'in_progress', run_attempt: 1, pull_requests: [{ number: 90 }], ...overrides });
+  };
+  return { pr, identity, writes, api, review, assignment: async () => identity, set behind(value) { behind = value; } };
 }
 
 test('both providers update their existing branch and request review only after the new head exists', async () => {
@@ -89,4 +100,55 @@ test('branch updates use trusted main scripts and share the executor branch lock
   }
   const update = workflow.jobs.update.steps.at(-1);
   assert.equal(update.env.GH_TOKEN, '${{ steps.bot.outputs.token }}');
+});
+
+test('the update that supersedes a revision cancels the review still reading it before asking for another', async () => {
+  for (const provider of ['codex', 'claude', 'gemini']) {
+    const f = fixture(provider);
+    f.review(1);
+    f.review(2, 'agent-review-request.yml');
+    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
+      `${root}/pulls/90/update-branch`,
+      `${root}/actions/runs/1/cancel`,
+      `${root}/actions/runs/2/cancel`,
+      `${root}/issues/90/labels/${provider}-review`,
+      `${root}/issues/90/labels`,
+    ].map((endpoint, index) => `${['PUT', 'POST', 'POST', 'DELETE', 'POST'][index]} ${endpoint}`));
+  }
+});
+
+test('a draft update cancels its superseded review and a review reading the new head survives', async () => {
+  const draft = fixture(); draft.pr.draft = true; draft.review(1);
+  assert.equal(await updateBranch({ pr: 90, login: draft.identity.login }, draft.api, async () => {}, draft.assignment), 'updated');
+  assert.deepEqual(draft.writes.map(write => write.endpoint), [`${root}/pulls/90/update-branch`, `${root}/actions/runs/1/cancel`]);
+  const current = fixture(); current.review(1, 'agent-review.yml', { head_sha: 'b'.repeat(40) }); current.review(2, 'agent-review.yml', { status: 'completed' });
+  assert.equal(await updateBranch({ pr: 90, login: current.identity.login }, current.api, async () => {}, current.assignment), 'updated');
+  assert.equal(current.writes.some(write => write.endpoint.includes('/cancel')), false);
+});
+
+test('a branch that was not moved leaves every running review alone', async () => {
+  for (const change of [f => { f.behind = 0; }, f => { f.pr.mergeable = false; }, f => { f.pr.state = 'closed'; }]) {
+    const f = fixture(); f.review(1); change(f);
+    await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment);
+    assert.equal(f.writes.length, 0);
+  }
+});
+
+test('cancellation uses the workflow credential rather than the executor app token', async () => {
+  const f = fixture();
+  f.review(1);
+  const actions = [];
+  const scoped = async (method, endpoint, body) => { actions.push(`${method} ${endpoint}`); return f.api(method, endpoint, body); };
+  assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment, scoped), 'updated');
+  assert.ok(actions.includes(`POST ${root}/actions/runs/1/cancel`));
+  assert.equal(actions.some(call => call.includes('/update-branch') || call.endsWith('/issues/90/labels')), false);
+});
+
+test('the branch updater is granted the workflow token it cancels superseded reviews with', () => {
+  const path = fileURLToPath(new URL('../workflows/update-branches.yml', import.meta.url));
+  const workflow = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', path], { encoding: 'utf8' }));
+  assert.equal(workflow.jobs.update.permissions.actions, 'write');
+  assert.equal(workflow.jobs.update.steps.at(-1).env.ACTIONS_TOKEN, '${{ secrets.GITHUB_TOKEN }}');
+  assert.equal(workflow.jobs.discover.permissions, undefined);
 });
