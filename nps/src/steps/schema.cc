@@ -692,7 +692,8 @@ const ObligationSchema kUnitTargetFactor[] = {
 
 // vector addition
 const ObligationSchema kVectorAddStrategy[] = {
-    {"pre.vector-add.rank-two", "both vectors have two components", kRankComparison, 1},
+    {"pre.vector-add.ranks-match", "both vectors have matching rank two or three",
+     kRankComparison, 1},
     {"pre.vector-add.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
     {"pre.vector-add.dimensions-match", "both vectors have the same physical dimension",
      kDimensionComparison, 1},
@@ -707,7 +708,8 @@ const ObligationSchema kVectorAddFrames[] = {
     {"obl.vector-add.frames-match", "both input vectors use the same frame", kFrameIdentity, 1},
 };
 const ObligationSchema kVectorAddRank[] = {
-    {"obl.vector-add.rank-two", "both input vectors have rank two", kRankComparison, 1},
+    {"obl.vector-add.ranks-match", "both input vectors have matching rank two or three",
+     kRankComparison, 1},
 };
 const ObligationSchema kVectorAddRounding[] = {
     {"obl.vector-add.rounding-final",
@@ -1238,6 +1240,8 @@ const RuleSchema kRules[] = {
     {"vec.add.component-i", ClaimType::EquivalentExpression, kComponentSum, 1,
      FailureBehavior::WithholdResult},
     {"vec.add.component-j", ClaimType::EquivalentExpression, kComponentSum, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.add.component-k", ClaimType::EquivalentExpression, kComponentSum, 1,
      FailureBehavior::WithholdResult},
     {"vec.add.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
      FailureBehavior::WithholdResult},
