@@ -1052,7 +1052,7 @@
       "pr": null,
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-gemini-coral",
-      "released": false
+      "released": true
     },
     {
       "key": "gemini/executor/issue-209",
@@ -1167,7 +1167,7 @@
       "pr": 256,
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-gemini-review-lens",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1222,7 +1222,7 @@
       "pr": 256,
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false,
+      "released": true,
       "selectedReview": true
     },
     {
@@ -1243,7 +1243,7 @@
       "pr": null,
       "branch": "claude/issue-156",
       "slug": "cx2-ag-claude-comet",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-157",
@@ -1314,7 +1314,7 @@
       "pr": 275,
       "branch": "claude/issue-156",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-137",
@@ -1354,7 +1354,7 @@
       "pr": null,
       "branch": "claude/issue-198",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-206",
@@ -1474,7 +1474,7 @@
       "pr": 288,
       "branch": "claude/issue-198",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-269",
@@ -1544,7 +1544,7 @@
       "pr": 305,
       "branch": "claude/issue-163",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-294",
@@ -1584,7 +1584,7 @@
       "pr": null,
       "branch": "claude/issue-314",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-165",
@@ -1594,7 +1594,7 @@
       "pr": 304,
       "branch": "claude/issue-165",
       "slug": "cx2-ag-claude-review-arch",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-314",
@@ -1604,7 +1604,7 @@
       "pr": 318,
       "branch": "claude/issue-314",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-324",
@@ -1614,7 +1614,7 @@
       "pr": null,
       "branch": "claude/issue-324",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-324",
@@ -1624,7 +1624,7 @@
       "pr": 325,
       "branch": "claude/issue-324",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     }
   ]
 }
