@@ -1042,7 +1042,7 @@
       "pr": null,
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-gemini-copper",
-      "released": false
+      "released": true
     },
     {
       "key": "gemini/executor/issue-197",
@@ -1105,7 +1105,7 @@
       "pr": 251,
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-gemini-review-facet",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1263,7 +1263,7 @@
       "pr": 251,
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false,
+      "released": true,
       "selectedReview": true
     },
     {
@@ -1534,6 +1534,16 @@
       "pr": null,
       "branch": "claude/issue-294",
       "slug": "cx2-ag-claude-sirius",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-163",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 163,
+      "pr": 305,
+      "branch": "claude/issue-163",
+      "slug": "cx2-ag-claude-review-echo",
       "released": false
     }
   ]
