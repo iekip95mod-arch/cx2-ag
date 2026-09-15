@@ -198,6 +198,18 @@ bool compare(const Rational &a, const Rational &b, int *out) {
     return true;
 }
 
+// The force the request asks for is the one the problem does not supply, so the inventory marks it
+// unknown instead of publishing it as a given.
+bool requested(const ForcesProblem &problem, ForceKind kind) {
+    switch (problem.unknown) {
+        case ForcesUnknown::Acceleration: return false;
+        case ForcesUnknown::AppliedForce: return kind == ForceKind::Applied;
+        case ForcesUnknown::NormalForce: return kind == ForceKind::Normal;
+        case ForcesUnknown::FrictionForce: return kind == ForceKind::Friction;
+    }
+    return false;
+}
+
 void add_entry(ForcesResult *result, ForceKind kind, const std::string &label,
                const std::string &agent, const Rational &along, const Rational &across,
                const Rational &magnitude, bool known) {
@@ -514,7 +526,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     zero.num = 0;
     zero.den = 1;
     add_entry(&result, ForceKind::Normal, "N", problem.support, zero, normal.value, normal.value,
-              true);
+              !requested(problem, ForceKind::Normal));
     result.across_equation_text = "N + (" + newtons(weight_across.value) + ") = 0";
     result.across_equation = arena.binary(
         Kind::Equals,
@@ -621,7 +633,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             return ForcesResult();
         }
         add_entry(&result, ForceKind::Friction, "f", problem.support, friction, zero,
-                  absolute(friction), true);
+                  absolute(friction), !requested(problem, ForceKind::Friction));
     } else if (problem.friction == FrictionModel::Static) {
         // Equilibrium along the axis needs the friction to cancel everything else on it.
         const Exact needed = sub(exact(0), along_known);
@@ -676,7 +688,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         }
         result.consistency = "the assumed equilibrium is consistent with mu_s N";
         add_entry(&result, ForceKind::Friction, "f", problem.support, friction, zero,
-                  absolute(friction), true);
+                  absolute(friction), !requested(problem, ForceKind::Friction));
     }
 
     Exact along_total = along_known;
@@ -748,6 +760,13 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         return ForcesResult();
     }
 
+    // The force the request asked for is missing from the inventory until it has a value, so it
+    // joins the given ones here and the residual below is then rebuilt from a complete record.
+    if (problem.unknown == ForcesUnknown::AppliedForce) {
+        add_entry(&result, ForceKind::Applied, "F", "the applied push or pull", answer.value, zero,
+                  absolute(answer.value), false);
+    }
+
     // Put the answer back into the axis sum it came from. A residual that is not exactly zero means
     // the inventory and the answer disagree, and then no value is offered.
     // Rebuilt from the published inventory rather than from the running total the answer came out
@@ -758,8 +777,6 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     Exact residual;
     if (problem.unknown == ForcesUnknown::Acceleration) {
         residual = sub(inventory_along, mul(exact(mass), answer));
-    } else if (problem.unknown == ForcesUnknown::AppliedForce) {
-        residual = sub(add(inventory_along, answer), required);
     } else {
         residual = sub(inventory_along, required);
     }
