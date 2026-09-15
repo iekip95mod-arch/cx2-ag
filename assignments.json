@@ -1986,6 +1986,16 @@
       "pr": 387,
       "branch": "emulator-harness",
       "slug": "cx2-ag-claude-review-cairn",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/pr-388",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 388,
+      "branch": "fix/emu-lfs-pointer",
+      "slug": "cx2-ag-claude-review-cairn",
       "released": false
     }
   ]
