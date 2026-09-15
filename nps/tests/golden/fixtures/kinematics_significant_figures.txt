@@ -58,6 +58,49 @@ steps
       verification: dimensional analysis, passed, L T^-1 on both sides
       verified: yes
     1.2 transformation
+      phase: rearrange
+      goal: Put t on the left
+      rule: alg.rearrange.swap-sides, Symmetry of equality
+      claim: solution set preserved
+      explanation: An equation reads the same either way round
+      detail: Equality is symmetric, so the side holding t can be written first without changing what the formula says.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Write the side holding t first
+      before: (v = (v0 + (a * t)))
+      after: ((v0 + (a * t)) = v)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the two sides were exchanged unchanged
+      verified: yes
+    1.3 transformation
+      phase: rearrange
+      goal: Isolate t
+      rule: alg.rearrange.subtract-both-sides, Subtraction property of equality
+      claim: solution set preserved
+      explanation: Taking the same terms from both sides keeps them equal
+      detail: Every term on the left that does not contain t is subtracted from both sides, which leaves the term holding t on its own. The move is reversible, so nothing about the formula changes.
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Subtract v0 from both sides
+      before: ((v0 + (a * t)) = v)
+      after: ((a * t) = (v + (-v0)))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same expression was subtracted from both sides
+      verified: yes
+    1.4 transformation
+      phase: rearrange
+      goal: Isolate t
+      rule: alg.rearrange.divide-both-sides, Division property of equality
+      claim: solution set preserved
+      explanation: Dividing both sides by the same non-zero expression keeps them equal
+      detail: The factors beside t are divided out of both sides. Division needs a non-zero divisor, so a divisor that is not a number is carried as a stated restriction rather than assumed.
+      domain restriction: a is not zero
+      proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+      action: Divide both sides by a
+      before: ((a * t) = (v + (-v0)))
+      after: (t = ((v + (-v0)) * (a^(-1))))
+      reversible: yes
+      verification: rule-local equality invariant, passed, the divisor is recorded as non-zero and contains no t
+      verified: yes
+    1.5 transformation
       phase: solve
       goal: Substitute the known values
       rule: kin.substitute, Substitution
@@ -71,7 +114,7 @@ steps
       reversible: yes
       verification: rule-local invariant, passed, every symbol but t has a known value
       verified: yes
-    1.3 plan
+    1.6 plan
       phase: plan
       goal: Isolate t
       rule: eq.linear.inverse-operations, Inverse operations on a linear equation
@@ -87,7 +130,7 @@ steps
       verification: exact linear analysis, passed, all coefficients and constants are exact rationals
       verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
       verified: nothing claimed
-      1.3.1 transformation
+      1.6.1 transformation
         phase: solve
         goal: Collect the terms in t
         rule: eq.collect-like-terms, Collect like terms
@@ -101,7 +144,7 @@ steps
         reversible: yes
         verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
         verified: yes
-      1.3.2 transformation
+      1.6.2 transformation
         phase: solve
         goal: Isolate t
         rule: eq.divide-both-sides, Isolate the unknown
@@ -115,7 +158,7 @@ steps
         reversible: yes
         verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient -3 was checked to be non-zero
         verified: yes
-      1.3.3 check
+      1.6.3 check
         phase: check
         goal: Check the answer
         rule: eq.linear.check-by-substitution, Check by substitution
