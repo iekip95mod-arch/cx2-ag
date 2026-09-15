@@ -1145,6 +1145,31 @@ else()
     target_include_directories(nps_manifest_probe_test PRIVATE include)
     target_link_libraries(nps_manifest_probe_test PRIVATE nps_flags)
 
+    nps_hash_inputs(NPS_SPLIT_HOST_STEP_HASH
+        ${NPS_COMMON_MANIFEST_INPUTS}
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/toolchains/ndl-arm926ej-s.cmake"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/lua/nps_v3.lua"
+        ${NPS_LUNA_MANIFEST_INPUTS})
+    nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
+                     lua5.1.luagiac.caseval-v1 external-required-unvalidated
+                     "${NPS_SPLIT_HOST_STEP_HASH}" "" "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
+    target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
+    if(NPS_RETAINED_FAULT_INJECTION)
+        target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
+    endif()
+    set_target_properties(nps_manifest_split_host PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    if(nps_manifest_host_MANIFEST_ID STREQUAL nps_manifest_split_host_MANIFEST_ID)
+        message(FATAL_ERROR "host and split capability manifest ids must differ")
+    endif()
+    add_executable(nps_manifest_split_test tests/unit/manifest_scheme_tests.cc
+                   $<TARGET_OBJECTS:nps_manifest_split_host>)
+    target_compile_definitions(nps_manifest_split_test PRIVATE
+                               NPS_EXPECTED_ARTIFACT="split"
+                               NPS_EXPECTED_SIDECAR_SCHEME="runtime-sha256-sidecar")
+    target_include_directories(nps_manifest_split_test PRIVATE include)
+    target_link_libraries(nps_manifest_split_test PRIVATE nps_flags)
+
     nps_add_manifest(nps_manifest_unified_host unified 1 0 Giac bundled-static
                      nps.giac.typed-v1 bundled-static
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
@@ -1282,25 +1307,6 @@ else()
     # points untested by anything ctest runs: the unit tests reach under them and the UI smoke
     # replaces the module with a Lua table, so nothing ran integrate_into at all.
     if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)
-        nps_hash_inputs(NPS_SPLIT_HOST_STEP_HASH
-            ${NPS_COMMON_MANIFEST_INPUTS}
-            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/toolchains/ndl-arm926ej-s.cmake"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/nspire/lua_module.cc"
-            "${CMAKE_CURRENT_SOURCE_DIR}/lua/nps_v3.lua"
-            ${NPS_LUNA_MANIFEST_INPUTS})
-        nps_hash_ndl_inputs(NPS_SPLIT_HOST_NDL_HASH)
-        nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
-                         lua5.1.luagiac.caseval-v1 external-required-unvalidated
-                         "${NPS_SPLIT_HOST_STEP_HASH}" "${NPS_SPLIT_HOST_NDL_HASH}"
-                         "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
-        target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
-        if(NPS_RETAINED_FAULT_INJECTION)
-            target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
-        endif()
-        set_target_properties(nps_manifest_split_host PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        if(nps_manifest_host_MANIFEST_ID STREQUAL nps_manifest_split_host_MANIFEST_ID)
-            message(FATAL_ERROR "host and split capability manifest ids must differ")
-        endif()
         add_library(nps_luax SHARED tests/target/luax_host.cc
                     src/platform/nspire/integrity.cc "${NPS_GIAC_SRC}/sha256.c"
                     ${CORE_SOURCES})
@@ -1462,6 +1468,7 @@ add_custom_target(tidy
 if(NOT CMAKE_CROSSCOMPILING)
     add_test(NAME unit COMMAND nps_host)
     add_test(NAME manifest_probe COMMAND nps_manifest_probe_test)
+    add_test(NAME manifest_split COMMAND nps_manifest_split_test)
     add_test(NAME manifest_unified COMMAND nps_manifest_unified_test)
     set_tests_properties(unit PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         ENVIRONMENT "NPS_EVIDENCE=${CMAKE_BINARY_DIR}/evidence.txt"
@@ -1682,7 +1689,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     add_custom_target(check
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
-                nps_manifest_probe_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
+                nps_manifest_probe_test nps_manifest_split_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
                 nps_acceptance_corpus nps_device_run
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)

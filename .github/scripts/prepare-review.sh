@@ -22,7 +22,7 @@ export PATH="$sdk/bin:$sdk/toolchain/install/bin:$PATH"
 if [ "$platform" = Linux ]; then
   if [ ! -x "$sdk/toolchain/install/bin/arm-none-eabi-gcc" ] || [ ! -f "$toolchain_ready" ]; then
     (cd "$sdk/toolchain" && NDL_SKIP_GDB=1 PARALLEL="-j$jobs" sh ./build_toolchain.sh)
-    make -C "$sdk" build-libndls build-tools -j"$jobs"
+    make -C "$sdk" build-libndls build-tools build-system -j"$jobs"
     bash vendor/deps/build-gmp.sh
     bash vendor/deps/build-mpfr-mpfi.sh
     touch "$toolchain_ready"
@@ -39,7 +39,7 @@ if [ ! -x "$sdk/toolchain/install/bin/arm-none-eabi-gcc" ] || [ ! -f "$toolchain
   touch "$toolchain_ready"
 fi
 fi
-make -C "$sdk" build-libndls build-tools -j"$jobs"
+make -C "$sdk" build-libndls build-tools build-system -j"$jobs"
 test -x "$sdk/toolchain/install/bin/arm-none-eabi-gcc"
 test -x "$sdk/bin/genzehn"
 test -f "$sdk/lib/libsyscalls.a"
