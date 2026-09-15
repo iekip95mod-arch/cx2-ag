@@ -1480,6 +1480,27 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "names");
     }
     {
+        // The one symbol the new-symbol arm must not read as a variable. A conversion carries the
+        // unit's name as the first argument of its unit() call, so cm^3 becoming m^3 introduces a
+        // symbol that is a label rather than a free variable, and the gate above reported it as a
+        // false equivalence until the reading learned the difference.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId source =
+            arena.call("quantity", {parse(arena, "5").root,
+                                    arena.call("unit", {arena.symbol("cm^3"),
+                                                        parse(arena, "1/1000000").root})});
+        const NodeId target =
+            arena.call("quantity", {parse(arena, "5/1000000").root,
+                                    arena.call("unit", {arena.symbol("m^3"), parse(arena, "1").root})});
+        walked(arena, source, target, &broken, &pass);
+        t.check(!mentions(broken, "VER-002"),
+                "a conversion whose after state names a different unit is not a step introducing a "
+                "free symbol, because the unit's name is a label on the quantity rather than a "
+                "variable in it");
+    }
+    {
         // MATH-014 and VER-009 in one record: a disagreement at a single assignment is proof the
         // two differ, so the gate fires on a rewrite that holds at five of six points.
         Arena arena;
