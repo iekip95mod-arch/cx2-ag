@@ -1937,6 +1937,16 @@
       "branch": "claude/issue-343",
       "slug": "cx2-ag-claude-aurora",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-345",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 345,
+      "pr": null,
+      "branch": "claude/issue-345",
+      "slug": "cx2-ag-claude-lyra",
+      "released": false
     }
   ]
 }
