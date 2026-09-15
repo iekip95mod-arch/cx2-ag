@@ -409,8 +409,12 @@ std::string optics_record(OpticsRelation relation, OpticsVariable unknown,
     std::string answer;
     if (result.outcome == OpticsOutcome::Solved) {
         answer = result.value_text;
-        if (!result.unit_text.empty())
-            answer += " " + result.unit_text;
+        // si_unit_text spells a dimensionless SI unit as "1", which lua_module.cc's l_optics
+        // already suppresses so the fixture records the same answer the bridge reports.
+        const std::string display_unit =
+            result.unit_text == "1" ? std::string() : result.unit_text;
+        if (!display_unit.empty())
+            answer += " " + display_unit;
         if (result.has_magnification)
             answer += ", magnification " + result.magnification_text;
     }

@@ -1,7 +1,7 @@
 problem: single-slit diffraction; find fringe sine; slit spacing = 0.1 mm; wavelength = 0.0000006 m; fringe order = 1
 variable: fringe sine
 outcome: solved
-result: 0.006 1
+result: 0.006
 context
   application version: nps 0.2
   capability manifest: <current>
