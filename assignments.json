@@ -1285,6 +1285,16 @@
       "branch": "claude/issue-137",
       "slug": "cx2-ag-claude-nova",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-263",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 263,
+      "pr": null,
+      "branch": "claude/issue-263",
+      "slug": "cx2-ag-claude-orion",
+      "released": false
     }
   ]
 }
