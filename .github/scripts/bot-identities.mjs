@@ -103,6 +103,9 @@ async function branchPulls(repository, branch, api) {
 }
 
 async function closed(repository, assignment, api) {
+  if (assignment.role === 'reviewer' && assignment.pr) {
+    return (await api('GET', `repos/${repository}/pulls/${assignment.pr}`)).state === 'closed';
+  }
   if (assignment.issue) {
     const ticket = await api('GET', `repos/${repository}/issues/${assignment.issue}`);
     if (ticket.state !== 'closed') return false;
