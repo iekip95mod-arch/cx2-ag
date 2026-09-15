@@ -75,6 +75,7 @@ set(CORE_SOURCES
     src/physics/catch_up.cc
     src/physics/density.cc
     src/physics/modern.cc
+    src/physics/relativity.cc
     src/physics/kinematics.cc
     src/physics/planar_kinematics.cc
     src/physics/optics.cc
@@ -119,6 +120,7 @@ set(TEST_SOURCES
     tests/unit/catch_up_tests.cc
     tests/unit/density_tests.cc
     tests/unit/modern_tests.cc
+    tests/unit/relativity_tests.cc
     tests/unit/gravitation_tests.cc
     tests/unit/oscillation_tests.cc
     tests/unit/kinematics_tests.cc
@@ -1651,7 +1653,10 @@ if(NOT CMAKE_CROSSCOMPILING)
     # something stages one.
     add_test(NAME coverage_selftest COMMAND nps_coverage --selftest)
 
-    # A requirement listed twice, on a staged PRD, because the one in the tree lists each once.
+    # Staged PRDs and catalogs, because the ones in the tree list each requirement once and carry a
+    # single universal module scope. Every arm of that scope reader is driven from here: the domain
+    # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
+    # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
