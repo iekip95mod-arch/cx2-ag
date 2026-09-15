@@ -235,6 +235,7 @@ jobs:
         continue-on-error: true
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CMAKE_BUILD_PARALLEL_LEVEL: 3
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           AGENT_JOB_TIMEOUT_MINUTES: 120
@@ -294,9 +295,13 @@ jobs:
             are exact, and they are all of them, so do not spend turns discovering the rest.
 
               cmake -S nps -B nps/build/host -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DNDL_SDK=$PWD/vendor/ndl-src/ndl-sdk -DGIAC_ROOT=$PWD/vendor/khi-src
-              cmake --build nps/build/host --parallel
+              cmake --build nps/build/host --parallel 3
               ctest --test-dir nps/build/host --output-on-failure
               ctest --test-dir nps/build/host --output-on-failure -R '^unit$'
+
+            Keep the job count on every build command. Omitting it takes the build tool's own
+            default, which ignores CMAKE_BUILD_PARALLEL_LEVEL, and an unbounded build under this
+            reviewer has taken the runner down with it.
 
             ctest is how you read the suite, rather than running the binary, because the fixtures it
             manages are part of what the suite means. Reverting a change to watch its guard fail is
@@ -307,7 +312,7 @@ jobs:
             an ARM build result. When setup succeeds, the allowed ARM build commands are:
 
               cmake -S nps -B nps/build/device -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ndl-arm926ej-s.cmake
-              cmake --build nps/build/device --target unified --parallel
+              cmake --build nps/build/device --target unified --parallel 3
 
             A successful package build does not prove that the package ran in the emulator.
 
@@ -326,7 +331,7 @@ jobs:
 
               git worktree add .Internal/workspaces/baseline <the base sha>
               cmake -S .Internal/workspaces/baseline/nps -B .Internal/workspaces/baseline/nps/build/host -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DNDL_SDK=$PWD/vendor/ndl-src/ndl-sdk -DGIAC_ROOT=$PWD/vendor/khi-src
-              cmake --build .Internal/workspaces/baseline/nps/build/host --parallel
+              cmake --build .Internal/workspaces/baseline/nps/build/host --parallel 3
               ctest --test-dir .Internal/workspaces/baseline/nps/build/host --output-on-failure
 
             NDL_SDK and GIAC_ROOT stay pointed at the branch tree on purpose. Both sides should

@@ -57,6 +57,8 @@ claude_prompt = claude.fetch('REVIEW_PROMPT')
 raise 'Claude must be told that reviewer prerequisites include the cross toolchain and host Lua' unless claude_prompt.include?('prepares the cross toolchain and host Lua')
 raise 'Claude must not be told that prepared reviewer prerequisites are unavailable' if claude_prompt.include?('never unpacks the cross toolchain') || claude_prompt.include?('for want of host Lua')
 raise 'Claude needs its assigned GitHub identity for issue context' unless claude.fetch('GH_TOKEN') == '${{ steps.bot.outputs.token }}'
+raise 'Reviewer builds must carry a bounded job count' unless claude.fetch('CMAKE_BUILD_PARALLEL_LEVEL').to_s.match?(/\A[1-9]\d*\z/)
+raise 'A bare --parallel ignores CMAKE_BUILD_PARALLEL_LEVEL and can exhaust the runner' if claude_prompt.match?(/--parallel(?!\s+[1-9])/)
 raise 'Claude review must use subscription OAuth' unless claude.fetch('CLAUDE_CODE_OAUTH_TOKEN') == '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
 raise 'Claude review must use subscription authentication only' if claude.key?('anthropic_api_key')
 raise 'Claude review must use the CLI adapter' unless workflow.fetch('jobs').fetch('review').fetch('steps').find { |step| step['id'] == 'review' }.fetch('run') == 'node .github/scripts/run-claude-review.mjs'
