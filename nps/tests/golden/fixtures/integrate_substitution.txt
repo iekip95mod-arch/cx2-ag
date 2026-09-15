@@ -94,10 +94,10 @@ steps
       phase: integrate
       goal: State the general antiderivative
       rule: i.constant-of-integration, Constant of integration
-      claim: equivalent expression
+      claim: family up to a constant
       explanation: Any constant differentiates to zero, so adding one gives another antiderivative
       detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
-      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      proof obligation: obl.calculus.family-adds-a-constant, the after state is the antiderivative found plus one constant free nowhere before it
       action: Add the constant C
       before: (((-cos((2 * x))) * (2^-1)) + (1 * ln(x)))
       after: ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C)

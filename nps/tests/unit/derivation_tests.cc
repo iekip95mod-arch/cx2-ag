@@ -1355,8 +1355,8 @@ void test_backend_step_stands_alone(TestSink &t) {
 // rather than from an engine: no engine writes a false equivalence today, so none can be asked for
 // the shape the gate refuses.
 void test_equivalence_is_checked_against_the_arena(TestSink &t) {
-    const auto claimed_equivalent = [](const char *rule) {
-        Step s = envelope("Rewrite the expression", ClaimType::EquivalentExpression);
+    const auto claimed = [](const char *rule, ClaimType claim) {
+        Step s = envelope("Rewrite the expression", claim);
         s.rule_id = rule;
         s.rule_name = "Selftest rewrite";
         s.explanation_short = "Rewriting the expression";
@@ -1371,16 +1371,20 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
         s.verifications.push_back(std::move(v));
         return s;
     };
-    const auto walked = [&](Arena &arena, NodeId before, NodeId after,
-                            std::vector<std::string> *broken, invariants::Pass *pass) {
+    const auto walk_claiming = [&](ClaimType claim, Arena &arena, NodeId before, NodeId after,
+                                   std::vector<std::string> *broken, invariants::Pass *pass) {
         Derivation d;
         TransformationPayload payload;
         payload.before = before;
         payload.concrete_action = "Rewrite it";
-        const StepId id = d.add_transformation(kNoStep, claimed_equivalent("selftest.rewrite"),
-                                               std::move(payload));
+        const StepId id =
+            d.add_transformation(kNoStep, claimed("selftest.rewrite", claim), std::move(payload));
         d.complete_transformation(id, after);
         pass->walk(arena, d, false, false, broken);
+    };
+    const auto walked = [&](Arena &arena, NodeId before, NodeId after,
+                            std::vector<std::string> *broken, invariants::Pass *pass) {
+        walk_claiming(ClaimType::EquivalentExpression, arena, before, after, broken, pass);
     };
 
     {
@@ -1415,18 +1419,65 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "is the stronger of the two readings and is counted apart from it");
     }
     {
-        // The arm the sampler cannot answer, and the reason it is declined rather than judged: an
-        // antiderivative gains a constant of integration, so one side leaves a symbol free that the
-        // other never had. Sampling would assign C a value the left side never carried and report a
-        // disagreement about the sampler.
+        // #244. An after state leaving free a symbol the before state never had is a family rather
+        // than one expression, so a step claiming both is reported instead of being counted and
+        // left alone. Sampling would give C a value the left side never carried and report a
+        // disagreement about the sampler, which is why the arm names the symbol rather than a point.
         Arena arena;
         invariants::Pass pass;
         std::vector<std::string> broken;
         walked(arena, parse(arena, "x^2").root, parse(arena, "x^2 + C").root, &broken, &pass);
-        t.check(broken.empty() && pass.equivalence_rebound() == 1 &&
-                    pass.equivalence_sampled() == 0 && pass.equivalence_exact() == 0,
-                "a step that changes which symbols are free is counted as declined rather than "
-                "sampled, and is reported apart from the two readings that judged something");
+        t.evidence("VER-002",
+                   mentions(broken, "claims an equivalent expression while its after state leaves "
+                                    "free the symbol C") &&
+                       pass.equivalence_sampled() == 0 && pass.equivalence_exact() == 0,
+                   "a step claiming an equivalent expression while its after state introduces a "
+                   "free constant is refused, because the two differ by that constant at every "
+                   "assignment giving it a nonzero value");
+    }
+    {
+        // The claim that shape means, judged rather than declined. The constant comes off and what
+        // is left is put to the same sampler the equivalence arm uses.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C").root, &broken, &pass);
+        t.check(broken.empty() && pass.family_steps() == 1 && pass.family_judged() == 1,
+                "and the same two states under a family claim are read as that family, which is "
+                "the population the arm used to decline");
+    }
+    {
+        // Three ways the family claim is wrong, each of which the declining arm accepted in
+        // silence. The constant on the wrong expression is the one an integration rule would
+        // actually reach.
+        Arena arena;
+        invariants::Pass wrong_body;
+        std::vector<std::string> caught;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "2 * x + C").root, &caught, &wrong_body);
+        t.check(mentions(caught, "claims a family up to a constant and what is left under its "
+                                 "constant disagrees") &&
+                    wrong_body.family_judged() == 0,
+                "a family whose constant sits on an expression that is not the one it was given is "
+                "refused at the disagreement the sampler found");
+
+        invariants::Pass no_constant;
+        std::vector<std::string> single;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x * x").root, &single, &no_constant);
+        t.check(mentions(single, "leaves no new symbol free, so it names one expression rather "
+                                 "than a family"),
+                "and a step claiming a family while naming one expression is refused, which is the "
+                "reading that keeps the claim from becoming a way to say nothing");
+
+        invariants::Pass not_added;
+        std::vector<std::string> multiplied;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 * C").root, &multiplied, &not_added);
+        t.check(mentions(multiplied, "is not the before state with a constant added to it"),
+                "and a constant that multiplies rather than adds is not the family this claim "
+                "names");
     }
     {
         // MATH-014 and VER-009 in one record: a disagreement at a single assignment is proof the
@@ -1453,7 +1504,7 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
         invariants::Pass pass;
         std::vector<std::string> broken;
         Derivation d;
-        Step s = claimed_equivalent("selftest.report-significant-figures");
+        Step s = claimed("selftest.report-significant-figures", ClaimType::EquivalentExpression);
         TransformationPayload payload;
         payload.before = parse(arena, "1 / 3").root;
         payload.concrete_action = "Report it as a decimal";

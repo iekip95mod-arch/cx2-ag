@@ -131,6 +131,15 @@ const ObligationSchema kRulePreservesValue[] = {
      "the rewritten subexpression has the value the original had", kRuleInvariant, 1},
 };
 
+// The constant of integration is the one calculus step that does not preserve the value it was
+// given, so it cannot raise the obligation above. What it owes instead is that the family it names
+// is the antiderivative it was handed plus one free constant and nothing else.
+const ObligationSchema kFamilyAddsAConstant[] = {
+    {"obl.calculus.family-adds-a-constant",
+     "the after state is the antiderivative found plus one constant free nowhere before it",
+     kRuleInvariant, 1},
+};
+
 const EvidenceAlternative kDerivativeDispatch[] = {
     {"registered derivative rule dispatch", EvidenceStrength::StructurallyValid},
 };
@@ -974,7 +983,7 @@ const RuleSchema kRules[] = {
      FailureBehavior::CannotFail},
     {"i.constant-multiple", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
-    {"i.constant-of-integration", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
+    {"i.constant-of-integration", ClaimType::FamilyUpToConstant, kFamilyAddsAConstant, 1,
      FailureBehavior::CannotFail},
     {"i.function", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},

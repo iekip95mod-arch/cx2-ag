@@ -137,6 +137,7 @@ const char *claim_type_name(ClaimType c) {
         case ClaimType::Definition: return "definition";
         case ClaimType::NoClaim: return "no claim";
         case ClaimType::RowEquivalent: return "row equivalent";
+        case ClaimType::FamilyUpToConstant: return "family up to a constant";
     }
     return "unknown";
 }

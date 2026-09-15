@@ -746,6 +746,15 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
                 "Differentiation loses constants, so every function that differentiates to the "
                 "integrand has the form found plus some constant. The constant stands for all of "
                 "them at once.";
+            // The one rule in this file whose after state is not the value it was handed. It names
+            // a family, so it carries neither the equivalence claim nor the obligation the envelope
+            // gives every other rule here.
+            s.claim = ClaimType::FamilyUpToConstant;
+            s.proof_obligations.clear();
+            s.proof_obligations.push_back(
+                {"obl.calculus.family-adds-a-constant",
+                 "the after state is the antiderivative found plus one constant free nowhere "
+                 "before it"});
             s.verifications.push_back(rule_invariant("the derivative of a constant is zero"));
             record(ctx, plan_id, std::move(s), particular, general,
                    "Add the constant " + arena.text(c));
