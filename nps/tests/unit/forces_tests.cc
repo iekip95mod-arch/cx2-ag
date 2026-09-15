@@ -404,6 +404,41 @@ void run_forces_tests(TestSink &t) {
                 "an answer that leaves a non-zero along-axis residual is refused");
         t.check(!refused.result.has_value, "a failed residual check offers no value");
     }
+    {
+        // The same gate reached through the applied-force arm. A solved problem cannot publish an
+        // inventory that disagrees with the sum its own answer came out of, so the comparison is
+        // driven here on the published inventory with one entry moved off its value.
+        ForcesProblem problem = base(ForcesUnknown::AppliedForce);
+        problem.assume_equilibrium = false;
+        problem.acceleration = parsed("1 m/s^2");
+        problem.has_acceleration = true;
+        Run solved(problem);
+        t.check(solved.result.outcome == ForcesOutcome::Solved && solved.result.has_value,
+                "the applied force a 2 kg block needs for 1 m/s^2 is published");
+        Rational target;
+        target.num = 2;
+        target.den = 1;
+        const ForceBalance held = forces_along_balance(solved.result.inventory, target);
+        t.check(held.exact && held.balanced && held.residual.num == 0,
+                "the published inventory of that solved push sums to m a exactly");
+        std::vector<ForceEntry> perturbed = solved.result.inventory;
+        bool moved = false;
+        for (ForceEntry &entry : perturbed) {
+            if (entry.kind == ForceKind::Applied && entry.along.den == 1) {
+                entry.along.num += 1;
+                moved = true;
+            }
+        }
+        t.check(moved, "the solved push is published as its own inventory entry to perturb");
+        const ForceBalance broken = forces_along_balance(perturbed, target);
+        t.check(broken.exact && !broken.balanced,
+                "an applied-force entry that disagrees with the sum fails the residual gate");
+        t.check(broken.residual.num == 1 && broken.residual.den == 1,
+                "the gate reports how far the inventory is out rather than only that it is out");
+        const ForceBalance restored = forces_along_balance(solved.result.inventory, target);
+        t.check(restored.exact && restored.balanced,
+                "the unperturbed inventory still passes, so the row above is about the entry");
+    }
 }
 
 }
