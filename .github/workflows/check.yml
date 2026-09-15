@@ -48,6 +48,11 @@ jobs:
         with:
           node-version: '24'
 
+      # A workflow GitHub refuses to load produces runs with no jobs rather than a failure anybody
+      # reads, so this has to fail here, on the pull request that writes it.
+      - name: Check no workflow sets a key twice
+        run: node .github/scripts/workflow-keys.mjs
+
       - name: Verify event authentication and task routing
         env:
           TEST_WORKSPACE: ${{ runner.temp }}
