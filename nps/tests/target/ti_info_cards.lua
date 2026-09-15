@@ -82,10 +82,38 @@ for _ = 1, 40 do
 	end
 	names[title] = true
 	n = n + 1
-	for _, part in ipairs({ "LOOKS LIKE", "STEPS" }) do
+	for _, part in ipairs({ "LOOKS LIKE", "YOU NEED", "STEPS" }) do
 		if not string.find(page, part, 1, true) then
 			failures = failures + 1
 			print("  FAIL  card '" .. tostring(title) .. "' has no " .. part)
+		end
+	end
+	-- A card that uses a symbol it never names is the whole failure this app exists to avoid, and it
+	-- renders perfectly, so nothing but a check like this one catches it. The symbols below are the
+	-- ones a reader cannot guess: a bare letter tells them nothing on its own.
+	--
+	-- The search is bounded to the YOU NEED section rather than to everything after its heading. The
+	-- first version of this check was not, which made it pass for every card whose formula sits below
+	-- that heading, which is all of them.
+	-- Collected line by line rather than by string positions, because whole() concatenates one render
+	-- per scroll step and the same headings recur in each, which makes any offset arithmetic over the
+	-- joined text meaningless. That was the second wrong version of this check.
+	local section, collecting = {}, false
+	for line in string.gmatch(page, "[^\n]+") do
+		if string.find(line, "YOU NEED", 1, true) then
+			collecting = true
+		elseif collecting then
+			for _, heading in ipairs({ "FORMULA", "STEPS", "WORKED", "TRAP", "CHECK IT TWICE" }) do
+				if string.sub(line, 1, #heading) == heading then collecting = false end
+			end
+		end
+		if collecting then section[#section + 1] = line end
+	end
+	section = table.concat(section, "\n")
+	for _, symbol in ipairs({ "v\226\130\128", "\206\184", "\207\134", "\207\129", "\206\148x", "\206\148y" }) do
+		if string.find(page, symbol, 1, true) and not string.find(section, symbol, 1, true) then
+			failures = failures + 1
+			print("  FAIL  card '" .. tostring(title) .. "' uses " .. symbol .. " without naming it under YOU NEED")
 		end
 	end
 	on.tabKey()
