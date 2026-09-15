@@ -1435,10 +1435,35 @@ check(by_kind.weight ~= nil and by_kind.weight.magnitude == "20 N" and
       by_kind.applied ~= nil and by_kind.applied.along == "12 N" and
       by_kind.friction ~= nil and by_kind.friction.along == "-5 N",
       "each inventory entry carries the components #158 draws its labels from")
+check(by_kind.weight.known == true and by_kind.normal.known == true and
+      by_kind.applied.known == true and by_kind.friction.known == true,
+      "every force an acceleration request supplies is published as known")
 check(type(r.pairs) == "table" and #r.pairs == 2 and r.pairs[1].on_body == "block" and
       r.pairs[1].reaction_on == "table" and r.pairs[2].on_body == "block" and
       r.pairs[2].reaction_on == "the Earth",
       "the third-law pair travels beside the inventory rather than inside it")
+r = nps.forces({
+    body = "block",
+    support = "table",
+    mass = "2 kg",
+    gravity = "10 m/s^2",
+    surface = "horizontal",
+    acceleration = "1 m/s^2",
+    equilibrium = false,
+    unknown = "applied force",
+})
+check(r.solved == true and r.result == "applied force = 2 N",
+      "the forces bridge solves for the applied force")
+solved_by_kind = {}
+for _, entry in ipairs(r.inventory) do solved_by_kind[entry.kind] = entry end
+check(#r.inventory == 3 and solved_by_kind.applied ~= nil and
+      solved_by_kind.applied.along == "2 N" and solved_by_kind.applied.magnitude == "2 N",
+      "the applied force being solved for reaches the bridge inventory with its components")
+check(solved_by_kind.applied.known == false and solved_by_kind.weight.known == true and
+      solved_by_kind.normal.known == true,
+      "the bridge marks the solved force unknown and the supplied ones known")
+
+r = nps.forces(forces_input)
 forces_rules = {}
 for _, s2 in ipairs(r.steps) do if s2.rule then forces_rules[s2.rule] = true end end
 check(forces_rules["physics.forces.weight"] and forces_rules["physics.forces.normal-force"] and
