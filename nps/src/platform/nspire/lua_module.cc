@@ -3374,6 +3374,68 @@ int l_work(lua_State *L) { return work_into(L, true); }
 
 int l_work_local(lua_State *L) { return work_into(L, false); }
 
+// PHYS-008. The force family reaches Lua as one table in and one record out, so #158 can draw a
+// diagram from the same inventory the equations were summed from.
+bool optional_quantity(lua_State *L, int table_index, const char *key, Quantity *value,
+                       bool *present, std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        *present = false;
+        return true;
+    }
+    lua_pop(L, 1);
+    if (!quantity_field(L, table_index, key, value, why))
+        return false;
+    *present = true;
+    return true;
+}
+
+bool optional_rational(lua_State *L, int table_index, const char *key, Rational *value,
+                       std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    Precision ignored;
+    return rational_field(L, table_index, key, value, &ignored, why);
+}
+
+bool optional_name(lua_State *L, int table_index, const char *key, std::string *value,
+                   std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    return string_field(L, table_index, key, value, why);
+}
+
+bool optional_boolean(lua_State *L, int table_index, const char *key, bool *value,
+                      std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    const int kind = lua_type(L, -1);
+    if (kind == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    if (kind != LUA_TBOOLEAN) {
+        lua_pop(L, 1);
+        *why = std::string(key) + " must be a boolean";
+        return false;
+    }
+    *value = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return true;
+}
+
 bool motion_stage_field(lua_State *L, int table_index, const char *key, MotionStage *value,
                         std::string *why) {
     std::string name = motion_stage_name(*value);
@@ -3489,68 +3551,6 @@ int l_planar_kinematics(lua_State *L) {
     set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
     push_steps(L, arena, derivation);
     return 1;
-}
-
-// PHYS-008. The force family reaches Lua as one table in and one record out, so #158 can draw a
-// diagram from the same inventory the equations were summed from.
-bool optional_quantity(lua_State *L, int table_index, const char *key, Quantity *value,
-                       bool *present, std::string *why) {
-    if (!field_value(L, table_index, key, why))
-        return false;
-    if (lua_type(L, -1) == LUA_TNIL) {
-        lua_pop(L, 1);
-        *present = false;
-        return true;
-    }
-    lua_pop(L, 1);
-    if (!quantity_field(L, table_index, key, value, why))
-        return false;
-    *present = true;
-    return true;
-}
-
-bool optional_rational(lua_State *L, int table_index, const char *key, Rational *value,
-                       std::string *why) {
-    if (!field_value(L, table_index, key, why))
-        return false;
-    if (lua_type(L, -1) == LUA_TNIL) {
-        lua_pop(L, 1);
-        return true;
-    }
-    lua_pop(L, 1);
-    Precision ignored;
-    return rational_field(L, table_index, key, value, &ignored, why);
-}
-
-bool optional_name(lua_State *L, int table_index, const char *key, std::string *value,
-                   std::string *why) {
-    if (!field_value(L, table_index, key, why))
-        return false;
-    if (lua_type(L, -1) == LUA_TNIL) {
-        lua_pop(L, 1);
-        return true;
-    }
-    lua_pop(L, 1);
-    return string_field(L, table_index, key, value, why);
-}
-
-bool optional_boolean(lua_State *L, int table_index, const char *key, bool *value,
-                      std::string *why) {
-    if (!field_value(L, table_index, key, why))
-        return false;
-    const int kind = lua_type(L, -1);
-    if (kind == LUA_TNIL) {
-        lua_pop(L, 1);
-        return true;
-    }
-    if (kind != LUA_TBOOLEAN) {
-        lua_pop(L, 1);
-        *why = std::string(key) + " must be a boolean";
-        return false;
-    }
-    *value = lua_toboolean(L, -1) != 0;
-    lua_pop(L, 1);
-    return true;
 }
 
 void set_force_entry(lua_State *L, int index, const ForceEntry &entry) {
