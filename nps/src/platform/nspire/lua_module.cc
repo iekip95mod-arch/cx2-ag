@@ -530,6 +530,10 @@ CrossCheck ask_giac(lua_State *L, Arena &arena, DerivationStatus status, Op op, 
     out.raw = r.raw;
     out.detail = r.detail;
     out.calls = adapter.call_count();
+    // A backend that stopped because the learner asked it to reaches the same field the escape
+    // check writes, so where the stop was noticed does not decide what it is called.
+    if (r.tag == ResultTag::Cancelled)
+        out.cancelled = true;
     if (!r.usable())
         return out;
     const NodeId single = r.single_value();
@@ -565,6 +569,8 @@ CrossCheck ask_giac(lua_State *L, Arena &arena, DerivationStatus status, Op op, 
     zero.target = arena.binary(Kind::Add, ours, negated);
     Response z = adapter.run(zero);
     out.calls = adapter.call_count();
+    if (z.tag == ResultTag::Cancelled)
+        out.cancelled = true;
     out.comparison_attempted = true;
     out.comparison_tag = tag_name(z.tag);
     out.comparison_form = result_form(z);
@@ -581,6 +587,10 @@ bool dependency_failure_tag(const std::string &tag) {
     return tag == "unavailable" || tag == "backend error";
 }
 
+// A cancellation leads, because the learner asking to stop is the one terminal condition that is
+// not a statement about the backend. It is read before the dependency and comparison cases for the
+// same reason section 15 keeps the four apart: a stop nobody recorded reads as a check that merely
+// could not run, and the two are different facts.
 DerivationStatus cross_checked_status(DerivationStatus local, const CrossCheck &check) {
     if (check.cancelled)
         return DerivationStatus::Cancelled;
