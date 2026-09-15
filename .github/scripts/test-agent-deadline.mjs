@@ -102,10 +102,19 @@ test('the pull request budget is shared across jobs and overrides a later job li
   assert.doesNotMatch(agentDeadline({ startedAt, timeoutMinutes: 30, now: startedAt }).text, /shares one/);
 });
 
-test('an exhausted pull request budget refuses separately from an exhausted job', () => {
+test('a spent pull request budget still lets the job run, so a branch cannot be stranded', () => {
+  // Refusing here would stop the reviewer returning a verdict, so the PR could never be approved and
+  // therefore never merge. The budget has to bound new work without preventing the work finishing.
   const spent = startedAt - cycleBudgetMinutes * 60;
-  assert.throws(() => agentDeadline({ startedAt, timeoutMinutes: 120, cycleStartedAt: spent, now: startedAt }),
-                /budget for this pull request is exhausted/);
+  const over = agentDeadline({ startedAt, timeoutMinutes: 120, cycleStartedAt: spent, now: startedAt });
+  assert.equal(over.overBudget, true);
+  assert.equal(over.boundByCycle, false);
+  assert.equal(over.deadline, over.jobDeadline, 'a spent cycle falls back to the job limit rather than refusing');
+  assert.ok(over.remaining > 0);
+  assert.match(over.text, /over its allowance/);
+  assert.match(over.text, /still returns its verdict/);
+
+  // The job's own limit is the one that can still refuse, because that clock really has run out.
   assert.throws(() => agentDeadline({ startedAt, timeoutMinutes: 30, now: startedAt + 1500 }), /execution budget is exhausted/);
   // Four hours is the ceiling, so a job asking for more is refused rather than granted.
   for (const values of [{ cycleMinutes: cycleBudgetMinutes + 1 }, { cycleMinutes: 10 }, { cycleMinutes: 60.5 }, { cycleStartedAt: startedAt + 1 }, { cycleStartedAt: 0 }])
