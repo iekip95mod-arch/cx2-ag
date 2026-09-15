@@ -28,6 +28,21 @@ static_assert(integrate_cross_check_route(true, nps::IntegrateOutcome::Unsupport
 static_assert(integrate_cross_check_route(false, nps::IntegrateOutcome::Integrated, 0,
                                           nps::DerivationStatus::SolvedAndVerified) ==
               IntegrateCrossCheckRoute::None);
+static_assert(primary_result_form(true, false, nps::DerivationStatus::SolvedAndVerified,
+                                  nps::ResultForm::NoResult) ==
+              nps::ResultForm::ElementaryClosedForm);
+static_assert(primary_result_form(false, true, nps::DerivationStatus::SolvedAndVerified,
+                                  nps::ResultForm::NumericalApproximation) ==
+              nps::ResultForm::NumericalApproximation);
+static_assert(primary_result_form(false, false, nps::DerivationStatus::Unsupported,
+                                  nps::ResultForm::NoResult) ==
+              nps::ResultForm::UnsupportedSymbolicForm);
+static_assert(primary_result_form(false, false, nps::DerivationStatus::SolvedAndVerified,
+                                  nps::ResultForm::ElementaryClosedForm) ==
+              nps::ResultForm::ElementaryClosedForm);
+static_assert(primary_result_form(false, false, nps::DerivationStatus::SolvedAndVerified,
+                                  nps::ResultForm::NoResult) ==
+              nps::ResultForm::NoResult);
 
 lua_State *nl_lua_getstate() { return nullptr; }
 
