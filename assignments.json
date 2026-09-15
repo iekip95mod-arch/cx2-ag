@@ -1384,7 +1384,7 @@
       "pr": null,
       "branch": "claude/issue-83",
       "slug": "cx2-ag-claude-nebula",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-269",
@@ -1423,6 +1423,16 @@
       "issue": 83,
       "pr": 285,
       "branch": "claude/issue-83",
+      "slug": "cx2-ag-claude-review-dune",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-244",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 244,
+      "pr": 287,
+      "branch": "claude/issue-244",
       "slug": "cx2-ag-claude-review-dune",
       "released": false
     }
