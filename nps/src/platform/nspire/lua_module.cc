@@ -3049,14 +3049,17 @@ int l_optics(lua_State *L) {
     // rather than staying inside the step it was declared in.
     set_field(L, "convention", r.convention);
     if (r.outcome == OpticsOutcome::Solved) {
+        // si_unit_text spells a dimensionless SI unit as "1", which is correct engine
+        // notation but reads as noise on a dimensionless answer like a sine.
+        const std::string display_unit = r.unit_text == "1" ? std::string() : r.unit_text;
         std::string answer = std::string(optics_variable_name(problem.unknown)) + " = " +
                              r.value_text;
-        if (!r.unit_text.empty())
-            answer += " " + r.unit_text;
+        if (!display_unit.empty())
+            answer += " " + display_unit;
         set_field(L, "result", answer);
         set_field(L, "value", r.value_text);
         set_field(L, "exact_value", rational_text(r.quantity.value));
-        set_field(L, "unit", r.unit_text);
+        set_field(L, "unit", display_unit);
         set_precision(L, r.quantity.precision);
     }
     if (r.has_magnification)

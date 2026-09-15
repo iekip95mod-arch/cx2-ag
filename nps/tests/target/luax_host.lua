@@ -1175,6 +1175,8 @@ r = nps.optics("refraction", "transmitted sine", "incident index", "2", "inciden
 check(r.solved == true and r.value == "0.6" and r.unit == "" and r.critical_sine == "0.5" and
       r.magnification == nil,
       "the optics bridge copies the critical sine of a dimensionless refraction answer")
+check(r.result == "transmitted sine = 0.6",
+      "the optics bridge suppresses the dimensionless unit from the answer string")
 
 r = nps.optics("refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
                "transmitted index", "1")
