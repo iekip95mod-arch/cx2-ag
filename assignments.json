@@ -1525,6 +1525,16 @@
       "branch": "claude/issue-165",
       "slug": "cx2-ag-claude-pulsar",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-294",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 294,
+      "pr": null,
+      "branch": "claude/issue-294",
+      "slug": "cx2-ag-claude-sirius",
+      "released": false
     }
   ]
 }
