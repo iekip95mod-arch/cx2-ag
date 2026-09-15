@@ -567,6 +567,53 @@ const ObligationSchema kConvertsByTable[] = {
      "the SI form comes from the unit table's exact factor for the entered unit", kUnitTable, 1},
 };
 
+// physics.optics
+const EvidenceAlternative kOpticalDomainRules[] = {
+    {"registered optical domain rules", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kRelationConvention[] = {
+    {"registered relation convention", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kOpticsRelationSubstitution[] = {
+    {"exact substitution into the original relation", EvidenceStrength::CandidateChecked},
+};
+const EvidenceAlternative kCriticalSineComparison[] = {
+    {"exact comparison against one", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kOpticsStrategy[] = {
+    {"pre.optics.compatible-dimensions", "both sides of the relation have the same dimension",
+     kDimensionalAnalysis, 1},
+    {"pre.optics.declared-convention", "the sign and order convention is declared before it is used",
+     kRelationConvention, 1},
+    {"pre.optics.physical-givens", "every given quantity is inside this family's stated domain",
+     kOpticalDomainRules, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kOpticsDimensions[] = {
+    {"obl.optics.dimensions-agree", "both sides of the optical relation have one dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kOpticsDomain[] = {
+    {"obl.optics.domain-holds",
+     "every quantity the relation uses lies inside this family's stated domain",
+     kOpticalDomainRules, 1},
+};
+const ObligationSchema kOpticsConvention[] = {
+    {"obl.optics.convention-declared",
+     "the sign and order convention is stated before any signed answer is read",
+     kRelationConvention, 1},
+};
+const ObligationSchema kOpticsCandidate[] = {
+    {"obl.optics.candidate-satisfies", "the candidate satisfies the original optical relation",
+     kOpticsRelationSubstitution, 1},
+};
+const ObligationSchema kOpticsCriticalAngle[] = {
+    {"obl.optics.critical-angle",
+     "a transmitted sine above one is reported as total internal reflection",
+     kCriticalSineComparison, 1},
+};
+
 // work
 const ObligationSchema kWorkStrategy[] = {
     {"pre.work.constant-force", "the supplied force is constant over the displacement",
@@ -1151,6 +1198,34 @@ const RuleSchema kRules[] = {
     {"physics.relative-motion.definition", ClaimType::Definition, kRelativeDefinitionAfterChecks, 1,
      FailureBehavior::WithholdResult},
     {"physics.relative-motion.interpret-direction", ClaimType::Definition, kRelativeDirection, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.optics
+    {"physics.optics.refraction.snell", ClaimType::NoClaim, kOpticsStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.thin-lens.image", ClaimType::NoClaim, kOpticsStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.spherical-mirror.image", ClaimType::NoClaim, kOpticsStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.double-slit.maxima", ClaimType::NoClaim, kOpticsStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.single-slit.minima", ClaimType::NoClaim, kOpticsStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.check-dimensions", ClaimType::Definition, kOpticsDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.check-domain", ClaimType::Definition, kOpticsDomain, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.sign-convention", ClaimType::Definition, kOpticsConvention, 1,
+     FailureBehavior::CannotFail},
+    {"physics.optics.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.total-internal-reflection", ClaimType::Definition, kOpticsCriticalAngle, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.check-candidate", ClaimType::Implication, kOpticsCandidate, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.optics.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
     // physics.work.constant-force
