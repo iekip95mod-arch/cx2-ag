@@ -1795,6 +1795,16 @@
       "branch": "progress-comment-lockout",
       "slug": "cx2-ag-claude-review-anchor",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-279",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 279,
+      "pr": 359,
+      "branch": "claude/issue-279",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
