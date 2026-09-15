@@ -187,10 +187,11 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
     plan_step.goal = "Add the two Cartesian vectors";
     plan_step.rule_id = "vec.add.plan";
     plan_step.rule_name = "Cartesian vector addition";
-    plan_step.explanation_short = "Check compatibility, convert to SI, then add i and j components";
+    plan_step.explanation_short =
+        "Check compatibility, convert to SI, then add the components axis by axis";
     plan_step.claim = ClaimType::NoClaim;
     register_strategy_precondition(
-        plan, plan_step, "pre.vector-add.rank-two", "both vectors have two components",
+        plan, plan_step, "pre.vector-add.ranks-match", "both vectors have matching rank two or three",
         "rank comparison", EvidenceStrength::StructurallyValid,
         VerificationOutcome::NotAttempted, "checked before adding components");
     register_strategy_precondition(
@@ -206,22 +207,28 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
         return halted_result(arena, derivation, mark, meter, budget, model, problem);
     const StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
 
-    const bool rank_ok = problem.first.rank == 2 && problem.second.rank == 2;
+    const bool ranks_supported = (problem.first.rank == 2 || problem.first.rank == 3) &&
+                                 (problem.second.rank == 2 || problem.second.rank == 3);
+    const bool rank_ok = ranks_supported && problem.first.rank == problem.second.rank;
     const std::string rank_observed = "ranks " + std::to_string(problem.first.rank) + " and " +
                                       std::to_string(problem.second.rank);
     if (!add_check(derivation, meter, plan_id,
                    check_step("vec.add.check-rank", "Check vector ranks",
-                              "This archetype adds two-dimensional vectors", "obl.vector-add.rank-two",
-                              "both input vectors have rank two", "rank comparison", rank_observed,
+                              "Component addition needs the same axes on both sides, so both "
+                              "vectors are rank two or both are rank three",
+                              "obl.vector-add.ranks-match",
+                              "both input vectors have matching rank two or three",
+                              "rank comparison", rank_observed,
                               EvidenceStrength::StructurallyValid, rank_ok),
-                   "both vectors are two-dimensional", "rank 2 and rank 2", rank_observed))
+                   "both vectors have the same supported rank", "matching rank 2 or rank 3",
+                   rank_observed))
         return halted_result(arena, derivation, mark, meter, budget, model, problem);
     derivation.complete_plan_precondition(
-        plan_id, "pre.vector-add.rank-two",
+        plan_id, "pre.vector-add.ranks-match",
         rank_ok ? VerificationOutcome::Passed : VerificationOutcome::Failed, rank_observed);
     if (!rank_ok) {
         result.outcome = VectorAdditionOutcome::RankMismatch;
-        result.detail = "vector addition requires two vectors with two components";
+        result.detail = "vector addition requires two vectors of matching rank two or three";
         result.status = DerivationStatus::InvalidInput;
         result.cost = meter.cost();
         record_context(derivation, budget, model, result.status, problem);
@@ -333,23 +340,26 @@ VectorAdditionResult solve_vector_addition(Arena &arena, Derivation &derivation,
         return result;
     }
 
-    const Rational left[2] = {first_si.x, first_si.y};
-    const Rational right[2] = {second_si.x, second_si.y};
-    const Rational answers[2] = {sum.x, sum.y};
-    const char *axes[2] = {"i", "j"};
+    const Rational left[3] = {first_si.x, first_si.y, first_si.z};
+    const Rational right[3] = {second_si.x, second_si.y, second_si.z};
+    const Rational answers[3] = {sum.x, sum.y, sum.z};
+    const char *axes[3] = {"i", "j", "k"};
+    const char *component_rules[3] = {"vec.add.component-i", "vec.add.component-j",
+                                      "vec.add.component-k"};
     StepId component_parent = plan_id;
-    for (size_t axis = 0; axis < 2; ++axis) {
+    for (size_t axis = 0; axis < sum.rank; ++axis) {
         Step step;
         step.phase = "solve";
         step.goal = std::string("Add the ") + axes[axis] + " components";
-        step.rule_id = axis == 0 ? "vec.add.component-i" : "vec.add.component-j";
+        step.rule_id = component_rules[axis];
         step.rule_name = "Component addition";
         step.explanation_short = "Components on the same Cartesian axis add as exact scalars";
         step.explanation_detailed =
             "Reach for this once both vectors are in the same units and you want their sum. Vectors "
-            "add one axis at a time: the two i components make the answer's i component, and the "
-            "two j components make its j. Each of those is ordinary addition of numbers, which is "
-            "the whole reason breaking a vector into components is worth doing.";
+            "add one axis at a time: the two i components make the answer's i component, the two j "
+            "components make its j, and a three-dimensional pair does the same again for k. Each of "
+            "those is ordinary addition of numbers, which is the whole reason breaking a vector "
+            "into components is worth doing.";
         step.claim = ClaimType::EquivalentExpression;
         step.verifications.push_back(
             verification("exact rational addition", rational_text(answers[axis]),
