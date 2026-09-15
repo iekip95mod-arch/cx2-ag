@@ -308,6 +308,28 @@ void run_planar_kinematics_tests(TestSink &t) {
                     std::string::npos,
                 "a zero horizontal displacement is read as neither direction rather than as left");
     }
+    {
+        Run solved(problem(parsed_vector("(3, 40) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.check(solved.result.interpretation.find("ball moves right and up") != std::string::npos,
+                "a throw that is still climbing at the final event is read as up rather than down");
+        t.check(solved.result.interpretation.find("(3 i + 20 j) m/s") != std::string::npos,
+                "the climbing interpretation names the final velocity the interval ends at");
+    }
+    {
+        Run solved(problem(parsed_vector("(3, 10) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.check(solved.result.interpretation.find("right and neither up nor down") !=
+                    std::string::npos,
+                "a throw that returns to its launch height is read as neither up nor down");
+        t.check(solved.result.interpretation.find("(3 i - 10 j) m/s") != std::string::npos,
+                "a zero vertical displacement still ends at a downward final velocity");
+    }
+    {
+        Run solved(problem(parsed_vector("(-3, 4) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.check(solved.result.interpretation.find("ball moves left and down") != std::string::npos,
+                "a negative horizontal displacement is read as left rather than as right");
+        t.check(solved.result.interpretation.find("(-3 i - 16 j) m/s") != std::string::npos,
+                "the leftward interpretation names the final velocity the interval ends at");
+    }
 }
 
 }  // namespace nps
