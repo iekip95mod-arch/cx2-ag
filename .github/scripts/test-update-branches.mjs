@@ -246,3 +246,14 @@ test('a mergeability that settles on behind while waiting proceeds with the upda
   assert.equal(await updateBranch({ pr: 90, login: update.identity.login }, update.api, async () => { update.pr.mergeable_state = 'behind'; }, update.assignment), 'updated');
   assert.deepEqual(update.writes.map(write => write.method), ['PUT', 'DELETE', 'POST']);
 });
+
+test('a completed check re-examines only its own pull request, so a branch that just became ready waits for no further merge', () => {
+  const path = fileURLToPath(new URL('../workflows/update-branches.yml', import.meta.url));
+  const workflow = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', path], { encoding: 'utf8' }));
+  const events = workflow.on ?? workflow.true;
+  assert.deepEqual(events.workflow_run, { workflows: ['check'], types: ['completed'] });
+  const discover = workflow.jobs.discover;
+  assert.ok(discover.if.includes("github.event_name != 'workflow_run' || github.event.workflow_run.pull_requests[0] != null"));
+  assert.ok(discover.if.includes("github.event.pull_request.head.repo.full_name == github.repository"));
+  assert.equal(discover.steps.at(-1).env.PR_NUMBER, '${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}');
+});
