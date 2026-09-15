@@ -1,6 +1,6 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { reviewerCapacity } from './bot-identities.mjs';
+import { releaseDeadLeases, reviewerCapacity } from './bot-identities.mjs';
 import { requestGitHub } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
@@ -46,7 +46,8 @@ export async function cancelObsoleteReviews(number, api) {
   return cancelled;
 }
 
-export async function retryWaitingReviews(api, capacity = reviewerCapacity) {
+export async function retryWaitingReviews(api, capacity = reviewerCapacity, reap = releaseDeadLeases) {
+  await reap(repository, api);
   const available = await capacity(repository, api);
   const pulls = await pages(api, `${root}/pulls?state=open&base=main`);
   const retried = [];

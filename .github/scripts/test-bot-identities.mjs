@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, resolveTarget, reviewerCapacity, selectReviewProvider } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, releaseDeadLeases, resolveTarget, reviewerCapacity, selectReviewProvider } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
@@ -171,6 +171,45 @@ test('reviewer capacity retains open issue leases and reports pool exhaustion di
   const active = github.pull(50, 1, 'codex');
   active.state = 'open';
   assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 0);
+});
+
+test('a reviewer pool filled entirely with dead leases still assigns', async () => {
+  const github = fixture();
+  const target = pr => ({ repository, provider: 'claude', role: 'reviewer', pr });
+  for (let issue = 1; issue <= 13; issue++) github.pull(200 + issue, issue, 'claude');
+  for (let issue = 1; issue <= 12; issue++) await allocateIdentity(target(200 + issue), github.api, roster);
+  for (let issue = 1; issue <= 12; issue++) github.pull(200 + issue, issue, 'claude').state = 'closed';
+  const reviewer = await allocateIdentity(target(213), github.api, roster);
+  assert.equal(reviewer.pr, 213);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 1);
+});
+
+test('a refused allocation records the dead leases it verified', async () => {
+  const github = fixture();
+  for (let issue = 1; issue <= 12; issue++) await allocateIdentity(options(issue, 'claude', 'reviewer'), github.api, roster);
+  const dead = await allocateIdentity(options(20, 'codex', 'reviewer'), github.api, roster);
+  github.ticket(20).state = 'closed';
+  const revision = github.revision;
+  await assert.rejects(allocateIdentity(options(13, 'claude', 'reviewer'), github.api, roster), { code: 'BOT_POOL_OCCUPIED' });
+  assert.equal(github.assignments.find(assignment => assignment.slug === dead.slug).released, true);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 12);
+  assert.equal(github.revision, revision + 1);
+});
+
+test('the reaper releases dead leases without an allocation and writes only when one dies', async () => {
+  const github = fixture();
+  const live = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);
+  const dying = await allocateIdentity(options(42, 'claude', 'reviewer'), github.api, roster);
+  const revision = github.revision;
+  assert.deepEqual(await releaseDeadLeases(repository, github.api, roster), []);
+  assert.equal(github.revision, revision);
+  github.ticket(42).state = 'closed';
+  assert.deepEqual(await releaseDeadLeases(repository, github.api, roster), [dying.slug]);
+  assert.equal(github.revision, revision + 1);
+  assert.equal(github.assignments.find(assignment => assignment.slug === dying.slug).released, true);
+  assert.equal(github.assignments.find(assignment => assignment.slug === live.slug).released, false);
+  assert.deepEqual(await releaseDeadLeases(repository, github.api, roster), []);
+  assert.equal(github.revision, revision + 1);
 });
 
 test('a merged reviewer PR frees its identity while its issue stays open', async () => {
