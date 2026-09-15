@@ -376,18 +376,14 @@ bool operator==(const Dimension &a, const Dimension &b) {
 
 bool operator!=(const Dimension &a, const Dimension &b) { return !(a == b); }
 
-namespace {
-
-// One place that knows how many base dimensions there are, so a fifth one is a single edit here
-// rather than four parallel lists that drift apart.
-constexpr int kDimensionCount = 4;
-
 void dimension_powers(const Dimension &d, int (&out)[kDimensionCount]) {
     out[0] = d.length;
     out[1] = d.mass;
     out[2] = d.time;
     out[3] = d.current;
 }
+
+namespace {
 
 void dimension_from_powers(const int (&powers)[kDimensionCount], Dimension *out) {
     out->length = powers[0];

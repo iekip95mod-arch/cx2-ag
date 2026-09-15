@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.work.constant-force-dot-product
   envelope version: <not recorded>
-  normalized problem: work_problem(framed_vector(vector(3, 4), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(2, 1), 1, lab, dimension(1, 0, 0), 2), variable)
+  normalized problem: work_problem(framed_vector(vector(3, 4), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(2, 1), 1, lab, dimension(1, 0, 0, 0), 2), variable)
   requested method: validate constant-force applicability, convert component vectors to SI, evaluate the existing exact dot product, and report once
   active assumption: force profile is variable
   active assumption: force frame is lab

@@ -1,6 +1,7 @@
 #include "nps/physics/unit_conversion.h"
 
 #include <utility>
+#include <vector>
 
 #include "nps/core/context.h"
 
@@ -16,9 +17,12 @@ NodeId rational_node(Arena &arena, const Rational &value) {
 }
 
 NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    return arena.call("dimension", {arena.integer(integer_text(dimension.length)),
-                                    arena.integer(integer_text(dimension.mass)),
-                                    arena.integer(integer_text(dimension.time))});
+    int powers[kDimensionCount];
+    dimension_powers(dimension, powers);
+    std::vector<NodeId> exponents;
+    for (int power : powers)
+        exponents.push_back(arena.integer(integer_text(power)));
+    return arena.call("dimension", exponents);
 }
 
 std::string unit_name(const Unit &unit) {

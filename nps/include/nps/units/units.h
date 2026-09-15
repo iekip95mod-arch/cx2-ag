@@ -22,6 +22,12 @@ struct Dimension {
 bool operator==(const Dimension &a, const Dimension &b);
 bool operator!=(const Dimension &a, const Dimension &b);
 
+// One place that knows how many base dimensions there are, so a fifth one is a single edit here
+// rather than parallel lists that drift apart. A producer that writes a dimension out loops over
+// these rather than naming the fields, so a new base dimension cannot be dropped silently.
+constexpr int kDimensionCount = 4;
+void dimension_powers(const Dimension &d, int (&out)[kDimensionCount]);
+
 // False leaves out unchanged when a dimension exponent would not fit.
 bool dimension_multiply(const Dimension &a, const Dimension &b, Dimension *out);
 bool dimension_power(const Dimension &a, int exponent, Dimension *out);
