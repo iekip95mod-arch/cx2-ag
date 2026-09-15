@@ -36,6 +36,10 @@ class ScriptedBackend : public Backend {
     bool succeed_;
 };
 
+// Stands in for the keypad poll the bridge lends the backend, so a test can press escape.
+bool stop_pressed = false;
+bool stop_poll(void *context) { return *static_cast<bool *>(context); }
+
 class CountingRowSink : public MatrixRowSink {
   public:
     bool row(NodeId, NodeId, const MatrixRowOperation &) override {
@@ -1124,8 +1128,8 @@ void run_adapter_tests(TestSink &t) {
     }
 
     {
-        // Giac's other spelling names two causes and cannot say which, so it keeps the resource
-        // reading it already had rather than claiming the learner asked to stop.
+        // Giac's other spelling names two causes and cannot say which, so with nobody to ask it keeps
+        // the resource reading it already had rather than claiming the learner asked to stop.
         Arena arena;
         ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption or stack overflow.");
         Adapter adapter(arena, backend);
@@ -1136,6 +1140,72 @@ void run_adapter_tests(TestSink &t) {
         Response r = adapter.run(req);
         t.equal(tag_name(r.tag), "resource failure",
                 "an interruption giac cannot separate from a stack overflow stays a resource failure");
+    }
+
+    {
+        // The caller that polls the keypad holds the fact giac's text is missing. It says the learner
+        // asked to stop, so the ambiguous spelling resolves to the cancellation it actually was.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption or stack overflow.");
+        backend.watch_stop(stop_poll, &stop_pressed);
+        stop_pressed = true;
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Integrate;
+        req.target = must_parse(arena, "sin(x^2)");
+        req.variable = must_parse(arena, "x");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "cancelled",
+                "a stop the caller can confirm resolves giac's ambiguous message to a cancellation");
+        t.check(!r.usable(), "a cancelled reply carries no value");
+        t.check(backend.terminal() && backend.terminal_tag() == ResultTag::Cancelled,
+                "and retires the backend as a cancellation rather than as a resource failure");
+    }
+
+    {
+        // The control for the row above. The same poll, answering that nothing was pressed, leaves
+        // the ambiguous message reading as the resource failure it may equally have been.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption or stack overflow.");
+        backend.watch_stop(stop_poll, &stop_pressed);
+        stop_pressed = false;
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Integrate;
+        req.target = must_parse(arena, "sin(x^2)");
+        req.variable = must_parse(arena, "x");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "resource failure",
+                "a poll reporting no stop leaves the ambiguous message its resource reading");
+    }
+
+    {
+        // A stack overflow giac names on its own is not an interruption, so a held key cannot rename
+        // it. Without this the poll would turn every resource failure into a cancellation.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: stack overflow");
+        backend.watch_stop(stop_poll, &stop_pressed);
+        stop_pressed = true;
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Integrate;
+        req.target = must_parse(arena, "sin(x^2)");
+        req.variable = must_parse(arena, "x");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "resource failure",
+                "an unambiguous stack overflow stays a resource failure while a stop is pending");
+    }
+
+    {
+        // One request reaches giac through several adapters, so the answer is remembered: a key
+        // released between two ambiguous replies must not give the same stop two readings.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Stopped by user interruption or stack overflow.");
+        backend.watch_stop(stop_poll, &stop_pressed);
+        stop_pressed = true;
+        t.check(backend.stop_requested(), "a pressed key is a stop request");
+        stop_pressed = false;
+        t.check(backend.stop_requested(), "and stays one after the learner lets go");
     }
 
     {
