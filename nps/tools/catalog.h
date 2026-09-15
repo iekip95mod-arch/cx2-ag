@@ -156,8 +156,6 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
             out->push_back(f);
             continue;
         }
-        if (rest.empty())
-            continue;
         if (out->empty())
             continue;
         Family &f = out->back();
