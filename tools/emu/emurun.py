@@ -40,12 +40,33 @@ class Missing(Exception):
     """Something the emulator needs is not on this machine. Not a failure of the thing under test."""
 
 
+# Written by git-lfs where the real bytes would be. actions/checkout does not fetch LFS content
+# unless asked, which prepare-review.sh has to work around for the toolchain, so a runner sees a
+# file of this shape rather than an image. Handing one to the emulator gets a confusing failure
+# instead of the honest answer, which is that the image was never fetched.
+LFS_POINTER = b"version https://git-lfs.github.com/spec/v1"
+
+
+def is_lfs_pointer(path: str) -> bool:
+    try:
+        with open(path, "rb") as handle:
+            return handle.read(len(LFS_POINTER)) == LFS_POINTER
+    except OSError:
+        return False
+
+
 def resolve(boot1: str | None, flash: str | None) -> tuple:
     boot1 = boot1 or os.environ.get("NPS_EMU_BOOT1") or os.path.join(REPO, "images", "boot1.img")
     flash = flash or os.environ.get("NPS_EMU_FLASH") or os.path.join(REPO, "images", "nspire-os.img")
     absent = [p for p in (HEADLESS, boot1, flash) if not os.path.exists(p)]
-    if absent:
-        raise Missing("; ".join(absent))
+    unfetched = [p for p in (boot1, flash) if p not in absent and is_lfs_pointer(p)]
+    if absent or unfetched:
+        note = "; ".join(absent)
+        if unfetched:
+            fetched = " ".join("--include " + p for p in unfetched)
+            note += ("; " if note else "") + "{} are LFS pointers rather than images, so run: git lfs pull {}".format(
+                ", ".join(unfetched), fetched)
+        raise Missing(note)
     return boot1, flash
 
 
