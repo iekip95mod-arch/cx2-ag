@@ -367,6 +367,23 @@ void run_planar_kinematics_tests(TestSink &t) {
         t.check(!refused.has_value, "the refusal offers no apex height");
     }
     {
+        // A cancelled nested solve_kinematics call must report cancellation rather than being
+        // collapsed into a generic verification failure, which would misreport a stopped run as a
+        // physics disagreement.
+        PlanarApexProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Budget budget;
+        budget.poll = cancel_now;
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult cancelled = solve_planar_apex(arena, derivation, input, budget);
+        t.equal(planar_kinematics_outcome_name(cancelled.outcome), "cancelled",
+                "a cancelled apex solve reports cancellation instead of a verification failure");
+        t.check(!cancelled.has_value, "a cancelled apex solve offers no height");
+    }
+    {
         // Both routes are exact rational arithmetic over the same inputs, so a real problem can
         // never make them disagree; only a defect in the comparison itself could. apex_routes_agree
         // is the exact comparison check-apex-routes records, isolated so it can be driven with

@@ -952,6 +952,16 @@ PlanarApexResult apex_failed(PlanarKinematicsOutcome outcome, DerivationStatus s
     return failure;
 }
 
+// Keeps a nested solve_kinematics call's Cancelled and ResourceExceeded distinct from an actual
+// physics disagreement, per AGENTS.md's contract to preserve.
+PlanarKinematicsOutcome apex_outcome_for_kinematics_failure(KinematicsOutcome outcome) {
+    switch (outcome) {
+        case KinematicsOutcome::Cancelled: return PlanarKinematicsOutcome::Cancelled;
+        case KinematicsOutcome::ResourceExceeded: return PlanarKinematicsOutcome::ResourceExceeded;
+        default: return PlanarKinematicsOutcome::VerificationFailed;
+    }
+}
+
 }  // namespace
 
 bool apex_routes_agree(Arena &arena, NodeId route_one_value, NodeId route_two_value) {
@@ -1049,7 +1059,7 @@ PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
     time_problem.knowns.push_back({"a", ay});
     const KinematicsResult time_result = solve_kinematics(arena, derivation, time_problem, budget, giac);
     if (time_result.outcome != KinematicsOutcome::Solved) {
-        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, time_result.status,
+        return apex_failed(apex_outcome_for_kinematics_failure(time_result.outcome), time_result.status,
                            "route one could not isolate the time to the apex: " + time_result.detail);
     }
     Rational t_value;
@@ -1068,7 +1078,8 @@ PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
     const KinematicsResult route_one_result =
         solve_kinematics(arena, derivation, route_one_height, budget, giac);
     if (route_one_result.outcome != KinematicsOutcome::Solved) {
-        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, route_one_result.status,
+        return apex_failed(apex_outcome_for_kinematics_failure(route_one_result.outcome),
+                           route_one_result.status,
                            "route one could not reach the apex height: " + route_one_result.detail);
     }
 
@@ -1082,7 +1093,8 @@ PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
     const KinematicsResult route_two_result =
         solve_kinematics(arena, derivation, route_two_height, budget, giac);
     if (route_two_result.outcome != KinematicsOutcome::Solved) {
-        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, route_two_result.status,
+        return apex_failed(apex_outcome_for_kinematics_failure(route_two_result.outcome),
+                           route_two_result.status,
                            "route two could not reach the apex height: " + route_two_result.detail);
     }
 
