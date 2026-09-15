@@ -408,6 +408,9 @@ void run_determinant_tests(TestSink &t) {
         const MatrixResult result = matrix_determinant(arena, adapter, derivation, parse(arena, fixture.input).root);
         t.check(result.outcome == MatrixOutcome::Determined && result.status == DerivationStatus::SolvedAndVerified,
                 std::string("determinant succeeds with verified trace: ") + fixture.input);
+        t.check(derivation.all_verified_from(0) && result.expression != kNoNode &&
+                    derivation.outcome_from(0) == result.status,
+                std::string("determinant reports the record's own verdict over a fully checked range: ") + fixture.input);
         t.check(verify_matrix_determinant_correction(arena, parse(arena, fixture.answer).root,
                     arena.integer("1"), result.expression).outcome == VerificationOutcome::Passed,
                 std::string("determinant has independently expected exact scalar: ") + fixture.answer);

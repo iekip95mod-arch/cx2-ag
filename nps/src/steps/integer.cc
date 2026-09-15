@@ -391,11 +391,9 @@ struct Run {
         }
         switch (result.outcome) {
             case IntegerOutcome::Evaluated:
+                // The record's own verdict is carried rather than recast, because a range nobody
+                // checked is weaker evidence than a range that disagreed and not the same fact.
                 result.status = derivation.outcome_from(mark);
-                if (result.status != DerivationStatus::SolvedAndVerified) {
-                    result.outcome = IntegerOutcome::VerificationFailed;
-                    result.expression = kNoNode;
-                }
                 break;
             case IntegerOutcome::UnsupportedForm: result.status = DerivationStatus::Unsupported; break;
             case IntegerOutcome::InvalidInput: result.status = DerivationStatus::InvalidInput; break;
