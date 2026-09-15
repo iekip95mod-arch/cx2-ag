@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readAssignment } from './bot-identities.mjs';
 import { cancelObsoleteReviews } from './review-queue.mjs';
-import { requestGitHub, reviewLabels } from './wait-for-review.mjs';
+import { requestGitHub, reviewLabels, reviewProvider } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
@@ -67,10 +67,11 @@ export async function updateBranch({ pr: number, login }, api, sleep, assignment
     if (merged.behind_by !== 0) return 'superseded';
     // This update is what invalidated the old revision, so it owns cancelling the review reading it.
     await cancel(number, actions);
-    // The branch prefix names the executor's provider, so only the label already on the PR says who reviews it.
-    const [label, ...ambiguous] = reviewLabels(current);
-    if (!current.draft && label && !ambiguous.length) {
-      await api('DELETE', `${root}/issues/${number}/labels/${label}`, undefined, true);
+    // A carried label names the reviewer the PR already chose, and the branch prefix is only the fallback.
+    const carried = reviewLabels(current);
+    if (!current.draft && carried.length < 2) {
+      const label = carried[0] ?? `${reviewProvider(current)}-review`;
+      if (carried.length) await api('DELETE', `${root}/issues/${number}/labels/${label}`, undefined, true);
       const latest = await api('GET', endpoint);
       if (latest.head.sha !== current.head.sha || latest.state !== 'open' || latest.draft) return 'superseded';
       await api('POST', `${root}/issues/${number}/labels`, { labels: [label] });

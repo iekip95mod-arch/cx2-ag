@@ -167,10 +167,20 @@ test('an update re-requests the review label the PR carries rather than the bran
   }
 });
 
-test('an update gives no review label to a PR that carries none and leaves an ambiguous pair alone', async () => {
-  for (const labels of [[], ['defect'], ['claude-review', 'gemini-review']]) {
-    const f = fixture('claude', labels);
+test('an update requests the branch prefix provider when the PR carries no review label', async () => {
+  for (const [branch, labels] of [['claude', []], ['claude', ['defect']], ['codex', []], ['gemini', ['defect']]]) {
+    const f = fixture(branch, labels);
     assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
-    assert.deepEqual(f.writes.map(write => write.method), ['PUT']);
+    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
+      `PUT ${root}/pulls/90/update-branch`,
+      `POST ${root}/issues/90/labels`,
+    ]);
+    assert.deepEqual(f.writes.at(-1).body.labels, [`${branch}-review`]);
   }
+});
+
+test('an update leaves an ambiguous review label pair alone', async () => {
+  const f = fixture('claude', ['claude-review', 'gemini-review']);
+  assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+  assert.deepEqual(f.writes.map(write => write.method), ['PUT']);
 });
