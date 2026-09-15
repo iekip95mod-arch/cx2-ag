@@ -6,6 +6,8 @@
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
+#include "nps/physics/kinematics.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -889,6 +891,7 @@ const char *planar_kinematics_outcome_name(PlanarKinematicsOutcome outcome) {
         case PlanarKinematicsOutcome::DimensionMismatch: return "dimension mismatch";
         case PlanarKinematicsOutcome::StageMismatch: return "stage mismatch";
         case PlanarKinematicsOutcome::NotProjectile: return "not a projectile";
+        case PlanarKinematicsOutcome::NoApex: return "no apex above the launch point";
         case PlanarKinematicsOutcome::ArithmeticOverflow: return "arithmetic overflow";
         case PlanarKinematicsOutcome::VerificationFailed: return "verification failed";
         case PlanarKinematicsOutcome::Cancelled: return "cancelled";
@@ -936,6 +939,217 @@ PlanarKinematicsResult solve_planar_kinematics(Arena &arena, Derivation &derivat
     result.cost = meter.cost();
     record_context(derivation, budget, model, result.status, problem);
     return result;
+}
+
+namespace {
+
+PlanarApexResult apex_failed(PlanarKinematicsOutcome outcome, DerivationStatus status,
+                             const std::string &detail) {
+    PlanarApexResult failure;
+    failure.outcome = outcome;
+    failure.status = status;
+    failure.detail = detail;
+    return failure;
+}
+
+}  // namespace
+
+PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
+                                   const PlanarApexProblem &problem, const Budget &budget,
+                                   Backend *giac) {
+    Meter meter(budget);
+    const size_t mark = derivation.mark();
+
+    if (!valid_axes(problem.axes)) {
+        return apex_failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                           "the coordinate convention is invalid");
+    }
+    if (problem.body_name.empty()) {
+        return apex_failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                           "the moving body needs a nonempty name");
+    }
+    std::string invalid_detail;
+    if (!valid_vector(problem.initial_velocity, &invalid_detail)) {
+        return apex_failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                           "initial velocity: " + invalid_detail);
+    }
+    if (!valid_vector(problem.acceleration, &invalid_detail)) {
+        return apex_failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                           "acceleration: " + invalid_detail);
+    }
+    if (problem.initial_velocity.rank != 2 || problem.acceleration.rank != 2) {
+        return apex_failed(PlanarKinematicsOutcome::RankMismatch, DerivationStatus::InvalidInput,
+                           "planar kinematics requires a two-component velocity and acceleration");
+    }
+    const bool frames_declared = !problem.initial_velocity.frame.name.empty() &&
+                                 !problem.acceleration.frame.name.empty();
+    if (!frames_declared) {
+        return apex_failed(PlanarKinematicsOutcome::FrameUndeclared, DerivationStatus::InvalidInput,
+                           "both the velocity and the acceleration must declare a named frame");
+    }
+    if (problem.initial_velocity.frame != problem.acceleration.frame) {
+        return apex_failed(PlanarKinematicsOutcome::FrameMismatch, DerivationStatus::InvalidInput,
+                           "cannot combine frame " + problem.initial_velocity.frame.name +
+                               " with frame " + problem.acceleration.frame.name +
+                               " without an explicit basis transformation");
+    }
+    const bool stages_ok = problem.initial_velocity_stage == MotionStage::State &&
+                           problem.acceleration_stage == MotionStage::Interval;
+    if (!stages_ok) {
+        return apex_failed(PlanarKinematicsOutcome::StageMismatch, DerivationStatus::InvalidInput,
+                           "the velocity is a state and the acceleration spans the interval");
+    }
+    const bool dimensions_ok = problem.initial_velocity.unit.dimension == velocity_dimension() &&
+                               problem.acceleration.unit.dimension == acceleration_dimension();
+    if (!dimensions_ok) {
+        return apex_failed(PlanarKinematicsOutcome::DimensionMismatch, DerivationStatus::InvalidInput,
+                           "the apex needs a velocity and an acceleration");
+    }
+    if (problem.acceleration.x.num != 0 || problem.acceleration.y.num >= 0) {
+        return apex_failed(PlanarKinematicsOutcome::NotProjectile, DerivationStatus::InvalidInput,
+                           "the projectile specialization needs a zero horizontal acceleration and "
+                           "a downward vertical one, but received " +
+                               vector_text(problem.acceleration));
+    }
+
+    Vector velocity_si;
+    Vector acceleration_si;
+    if (!to_si(problem.initial_velocity, &velocity_si) ||
+        !to_si(problem.acceleration, &acceleration_si)) {
+        return apex_failed(PlanarKinematicsOutcome::ArithmeticOverflow,
+                           DerivationStatus::ResourceLimitReached,
+                           "a component does not fit exact arithmetic after SI conversion");
+    }
+    if (velocity_si.y.num <= 0) {
+        return apex_failed(PlanarKinematicsOutcome::NoApex, DerivationStatus::InvalidInput,
+                           "the vertical component of the initial velocity must be positive for the "
+                           "body to rise above the launch point, but received " +
+                               vector_text(problem.initial_velocity));
+    }
+
+    using measure::rational_of_node;
+
+    const Quantity v0y = si_scalar(velocity_si.y, velocity_dimension(), velocity_si.precision);
+    const Quantity ay = si_scalar(acceleration_si.y, acceleration_dimension(), acceleration_si.precision);
+    const Quantity zero_velocity = si_scalar(Rational{0, 1}, velocity_dimension(), Precision());
+
+    // Route one: isolate the time at which the vertical velocity is zero, then substitute it into
+    // the displacement equation. Two hops, two calls, because giving v0, v and a together would let
+    // the backward chainer reach v^2 = v0^2 + 2 a x directly, which is route two.
+    KinematicsProblem time_problem;
+    time_problem.unknown = "t";
+    time_problem.knowns.push_back({"v0", v0y});
+    time_problem.knowns.push_back({"v", zero_velocity});
+    time_problem.knowns.push_back({"a", ay});
+    const KinematicsResult time_result = solve_kinematics(arena, derivation, time_problem, budget, giac);
+    if (time_result.outcome != KinematicsOutcome::Solved) {
+        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, time_result.status,
+                           "route one could not isolate the time to the apex: " + time_result.detail);
+    }
+    Rational t_value;
+    if (!rational_of_node(arena, time_result.value, &t_value)) {
+        return apex_failed(PlanarKinematicsOutcome::ArithmeticOverflow,
+                           DerivationStatus::ResourceLimitReached,
+                           "the time to the apex does not fit exact arithmetic");
+    }
+    const Quantity t_quantity = si_scalar(t_value, time_dimension(), time_result.precision);
+
+    KinematicsProblem route_one_height;
+    route_one_height.unknown = "x";
+    route_one_height.knowns.push_back({"v0", v0y});
+    route_one_height.knowns.push_back({"a", ay});
+    route_one_height.knowns.push_back({"t", t_quantity});
+    const KinematicsResult route_one_result =
+        solve_kinematics(arena, derivation, route_one_height, budget, giac);
+    if (route_one_result.outcome != KinematicsOutcome::Solved) {
+        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, route_one_result.status,
+                           "route one could not reach the apex height: " + route_one_result.detail);
+    }
+
+    // Route two: the same height directly from v^2 = v0^2 + 2 a x with the apex velocity given as
+    // zero. It shares the model and the inputs with route one but not the equation.
+    KinematicsProblem route_two_height;
+    route_two_height.unknown = "x";
+    route_two_height.knowns.push_back({"v0", v0y});
+    route_two_height.knowns.push_back({"v", zero_velocity});
+    route_two_height.knowns.push_back({"a", ay});
+    const KinematicsResult route_two_result =
+        solve_kinematics(arena, derivation, route_two_height, budget, giac);
+    if (route_two_result.outcome != KinematicsOutcome::Solved) {
+        return apex_failed(PlanarKinematicsOutcome::VerificationFailed, route_two_result.status,
+                           "route two could not reach the apex height: " + route_two_result.detail);
+    }
+
+    const NodeId route_one_canonical = canonicalize(arena, route_one_result.value);
+    const NodeId route_two_canonical = canonicalize(arena, route_two_result.value);
+    const bool routes_agree = !arena.failed() && route_one_canonical == route_two_canonical;
+    const std::string agreement_detail =
+        "route one (time to the apex, then the displacement equation) reached " +
+        route_one_result.value_text +
+        " m; route two (v^2 = v0^2 + 2 a x with the apex velocity zero) reached " +
+        route_two_result.value_text + " m";
+
+    Step plan_step;
+    plan_step.phase = "plan";
+    plan_step.goal = "Confirm the apex height by a second independent route";
+    plan_step.rule_id = "physics.planar-kinematics.apex-plan";
+    plan_step.rule_name = "Projectile apex verification";
+    plan_step.explanation_short =
+        "Compare the time-to-apex route against the direct v^2 = v0^2 + 2 a x route";
+    plan_step.claim = ClaimType::NoClaim;
+    PlanPayload plan;
+    plan.strategy_id = "physics.planar-kinematics.apex-plan";
+    plan.selected_strategy = "Two independent routes to the apex height";
+    plan.matched_problem_facts.push_back("body: " + problem.body_name);
+    plan.matched_problem_facts.push_back("apex condition: vertical velocity zero");
+    plan.alternatives_considered.push_back(
+        "recomputing the same equation twice, which is not an independent check");
+    plan.selection_rationale =
+        "the one-dimensional kinematics engine already carries both equations, so the apex height "
+        "is reached twice by two different equations sharing only the model and the inputs";
+    if (!meter.step()) {
+        return apex_failed(PlanarKinematicsOutcome::ResourceExceeded,
+                           DerivationStatus::ResourceLimitReached, "step budget exhausted");
+    }
+    const StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
+
+    if (!add_check(derivation, meter, plan_id, "physics.planar-kinematics.check-apex-routes",
+                  "Independent apex routes", "Check that both routes to the apex height agree",
+                  "The apex height comes from two derivations that share the model and the inputs "
+                  "but not the equation, so their agreement is the verification",
+                  "obl.planar-kinematics.apex-routes-agree",
+                  "the time-to-apex route and the direct v^2 = v0^2 + 2 a x route reach the same "
+                  "height",
+                  "two independent routes", agreement_detail, EvidenceStrength::CandidateChecked,
+                  routes_agree ? VerificationOutcome::Passed : VerificationOutcome::Failed,
+                  "both routes agree on the apex height", route_one_result.value_text + " m",
+                  agreement_detail)) {
+        return apex_failed(PlanarKinematicsOutcome::ResourceExceeded,
+                           DerivationStatus::ResourceLimitReached, "step budget exhausted");
+    }
+    if (!routes_agree) {
+        return apex_failed(PlanarKinematicsOutcome::VerificationFailed,
+                           DerivationStatus::VerificationFailed,
+                           "the two routes to the apex height disagree: " + agreement_detail);
+    }
+
+    Rational height_value;
+    if (!rational_of_node(arena, route_two_result.value, &height_value)) {
+        return apex_failed(PlanarKinematicsOutcome::ArithmeticOverflow,
+                           DerivationStatus::ResourceLimitReached,
+                           "the apex height does not fit exact arithmetic");
+    }
+
+    PlanarApexResult solved;
+    solved.outcome = PlanarKinematicsOutcome::Solved;
+    solved.has_value = true;
+    solved.time_to_apex = t_quantity;
+    solved.time_to_apex_text = time_result.value_text;
+    solved.height = si_scalar(height_value, length_dimension(), route_two_result.precision);
+    solved.height_text = route_two_result.value_text;
+    solved.status = derivation.outcome_from(mark);
+    solved.cost = meter.cost();
+    return solved;
 }
 
 }  // namespace nps

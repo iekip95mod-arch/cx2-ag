@@ -53,6 +53,7 @@ enum class PlanarKinematicsOutcome : uint8_t {
     DimensionMismatch,
     StageMismatch,
     NotProjectile,
+    NoApex,
     ArithmeticOverflow,
     VerificationFailed,
     Cancelled,
@@ -83,6 +84,38 @@ PlanarKinematicsResult solve_planar_kinematics(Arena &arena, Derivation &derivat
                                                const PlanarKinematicsProblem &problem,
                                                const Budget &budget = Budget(),
                                                Backend *giac = nullptr);
+
+// The apex is an event the caller cannot supply a time for: it is defined by the vertical velocity
+// reaching zero, not by an elapsed time. Reuses the one-dimensional kinematics engine for both
+// routes, since the equation table already carries v = v0 + a t and v^2 = v0^2 + 2 a x.
+struct PlanarApexProblem {
+    std::string body_name;
+    Vector initial_velocity;
+    Vector acceleration;
+    MotionStage initial_velocity_stage = MotionStage::State;
+    MotionStage acceleration_stage = MotionStage::Interval;
+    PlanarAxes axes = PlanarAxes::RightUp;
+};
+
+struct PlanarApexResult {
+    PlanarKinematicsOutcome outcome = PlanarKinematicsOutcome::InvalidProblem;
+    Quantity time_to_apex;
+    Quantity height;
+    bool has_value = false;
+    std::string time_to_apex_text;
+    std::string height_text;
+    std::string detail;
+    DerivationStatus status = DerivationStatus::NotRecorded;
+    Cost cost;
+};
+
+// Route one isolates the time at which the vertical velocity is zero, then substitutes it into the
+// displacement equation. Route two reaches the same height directly from v^2 = v0^2 + 2 a x with the
+// apex velocity given as zero. The two share the model and the inputs but not the equation, so their
+// agreement is recorded as the verification rather than a repeated computation of the same formula.
+PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
+                                   const PlanarApexProblem &problem,
+                                   const Budget &budget = Budget(), Backend *giac = nullptr);
 
 }  // namespace nps
 

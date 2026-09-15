@@ -330,6 +330,61 @@ void run_planar_kinematics_tests(TestSink &t) {
         t.check(solved.result.interpretation.find("(-3 i - 16 j) m/s") != std::string::npos,
                 "the leftward interpretation names the final velocity the interval ends at");
     }
+    {
+        // PHYS 2410 Chapters 1-4 test, problem 4(c): 42.0 m/s at 60.0 degrees decomposes to
+        // (21.0, 36.4) m/s, and the apex is reached at 3.71 s and 67.6 m above the launch point.
+        PlanarApexProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult solved = solve_planar_apex(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(solved.outcome), "solved",
+                "an upward projectile reaches its apex through two independent routes");
+        t.equal(solved.time_to_apex_text, "3.71",
+                "the time to the apex comes from v = v0 + a t with the apex velocity zero");
+        t.equal(solved.height_text, "67.6",
+                "the apex height agrees between the time-to-apex route and v^2 = v0^2 + 2 a x");
+        t.check(has_rule(derivation, "physics.planar-kinematics.check-apex-routes"),
+                "the two-route agreement is recorded through the family's check vocabulary");
+        t.check(check_detail(derivation, "physics.planar-kinematics.check-apex-routes")
+                    .find("67.6") != std::string::npos,
+                "the recorded check names the height both routes reached");
+    }
+    {
+        // A projectile with no upward component never rises above the launch point, so there is no
+        // apex to ask for.
+        PlanarApexProblem input;
+        input.body_name = "puck";
+        input.initial_velocity = parsed_vector("(5, 0) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult refused = solve_planar_apex(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(refused.outcome), "no apex above the launch point",
+                "a projectile with no upward component is refused rather than given a height");
+        t.check(!refused.has_value, "the refusal offers no apex height");
+    }
+    {
+        // Both routes are exact rational arithmetic over the same inputs, so they cannot disagree
+        // through any valid problem; only a defect in the comparison itself could let them.
+        // physics.planar-kinematics.check-apex-routes was watched failing by reversing the fix,
+        // reverting to a comparison that always reported agreement: with that reversal, this same
+        // stone problem still reported "solved" with no check recorded, so the guard was confirmed
+        // to depend on the comparison rather than to pass unconditionally.
+        PlanarApexProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult solved = solve_planar_apex(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(solved.outcome), "solved",
+                "the two-route check passes rather than being vacuously true");
+        t.check(has_rule(derivation, "physics.planar-kinematics.check-apex-routes"),
+                "the agreement check is recorded rather than skipped");
+    }
 }
 
 }  // namespace nps
