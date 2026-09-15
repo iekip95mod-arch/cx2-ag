@@ -1825,6 +1825,16 @@
       "branch": "claude/issue-342",
       "slug": "cx2-ag-claude-review-echo",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-344",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 344,
+      "pr": 362,
+      "branch": "claude/issue-344",
+      "slug": "cx2-ag-claude-review-grove",
+      "released": false
     }
   ]
 }
