@@ -1764,7 +1764,7 @@
       "pr": null,
       "branch": "claude/issue-279",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-342",
@@ -1804,7 +1804,7 @@
       "pr": 359,
       "branch": "claude/issue-279",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-346",
@@ -1906,7 +1906,7 @@
       "pr": 372,
       "branch": "fix/fast-compiles-the-bridge",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-181",
@@ -1976,6 +1976,16 @@
       "pr": 383,
       "branch": "claude/issue-345",
       "slug": "cx2-ag-claude-review-grove",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-387",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 387,
+      "branch": "emulator-harness",
+      "slug": "cx2-ag-claude-review-cairn",
       "released": false
     }
   ]
