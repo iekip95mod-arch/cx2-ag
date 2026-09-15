@@ -1047,6 +1047,13 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                 return result;
             if (h + 1 == route.size())
                 isolated = hop_isolated;
+            if (giac_disagreed) {
+                result.outcome = KinematicsOutcome::VerificationFailed;
+                result.detail =
+                    "Giac's rearrangement and the linear solver disagree, so no value is offered";
+                result.status = DerivationStatus::VerificationFailed;
+                return result;
+            }
         }
 
         // Substituting against the names known now, not against the problem's givens: on a later
@@ -1098,13 +1105,6 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             result.outcome = KinematicsOutcome::NoApplicableEquation;
             result.detail = solved.detail;
             result.status = solved.status;
-            return result;
-        }
-        if (giac_disagreed) {
-            result.outcome = KinematicsOutcome::VerificationFailed;
-            result.detail =
-                "Giac's rearrangement and the linear solver disagree, so no value is offered";
-            result.status = DerivationStatus::VerificationFailed;
             return result;
         }
 

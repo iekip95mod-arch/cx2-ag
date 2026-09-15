@@ -493,7 +493,7 @@ void run_kinematics_tests(TestSink &t) {
                         std::vector<Survivor> survives; };
         const Ending endings[] = {
             {"agreed", {"[[(v-v0)/a]]", "0"}, {}},
-            {"disagreed", {"[[(v+v0)/a]]", "1"}, {{"criterion 4", 1}, {"criterion 8", 3}}},
+            {"disagreed", {"[[(v+v0)/a]]", "1"}, {{"criterion 4", 1}}},
             {"could not compare", {"[[(v-v0)/a]]"}, {{"criterion 4", 1}}},
             {"declined", {"not an expression"}, {}},
         };
@@ -558,6 +558,9 @@ void run_kinematics_tests(TestSink &t) {
         t.check(s.answer.empty(), "so there is no answer");
         t.evidence("VER-008", s.failed_checks == 1,
                    "and the rearrangement step carries the failed check");
+        t.check(!has(s.rules, "kin.substitute") && !has(s.rules, "eq.collect-like-terms") &&
+                    !has(s.rules, "eq.divide-both-sides") && s.steps == 3,
+                "a contradicted rearrangement stops before substitution or linear solve moves");
     }
     {
         // The rearrangement arrives but the comparison does not, because only one reply is scripted
