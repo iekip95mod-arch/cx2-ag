@@ -1199,6 +1199,16 @@
       "slug": "cx2-ag-claude-review-anchor",
       "released": false,
       "selectedReview": true
+    },
+    {
+      "key": "claude/reviewer/issue-45",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 45,
+      "pr": 252,
+      "branch": "gemini/issue-45",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
