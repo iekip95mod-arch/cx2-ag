@@ -9,7 +9,7 @@ const root = `repos/${repository}`;
 
 function fixture(provider = 'codex', labels = [`${provider}-review`], recorded) {
   const identity = { provider, branch: `${provider}/issue-42`, login: 'executor[bot]', userId: 7, appId: 8, secretName: 'EXECUTOR_KEY' };
-  const pr = { number: 90, state: 'open', draft: false, mergeable: true, user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: labels.map(name => ({ name })) };
+  const pr = { number: 90, state: 'open', draft: false, mergeable: true, mergeable_state: 'behind', user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: labels.map(name => ({ name })) };
   const writes = [];
   const runs = [];
   let behind = 1;
@@ -206,4 +206,43 @@ test('an update leaves an ambiguous review label pair alone', async () => {
   const f = fixture('claude', ['claude-review', 'gemini-review']);
   assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
   assert.deepEqual(f.writes.map(write => write.method), ['PUT']);
+});
+
+test('a behind branch is held while any other gate is still deciding it', async () => {
+  for (const state of ['blocked', 'unstable', 'draft', 'clean', 'dirty']) {
+    const f = fixture();
+    f.pr.mergeable_state = state;
+    assert.deepEqual(await discoverBranches(f.api, f.assignment), { include: [] });
+    assert.deepEqual(await discoverBranches(f.api, f.assignment, 90), { include: [] });
+    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'gated');
+    assert.equal(f.writes.length, 0);
+  }
+});
+
+test('a branch whose only remaining blocker is being out of date is still updated', async () => {
+  const f = fixture();
+  assert.equal(f.pr.mergeable_state, 'behind');
+  assert.equal((await discoverBranches(f.api, f.assignment)).include.length, 1);
+  assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+  assert.deepEqual(f.writes.map(write => write.method), ['PUT', 'DELETE', 'POST']);
+});
+
+test('an uncomputed mergeability is waited for rather than treated as ready', async () => {
+  const pending = fixture();
+  pending.pr.mergeable_state = 'unknown';
+  let waits = 0;
+  assert.equal(await updateBranch({ pr: 90, login: pending.identity.login }, pending.api, async () => { waits++; }, pending.assignment), 'unknown');
+  assert.equal(pending.writes.length, 0);
+  assert.ok(waits >= 1);
+  assert.deepEqual(await discoverBranches(pending.api, pending.assignment, undefined, async () => {}), { include: [] });
+});
+
+test('a mergeability that settles on behind while waiting proceeds with the update', async () => {
+  const settling = fixture();
+  settling.pr.mergeable_state = 'unknown';
+  assert.equal((await discoverBranches(settling.api, settling.assignment, 90, async () => { settling.pr.mergeable_state = 'behind'; })).include.length, 1);
+  const update = fixture();
+  update.pr.mergeable_state = 'unknown';
+  assert.equal(await updateBranch({ pr: 90, login: update.identity.login }, update.api, async () => { update.pr.mergeable_state = 'behind'; }, update.assignment), 'updated');
+  assert.deepEqual(update.writes.map(write => write.method), ['PUT', 'DELETE', 'POST']);
 });
