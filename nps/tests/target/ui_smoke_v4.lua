@@ -116,7 +116,10 @@ check(platform.withGC(function(first, middle, last, context)
 end, "first", nil, "last"), "withGC preserves all supplied arguments including nil")
 -- A clock that moves 100 ms per reading, so consecutive presses in a test are distinct presses.
 local clock = 1000
-timer = { getMilliSecCounter = function() clock = clock + 100 return clock end }
+timer_starts, timer_stops, timer_interval = 0, 0, nil
+timer = { getMilliSecCounter = function() clock = clock + 100 return clock end,
+          start = function(seconds) timer_starts = timer_starts + 1 timer_interval = seconds end,
+          stop = function() timer_stops = timer_stops + 1 end }
 cursor = { set = function() end }
 image = { new = function() return {} end, width = function() return 1 end, height = function() return 1 end }
 local registered_menu = nil
@@ -585,7 +588,9 @@ local calls = {
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
     forces = 0, optics = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
+    solve_begin = 0, solve_advance = 0, solve_cancel = 0,
 }
+local incremental_task = nil
 local profile_events = {}
 local profile_finishes = {}
 local last_args = nil
@@ -667,6 +672,47 @@ nps_split = {
         return take_step_result(text)
     end,
     solve = function(text, ...) calls.solve = calls.solve + 1 last_args = { text, ... } return take_step_result(text) end,
+    -- The incremental owner as the native bridge presents it: a task that publishes a longer
+    -- verified prefix on each advance and only carries an answer when it completes.
+    solve_begin = function(text, variable, operation)
+        calls.solve_begin = calls.solve_begin + 1
+        if type(variable) ~= "string" or variable == "" then return nil, "variable" end
+        incremental_task = { request = text, variable = variable, operation = operation or "linear",
+                             published = 0 }
+        return { state = "pending", pending = true, step_count = 0, steps = {},
+                 original_expression = text, normalized_expression = text, status = "not recorded" }
+    end,
+    solve_advance = function(units)
+        calls.solve_advance = calls.solve_advance + 1
+        if not incremental_task then return nil, "no solve is in progress" end
+        incremental_task.published = incremental_task.published + 1
+        if incremental_task.published < 3 then
+            local prefix = {}
+            local whole = take_step_result(incremental_task.request)
+            for i = 1, incremental_task.published do prefix[i] = whole.steps[i] end
+            return { state = "pending", pending = true, step_count = #prefix, steps = prefix,
+                     original_expression = incremental_task.request,
+                     normalized_expression = incremental_task.request, status = "not recorded" }
+        end
+        local record = take_step_result(incremental_task.request)
+        record.state, record.pending = "complete", false
+        record.step_count = #record.steps
+        incremental_task = nil
+        return record
+    end,
+    solve_cancel = function()
+        calls.solve_cancel = calls.solve_cancel + 1
+        if not incremental_task then return nil, "no solve is in progress" end
+        local published = incremental_task.published
+        incremental_task = nil
+        return { state = "cancelled", pending = false, step_count = published, steps = {},
+                 status = "cancelled" }
+    end,
+    solve_close = function()
+        local held = incremental_task ~= nil
+        incremental_task = nil
+        return held
+    end,
     kinematics = function(...) calls.kinematics = calls.kinematics + 1 last_args = { ... } return fake_kinematics end,
     unit_conversion = function(source, target)
         calls.unit_conversion = calls.unit_conversion + 1
@@ -975,6 +1021,58 @@ check(calls.device_identity == 1, "and does not ask again on every frame it pain
 -- Native leaves an empty work area bare, so the shell's instruction text is gone from it.
 check(text:find("Type * to enter shell", 1, true) == nil,
       "the work area carries no instruction text")
+
+-- PERF-002. A solve goes to the incremental owner, which advances a bounded number of checkpoints
+-- per timer fire, so the shell paints the prefix it has verified instead of holding one frame for
+-- the whole derivation.
+do
+    local synchronous_before = calls.solve
+    local starts_before = timer_starts
+    type_line("!s 3x=9")
+    on.enterKey()
+    check(calls.solve == synchronous_before and calls.solve_begin == 1,
+          "a solve starts the incremental owner rather than the synchronous bridge call")
+    check(incrementalSolve.active and timer_starts == starts_before + 1 and
+          timer_interval == INCREMENTAL_SOLVE_INTERVAL,
+          "starting an incremental solve arms the timer that will advance it")
+    check(tostring(steps.status):find("solving", 1, true) == 1,
+          "the shell says a solve is running while it is unfinished")
+    local published, fires = {}, 0
+    repeat
+        fires = fires + 1
+        on.timer()
+        if incrementalSolve.active and incrementalSolve.progress then
+            published[#published + 1] = incrementalSolve.progress.step_count
+        end
+    until not incrementalSolve.active or fires > 16
+    check(fires == 3 and calls.solve_advance == 3,
+          "the solve takes three timer fires, so it genuinely progresses across paints")
+    check(#published == 2 and published[1] == 1 and published[2] == 2,
+          "each unfinished fire publishes a longer verified prefix than the one before it")
+    check(type(steps.result) == "table" and steps.result.state == "complete" and
+          steps.result.advances == 3 and #steps.result.steps > published[2],
+          "the finished task reaches the viewer with the whole walkthrough and its advance count")
+    check(steps.result.mode == "solve" and steps.result.input == "3x=9" and
+          type(steps.result.total_ms) == "number",
+          "the incremental record carries the same fields the synchronous solve publishes")
+    check(not incrementalSolve.active and incremental_task == nil,
+          "finishing the solve releases the native task rather than leaving its frames charged")
+    closeSteps()
+end
+-- Cancelling keeps the moves the task verified and does not open a walkthrough for them.
+do
+    local previous = steps.result
+    type_line("!s 3x=9")
+    on.enterKey()
+    on.timer()
+    check(incrementalSolve.active and calls.solve_cancel == 0, "a cancelled solve starts unfinished")
+    check(incrementalSolve.cancel() and calls.solve_cancel == 1 and not incrementalSolve.active,
+          "cancelling stops the incremental owner through the native task")
+    check(tostring(steps.status):find("1 verified steps", 1, true) ~= nil,
+          "cancellation reports the prefix the task verified")
+    check(steps.result == previous,
+          "a cancelled solve does not replace the walkthrough the viewer was showing")
+end
 
 local giac_before_manifest = calls.giac
 local solve_before_manifest = calls.solve

@@ -17,7 +17,6 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -1970,7 +1969,7 @@ int l_solve_local(lua_State *L) { return solve_into(L, false); }
 // cooperative checkpoints per paint. One resident task, because the viewer shows one solve.
 constexpr size_t kSolveTaskFrameBytes = 65536;
 
-std::unique_ptr<SolveTask> resident_solve;
+std::optional<SolveTask> resident_solve;
 
 const char *task_state_name(TaskState state) {
     switch (state) {
@@ -2046,9 +2045,8 @@ int l_solve_begin(lua_State *L) {
     SolveRequest request;
     request.original_expression = text;
     request.numeric_mode = mode;
-    resident_solve = std::make_unique<SolveTask>(
-        named == "linear" ? SolveOperation::Linear : SolveOperation::Rearrange, std::move(request),
-        variable, kSolveTaskFrameBytes);
+    resident_solve.emplace(named == "linear" ? SolveOperation::Linear : SolveOperation::Rearrange,
+                           std::move(request), variable, kSolveTaskFrameBytes);
     push_solve_progress(L, *resident_solve);
     return 1;
 }
@@ -2085,7 +2083,7 @@ int l_solve_cancel(lua_State *L) {
 // Releasing the frames is separate from cancelling, because the viewer reads the published prefix
 // of a cancelled solve and only closes it when it moves on.
 int l_solve_close(lua_State *L) {
-    const bool held = resident_solve != nullptr;
+    const bool held = resident_solve.has_value();
     resident_solve.reset();
     lua_pushboolean(L, held);
     return 1;
