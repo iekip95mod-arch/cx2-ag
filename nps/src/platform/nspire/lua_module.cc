@@ -41,6 +41,7 @@
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
+#include "nps/physics/optics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -2950,6 +2951,130 @@ int l_density(lua_State *L) {
     return 1;
 }
 
+bool optics_relation(std::string_view name, OpticsRelation *relation) {
+    if (name == "refraction")
+        *relation = OpticsRelation::Refraction;
+    else if (name == "thin lens")
+        *relation = OpticsRelation::ThinLens;
+    else if (name == "spherical mirror")
+        *relation = OpticsRelation::SphericalMirror;
+    else if (name == "two-slit interference")
+        *relation = OpticsRelation::DoubleSlit;
+    else if (name == "single-slit diffraction")
+        *relation = OpticsRelation::SingleSlit;
+    else
+        return false;
+    return true;
+}
+
+bool optics_variable(std::string_view name, OpticsVariable *variable) {
+    if (name == "incident index")
+        *variable = OpticsVariable::IndexIncident;
+    else if (name == "incident sine")
+        *variable = OpticsVariable::SineIncident;
+    else if (name == "transmitted index")
+        *variable = OpticsVariable::IndexTransmitted;
+    else if (name == "transmitted sine")
+        *variable = OpticsVariable::SineTransmitted;
+    else if (name == "focal length")
+        *variable = OpticsVariable::FocalLength;
+    else if (name == "object distance")
+        *variable = OpticsVariable::ObjectDistance;
+    else if (name == "image distance")
+        *variable = OpticsVariable::ImageDistance;
+    else if (name == "slit spacing")
+        *variable = OpticsVariable::SlitSpacing;
+    else if (name == "fringe sine")
+        *variable = OpticsVariable::SineFringe;
+    else if (name == "fringe order")
+        *variable = OpticsVariable::FringeOrder;
+    else if (name == "wavelength")
+        *variable = OpticsVariable::Wavelength;
+    else
+        return false;
+    return true;
+}
+
+// The relation carries three or four variables, so the third known pair is optional rather than a
+// separate entry point per relation.
+int l_optics(lua_State *L) {
+    const char *relation_text = scalar_string_argument(L, 1);
+    const char *unknown_text = scalar_string_argument(L, 2);
+    const char *names[3] = {scalar_string_argument(L, 3), scalar_string_argument(L, 5),
+                            scalar_string_argument(L, 7, "")};
+    const char *values[3] = {scalar_string_argument(L, 4), scalar_string_argument(L, 6),
+                             scalar_string_argument(L, 8, "")};
+    GcPause paused(L);
+
+    OpticsProblem problem;
+    std::string why;
+    bool parsed = optics_relation(relation_text, &problem.relation);
+    if (!parsed)
+        why = "unknown optics relation " + std::string(relation_text);
+    if (parsed && !optics_variable(unknown_text, &problem.unknown)) {
+        parsed = false;
+        why = "unknown optics variable " + std::string(unknown_text);
+    }
+    for (size_t i = 0; parsed && i < 3; ++i) {
+        if (*names[i] == '\0' && *values[i] == '\0')
+            continue;
+        OpticsKnown known;
+        if (!optics_variable(names[i], &known.variable)) {
+            parsed = false;
+            why = "unknown optics variable " + std::string(names[i]);
+            break;
+        }
+        if (!parse_quantity(values[i], &known.quantity, &why)) {
+            parsed = false;
+            break;
+        }
+        problem.knowns.push_back(std::move(known));
+    }
+    if (!parsed)
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const OpticsResult r = solve_optics(arena, d, problem, interactive_budget());
+
+    lua_newtable(L);
+    set_field(L, "outcome", optics_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == OpticsOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    set_field(L, "relation", optics_relation_name(problem.relation));
+    set_field(L, "unknown", optics_variable_name(problem.unknown));
+    // The convention is what the sign of the answer is read under, so it travels with the answer
+    // rather than staying inside the step it was declared in.
+    set_field(L, "convention", r.convention);
+    if (r.outcome == OpticsOutcome::Solved) {
+        std::string answer = std::string(optics_variable_name(problem.unknown)) + " = " +
+                             r.value_text;
+        if (!r.unit_text.empty())
+            answer += " " + r.unit_text;
+        set_field(L, "result", answer);
+        set_field(L, "value", r.value_text);
+        set_field(L, "exact_value", rational_text(r.quantity.value));
+        set_field(L, "unit", r.unit_text);
+        set_precision(L, r.quantity.precision);
+    }
+    if (r.has_magnification)
+        set_field(L, "magnification", r.magnification_text);
+    if (r.has_critical_sine)
+        set_field(L, "critical_sine", r.critical_sine_text);
+    if (r.equation != kNoNode)
+        set_field(L, "equation", print(arena, r.equation));
+    if (r.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, r.substituted));
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
 int l_vector_addition(lua_State *L) {
     const char *first_text = scalar_string_argument(L, 1);
     const char *second_text = scalar_string_argument(L, 2);
@@ -3615,6 +3740,7 @@ const luaL_Reg lib[] = {
     {"catch_up", l_catch_up},
     {"unit_conversion", l_unit_conversion},
     {"density", l_density},
+    {"optics", l_optics},
     {"vector_addition", l_vector_addition},
     {"relative_motion", l_relative_motion},
     {"relative_motion_local", l_relative_motion_local},

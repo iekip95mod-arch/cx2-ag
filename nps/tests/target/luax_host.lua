@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 24,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 29,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -269,6 +269,11 @@ local expected_modules = {
     "physics.vectors.magnitude-components.two-dimension",
     "physics.forces.newton-second-law",
     "physics.work.constant-force-dot-product",
+    "physics.optics.refraction.snell",
+    "physics.optics.thin-lens.image",
+    "physics.optics.spherical-mirror.image",
+    "physics.optics.double-slit.maxima",
+    "physics.optics.single-slit.minima",
     "units.chain-link-conversion",
     "units.si"
 }
@@ -842,6 +847,8 @@ do
         { "kinematics_local", { "find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s" } },
         { "unit_conversion", { "3 m", "cm" } },
         { "density", { "mass", "density", "4 kg/m^3", "volume", "3 m^3" } },
+        { "optics", { "thin lens", "image distance", "focal length", "10 cm",
+                      "object distance", "15 cm" } },
         { "vector_addition", { "(1, 2) m", "(3, 4) m" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
@@ -1138,6 +1145,59 @@ check(density_rules["physics.density.definition"] and
       "the bridge retains density planning, conversion, solve and verification records")
 check(r.giac_calls == 0 and type(r.equation) == "string" and type(r.substituted) == "string",
       "density stays local and returns both symbolic and substituted relations")
+
+r = nps.optics("thin lens", "image distance", "focal length", "10 cm", "object distance", "15 cm")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the optics bridge returns a verified thin lens solution")
+check(r.result == "image distance = 0.3 m" and r.value == "0.3" and r.unit == "m" and
+      r.relation == "thin lens" and r.unknown == "image distance",
+      "the optics bridge returns structured answer fields in SI")
+check(r.magnification == "-2" and type(r.convention) == "string" and
+      r.convention:find("do > 0", 1, true) ~= nil,
+      "the optics bridge copies the lateral magnification and the declared sign convention")
+check(r.critical_sine == nil,
+      "a lens solve carries no critical sine, which belongs to refraction alone")
+local optics_rules = {}
+for _, s in ipairs(r.steps) do
+    if s.rule then optics_rules[s.rule] = true end
+end
+check(optics_rules["physics.optics.thin-lens.image"] and
+      optics_rules["physics.optics.check-dimensions"] and
+      optics_rules["physics.optics.convert-units"] and
+      optics_rules["physics.optics.substitute"] and
+      optics_rules["physics.optics.check-candidate"],
+      "the bridge retains optics planning, conversion, solve and verification records")
+check(r.giac_calls == 0 and type(r.equation) == "string" and type(r.substituted) == "string",
+      "optics stays local and returns both symbolic and substituted relations")
+
+r = nps.optics("refraction", "transmitted sine", "incident index", "2", "incident sine", "0.3",
+               "transmitted index", "1")
+check(r.solved == true and r.value == "0.6" and r.unit == "" and r.critical_sine == "0.5" and
+      r.magnification == nil,
+      "the optics bridge copies the critical sine of a dimensionless refraction answer")
+
+r = nps.optics("refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
+               "transmitted index", "1")
+check(r.outcome == "total internal reflection" and r.solved == false and r.result == nil and
+      r.critical_sine == "0.5" and #r.steps > 0,
+      "the optics bridge preserves total internal reflection as a recorded conclusion")
+
+r = nps.optics("thin lens", "image distance", "focal length", "10 cm", "object distance", "3 s")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil and
+      #r.steps == 0,
+      "the optics bridge rejects a known with the wrong dimension before solving")
+r = nps.optics("thin lens", "image distance", "focal length", "not a quantity",
+               "object distance", "15 cm")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
+      "the optics bridge returns a structured quantity parse refusal")
+r = nps.optics("prism", "image distance", "focal length", "10 cm", "object distance", "15 cm")
+check(r.outcome == "invalid input" and r.detail == "unknown optics relation prism" and
+      #r.steps == 0,
+      "the optics bridge refuses an unknown relation without inventing a mapping")
+r = nps.optics("thin lens", "curvature", "focal length", "10 cm", "object distance", "15 cm")
+check(r.outcome == "invalid input" and r.detail == "unknown optics variable curvature" and
+      #r.steps == 0,
+      "the optics bridge refuses an unknown typed variable without inventing a mapping")
 
 r = nps.density("mass", "density", "2.00 g/cm^3", "volume", "3.00 cm^3")
 check(r.solved == true and r.precision.kind == "measured" and

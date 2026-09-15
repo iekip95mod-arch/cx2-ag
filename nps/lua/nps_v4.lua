@@ -61,6 +61,7 @@ local requiredSolvers = {
 	{ "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
+	{ "optics", "physics.optics.thin-lens.image" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2706,6 +2707,16 @@ PHYSICS_FIXTURES = {
 				equilibrium = false,
 				unknown = "acceleration",
 			})
+		end,
+	},
+	{
+		label = "Find where a lens puts the image",
+		problem = "An object sits 15 centimetres in front of a lens that focuses at 10 " ..
+		          "centimetres. Where does the picture of it land, and which way up is it?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("thin lens", "image distance", "focal length", "10 cm",
+			                         "object distance", "15 cm")
 		end,
 	},
 }
