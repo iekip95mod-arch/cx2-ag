@@ -1325,6 +1325,16 @@
       "branch": "claude/issue-137",
       "slug": "cx2-ag-claude-review-arch",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-263",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 263,
+      "pr": 277,
+      "branch": "claude/issue-263",
+      "slug": "cx2-ag-claude-review-crest",
+      "released": false
     }
   ]
 }
