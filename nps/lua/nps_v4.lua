@@ -60,6 +60,7 @@ local requiredSolvers = {
 	{ "work", "physics.work.constant-force-dot-product" },
 	{ "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
+	{ "forces", "physics.forces.newton-second-law" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2683,6 +2684,27 @@ PHYSICS_FIXTURES = {
 					x = "3", y = "1", rank = 2, frame = "ground", unit = "m/s",
 					precision = exactPhysicsPrecision,
 				},
+			})
+		end,
+	},
+	{
+		label = "Find how hard a sliding block speeds up",
+		problem = "A 2 kilogram block on a table is pushed with 12 newtons while friction rubs " ..
+		          "back. Newton's second law along the table gives what is left over.",
+		mode = "forces",
+		run = function()
+			return nps_nspire.forces({
+				body = "block",
+				support = "table",
+				mass = "2 kg",
+				gravity = "10 m/s^2",
+				surface = "horizontal",
+				applied = "12 N",
+				friction = "kinetic",
+				friction_coefficient = "0.25",
+				motion = "up the axis",
+				equilibrium = false,
+				unknown = "acceleration",
 			})
 		end,
 	},
