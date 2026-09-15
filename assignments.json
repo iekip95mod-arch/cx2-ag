@@ -1445,6 +1445,16 @@
       "branch": "claude/issue-281",
       "slug": "cx2-ag-claude-nebula",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-281",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 281,
+      "pr": 291,
+      "branch": "claude/issue-281",
+      "slug": "cx2-ag-claude-review-brook",
+      "released": false
     }
   ]
 }
