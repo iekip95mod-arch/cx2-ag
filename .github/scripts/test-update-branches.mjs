@@ -7,7 +7,7 @@ import { discoverBranches, updateBranch } from './update-branches.mjs';
 const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
 
-function fixture(provider = 'codex', labels = [`${provider}-review`]) {
+function fixture(provider = 'codex', labels = [`${provider}-review`], recorded) {
   const identity = { provider, branch: `${provider}/issue-42`, login: 'executor[bot]', userId: 7, appId: 8, secretName: 'EXECUTOR_KEY' };
   const pr = { number: 90, state: 'open', draft: false, mergeable: true, user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: labels.map(name => ({ name })) };
   const writes = [];
@@ -33,7 +33,13 @@ function fixture(provider = 'codex', labels = [`${provider}-review`]) {
   const review = (id, workflow = 'agent-review.yml', overrides = {}) => {
     runs.push({ id, path: `.github/workflows/${workflow}`, event: 'pull_request', head_repository: { full_name: repository }, head_branch: pr.head.ref, head_sha: 'a'.repeat(40), status: 'in_progress', run_attempt: 1, pull_requests: [{ number: 90 }], ...overrides });
   };
-  return { pr, identity, writes, api, review, assignment: async () => identity, set behind(value) { behind = value; } };
+  const reviewer = async ({ repository: name, pr: number, branch }) => {
+    assert.equal(name, repository);
+    assert.equal(number, pr.number);
+    assert.equal(branch, pr.head.ref);
+    return recorded;
+  };
+  return { pr, identity, writes, api, review, reviewer, assignment: async () => identity, set behind(value) { behind = value; } };
 }
 
 test('both providers update their existing branch and request review only after the new head exists', async () => {
@@ -167,16 +173,33 @@ test('an update re-requests the review label the PR carries rather than the bran
   }
 });
 
-test('an update requests the branch prefix provider when the PR carries no review label', async () => {
-  for (const [branch, labels] of [['claude', []], ['claude', ['defect']], ['codex', []], ['gemini', ['defect']]]) {
-    const f = fixture(branch, labels);
-    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
-    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
-      `PUT ${root}/pulls/90/update-branch`,
-      `POST ${root}/issues/90/labels`,
-    ]);
-    assert.deepEqual(f.writes.at(-1).body.labels, [`${branch}-review`]);
+test('an update requests the recorded reviewer lease provider when the PR carries no review label', async () => {
+  for (const [branch, reviewer] of [['gemini', 'claude'], ['claude', 'codex'], ['codex', 'gemini'], ['claude', 'claude']]) {
+    for (const labels of [[], ['defect']]) {
+      const f = fixture(branch, labels, reviewer);
+      assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment, f.api, undefined, f.reviewer), 'updated');
+      assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
+        `PUT ${root}/pulls/90/update-branch`,
+        `POST ${root}/issues/90/labels`,
+      ]);
+      assert.deepEqual(f.writes.at(-1).body.labels, [`${reviewer}-review`]);
+    }
   }
+});
+
+test('an update adds no review label when the PR carries none and no reviewer lease records one', async () => {
+  for (const branch of ['codex', 'claude', 'gemini']) for (const labels of [[], ['defect']]) {
+    const f = fixture(branch, labels, undefined);
+    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment, f.api, undefined, f.reviewer), 'updated');
+    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [`PUT ${root}/pulls/90/update-branch`]);
+  }
+});
+
+test('a carried review label outranks a reviewer lease recording another provider', async () => {
+  const f = fixture('gemini', ['claude-review'], 'gemini');
+  assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment, f.api, undefined, f.reviewer), 'updated');
+  assert.deepEqual(f.writes.at(-1).body.labels, ['claude-review']);
+  assert.equal(f.writes.some(write => write.endpoint.includes('gemini-review')), false);
 });
 
 test('an update leaves an ambiguous review label pair alone', async () => {
