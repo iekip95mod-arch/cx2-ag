@@ -76,6 +76,7 @@ set(CORE_SOURCES
     src/physics/density.cc
     src/physics/kinematics.cc
     src/physics/planar_kinematics.cc
+    src/physics/optics.cc
     src/physics/relative_motion.cc
     src/physics/unit_conversion.cc
     src/physics/vector_addition.cc
@@ -120,6 +121,7 @@ set(TEST_SOURCES
     tests/unit/oscillation_tests.cc
     tests/unit/kinematics_tests.cc
     tests/unit/planar_kinematics_tests.cc
+    tests/unit/optics_tests.cc
     tests/unit/relative_motion_tests.cc
     tests/unit/unit_conversion_tests.cc
     tests/unit/vector_addition_tests.cc
