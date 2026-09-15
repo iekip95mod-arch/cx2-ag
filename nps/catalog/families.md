@@ -879,3 +879,184 @@ rule d.power fixture
 rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
+
+family id physics.optics.refraction.snell
+reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
+topic_and_level Refraction and total internal reflection through n1*sin(t1) = n2*sin(t2), PRD section 9 PHYS-022
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed. An angle is supplied as its sine, because the exact engine has no transcendental arithmetic
+accepted_input_forms one typed unknown chosen from n1, sin(t1), n2 and sin(t2), with the other three supplied as distinct typed knowns
+domains_and_parameter_assumptions each refractive index is at least one and dimensionless, each sine lies in [-1, 1] and is dimensionless, and no quantity repeats
+supported_branches_and_degenerate_cases any one of the four may be unknown. Entering a denser medium, leaving a denser one, and equal indices leaving the ray undeviated. An incident sine past the critical sine concludes total internal reflection with the critical sine reported, which is an answer rather than a refusal. Reflection is the same-medium case sin(t2) = sin(t1)
+exact_special_function_and_numerical_result_policy exact rational arithmetic over the supplied sines with no trigonometric evaluation, and measured precision applied only after candidate verification
+word_language_profile_ids none, typed variable and quantity entry only
+parser_module_ids src/units/units.cc, src/physics/optics.cc, src/core/parser.cc
+required_assumptions the light is monochromatic in a homogeneous medium and the answer is read under the relation's declared convention, carried as "the medium is homogeneous and the light is monochromatic" and "angles are measured from the normal, each sine is a non-negative ratio, and the reflected ray leaves at the incident angle"
+test_group_ids optics, units, golden
+proof_obligation_ids obl.plan.preconditions-hold, obl.optics.dimensions-agree, obl.optics.domain-holds, obl.optics.convention-declared, obl.physics.lookup-preserves-solutions, obl.optics.critical-angle, obl.optics.candidate-satisfies
+strategy_ids physics.optics.refraction.snell
+supported_methods check dimensions, check the stated domain, declare the sign convention, substitute exactly into Snell's law, compare the incident sine against the critical sine n2/n1, and verify the candidate by substitution
+unsupported_near_neighbors angles in degrees or radians, Fresnel reflection and transmission coefficients, polarization and the Brewster angle, dispersion and wavelength-dependent indices, prism deviation, and the other four PHYS-022 relations
+solution_soundness_status verified by dimensional analysis, the stated domain, and exact substitution of the candidate back into the law. Total internal reflection is proved from the critical sine rather than inferred from a failed solve
+solution_completeness_status complete for one unknown and three compatible knowns when the unique exact rational answer fits, with total internal reflection reported in place of a transmitted sine
+corpus_case_ids not yet filed, the two golden fixtures optics_refraction_transmitted_sine and optics_refraction_total_internal record this family
+explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.optics.refraction.snell
+release_status in development, unreleased
+rule physics.optics.refraction.snell fixture
+rule physics.optics.check-dimensions fixture
+rule physics.optics.check-domain fixture
+rule physics.optics.sign-convention fixture
+rule physics.optics.substitute fixture
+rule physics.optics.total-internal-reflection fixture
+rule physics.optics.check-candidate fixture
+
+family id physics.optics.thin-lens.image
+reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
+topic_and_level Thin lens imaging through 1/do + 1/di = 1/f with its lateral magnification, PRD section 9 PHYS-022
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed. An angle is supplied as its sine, because the exact engine has no transcendental arithmetic
+accepted_input_forms one typed unknown chosen from f, do and di, with the other two supplied as distinct typed knowns in any length unit
+domains_and_parameter_assumptions every distance carries the dimension of length and is nonzero, and no quantity repeats. The two given reciprocals must not cancel, which is what leaves the third undetermined
+supported_branches_and_degenerate_cases any one of the three may be unknown. Real and virtual images, converging and diverging lenses, and mixed length units converted exactly to SI. Two distances whose reciprocals sum to zero are reported as indeterminate rather than divided by zero
+exact_special_function_and_numerical_result_policy exact rational SI conversion and reciprocal arithmetic, the answer reported in metres, and measured precision applied only after candidate verification
+word_language_profile_ids none, typed variable and quantity entry only
+parser_module_ids src/units/units.cc, src/physics/optics.cc, src/core/parser.cc
+required_assumptions the light is monochromatic in a homogeneous medium and the answer is read under the relation's declared convention, carried as "the medium is homogeneous and the light is monochromatic" and "distances are positive on the real side, so a real object has do > 0, a real image has di > 0, a converging lens has f > 0, and a virtual image gives di < 0"
+test_group_ids optics, units, golden
+proof_obligation_ids obl.plan.preconditions-hold, obl.optics.dimensions-agree, obl.physics.scale-preserves-solutions, obl.optics.domain-holds, obl.optics.convention-declared, obl.physics.lookup-preserves-solutions, obl.optics.candidate-satisfies
+strategy_ids physics.optics.thin-lens.image
+supported_methods check dimensions, convert exactly to SI, check the stated domain, declare the sign convention, substitute exactly into the thin lens equation, verify the candidate, and report the lateral magnification -di/do
+unsupported_near_neighbors thick lenses and lens makers formula, multiple-element systems and their combined focal length, aberration, ray-diagram construction, angular magnification of an eyepiece, the spherical mirror relation, and the other PHYS-022 relations
+solution_soundness_status verified by dimensional analysis, the stated domain, and exact substitution of the candidate back into the lens equation. The magnification is computed from the verified distances rather than reported alongside an unverified one
+solution_completeness_status complete for one unknown and two compatible knowns when the unique exact rational answer fits, refusing the indeterminate case rather than reporting it
+corpus_case_ids not yet filed, the golden fixture optics_thin_lens_real_image records this family
+explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.optics.thin-lens.image
+release_status in development, unreleased
+rule physics.optics.thin-lens.image fixture
+rule physics.optics.check-dimensions fixture
+rule physics.optics.convert-units fixture
+rule physics.optics.check-domain fixture
+rule physics.optics.sign-convention fixture
+rule physics.optics.substitute fixture
+rule physics.optics.check-candidate fixture
+
+family id physics.optics.spherical-mirror.image
+reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
+topic_and_level Spherical mirror imaging through 1/do + 1/di = 1/f with f = R/2, PRD section 9 PHYS-022
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed. An angle is supplied as its sine, because the exact engine has no transcendental arithmetic
+accepted_input_forms one typed unknown chosen from f, do and di, with the other two supplied as distinct typed knowns in any length unit
+domains_and_parameter_assumptions every distance carries the dimension of length and is nonzero, and no quantity repeats. The two given reciprocals must not cancel, which is what leaves the third undetermined
+supported_branches_and_degenerate_cases any one of the three may be unknown. Real and virtual images, concave and convex mirrors, and mixed length units converted exactly to SI. Two distances whose reciprocals sum to zero are reported as indeterminate rather than divided by zero
+exact_special_function_and_numerical_result_policy exact rational SI conversion and reciprocal arithmetic, the answer reported in metres, and measured precision applied only after candidate verification
+word_language_profile_ids none, typed variable and quantity entry only
+parser_module_ids src/units/units.cc, src/physics/optics.cc, src/core/parser.cc
+required_assumptions the light is monochromatic in a homogeneous medium and the answer is read under the relation's declared convention, carried as "the medium is homogeneous and the light is monochromatic" and "distances are positive in front of the mirror, so a real object has do > 0, a real image has di > 0, a concave mirror has f = R/2 > 0, and a virtual image gives di < 0"
+test_group_ids optics, units, golden
+proof_obligation_ids obl.plan.preconditions-hold, obl.optics.dimensions-agree, obl.physics.scale-preserves-solutions, obl.optics.domain-holds, obl.optics.convention-declared, obl.physics.lookup-preserves-solutions, obl.optics.candidate-satisfies
+strategy_ids physics.optics.spherical-mirror.image
+supported_methods check dimensions, convert exactly to SI, check the stated domain, declare the sign convention, substitute exactly into the mirror equation, verify the candidate, and report the lateral magnification -di/do
+unsupported_near_neighbors the radius of curvature entered in place of the focal length, spherical aberration and the paraxial limit, plane mirrors, ray-diagram construction, the thin lens relation, and the other PHYS-022 relations
+solution_soundness_status verified by dimensional analysis, the stated domain, and exact substitution of the candidate back into the mirror equation. The magnification is computed from the verified distances rather than reported alongside an unverified one
+solution_completeness_status complete for one unknown and two compatible knowns when the unique exact rational answer fits, refusing the indeterminate case rather than reporting it
+corpus_case_ids not yet filed, the golden fixture optics_spherical_mirror_image records this family
+explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.optics.spherical-mirror.image
+release_status in development, unreleased
+rule physics.optics.spherical-mirror.image fixture
+rule physics.optics.check-dimensions fixture
+rule physics.optics.convert-units fixture
+rule physics.optics.check-domain fixture
+rule physics.optics.sign-convention fixture
+rule physics.optics.substitute fixture
+rule physics.optics.check-candidate fixture
+
+family id physics.optics.double-slit.maxima
+reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
+topic_and_level Two-slit interference bright fringes through d*sin(t) = m*lambda, PRD section 9 PHYS-022
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed. An angle is supplied as its sine, because the exact engine has no transcendental arithmetic
+accepted_input_forms one typed unknown chosen from d, sin(t), m and lambda, with the other three supplied as distinct typed knowns
+domains_and_parameter_assumptions the slit spacing and the wavelength carry the dimension of length and are strictly positive, the fringe sine lies in [-1, 1] and is dimensionless, and the fringe order is a dimensionless integer
+supported_branches_and_degenerate_cases any one of the four may be unknown. The central maximum at m = 0, higher orders, and mixed length units converted exactly to SI. An isolated order between two integers is refused as unphysical rather than rounded
+exact_special_function_and_numerical_result_policy exact rational SI conversion and arithmetic over the supplied sine with no trigonometric evaluation, and measured precision applied only after candidate verification
+word_language_profile_ids none, typed variable and quantity entry only
+parser_module_ids src/units/units.cc, src/physics/optics.cc, src/core/parser.cc
+required_assumptions the light is monochromatic in a homogeneous medium and the answer is read under the relation's declared convention, carried as "the medium is homogeneous and the light is monochromatic" and "the order m counts bright fringes outward from the central maximum, so m is 0, 1, 2 and up"
+test_group_ids optics, units, golden
+proof_obligation_ids obl.plan.preconditions-hold, obl.optics.dimensions-agree, obl.physics.scale-preserves-solutions, obl.optics.domain-holds, obl.optics.convention-declared, obl.physics.lookup-preserves-solutions, obl.optics.candidate-satisfies, obl.physics.reported-within-half-place
+strategy_ids physics.optics.double-slit.maxima
+supported_methods check dimensions, convert exactly to SI, check the stated domain, declare the order convention, substitute exactly into d*sin(t) = m*lambda, and verify the candidate by substitution
+unsupported_near_neighbors fringe spacing on a screen at a stated distance, intensity distribution and the cosine-squared profile, the small-angle approximation, dark fringes at half-integer orders, the single-slit envelope and missing orders, diffraction gratings, and the other PHYS-022 relations
+solution_soundness_status verified by dimensional analysis, the stated domain including the integrality of the order, and exact substitution of the candidate back into the fringe condition
+solution_completeness_status complete for one unknown and three compatible knowns when the unique exact rational answer fits
+corpus_case_ids not yet filed, the golden fixture optics_double_slit_wavelength records this family
+explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.optics.double-slit.maxima
+release_status in development, unreleased
+rule physics.optics.double-slit.maxima fixture
+rule physics.optics.check-dimensions fixture
+rule physics.optics.convert-units fixture
+rule physics.optics.check-domain fixture
+rule physics.optics.sign-convention fixture
+rule physics.optics.substitute fixture
+rule physics.optics.check-candidate fixture
+rule physics.optics.significant-figures fixture
+
+family id physics.optics.single-slit.minima
+reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
+topic_and_level Single-slit diffraction minima through a*sin(t) = m*lambda, PRD section 9 PHYS-022
+family_envelope_version 1
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed. An angle is supplied as its sine, because the exact engine has no transcendental arithmetic
+accepted_input_forms one typed unknown chosen from a, sin(t), m and lambda, with the other three supplied as distinct typed knowns
+domains_and_parameter_assumptions the slit width and the wavelength carry the dimension of length and are strictly positive, the fringe sine lies in [-1, 1] and is dimensionless, and the order is a dimensionless integer counted from one, since m = 0 is the central maximum rather than a minimum
+supported_branches_and_degenerate_cases any one of the four may be unknown. The first and higher minima, and mixed length units converted exactly to SI. An isolated order between two integers is refused as unphysical rather than rounded
+exact_special_function_and_numerical_result_policy exact rational SI conversion and arithmetic over the supplied sine with no trigonometric evaluation, and measured precision applied only after candidate verification
+word_language_profile_ids none, typed variable and quantity entry only
+parser_module_ids src/units/units.cc, src/physics/optics.cc, src/core/parser.cc
+required_assumptions the light is monochromatic in a homogeneous medium and the answer is read under the relation's declared convention, carried as "the medium is homogeneous and the light is monochromatic" and "the order m counts diffraction minima outward, so m is 1, 2, 3 and up, and m = 0 is the central maximum rather than a minimum"
+test_group_ids optics, units, golden
+proof_obligation_ids obl.plan.preconditions-hold, obl.optics.dimensions-agree, obl.physics.scale-preserves-solutions, obl.optics.domain-holds, obl.optics.convention-declared, obl.physics.lookup-preserves-solutions, obl.optics.candidate-satisfies
+strategy_ids physics.optics.single-slit.minima
+supported_methods check dimensions, convert exactly to SI, check the stated domain, declare the order convention, substitute exactly into a*sin(t) = m*lambda, and verify the candidate by substitution
+unsupported_near_neighbors the central maximum width on a screen at a stated distance, the intensity envelope and its sinc-squared profile, secondary maxima, circular apertures and the Rayleigh criterion, resolving power, the two-slit maxima relation, and the other PHYS-022 relations
+solution_soundness_status verified by dimensional analysis, the stated domain including the integrality of the order, and exact substitution of the candidate back into the minimum condition
+solution_completeness_status complete for one unknown and three compatible knowns when the unique exact rational answer fits
+corpus_case_ids not yet filed, the golden fixture optics_single_slit_minimum records this family
+explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.optics.single-slit.minima
+release_status in development, unreleased
+rule physics.optics.single-slit.minima fixture
+rule physics.optics.check-dimensions fixture
+rule physics.optics.convert-units fixture
+rule physics.optics.check-domain fixture
+rule physics.optics.sign-convention fixture
+rule physics.optics.substitute fixture
+rule physics.optics.check-candidate fixture
