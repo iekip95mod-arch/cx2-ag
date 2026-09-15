@@ -13,6 +13,33 @@ Each claim below says how it is known. `source` means it was read out of a file 
 file and line are given. `measured` means somebody ran it against hardware or a runner and the command is
 given. A claim with neither is not a claim and does not belong here.
 
+## What the target is
+
+<!-- covers: tools/nsptool -->
+
+`measured` on 2026-09-15 with `./tools/nsptool/nsptool.new info`:
+
+    name          TI-Nspire CX II
+    hw type       Nspire CX II non-CAS (0x1d)
+    os version    6.40.74
+    boot1         5.0.42
+    boot2         6.20.7
+    storage       90957824 free of 96862208
+    ram           32037420 free of 36082816
+    lcd           320x240 16bpp
+
+Non-CAS matters: a question that needs symbolic algebra has to be answered by StepCAS or Giac rather
+than by the built-in OS, because this hardware has no CAS to fall back on.
+
+The OS reports as 6.40.74 through nsptool, which is the same build TI writes as 6.4.0.74. An earlier
+reading of 6.2.0.333 recorded elsewhere was wrong.
+
+The free figures move between runs, so treat them as an order of magnitude rather than a constant. Two
+readings minutes apart in one session differed by two megabytes of storage.
+
+Run `info` rather than trusting any of the above. A handheld can be reflashed, and every claim in this
+file about what renders was measured against this one.
+
 ## The verification ladder
 
 <!-- covers: nps/CMakeLists.txt -->
