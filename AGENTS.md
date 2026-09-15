@@ -249,6 +249,10 @@ gh variable set CLAUDE_MODEL --body sonnet --repo iekip95mod-arch/cx2-ag
 gh issue edit 42 --repo iekip95mod-arch/cx2-ag --add-label model:opus
 ~~~
 
+CLAUDE_MODEL is sonnet, so every executor, reviewer and clarification answer runs sonnet unless a label or CLAUDE_REVIEW_MODEL says otherwise.
+
+Every Claude agent also compacts at the same window, four hundred thousand tokens, set by autocompactTokens in run-claude-review.mjs for the reviewer and by the matching flag on the two executor invocations in agent.yml. The CLI takes auto or a figure between one hundred thousand and one million and rejects anything else while parsing, so a bad value fails the job immediately rather than silently falling back. Keep the three in step: a reviewer that compacts at a different point from the executor it is judging is a difference nobody notices until a long run truncates one of them, which is what the guard in test-run-claude-review.mjs is for.
+
 Three things about the label are worth knowing before you use it. It starts nothing on its own, because every agent trigger waits for a different label. It is read from the issue or pull request that raised the event, so a label on the issue reaches the executor and a label on the pull request reaches its reviewer, and neither carries to the other. And two model labels at once is an error rather than a pick, the same way two review labels already are, so an unknown one such as model:haiku fails the job rather than quietly running the default.
 
 Resolution is inline workflow shell rather than a script under .github/scripts, and that is deliberate. agent-review-request.yml and agent-review.yml check out at AGENT_CONTROL_SHA, so a new script file is absent from those jobs until that variable is bumped past the merge, while GitHub reads the workflow body itself from the base branch. test-review-routing.rb runs all four resolution blocks against one shared table, which is what keeps the copies honest.
