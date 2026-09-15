@@ -771,23 +771,24 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     // the inventory and the answer disagree, and then no value is offered.
     // Rebuilt from the published inventory rather than from the running total the answer came out
     // of, so an entry that disagrees with the sum shows up here instead of cancelling itself.
-    Exact inventory_along = exact(0);
-    for (const ForceEntry &entry : result.inventory)
-        inventory_along = add(inventory_along, exact(entry.along));
-    Exact residual;
+    Exact target;
     if (problem.unknown == ForcesUnknown::Acceleration) {
-        residual = sub(inventory_along, mul(exact(mass), answer));
+        target = mul(exact(mass), answer);
     } else {
-        residual = sub(inventory_along, required);
+        target = required;
     }
-    residual.ok = residual.ok && inventory_along.ok;
-    if (!residual.ok) {
+    if (!target.ok) {
         return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
                       "evaluating the force-balance residual exceeds exact arithmetic");
     }
-    const bool balanced = residual.value.num == 0;
+    const ForceBalance balance = forces_along_balance(result.inventory, target.value);
+    if (!balance.exact) {
+        return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
+                      "evaluating the force-balance residual exceeds exact arithmetic");
+    }
+    const bool balanced = balance.balanced;
     const std::string residual_detail =
-        "the along-axis residual is " + rational_text(residual.value) + " N";
+        "the along-axis residual is " + rational_text(balance.residual) + " N";
     if (!add_check(derivation, meter, plan_id, "physics.forces.check-residual",
                    "Force-balance residual", "Substitute the answer back into the axis sum",
                    "A correct answer leaves the along-axis sum exactly equal to m a",
@@ -832,6 +833,20 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     return result;
 }
 
+}
+
+ForceBalance forces_along_balance(const std::vector<ForceEntry> &inventory, const Rational &target) {
+    Exact along = exact(0);
+    for (const ForceEntry &entry : inventory)
+        along = add(along, exact(entry.along));
+    const Exact residual = sub(along, exact(target));
+    ForceBalance balance;
+    balance.exact = residual.ok;
+    if (!balance.exact)
+        return balance;
+    balance.residual = residual.value;
+    balance.balanced = residual.value.num == 0;
+    return balance;
 }
 
 const char *surface_kind_name(SurfaceKind kind) {
