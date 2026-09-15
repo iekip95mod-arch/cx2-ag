@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { agentDeadline } from './agent-deadline.mjs';
+import { agentDeadline, cycleStart } from './agent-deadline.mjs';
 
 function recordExecution(run) {
   const outcome = `exit status ${run.status ?? 'none'}, signal ${run.signal ?? 'none'}${run.error ? `, error ${run.error.message}` : ''}`;
@@ -9,8 +9,11 @@ function recordExecution(run) {
   return outcome;
 }
 
-export function runClaudeReview({ startedAt, timeoutMinutes, now, prompt, schema, model, effort, allowedTools }, execute = spawnSync) {
-  const budget = agentDeadline({ startedAt, timeoutMinutes, now });
+export function runClaudeReview({ startedAt, timeoutMinutes, cycleStartedAt = null, now, prompt, schema, model, effort, allowedTools }, execute = spawnSync) {
+  // This computes the reviewer's budget itself rather than reading AGENT_TIME_BUDGET, so the pull
+  // request's shared cycle has to be handed in here too or the longest job in the loop is the one
+  // job the cap does not reach.
+  const budget = agentDeadline({ startedAt, timeoutMinutes, cycleStartedAt, now });
   const args = ['--print', '--model', model, '--effort', effort, '--max-turns', '256', '--output-format', 'json', '--json-schema', schema, '--permission-mode', 'acceptEdits', '--tools', 'Read,Write,Edit,Grep,Glob,Bash', '--allowedTools', allowedTools];
   const run = execute('claude', args, { input: `${budget.text}\n\n${prompt}`, encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024, stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, GITHUB_TOKEN: '', ANTHROPIC_API_KEY: '' } });
   if (run.error || run.status !== 0) throw Error(`Claude review execution failed with ${recordExecution(run)}. No approval will be published`);
@@ -20,7 +23,7 @@ export function runClaudeReview({ startedAt, timeoutMinutes, now, prompt, schema
 }
 
 function main() {
-  const review = runClaudeReview({ startedAt: Number(process.env.AGENT_JOB_STARTED_AT), timeoutMinutes: Number(process.env.AGENT_JOB_TIMEOUT_MINUTES), prompt: process.env.REVIEW_PROMPT, schema: process.env.REVIEW_SCHEMA, model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT, allowedTools: process.env.REVIEW_ALLOWED_TOOLS });
+  const review = runClaudeReview({ startedAt: Number(process.env.AGENT_JOB_STARTED_AT), timeoutMinutes: Number(process.env.AGENT_JOB_TIMEOUT_MINUTES), cycleStartedAt: cycleStart(process.env.AGENT_CYCLE_STARTED_AT), prompt: process.env.REVIEW_PROMPT, schema: process.env.REVIEW_SCHEMA, model: process.env.REVIEW_MODEL, effort: process.env.REVIEW_EFFORT, allowedTools: process.env.REVIEW_ALLOWED_TOOLS });
   writeFileSync(process.env.REVIEW_OUTPUT, review);
 }
 

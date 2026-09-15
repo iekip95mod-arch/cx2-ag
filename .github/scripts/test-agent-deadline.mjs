@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { agentDeadline } from './agent-deadline.mjs';
+import { agentDeadline, cycleBudgetMinutes, cycleStart } from './agent-deadline.mjs';
 
 const startedAt = 1789232400;
 const scripts = dirname(fileURLToPath(import.meta.url));
@@ -77,6 +77,105 @@ test('executor workflows capture start first and match their actual job timeout'
       assert.ok(general.run.includes('"$AGENT_TIME_BUDGET" "$TASK"'));
       assert.ok(general.run.includes("--allowedTools 'Read,Glob,Grep,Bash(date:*)'"));
     }
+  }
+});
+
+test('the pull request budget is shared across jobs and overrides a later job limit', () => {
+  // A reviewer starting with 30 minutes of the cycle left must be told 30 minutes, not its own 120.
+  const cycleStartedAt = startedAt - (cycleBudgetMinutes - 30) * 60;
+  const bound = agentDeadline({ startedAt, timeoutMinutes: 120, cycleStartedAt, now: startedAt });
+  assert.equal(bound.boundByCycle, true);
+  assert.equal(bound.cycleDeadline, cycleStartedAt + cycleBudgetMinutes * 60);
+  assert.equal(bound.deadline, bound.cycleDeadline);
+  assert.equal(bound.jobDeadline, startedAt + 120 * 60);
+  assert.equal(bound.remaining, 30 * 60 - 300);
+  assert.match(bound.text, /the cutoff above is the pull request budget rather than your own job/);
+  assert.ok(bound.text.includes(new Date(bound.jobDeadline * 1000).toISOString()));
+
+  // A fresh cycle leaves the job limit in charge, and the prompt still names the shared budget.
+  const free = agentDeadline({ startedAt, timeoutMinutes: 30, cycleStartedAt: startedAt, now: startedAt });
+  assert.equal(free.boundByCycle, false);
+  assert.equal(free.deadline, free.jobDeadline);
+  assert.match(free.text, /This job limit falls first/);
+
+  // With no cycle supplied the prompt says nothing about one, so a dispatch run is unchanged.
+  assert.doesNotMatch(agentDeadline({ startedAt, timeoutMinutes: 30, now: startedAt }).text, /shares one/);
+});
+
+test('a spent pull request budget still lets the job run, so a branch cannot be stranded', () => {
+  // Refusing here would stop the reviewer returning a verdict, so the PR could never be approved and
+  // therefore never merge. The budget has to bound new work without preventing the work finishing.
+  const spent = startedAt - cycleBudgetMinutes * 60;
+  const over = agentDeadline({ startedAt, timeoutMinutes: 120, cycleStartedAt: spent, now: startedAt });
+  assert.equal(over.overBudget, true);
+  assert.equal(over.boundByCycle, false);
+  assert.equal(over.deadline, over.jobDeadline, 'a spent cycle falls back to the job limit rather than refusing');
+  assert.ok(over.remaining > 0);
+  assert.match(over.text, /over its allowance/);
+  assert.match(over.text, /still returns its verdict/);
+
+  // The job's own limit is the one that can still refuse, because that clock really has run out.
+  assert.throws(() => agentDeadline({ startedAt, timeoutMinutes: 30, now: startedAt + 1500 }), /execution budget is exhausted/);
+  // Four hours is the ceiling, so a job asking for more is refused rather than granted.
+  for (const values of [{ cycleMinutes: cycleBudgetMinutes + 1 }, { cycleMinutes: 10 }, { cycleMinutes: 60.5 }, { cycleStartedAt: startedAt + 1 }, { cycleStartedAt: 0 }])
+    assert.throws(() => agentDeadline({ startedAt, timeoutMinutes: 30, cycleStartedAt: startedAt, now: startedAt, ...values }), /Invalid agent cycle/);
+  assert.equal(cycleBudgetMinutes, 240);
+});
+
+// The Claude reviewer does not read AGENT_TIME_BUDGET. It calls agentDeadline itself, so the cycle
+// has to reach it through its own environment or the longest job in the loop escapes the cap.
+test('the Claude review runner is given the cycle and the workflow supplies it', async () => {
+  const { runClaudeReview } = await import('./run-claude-review.mjs');
+  const spent = startedAt - cycleBudgetMinutes * 60;
+  let seen = '';
+  const execute = (_cmd, _args, options) => { seen = options.input; return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: { verdict: 'APPROVE' } }) }; };
+  runClaudeReview({ startedAt, timeoutMinutes: 120, cycleStartedAt: spent, now: startedAt, prompt: 'body', schema: '{}', model: 'sonnet', effort: 'high', allowedTools: '' }, execute);
+  assert.match(seen, /shares one 240 minute budget/, 'the reviewer prompt must carry the shared budget');
+  assert.match(seen, /over its allowance/, 'a spent cycle must reach the reviewer rather than being invisible to it');
+
+  const job = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"]["review"])', join(scripts, '../workflows/agent-review.yml')], { encoding: 'utf8' }));
+  const step = job.steps.find(entry => entry.name === 'Review the pull request');
+  assert.equal(step.env.AGENT_CYCLE_STARTED_AT, '${{ github.event.pull_request.created_at }}');
+});
+
+test('the cycle start reads the pull request timestamp the workflow has', () => {
+  // date -u -r 1789474640 prints this timestamp, so the constant is checked outside the code under test.
+  assert.equal(cycleStart('2026-09-15T12:17:20Z'), 1789474640);
+  for (const absent of [undefined, '', '   ']) assert.equal(cycleStart(absent), null);
+  assert.throws(() => cycleStart('not a time'), /Invalid agent cycle start timestamp/);
+});
+
+// Every worker and reviewer job has to receive the cycle start, and it has to receive it from
+// somewhere its own triggers actually populate. Reading github.event.pull_request in a workflow that
+// never fires on a pull request yields an empty string and silently disables the shared budget, which
+// is what an assertion over the expression text alone cannot see.
+test('every worker and reviewer job reads the cycle start from a source its triggers populate', () => {
+  const load = (file, expression) => JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', expression, join(scripts, '../workflows', file)], { encoding: 'utf8' }));
+  const jobs = [['agent.yml', 'respond'], ['agent-codex.yml', 'respond'], ['agent-gemini.yml', 'respond'],
+                ['agent-review.yml', 'review'], ['agent-review.yml', 'codex-review'], ['agent-review.yml', 'gemini-review']];
+  for (const [file, jobName] of jobs) {
+    const workflow = load(file, 'puts JSON.generate(YAML.load_file(ARGV[0]))');
+    const job = workflow.jobs[jobName];
+    const triggers = Object.keys(workflow.on ?? workflow.true ?? {});
+    const budget = job.steps.find(step => step.run === 'node .github/scripts/agent-deadline.mjs');
+    const source = budget?.env?.AGENT_CYCLE_STARTED_AT;
+    assert.ok(source, `${file}: the ${jobName} job must receive AGENT_CYCLE_STARTED_AT`);
+    // One pull_request trigger is not enough. The job runs for every trigger the workflow declares,
+    // so the event may only be trusted when no other kind of trigger can start it.
+    if (triggers.every(trigger => trigger === 'pull_request')) {
+      assert.ok(source.includes('github.event.pull_request.created_at'), `${file}: ${jobName} only fires on pull_request, so it can read the event`);
+      continue;
+    }
+    // No pull_request trigger, so the event carries none and the value has to be resolved instead.
+    assert.ok(!source.includes('github.event.pull_request'), `${file}: ${jobName} never fires on a pull_request, so the event cannot supply the cycle start`);
+    const reference = source.slice(source.indexOf('needs.') + 'needs.'.length, source.indexOf(' }}'));
+    const [producer, outputs, output] = reference.split('.');
+    assert.ok(source.includes('needs.') && outputs === 'outputs' && output, `${file}: ${jobName} must take the cycle start from a resolved job output`);
+    assert.ok(job.needs.includes(producer), `${file}: ${jobName} must declare needs on ${producer}`);
+    assert.ok(workflow.jobs[producer].outputs?.[output], `${file}: the ${producer} job must publish ${output}`);
+    const step = workflow.jobs[producer].steps.find(entry => entry.id === 'cycle');
+    assert.ok(step?.run.includes('gh pr list'), `${file}: ${producer} must look the pull request up from the resolved branch`);
+    assert.equal(step.env.BRANCH, '${{ steps.target.outputs.branch }}');
   }
 });
 
