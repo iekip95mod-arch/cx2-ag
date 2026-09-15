@@ -1794,6 +1794,31 @@ check(r.giac_tag == "approximate" and r.giac_compare_tag == "exact" and
       r.status == "solved but unchecked" and r.agrees == nil,
       "an approximate backend answer cannot pass an exact symbolic cross-check")
 
+-- The learner pressed escape while Giac was working. Giac reports that in the result string, and a
+-- stop the learner asked for is not the same fact as a check that merely could not be used.
+script("GIAC_ERROR: Stopped by user interruption.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "cancelled" and r.status == "cancelled" and r.agrees == nil,
+      "a cancelled first verifier reply is recorded as a cancellation")
+check(r.result ~= nil and r.answer_only == false,
+      "and the derivative computed before the stop is still the answer")
+
+script("2*x", "GIAC_ERROR: Stopped by user interruption.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "exact" and r.giac_compare_tag == "cancelled" and
+      r.status == "cancelled" and r.agrees == nil,
+      "a cancelled comparison reply is recorded as a cancellation")
+
+script("[[4]]", "GIAC_ERROR: Stopped by user interruption.")
+r = nps.solve("2x + 5 = 13", "x")
+check(r.result == "4" and r.status == "cancelled" and r.giac_compare_tag == "cancelled",
+      "a cancelled supplementary equation check keeps the candidate and names the stop")
+
+script("GIAC_ERROR: Stopped by user interruption or stack overflow.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "resource failure" and r.status == "solved but unchecked",
+      "while the spelling giac cannot separate from a stack overflow keeps its resource reading")
+
 script("Error: Bad Argument Value")
 r = nps.integrate("x*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
