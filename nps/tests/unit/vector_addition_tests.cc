@@ -149,11 +149,65 @@ void run_vector_addition_tests(TestSink &t) {
     {
         Derivation derivation;
         VectorAdditionResult result =
-            solve(parsed_vector("1 i + 2 j + 3 k m"), parsed_vector("1 i + 2 j + 3 k m"),
+            solve(parsed_vector("1 i + 2 j + 3 k m"), parsed_vector("4 i - 2 j + 5 k m"),
                   &derivation);
+        t.equal(vector_addition_outcome_name(result.outcome), "solved",
+                "two rank-three vectors add on every axis");
+        t.equal(result.value_text, "(5 i + 8 k) m",
+                "the rank-three sum reports in unit-vector form, with the cancelled axis dropped");
+        t.check(result.has_value && result.value.rank == 3,
+                "the structured rank-three result keeps its rank");
+        t.check(result.value.z.num == 8 && result.value.z.den == 1,
+                "the k component carries the exact sum of the two k components");
+        t.check(has_rule(derivation, "vec.add.component-k"),
+                "the derivation records the k component addition rather than assuming it");
+        t.equal(derivation_status_name(result.status), "solved and verified",
+                "the rank-three walkthrough is verified end to end");
+    }
+
+    {
+        // The k step is the one a rank-two run must not grow, since a third axis nobody entered
+        // would be reported as an answer.
+        Derivation derivation;
+        VectorAdditionResult result =
+            solve(parsed_vector("1 i + 2 j m"), parsed_vector("3 i + 4 j m"), &derivation);
+        t.check(!has_rule(derivation, "vec.add.component-k"),
+                "a rank-two addition records no k component step");
+        t.check(has_rule(derivation, "vec.add.component-j") && result.has_value &&
+                    result.value.rank == 2,
+                "while its own two component steps and rank are still there");
+    }
+
+    {
+        Derivation derivation;
+        VectorAdditionResult result =
+            solve(parsed_vector("1 i + 2 j + 3 k m"), parsed_vector("1 i + 2 j m"), &derivation);
         t.equal(vector_addition_outcome_name(result.outcome), "rank mismatch",
-                "the 2D archetype refuses 3D vectors explicitly");
+                "a rank-three vector and a rank-two vector are still refused");
         t.check(!result.has_value, "a rank refusal carries no answer");
+        t.check(result.detail.find("matching rank two or three") != std::string::npos,
+                "and the refusal says which ranks the archetype accepts");
+    }
+
+    {
+        Vector first = parsed_vector("1 i + 2 j + 3 k km");
+        Vector second = parsed_vector("500 i + 500 j + 500 k m");
+        Derivation derivation;
+        VectorAdditionResult result = solve(first, second, &derivation);
+        t.equal(result.value_text, "(1500 i + 2500 j + 3500 k) m",
+                "rank-three addition converts every axis exactly to SI before adding");
+        t.check(has_rule(derivation, "vec.add.convert-si"),
+                "and records the conversion it performed");
+    }
+
+    {
+        Vector first = parsed_vector("1 i + 2 j + 3 k m");
+        Vector second = parsed_vector("1 i + 2 j + 3 k m");
+        second.frame.name = "ramp";
+        Derivation derivation;
+        VectorAdditionResult result = solve(first, second, &derivation);
+        t.equal(vector_addition_outcome_name(result.outcome), "frame mismatch",
+                "rank three does not loosen the frame requirement");
     }
 
     {
