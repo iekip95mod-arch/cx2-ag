@@ -1884,7 +1884,8 @@
       "pr": 368,
       "branch": "fix/reviewer-duplicate-token",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": false,
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-363",
@@ -1894,7 +1895,8 @@
       "pr": 368,
       "branch": "fix/reviewer-duplicate-token",
       "slug": "cx2-ag-claude-review-crest",
-      "released": false
+      "released": false,
+      "selectedReview": true
     }
   ]
 }
