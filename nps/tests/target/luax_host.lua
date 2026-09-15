@@ -1891,6 +1891,8 @@ r = nps.differentiate("x^2", "x")
 nps.test_escape_pressed(false)
 check(r.giac_tag == "cancelled" and r.status == "cancelled" and r.agrees == nil,
       "and a stop the keypad confirms reads that spelling as the cancellation it was")
+check(r.result ~= nil and r.answer_only == false,
+      "and the derivative computed before that stop is still the answer")
 
 script("Error: Bad Argument Value")
 r = nps.integrate("x*sin(x)", "x")
