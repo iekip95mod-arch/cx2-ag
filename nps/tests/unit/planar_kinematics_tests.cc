@@ -273,6 +273,41 @@ void run_planar_kinematics_tests(TestSink &t) {
         t.equal(planar_kinematics_outcome_name(refused.result.outcome), "arithmetic overflow",
                 "an elapsed time whose square leaves exact arithmetic is a refusal, not a wrap");
     }
+    {
+        Run solved(problem(parsed_vector("(3.0, 4.0) m/s"), parsed_vector("(1.0, -2.0) m/s^2"),
+                           "2.0 s"));
+        t.equal(planar_kinematics_outcome_name(solved.result.outcome), "solved",
+                "measured components are integrated exactly before they are rounded");
+        t.equal(solved.result.displacement_text, "(8.0 i + 4.0 j) m",
+                "the planar displacement rounds once at the shared decimal place");
+        t.equal(solved.result.final_velocity_text, "5.0 i m/s",
+                "the reported final velocity is rounded at that place as well");
+        t.check(solved.result.displacement.x.num == 8 && solved.result.displacement.x.den == 1 &&
+                    solved.result.final_velocity.x.num == 5 &&
+                    solved.result.final_velocity.x.den == 1,
+                "measured reporting does not replace the exact components");
+        const std::string rounding =
+            check_detail(solved.derivation, "physics.planar-kinematics.significant-figures");
+        t.check(rounding.find("(8.0 i + 4.0 j) m is within half a unit in the last place of "
+                              "(8 i + 4 j) m") != std::string::npos,
+                "the displacement rounding cites both of the values it was between");
+        t.check(rounding.find("5.0 i m/s is within half a unit in the last place of 5 i m/s") !=
+                    std::string::npos,
+                "the final velocity is judged too rather than reported unchecked");
+    }
+    {
+        Run solved(problem(parsed_vector("(3, 4) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.check(solved.result.interpretation.find("ball moves right and down") != std::string::npos,
+                "the declared axes give each displacement sign a left-right and up-down reading");
+        t.check(solved.result.interpretation.find("(3 i - 16 j) m/s") != std::string::npos,
+                "the interpretation names the final velocity the interval ends at");
+    }
+    {
+        Run solved(problem(parsed_vector("(0, 4) m/s"), parsed_vector("(0, -10) m/s^2")));
+        t.check(solved.result.interpretation.find("neither left nor right and down") !=
+                    std::string::npos,
+                "a zero horizontal displacement is read as neither direction rather than as left");
+    }
 }
 
 }  // namespace nps

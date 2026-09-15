@@ -769,36 +769,39 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
                           identity_detail);
     }
 
-    std::string displacement_text;
-    std::string final_velocity_text;
-    HalfPlace rounding = HalfPlace::Within;
-    HalfPlace velocity_rounding = HalfPlace::Within;
-    if (!reported_vector_text(displacement, &displacement_text, rounding) ||
-        !reported_vector_text(final_velocity, &final_velocity_text, velocity_rounding)) {
-        return failed(PlanarKinematicsOutcome::ArithmeticOverflow,
-                      DerivationStatus::ResourceLimitReached,
-                      "reporting the measured precision exceeds exact integer arithmetic");
-    }
-    Vector exact_display = displacement;
-    exact_display.precision = Precision();
-    std::string exact_text;
-    HalfPlace exact_rounding = HalfPlace::Within;
-    if (!reported_vector_text(exact_display, &exact_text, exact_rounding)) {
-        return failed(PlanarKinematicsOutcome::ArithmeticOverflow,
-                      DerivationStatus::ResourceLimitReached,
-                      "the exact displacement cannot be formatted");
-    }
-    if (rounding == HalfPlace::Outside) {
-        return failed(PlanarKinematicsOutcome::VerificationFailed,
-                      DerivationStatus::VerificationFailed,
-                      displacement_text + " is further than half a unit in its last place from " +
-                          exact_text);
-    }
-    if (displacement_text != exact_text || rounding == HalfPlace::Unreadable) {
+    // Both reported vectors are judged, since units.h asks a caller not to leave a rounding unread.
+    auto report_measured = [&](const Vector &value, const char *what, std::string *text,
+                               PlanarKinematicsResult *failure) -> bool {
+        HalfPlace rounding = HalfPlace::Within;
+        if (!reported_vector_text(value, text, rounding)) {
+            *failure = failed(PlanarKinematicsOutcome::ArithmeticOverflow,
+                              DerivationStatus::ResourceLimitReached,
+                              "reporting the measured precision exceeds exact integer arithmetic");
+            return false;
+        }
+        Vector exact_display = value;
+        exact_display.precision = Precision();
+        std::string exact_text;
+        HalfPlace exact_rounding = HalfPlace::Within;
+        if (!reported_vector_text(exact_display, &exact_text, exact_rounding)) {
+            *failure = failed(PlanarKinematicsOutcome::ArithmeticOverflow,
+                              DerivationStatus::ResourceLimitReached,
+                              std::string("the exact ") + what + " cannot be formatted");
+            return false;
+        }
+        if (rounding == HalfPlace::Outside) {
+            *failure = failed(PlanarKinematicsOutcome::VerificationFailed,
+                              DerivationStatus::VerificationFailed,
+                              *text + " is further than half a unit in its last place from " +
+                                  exact_text);
+            return false;
+        }
+        if (*text == exact_text && rounding != HalfPlace::Unreadable)
+            return true;
         const bool compared = rounding == HalfPlace::Within;
         Step precision = transformation_step(
             "physics.planar-kinematics.significant-figures", "Significant figures",
-            "Report the displacement to the measured precision",
+            std::string("Report the ") + what + " to the measured precision",
             "Round only after exact conversion, decomposition and verification",
             compared ? "Reach for this once, at the very end. A measured value is only as good as "
                        "the figures it was written with, so the answer is reported to the fewest "
@@ -808,26 +811,37 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
                        "compared against the exact value. The exact value is reported instead.",
             ClaimType::NoClaim,
             verification("exact comparison against the unrounded value",
-                         compared ? displacement_text + " is within half a unit in the last place "
-                                                        "of " +
+                         compared ? *text + " is within half a unit in the last place of " +
                                         exact_text
-                                  : displacement_text + " could not be read back as a decimal",
+                                  : *text + " could not be read back as a decimal",
                          EvidenceStrength::CandidateChecked,
                          compared ? VerificationOutcome::Passed
                                   : VerificationOutcome::Inconclusive));
-        const std::string action = compared ? "Report " + exact_text + " as " + displacement_text
+        const std::string action = compared ? "Report " + exact_text + " as " + *text
                                             : "Report " + exact_text + " unrounded";
         if (!compared)
-            displacement_text = exact_text;
-        const NodeId exact_vector = vector_node(arena, displacement);
+            *text = exact_text;
+        const NodeId exact_vector = vector_node(arena, value);
         if (arena.failed()) {
-            return failed(PlanarKinematicsOutcome::ResourceExceeded,
-                          DerivationStatus::ResourceLimitReached, status_name(arena.status()));
+            *failure = failed(PlanarKinematicsOutcome::ResourceExceeded,
+                              DerivationStatus::ResourceLimitReached, status_name(arena.status()));
+            return false;
         }
         if (!add_transformation(derivation, meter, plan_id, std::move(precision), exact_vector,
                                 action, exact_vector, false)) {
-            return PlanarKinematicsResult();
+            *failure = PlanarKinematicsResult();
+            return false;
         }
+        return true;
+    };
+
+    std::string displacement_text;
+    std::string final_velocity_text;
+    PlanarKinematicsResult reporting_failure;
+    if (!report_measured(displacement, "displacement", &displacement_text, &reporting_failure) ||
+        !report_measured(final_velocity, "final velocity", &final_velocity_text,
+                         &reporting_failure)) {
+        return reporting_failure;
     }
 
     PlanarKinematicsResult solved;
