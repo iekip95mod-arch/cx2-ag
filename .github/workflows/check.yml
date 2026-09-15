@@ -70,9 +70,14 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 python3
+            build-essential cmake ninja-build pkg-config ccache libgmp-dev zlib1g-dev lua5.1 python3 \
+            luajit libluajit-5.1-dev
           sudo update-alternatives --set lua-interpreter /usr/bin/lua5.1
           lua -e 'assert(_VERSION == "Lua 5.1")'
+          # nps_luax is what compiles lua_module.cc, and it configures only when both of these
+          # answer, so a missing headers package has to stop the job rather than skip the target.
+          luajit -e 'assert(jit)'
+          pkg-config --exists luajit
 
       - name: Restore compiler cache
         uses: actions/cache@v6
@@ -95,13 +100,19 @@ jobs:
 
       # A suite that is not registered is silently not run, and -R reports success over whichever
       # ones were. This caught luax_host going missing when the runner had luajit but not its
-      # headers. The bridge suite is not here: it needs luajit, and enabling luajit pulls the ARM
-      # cross toolchain into configure, which is the opposite of fast. It runs in full instead.
+      # headers.
       - name: Check both suites are registered
         run: |
           found=$(ctest --test-dir nps/build/host -N -R '^(unit|ui_smoke_v4)$' | grep -c "Test *#")
           echo "registered: $found"
           test "$found" -eq 2
+
+      # Without luajit nothing in a host configure compiles lua_module.cc at all, so the bridge
+      # reached review green twice on code that does not build. Asserting the target exists is what
+      # keeps that from silently coming back if the package ever stops installing.
+      - name: Check the bridge target is configured
+        run: |
+          ninja -C nps/build/host -t targets all | grep -q 'nps_luax'
 
       - name: Unit and shell suites
         run: ctest --test-dir nps/build/host --output-on-failure -R '^(unit|ui_smoke_v4)$'
