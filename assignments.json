@@ -1168,7 +1168,7 @@
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-gemini-review-lens",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-239",
@@ -1223,7 +1223,7 @@
       "branch": "gemini/issue-197",
       "slug": "cx2-ag-claude-review-delta",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "claude/executor/issue-270",
