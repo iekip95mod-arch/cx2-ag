@@ -173,6 +173,34 @@ test('reviewer capacity retains open issue leases and reports pool exhaustion di
   assert.equal((await reviewerCapacity(repository, github.api, roster)).codex, 0);
 });
 
+test('a merged reviewer PR frees its identity while its issue stays open', async () => {
+  const github = fixture();
+  const target = pr => ({ repository, provider: 'claude', role: 'reviewer', pr });
+  for (let issue = 1; issue <= 13; issue++) github.pull(200 + issue, issue, 'claude');
+  const reviewers = [];
+  for (let issue = 1; issue <= 12; issue++) reviewers.push(await allocateIdentity(target(200 + issue), github.api, roster));
+  assert.equal((await reviewerCapacity(repository, github.api, roster)).claude, 0);
+  await assert.rejects(allocateIdentity(target(213), github.api, roster), { code: 'BOT_POOL_OCCUPIED' });
+  github.pull(201, 1, 'claude').state = 'closed';
+  assert.equal(github.ticket(1).state, 'open');
+  assert.equal((await reviewerCapacity(repository, github.api, roster)).claude, 1);
+  assert.equal((await allocateIdentity(target(213), github.api, roster)).login, reviewers[0].login);
+  assert.equal(github.assignments.find(assignment => assignment.pr === 201).released, true);
+  await assert.rejects(allocateIdentity(target(201), github.api, roster), /already closed/);
+});
+
+test('an executor lease allocated from its PR survives that PR closing while the issue stays open', async () => {
+  const github = fixture();
+  github.pull(87, 20, 'claude');
+  const worker = await allocateIdentity({ repository, provider: 'claude', role: 'executor', pr: 87 }, github.api, roster);
+  assert.equal(github.assignments[0].pr, 87);
+  github.pull(87, 20, 'claude').state = 'closed';
+  assert.equal(github.ticket(20).state, 'open');
+  await allocateIdentity(options(42, 'claude'), github.api, roster);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, false);
+  assert.equal((await readAssignment(options(20, 'claude'), github.api, roster)).login, worker.login);
+});
+
 test('twelve reviewer slots retain assignments and reject overflow per provider', async () => {
   for (const provider of ['codex', 'claude', 'gemini']) {
     const github = fixture();
