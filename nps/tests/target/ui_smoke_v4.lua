@@ -444,6 +444,21 @@ local fake_density = {
     },
 }
 
+-- Global, since this file is at Lua's ceiling of 200 top-level locals.
+fake_optics = {
+    outcome = "solved", detail = "", solved = true, answer_only = false,
+    status = "solved and verified", result = "image distance = 0.3 m", nodes = 15,
+    precision = { kind = "exact", significant_digits = 0 },
+    relation = "thin lens", unknown = "image distance", magnification = "-2",
+    convention = "distances are positive on the real side, so a real object has do > 0",
+    step_count = 5, rewrites = 3, giac_calls = 0,
+    steps = {
+        { kind = "plan", name = "Thin lens equation", goal = "Find the image distance",
+          short = "Use 1/do + 1/di = 1/f", claim = "no claim", verified = true,
+          failed = false, depth = 0 },
+    },
+}
+
 local fake_work = {
     outcome = "solved", detail = "", solved = true, answer_only = false,
     status = "solved and verified", result = "-14 kg m^2/s^2", nodes = 16,
@@ -568,7 +583,7 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
-    forces = 0,
+    forces = 0, optics = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
 }
 local profile_events = {}
@@ -620,6 +635,11 @@ local fake_manifest = {
         { kind = "solver", id = "physics.vectors.magnitude-components.two-dimension" },
         { kind = "solver", id = "physics.forces.newton-second-law" },
         { kind = "solver", id = "physics.work.constant-force-dot-product" },
+        { kind = "solver", id = "physics.optics.refraction.snell" },
+        { kind = "solver", id = "physics.optics.thin-lens.image" },
+        { kind = "solver", id = "physics.optics.spherical-mirror.image" },
+        { kind = "solver", id = "physics.optics.double-slit.maxima" },
+        { kind = "solver", id = "physics.optics.single-slit.minima" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
     },
@@ -655,6 +675,7 @@ nps_split = {
         return fake_unit_conversion
     end,
     density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
+    optics = function(...) calls.optics = calls.optics + 1 last_args = { ... } return fake_optics end,
     vector_addition = function(...)
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
@@ -965,7 +986,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 17 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 22 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -2542,6 +2563,25 @@ do
     on.mouseUp(100, mathcase.row2.top + 2)
     check(calls.density == mathcase.calls_before + 1 and steps.active == true,
           "and the tap that lands on the selection is the one that runs it")
+    on.escapeKey()
+end
+
+-- The last guided entry is the optics one, and it has to reach the native bridge with the typed
+-- relation rather than a spelling the engine would refuse.
+do
+    openPhysicsFixtures()
+    local optics_before = calls.optics
+    physicsBrowser.focus = #PHYSICS_FIXTURES
+    painted()
+    on.enterKey()
+    check(calls.optics == optics_before + 1 and steps.result.mode == "optics",
+          "the optics fixture runs the thin lens relation through its native bridge")
+    check(last_args[1] == "thin lens" and last_args[2] == "image distance" and
+          last_args[3] == "focal length" and last_args[4] == "10 cm" and
+          last_args[5] == "object distance" and last_args[6] == "15 cm",
+          "the optics fixture names the relation, the unknown and both knowns the engine accepts")
+    check(steps.result.result == "image distance = 0.3 m",
+          "the optics fixture shows the image distance the bridge returned")
     on.escapeKey()
 end
 
