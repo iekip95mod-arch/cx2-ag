@@ -906,6 +906,10 @@ int main_body() {
     run_catch_up_tests(sink);
     sink.begin_group("density");
     run_density_tests(sink);
+    sink.begin_group("gravitation");
+    run_gravitation_tests(sink);
+    sink.begin_group("oscillation");
+    run_oscillation_tests(sink);
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);
     sink.begin_group("planar kinematics");
