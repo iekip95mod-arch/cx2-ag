@@ -1032,7 +1032,7 @@
       "pr": null,
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-cobalt",
-      "released": false
+      "released": true
     },
     {
       "key": "gemini/executor/issue-207",
@@ -1094,7 +1094,7 @@
       "pr": 250,
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-gemini-review-dial",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1178,7 +1178,7 @@
       "pr": 250,
       "branch": "gemini/issue-239",
       "slug": "cx2-ag-claude-review-ridge",
-      "released": false,
+      "released": true,
       "selectedReview": true
     },
     {
@@ -1304,7 +1304,7 @@
       "pr": 273,
       "branch": "claude/issue-157",
       "slug": "cx2-ag-claude-review-summit",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-156",
@@ -1344,7 +1344,7 @@
       "pr": null,
       "branch": "claude/issue-244",
       "slug": "cx2-ag-claude-atlas",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-198",
@@ -1364,7 +1364,7 @@
       "pr": null,
       "branch": "claude/issue-206",
       "slug": "cx2-ag-claude-lyra",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-220",
@@ -1434,7 +1434,7 @@
       "pr": 287,
       "branch": "claude/issue-244",
       "slug": "cx2-ag-claude-review-dune",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-281",
@@ -1664,7 +1664,7 @@
       "pr": null,
       "branch": "claude/issue-308",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-268",
@@ -1704,7 +1704,7 @@
       "pr": 334,
       "branch": "claude/issue-308",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-338",
@@ -1714,7 +1714,7 @@
       "pr": 339,
       "branch": "claude/issue-338",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-347",
@@ -1724,7 +1724,7 @@
       "pr": 348,
       "branch": "claude/agent-budget",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-206",
@@ -1734,6 +1734,16 @@
       "pr": 282,
       "branch": "claude/issue-206",
       "slug": "cx2-ag-claude-review-cairn",
+      "released": true
+    },
+    {
+      "key": "claude/executor/issue-346",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 346,
+      "pr": null,
+      "branch": "claude/issue-346",
+      "slug": "cx2-ag-claude-atlas",
       "released": false
     }
   ]
