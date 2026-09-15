@@ -18,13 +18,29 @@ async function ownedBranch(pr, api, assignment) {
   return identity;
 }
 
-export async function discoverBranches(api, assignment = readAssignment, number) {
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Moving a branch's head restarts its whole gate, so the update waits until being out of date is the
+// only thing left holding the pull request back. GitHub reports behind only once every other required
+// check and the review already pass, so nothing a merge to main resets was still being decided.
+async function onlyBehind(number, api, sleep, known) {
+  let state = known;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (state !== undefined && state !== 'unknown') return state === 'behind' ? 'behind' : 'gated';
+    if (attempt) await sleep(1000);
+    state = (await api('GET', `${root}/pulls/${number}`)).mergeable_state;
+  }
+  return 'unknown';
+}
+
+export async function discoverBranches(api, assignment = readAssignment, number, sleep = wait) {
   const main = (await api('GET', `${root}/git/ref/heads/main`)).object.sha;
   const pending = async pr => {
     const identity = await ownedBranch(pr, api, assignment);
     if (!identity) return null;
     const comparison = await api('GET', `${root}/compare/${main}...${pr.head.sha}`);
     if (comparison.behind_by === 0) return null;
+    if (await onlyBehind(pr.number, api, sleep, pr.mergeable_state) !== 'behind') return null;
     return { pr: pr.number, branch: identity.branch, provider: identity.provider, login: identity.login, app_id: identity.appId, secret_name: identity.secretName };
   };
   if (number !== undefined) {
@@ -56,6 +72,8 @@ export async function updateBranch({ pr: number, login }, api, sleep, assignment
   if (comparison.behind_by === 0) return 'current';
   if (!Number.isSafeInteger(comparison.behind_by) || comparison.behind_by < 1) throw Error('Unknown branch comparison');
   if (pr.mergeable === false) return 'conflict';
+  const ready = await onlyBehind(number, api, sleep, pr.mergeable_state);
+  if (ready !== 'behind') return ready;
   try { await api('PUT', `${endpoint}/update-branch`, { expected_head_sha: pr.head.sha }); }
   catch (error) { if (error.status === 422) return 'changed-or-conflicted'; throw error; }
   for (let attempt = 0; attempt < 15; attempt++) {
@@ -89,12 +107,12 @@ async function main() {
   if (process.env.GITHUB_REPOSITORY !== repository || !process.env.GH_TOKEN) throw Error('The repository and authentication are required');
   const api = (method, endpoint, body, missing) => requestGitHub(fetch, process.env.GH_TOKEN, method, endpoint, body, missing);
   if (process.argv.includes('--discover')) {
-    const matrix = await discoverBranches(api, readAssignment, process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : undefined);
+    const matrix = await discoverBranches(api, readAssignment, process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : undefined, wait);
     appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.include.length}\n`);
   } else {
     if (!process.env.ACTIONS_TOKEN) throw Error('Cancelling the superseded review requires workflow authentication');
     const actions = (method, endpoint, body, missing) => requestGitHub(fetch, process.env.ACTIONS_TOKEN, method, endpoint, body, missing);
-    const status = await updateBranch({ pr: Number(process.env.PR_NUMBER), login: process.env.EXECUTOR_LOGIN }, api, ms => new Promise(resolve => setTimeout(resolve, ms)), readAssignment, actions);
+    const status = await updateBranch({ pr: Number(process.env.PR_NUMBER), login: process.env.EXECUTOR_LOGIN }, api, wait, readAssignment, actions);
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `PR #${process.env.PR_NUMBER}: ${status}.\n`);
   }
 }
