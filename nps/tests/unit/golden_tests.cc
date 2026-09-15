@@ -559,6 +559,32 @@ std::string negative_quadrant_polar_record(const Budget &budget) {
            render_derivation(arena, derivation);
 }
 
+std::string spherical_polar_record(const Budget &budget) {
+    Vector input;
+    input.x = {0, 1};
+    input.y = {3, 1};
+    input.z = {4, 1};
+    input.rank = 3;
+    input.frame.name = "lab";
+    input.unit.text = "m";
+    input.unit.dimension = {1, 0, 0};
+    input.unit.scale = {1, 1};
+    GoldenSequenceBackend backend({"0", "atan2(3,0)", "0", "atan2(3,4)", "0"});
+    Arena arena;
+    Derivation derivation;
+    const VectorComponentsResult result = components_to_magnitude_angle(
+        arena, derivation, input, AngleUnit::Radians, backend, budget);
+    std::string answer;
+    if (result.has_polar)
+        answer = "magnitude = " + print(arena, result.polar.magnitude) + " " +
+                 result.polar.unit.text + ", polar angle = " +
+                 print(arena, result.polar.polar_angle) + " radians from z, azimuth = " +
+                 print(arena, result.polar.angle) + " radians";
+    return header("components = (0, 3, 4) m, frame = lab", "magnitude and direction",
+                  vector_components_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
 // One step is under what any real solve records, so the meter halts before anything landed. What
 // survives is decided by whether the halt caught the engine mid-composite with a completed child
 // below, so several of these fixtures show no steps and integrate_step_budget_halt shows two: the
@@ -888,6 +914,7 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "vector_components_exact", exact_vector_components_record(Budget()));
     check_golden(t, "vector_components_negative_quadrant",
                  negative_quadrant_polar_record(Budget()));
+    check_golden(t, "vector_components_spherical", spherical_polar_record(Budget()));
     check_golden(t, "catch_up_delayed_start", catch_up_delayed_start_record(Budget()));
     check_golden(t, "catch_up_measured_report", catch_up_measured_report_record(Budget()));
     check_golden(t, "catch_up_before_shared_domain", catch_up_before_domain_record(Budget()));
