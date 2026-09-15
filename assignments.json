@@ -1494,7 +1494,7 @@
       "pr": null,
       "branch": "claude/issue-301",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-301",
@@ -1504,7 +1504,7 @@
       "pr": 302,
       "branch": "claude/issue-301",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-163",
