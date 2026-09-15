@@ -45,6 +45,7 @@
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
+#include "nps/physics/forces.h"
 #include "nps/physics/work.h"
 #include "nps/platform/nspire/device_identity.h"
 #include "nps/platform/nspire/integrity.h"
@@ -3244,6 +3245,223 @@ int l_work(lua_State *L) { return work_into(L, true); }
 
 int l_work_local(lua_State *L) { return work_into(L, false); }
 
+// PHYS-008. The force family reaches Lua as one table in and one record out, so #158 can draw a
+// diagram from the same inventory the equations were summed from.
+bool optional_quantity(lua_State *L, int table_index, const char *key, Quantity *value,
+                       bool *present, std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        *present = false;
+        return true;
+    }
+    lua_pop(L, 1);
+    if (!quantity_field(L, table_index, key, value, why))
+        return false;
+    *present = true;
+    return true;
+}
+
+bool optional_rational(lua_State *L, int table_index, const char *key, Rational *value,
+                       std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    Precision ignored;
+    return rational_field(L, table_index, key, value, &ignored, why);
+}
+
+bool optional_name(lua_State *L, int table_index, const char *key, std::string *value,
+                   std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    return string_field(L, table_index, key, value, why);
+}
+
+bool optional_boolean(lua_State *L, int table_index, const char *key, bool *value,
+                      std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    const int kind = lua_type(L, -1);
+    if (kind == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    if (kind != LUA_TBOOLEAN) {
+        lua_pop(L, 1);
+        *why = std::string(key) + " must be a boolean";
+        return false;
+    }
+    *value = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return true;
+}
+
+void set_force_entry(lua_State *L, int index, const ForceEntry &entry) {
+    lua_pushinteger(L, static_cast<lua_Integer>(index));
+    lua_newtable(L);
+    set_field(L, "kind", force_kind_name(entry.kind));
+    set_field(L, "label", entry.label);
+    set_field(L, "agent", entry.agent);
+    set_field(L, "magnitude", entry.magnitude_text);
+    set_field(L, "along", entry.along_text);
+    set_field(L, "across", entry.across_text);
+    set_field(L, "known", entry.known);
+    lua_settable(L, -3);
+}
+
+int l_forces(lua_State *L) {
+    if (lua_type(L, 1) != LUA_TTABLE)
+        return typed_failure(L, "invalid problem", "invalid input", "forces input must be a table");
+
+    ForcesProblem problem;
+    std::string why;
+    if (!optional_name(L, 1, "body", &problem.body, &why) ||
+        !optional_name(L, 1, "support", &problem.support, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!quantity_field(L, 1, "mass", &problem.mass, &why) ||
+        !quantity_field(L, 1, "gravity", &problem.gravity, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string surface = "horizontal";
+    if (!optional_name(L, 1, "surface", &surface, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (surface == "horizontal")
+        problem.surface = SurfaceKind::Horizontal;
+    else if (surface == "incline")
+        problem.surface = SurfaceKind::Incline;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "surface must be horizontal or incline");
+    if (!optional_rational(L, 1, "incline_sin", &problem.incline_sin, &why) ||
+        !optional_rational(L, 1, "incline_cos", &problem.incline_cos, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    if (!optional_quantity(L, 1, "applied", &problem.applied, &problem.has_applied, &why) ||
+        !optional_quantity(L, 1, "tension", &problem.tension, &problem.has_tension, &why) ||
+        !optional_quantity(L, 1, "acceleration", &problem.acceleration, &problem.has_acceleration,
+                           &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string friction = "frictionless";
+    if (!optional_name(L, 1, "friction", &friction, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (friction == "frictionless")
+        problem.friction = FrictionModel::None;
+    else if (friction == "static")
+        problem.friction = FrictionModel::Static;
+    else if (friction == "kinetic")
+        problem.friction = FrictionModel::Kinetic;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "friction must be frictionless, static or kinetic");
+    if (!optional_rational(L, 1, "friction_coefficient", &problem.friction_coefficient, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string motion = "undeclared";
+    if (!optional_name(L, 1, "motion", &motion, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (motion == "undeclared")
+        problem.motion = MotionSense::Undeclared;
+    else if (motion == "up the axis")
+        problem.motion = MotionSense::UpTheAxis;
+    else if (motion == "down the axis")
+        problem.motion = MotionSense::DownTheAxis;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "motion must be undeclared, up the axis or down the axis");
+    if (!optional_boolean(L, 1, "equilibrium", &problem.assume_equilibrium, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string unknown;
+    if (!string_field(L, 1, "unknown", &unknown, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (unknown == "acceleration")
+        problem.unknown = ForcesUnknown::Acceleration;
+    else if (unknown == "applied force")
+        problem.unknown = ForcesUnknown::AppliedForce;
+    else if (unknown == "normal force")
+        problem.unknown = ForcesUnknown::NormalForce;
+    else if (unknown == "friction force")
+        problem.unknown = ForcesUnknown::FrictionForce;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "unknown must be acceleration, applied force, normal force or "
+                             "friction force");
+
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    const ForcesResult result = solve_forces(arena, derivation, problem, interactive_budget());
+
+    lua_newtable(L);
+    set_field(L, "outcome", forces_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == ForcesOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "unknown", forces_unknown_name(problem.unknown));
+    set_field(L, "surface", surface_kind_name(problem.surface));
+    set_field(L, "friction_model", friction_model_name(problem.friction));
+    if (result.has_value) {
+        set_field(L, "result", std::string(forces_unknown_name(problem.unknown)) + " = " +
+                                   result.value_text + " " + result.unit_text);
+        set_field(L, "value", result.value_text);
+        set_field(L, "exact_value", rational_text(result.value));
+        set_field(L, "unit", result.unit_text);
+    }
+    if (!result.along_equation_text.empty())
+        set_field(L, "along_equation", result.along_equation_text);
+    if (!result.across_equation_text.empty())
+        set_field(L, "across_equation", result.across_equation_text);
+    if (!result.consistency.empty())
+        set_field(L, "consistency", result.consistency);
+    set_field(L, "static_checked", result.static_checked);
+    if (result.static_checked) {
+        set_field(L, "required_friction", rational_text(result.required_friction));
+        set_field(L, "maximum_static_friction", rational_text(result.maximum_static_friction));
+    }
+
+    lua_pushstring(L, "inventory");
+    lua_newtable(L);
+    for (size_t i = 0; i < result.inventory.size(); ++i)
+        set_force_entry(L, static_cast<int>(i + 1), result.inventory[i]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "pairs");
+    lua_newtable(L);
+    for (size_t i = 0; i < result.pairs.size(); ++i) {
+        const InteractionPair &pair = result.pairs[i];
+        lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+        lua_newtable(L);
+        set_field(L, "kind", force_kind_name(pair.kind));
+        set_field(L, "on_body", pair.on_body);
+        set_field(L, "by_body", pair.by_body);
+        set_field(L, "reaction_on", pair.reaction_on);
+        set_field(L, "reaction_by", pair.reaction_by);
+        set_field(L, "magnitude", pair.magnitude_text);
+        lua_settable(L, -3);
+    }
+    lua_settable(L, -3);
+
+    const std::string assumptions = joined(derivation.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    push_steps(L, arena, derivation);
+    return 1;
+}
+
 int l_magnitude_angle_to_components(lua_State *L) {
     MagnitudeAngleExpr input;
     std::string magnitude;
@@ -3400,6 +3618,7 @@ const luaL_Reg lib[] = {
     {"vector_addition", l_vector_addition},
     {"relative_motion", l_relative_motion},
     {"relative_motion_local", l_relative_motion_local},
+    {"forces", l_forces},
     {"work", l_work},
     {"work_local", l_work_local},
     {"magnitude_angle_to_components", l_magnitude_angle_to_components},
