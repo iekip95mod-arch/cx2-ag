@@ -90,7 +90,7 @@ struct OpticsResult {
     // Lateral magnification -di/do, filled for the lens and mirror relations only.
     bool has_magnification = false;
     std::string magnification_text;
-    // sin of the critical angle, n2/n1, filled whenever the refraction relation evaluates it.
+    // sin of the critical angle, n2/n1, filled only when n2 <= n1 and a critical angle exists.
     bool has_critical_sine = false;
     std::string critical_sine_text;
     NodeId value = kNoNode;
