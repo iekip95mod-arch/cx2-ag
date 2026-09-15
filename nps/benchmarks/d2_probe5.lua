@@ -16,7 +16,7 @@ local BOXW = 250
 local slots = {
 	{ name = "short", expr = "0.00000250 m^3" },
 	{ name = "long", expr = "quantity((5 * (2^-1)), unit(cm^3, (1 * (1000000^-1)), " ..
-	                        "dimension(3, 0, 0)), measured, 3)" },
+	                        "dimension(3, 0, 0, 0)), measured, 3)" },
 	{ name = "wordy", expr = "L^3 and L^3" },
 }
 
