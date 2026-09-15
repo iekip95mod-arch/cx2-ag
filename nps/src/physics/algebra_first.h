@@ -20,6 +20,7 @@ struct IsolationRecord {
     bool recorded = false;
     NodeId isolated = kNoNode;
     size_t moves = 0;
+    bool halted = false;
     RearrangeOutcome outcome = RearrangeOutcome::Refused;
 };
 
@@ -27,7 +28,7 @@ struct IsolationRecord {
 // the walkthrough that runs without one is the walkthrough being graded.
 inline IsolationRecord record_symbolic_isolation(Arena &arena, Derivation &derivation, StepId parent,
                                                  NodeId equation, NodeId unknown,
-                                                 const Budget &budget) {
+                                                 const Budget &budget, Meter &meter) {
     IsolationRecord out;
     if (equation == kNoNode || unknown == kNoNode)
         return out;
@@ -44,6 +45,12 @@ inline IsolationRecord record_symbolic_isolation(Arena &arena, Derivation &deriv
         const TransformationPayload *payload = aside.transformation(id);
         if (!payload)
             continue;
+        // Spent on the caller's meter as it is adopted, so one cap covers the whole solve rather
+        // than the isolation running on a budget of its own beside it.
+        if (!meter.step()) {
+            out.halted = true;
+            break;
+        }
         Step moved = aside.at(id);
         moved.id = kNoStep;
         moved.parent = kNoStep;
@@ -52,7 +59,7 @@ inline IsolationRecord record_symbolic_isolation(Arena &arena, Derivation &deriv
         derivation.add_transformation(parent, std::move(moved), std::move(copy));
         ++out.moves;
     }
-    out.recorded = out.moves > 0;
+    out.recorded = out.moves > 0 && !out.halted;
     if (out.recorded)
         out.isolated = r.expression;
     return out;

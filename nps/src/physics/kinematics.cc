@@ -1038,15 +1038,6 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             return result;
         }
 
-        // The algebra before the arithmetic, and without a backend: the unknown is isolated while
-        // the equation is still symbolic, and ALG-007's moves are the steps that say how.
-        if (hop.solve_outcome == SolveOutcome::Solved) {
-            const physics::IsolationRecord isolation = physics::record_symbolic_isolation(
-                arena, derivation, plan_id, hop.symbolic, hop_symbol, budget);
-            if (isolation.recorded && h + 1 == route.size())
-                isolated = isolation.isolated;
-        }
-
         bool giac_disagreed = false;
         // A no-solution answer has no scalar value for a backend rearrangement to corroborate.
         if (ctx.giac && hop.solve_outcome == SolveOutcome::Solved) {
@@ -1064,6 +1055,21 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                 result.status = DerivationStatus::VerificationFailed;
                 return result;
             }
+        }
+
+        // The algebra before the arithmetic, and without a backend: the unknown is isolated while
+        // the equation is still symbolic, and ALG-007's moves are the steps that say how. Recorded
+        // after the backend's own check so a contradicted rearrangement still leaves before any
+        // move is on the page, and before the substitution so the shape stays algebra then numbers.
+        if (hop.solve_outcome == SolveOutcome::Solved) {
+            const physics::IsolationRecord isolation = physics::record_symbolic_isolation(
+                arena, derivation, plan_id, hop.symbolic, hop_symbol, budget, ctx.meter);
+            if (isolation.halted) {
+                ctx.halted = true;
+                return result;
+            }
+            if (isolation.recorded && h + 1 == route.size() && isolated == kNoNode)
+                isolated = isolation.isolated;
         }
 
         // Substituting against the names known now, not against the problem's givens: on a later
