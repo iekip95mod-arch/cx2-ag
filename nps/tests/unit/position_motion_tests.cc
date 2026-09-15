@@ -25,6 +25,8 @@ PositionMotionProblem problem(const char *position_expression, const char *start
     return p;
 }
 
+bool cancel_now(void *) { return true; }
+
 struct Run {
     explicit Run(const PositionMotionProblem &problem, const Budget &budget = Budget())
         : result(solve_position_motion(arena, derivation, problem, budget)) {}
@@ -95,6 +97,58 @@ void run_position_motion_tests(TestSink &t) {
                "than answered wrong");
         t.check(!solved.result.detail.empty(),
                 "the refusal names what it could not do");
+    }
+    {
+        // An unparseable position expression is refused before any differentiation is attempted.
+        Run refused(problem("50*t + (", "0 s", "3.0 s", "3.0 s"));
+        t.check(refused.result.outcome == PositionMotionOutcome::InvalidInput,
+               "a position function that fails to parse is refused as invalid input");
+        t.check(!refused.result.detail.empty(),
+                "the refusal names what could not be parsed");
+    }
+    {
+        // Start and end at the same instant leave no interval for the secant to average over.
+        Run refused(problem("50*t + 10*t^2", "3.0 s", "3.0 s", "3.0 s"));
+        t.equal(position_motion_outcome_name(refused.result.outcome), "invalid input",
+               "a zero-duration interval is refused rather than dividing by zero");
+        t.check(refused.result.detail.find("duration") != std::string::npos,
+                "the refusal names the zero-duration interval");
+    }
+    {
+        // A non-time quantity in the interval start cannot stand in for a time bound.
+        Run refused(problem("50*t + 10*t^2", "3.0 m", "5.0 s", "3.0 s"));
+        t.equal(position_motion_outcome_name(refused.result.outcome), "dimension mismatch",
+               "a length supplied where the interval start expects a time is refused");
+    }
+    {
+        // A non-time quantity in the event time cannot stand in for a time bound either.
+        Run refused(problem("50*t + 10*t^2", "0 s", "3.0 s", "3.0 kg"));
+        t.equal(position_motion_outcome_name(refused.result.outcome), "dimension mismatch",
+               "a mass supplied where the event time expects a time is refused");
+    }
+    {
+        // A meter that is already cancelled on entry halts the first differentiate() call, so the
+        // Cancelled branch of the velocity outcome mapping (position_motion.cc:107-117) is reached
+        // rather than only ever seeing Differentiated or UnsupportedForm out of that call.
+        Budget budget;
+        budget.poll = cancel_now;
+        Run cancelled(problem("50*t + 10*t^2", "0 s", "3.0 s", "3.0 s"), budget);
+        t.equal(position_motion_outcome_name(cancelled.result.outcome), "cancelled",
+               "a cancelled meter reports cancellation instead of an answer");
+        t.check(cancelled.result.detail.find("velocity") != std::string::npos,
+                "the cancellation is reported from the velocity differentiation phase");
+    }
+    {
+        // A step budget too small for the differentiation engine to finish exhausts on the first
+        // differentiate() call, reaching the ResourceExceeded branch of the same mapping.
+        Budget budget;
+        budget.max_steps = 1;
+        Run exhausted(problem("50*t + 10*t^2", "0 s", "3.0 s", "3.0 s"), budget);
+        t.equal(position_motion_outcome_name(exhausted.result.outcome), "resource exceeded",
+               "a step budget too small to differentiate reports resource exhaustion instead of "
+               "an answer");
+        t.check(exhausted.result.detail.find("velocity") != std::string::npos,
+                "the resource exhaustion is reported from the velocity differentiation phase");
     }
 }
 
