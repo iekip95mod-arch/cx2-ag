@@ -125,6 +125,48 @@ test('review publication uses bounded direct API requests', async () => {
   assert.ok(options.signal);
 });
 
+test('housekeeping calls retry a transient gateway failure instead of discarding a published review', async () => {
+  const statuses = [504, 502, 204];
+  const delays = [];
+  let calls = 0;
+  const result = await requestGitHub(async () => {
+    const status = statuses[calls++];
+    return { ok: status < 400, status, text: async () => '' };
+  }, 'secret', 'DELETE', 'repos/example/project/issues/318/labels/claude-review', undefined, false, { sleep: async ms => { delays.push(ms); } });
+  assert.equal(result, null);
+  assert.equal(calls, 3);
+  assert.equal(delays.length, 2);
+  assert.ok(delays.every(delay => delay > 0));
+});
+
+test('a network failure retries while a rejected request and a create do not repeat', async () => {
+  let dropped = 0;
+  const recovered = await requestGitHub(async () => {
+    if (dropped++ === 0) throw Error('socket hang up');
+    return { ok: true, status: 200, text: async () => '{"ok":true}' };
+  }, 'secret', 'PUT', 'repos/example/project/pulls/318/reviews/7', { body: 'note' }, false, { sleep: async () => {} });
+  assert.deepEqual(recovered, { ok: true });
+  assert.equal(dropped, 2);
+  let refused = 0;
+  await assert.rejects(requestGitHub(async () => {
+    refused++;
+    return { ok: false, status: 422, text: async () => '' };
+  }, 'secret', 'DELETE', 'repos/example/project/issues/318/labels/claude-review', undefined, false, { sleep: async () => {} }), /failed with 422/);
+  assert.equal(refused, 1);
+  let posted = 0;
+  await assert.rejects(requestGitHub(async () => {
+    posted++;
+    return { ok: false, status: 502, text: async () => '' };
+  }, 'secret', 'POST', 'repos/example/project/issues/318/comments', { body: 'progress' }, false, { sleep: async () => {} }), /failed with 502/);
+  assert.equal(posted, 1);
+  let exhausted = 0;
+  await assert.rejects(requestGitHub(async () => {
+    exhausted++;
+    return { ok: false, status: 504, text: async () => '' };
+  }, 'secret', 'GET', 'repos/example/project', undefined, false, { sleep: async () => {} }), /failed with 504/);
+  assert.equal(exhausted, 3);
+});
+
 test('queued review progress reuses trusted assignment outputs without rereading the lease', async () => {
   const identity = roster[0];
   const current = { head: { sha, ref: 'codex/issue-42', repo: { full_name: repository } }, labels: [], state: 'open', draft: false };
