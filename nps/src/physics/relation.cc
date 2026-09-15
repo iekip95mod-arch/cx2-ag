@@ -24,7 +24,6 @@ using measure::rational_of_node;
 using measure::si_unit;
 using measure::transformation_step;
 using measure::valid_quantity;
-using measure::value_text;
 using measure::verification;
 
 std::string known_text(const RelationModel &model, const RelationKnown &known) {

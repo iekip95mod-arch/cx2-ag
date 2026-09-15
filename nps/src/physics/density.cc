@@ -56,7 +56,6 @@ using measure::rational_node;
 using measure::rational_of_node;
 using measure::transformation_step;
 using measure::valid_quantity;
-using measure::value_text;
 using measure::verification;
 
 std::string known_text(const DensityKnown &known) {
