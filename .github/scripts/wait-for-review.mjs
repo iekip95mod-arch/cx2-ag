@@ -220,10 +220,14 @@ export async function reviewState(read, repository, pr, sha, options = {}) {
   const requests = await read(`${prefix}/actions/workflows/agent-review-request.yml/runs?head_sha=${sha}&event=pull_request&per_page=100`, true);
   const assignments = requests.flatMap(page => page.workflow_runs).filter(run => run.head_sha === sha && run.pull_requests.some(pull => pull.number === pr) && run.display_title === `Assign reviewer for PR #${pr} (requested)`);
   if (assignments.some(run => run.status !== 'completed')) return 'pending';
-  for (const run of assignments) {
+  // Applying the review label while the PR is still draft, then marking it ready a moment later, fires two
+  // trigger events. The label-triggered run freezes a draft=true snapshot and skips its own job, but can still
+  // start (and so sort) after the ready_for_review-triggered run that actually performed the assignment.
+  const attempted = assignments.filter(run => run.conclusion !== 'skipped');
+  for (const run of attempted) {
     if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt < 1 || !Number.isFinite(Date.parse(run.run_started_at))) throw Error('The assignment attempt cannot be identified');
   }
-  const request = assignments.sort((a, b) => Date.parse(b.run_started_at) - Date.parse(a.run_started_at) || b.id - a.id)[0];
+  const request = attempted.sort((a, b) => Date.parse(b.run_started_at) - Date.parse(a.run_started_at) || b.id - a.id)[0];
   if (request) {
     if (request.conclusion !== 'success') throw Error('The reviewer assignment failed');
     if (!runs.length) return 'pending';
