@@ -1845,6 +1845,16 @@
       "branch": "claude/issue-226",
       "slug": "cx2-ag-claude-meteor",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-364",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 364,
+      "pr": null,
+      "branch": "claude/issue-364",
+      "slug": "cx2-ag-claude-sirius",
+      "released": false
     }
   ]
 }
