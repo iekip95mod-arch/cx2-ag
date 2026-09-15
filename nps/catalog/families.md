@@ -584,7 +584,7 @@ required_assumptions "acceleration is constant" and "motion is along one axis, p
 test_group_ids kinematics, units
 # The linear solver's obligation appears here too, for the same reason its rules do: a kinematics
 # solve nests it and the record carries what it raised.
-proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.plan.preconditions-hold
+proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold
 supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear solver
 unsupported_near_neighbors two bodies at equal position, projectile motion in two dimensions, forces, energy
 solution_soundness_status verified, dimensions checked and the answer substituted back by the linear solver
@@ -606,6 +606,11 @@ rule eq.linear.inverse-operations fixture
 rule eq.linear.check-by-substitution fixture
 rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
+# The symbolic isolation is ALG-007's, run with no backend, so its moves land here for the same
+# reason and a reader of a kinematics record sees the algebra before the arithmetic.
+rule alg.rearrange.swap-sides fixture
+rule alg.rearrange.subtract-both-sides fixture
+rule alg.rearrange.divide-both-sides fixture
 
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
