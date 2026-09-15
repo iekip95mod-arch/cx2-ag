@@ -1405,6 +1405,16 @@
       "branch": "claude/issue-280",
       "slug": "cx2-ag-claude-sirius",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-280",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 280,
+      "pr": 284,
+      "branch": "claude/issue-280",
+      "slug": "cx2-ag-claude-review-dune",
+      "released": false
     }
   ]
 }
