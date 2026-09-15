@@ -1,6 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readAssignment } from './bot-identities.mjs';
+import { cancelObsoleteReviews } from './review-queue.mjs';
 import { requestGitHub } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
@@ -44,7 +45,7 @@ export async function discoverBranches(api, assignment = readAssignment, number)
   throw Error('Open pull requests exceed the branch update lookup limit');
 }
 
-export async function updateBranch({ pr: number, login }, api, sleep, assignment = readAssignment) {
+export async function updateBranch({ pr: number, login }, api, sleep, assignment = readAssignment, actions = api, cancel = cancelObsoleteReviews) {
   if (!Number.isSafeInteger(number) || number < 1) throw Error('Invalid branch update target');
   const endpoint = `${root}/pulls/${number}`;
   const pr = await api('GET', endpoint);
@@ -64,6 +65,8 @@ export async function updateBranch({ pr: number, login }, api, sleep, assignment
     if (current.head.sha === pr.head.sha) continue;
     const merged = await api('GET', `${root}/compare/${main}...${current.head.sha}`);
     if (merged.behind_by !== 0) return 'superseded';
+    // This update is what invalidated the old revision, so it owns cancelling the review reading it.
+    await cancel(number, actions);
     if (!current.draft) {
       const label = `${identity.provider}-review`;
       if (current.labels.some(entry => entry.name === label)) await api('DELETE', `${root}/issues/${number}/labels/${label}`, undefined, true);
@@ -83,7 +86,9 @@ async function main() {
     const matrix = await discoverBranches(api, readAssignment, process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : undefined);
     appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.include.length}\n`);
   } else {
-    const status = await updateBranch({ pr: Number(process.env.PR_NUMBER), login: process.env.EXECUTOR_LOGIN }, api, ms => new Promise(resolve => setTimeout(resolve, ms)));
+    if (!process.env.ACTIONS_TOKEN) throw Error('Cancelling the superseded review requires workflow authentication');
+    const actions = (method, endpoint, body, missing) => requestGitHub(fetch, process.env.ACTIONS_TOKEN, method, endpoint, body, missing);
+    const status = await updateBranch({ pr: Number(process.env.PR_NUMBER), login: process.env.EXECUTOR_LOGIN }, api, ms => new Promise(resolve => setTimeout(resolve, ms)), readAssignment, actions);
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, `PR #${process.env.PR_NUMBER}: ${status}.\n`);
   }
 }
