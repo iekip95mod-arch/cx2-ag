@@ -1875,6 +1875,16 @@
       "branch": "ti-info-app",
       "slug": "cx2-ag-claude-review-arch",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-367",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 367,
+      "pr": 368,
+      "branch": "fix/reviewer-duplicate-token",
+      "slug": "cx2-ag-claude-review-brook",
+      "released": false
     }
   ]
 }
