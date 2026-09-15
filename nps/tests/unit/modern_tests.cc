@@ -115,6 +115,12 @@ void run_modern_tests(TestSink &t) {
         t.check(solved.rules.find("physics.modern.substitute") <
                     solved.rules.find("physics.modern.check-candidate"),
                 "substitution is recorded before the final check");
+        t.evidence("PHYS-025", contains_text(solved.rules, "physics.modern.planck-relation") &&
+                    contains_text(solved.rules, "physics.modern.check-dimensions") &&
+                    contains_text(solved.rules, "physics.modern.substitute") &&
+                    contains_text(solved.rules, "physics.modern.check-candidate") &&
+                    contains_text(solved.rules, "physics.modern.significant-figures"),
+                "the photon family records its law, dimensions, substitution, check and reporting");
     }
     {
         // The same relation read the other way is the de Broglie wavelength of a momentum in eV.
@@ -138,6 +144,14 @@ void run_modern_tests(TestSink &t) {
         t.equal(solved.result.value_text, "1.20", "the photoelectric answer keeps three figures");
         t.equal(solved.equation, "(Kmax = (E + (-phi)))",
                 "the model is the Einstein photoelectric equation");
+        t.evidence("PHYS-025",
+                contains_text(solved.rules, "physics.modern.einstein-photoelectric") &&
+                    contains_text(solved.rules, "physics.modern.check-dimensions") &&
+                    contains_text(solved.rules, "physics.modern.substitute") &&
+                    contains_text(solved.rules, "physics.modern.check-candidate") &&
+                    contains_text(solved.rules, "physics.modern.significant-figures"),
+                "the photoelectric family records its law, dimensions, substitution, check and "
+                "reporting");
     }
     {
         // The other direction the catalog promises for this relation. The unknown chooses the unit
@@ -175,6 +189,14 @@ void run_modern_tests(TestSink &t) {
                 "a mass defect gives its binding energy");
         t.equal(solved.result.value_text, "28.3", "the binding energy reports to three figures");
         t.equal(solved.result.unit_text, "MeV", "the binding energy is reported in MeV");
+        t.evidence("PHYS-025",
+                contains_text(solved.rules, "physics.modern.mass-energy-equivalence") &&
+                    contains_text(solved.rules, "physics.modern.check-dimensions") &&
+                    contains_text(solved.rules, "physics.modern.substitute") &&
+                    contains_text(solved.rules, "physics.modern.check-candidate") &&
+                    contains_text(solved.rules, "physics.modern.significant-figures"),
+                "the mass-energy family records its law, dimensions, substitution, check and "
+                "reporting");
     }
     {
         // The mass-energy relation read the other way, which the catalog also promises.
