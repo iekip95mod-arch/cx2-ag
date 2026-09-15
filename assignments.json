@@ -1444,7 +1444,7 @@
       "pr": null,
       "branch": "claude/issue-281",
       "slug": "cx2-ag-claude-nebula",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-281",
@@ -1453,6 +1453,16 @@
       "issue": 281,
       "pr": 291,
       "branch": "claude/issue-281",
+      "slug": "cx2-ag-claude-review-brook",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-220",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 220,
+      "pr": 286,
+      "branch": "claude/issue-220",
       "slug": "cx2-ag-claude-review-brook",
       "released": false
     }
