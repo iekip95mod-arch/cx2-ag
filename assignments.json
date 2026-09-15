@@ -1324,7 +1324,7 @@
       "pr": 278,
       "branch": "claude/issue-137",
       "slug": "cx2-ag-claude-review-arch",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-263",
