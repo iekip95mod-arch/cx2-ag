@@ -1907,6 +1907,16 @@
       "branch": "fix/fast-compiles-the-bridge",
       "slug": "cx2-ag-claude-review-brook",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-181",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 181,
+      "pr": 356,
+      "branch": "claude/issue-181",
+      "slug": "cx2-ag-claude-review-crest",
+      "released": false
     }
   ]
 }
