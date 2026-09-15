@@ -88,6 +88,8 @@ void run_integer_tests(TestSink &t) {
         t.check(result.status == DerivationStatus::SolvedAndVerified && derivation.size() >= 2 &&
                     derivation.all_verified_from(0),
                 std::string(example.call) + " records checked reasoning");
+        t.check(derivation.outcome_from(0) == result.status && result.expression != kNoNode,
+                std::string(example.call) + " reports the record's own verdict over a fully checked range");
         t.check(result.cost.backend_calls == 0 && result.cost.steps == derivation.size(),
                 std::string(example.call) + " meters each record without a backend");
         t.check(derivation.context.normalized_problem_model == call &&
