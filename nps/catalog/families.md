@@ -274,7 +274,7 @@ domains_and_parameter_assumptions photon energy, work function and maximum kinet
 supported_branches_and_degenerate_cases any one of the three may be unknown, with an explicit refusal when the photon energy is at or below the work function, since that surface emits nothing rather than emitting a negative kinetic energy
 exact_special_function_and_numerical_result_policy exact rational substitution in electronvolts with no SI conversion, and measured precision applied only after candidate verification
 parser_module_ids src/units/units.cc, src/physics/modern.cc, src/steps/linear.cc
-required_assumptions one photon ejects one electron from a clean surface with no collision losses, together with the recorded working-unit assumption
+required_assumptions the surface is clean and each photon ejects at most one electron, carried as "one photon ejects one electron from a clean surface with no collision losses", together with the recorded working-unit assumption
 test_group_ids modern, units
 proof_obligation_ids obl.modern.dimensions-agree, obl.modern.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
 supported_methods exact substitution into Kmax = E - phi followed by the existing exact linear solver

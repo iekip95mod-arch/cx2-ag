@@ -906,6 +906,7 @@ int main_body() {
     run_catch_up_tests(sink);
     sink.begin_group("density");
     run_density_tests(sink);
+    sink.begin_group("modern");
     run_modern_tests(sink);
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);

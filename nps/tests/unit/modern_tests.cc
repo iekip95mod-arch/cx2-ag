@@ -140,6 +140,20 @@ void run_modern_tests(TestSink &t) {
                 "the model is the Einstein photoelectric equation");
     }
     {
+        // The other direction the catalog promises for this relation. The unknown chooses the unit
+        // the answer is labelled with and the figures it is rounded to, so each direction is its
+        // own path through the reporting step rather than a free branch of shared code.
+        ModernProblem input = problem(ModernRelation::Photoelectric,
+                                      ModernVariable::WorkFunction);
+        input.knowns.push_back(known(ModernVariable::PhotonEnergy, "3.50"));
+        input.knowns.push_back(known(ModernVariable::KineticEnergy, "1.20"));
+        const Run solved = run(input);
+        t.equal(modern_outcome_name(solved.result.outcome), "solved",
+                "a photon energy and a kinetic energy give the work function");
+        t.equal(solved.result.value_text, "2.30", "the work function keeps three figures");
+        t.equal(solved.result.unit_text, "eV", "the work function is reported in electronvolts");
+    }
+    {
         // Below the threshold the surface emits nothing, which is a refusal rather than a
         // negative kinetic energy.
         ModernProblem input = problem(ModernRelation::Photoelectric,
@@ -161,6 +175,16 @@ void run_modern_tests(TestSink &t) {
                 "a mass defect gives its binding energy");
         t.equal(solved.result.value_text, "28.3", "the binding energy reports to three figures");
         t.equal(solved.result.unit_text, "MeV", "the binding energy is reported in MeV");
+    }
+    {
+        // The mass-energy relation read the other way, which the catalog also promises.
+        ModernProblem input = problem(ModernRelation::MassEnergy, ModernVariable::MassDefect);
+        input.knowns.push_back(known(ModernVariable::RestEnergy, "28.3"));
+        const Run solved = run(input);
+        t.equal(modern_outcome_name(solved.result.outcome), "solved",
+                "a released energy gives its mass defect");
+        t.equal(solved.result.value_text, "0.0304", "the mass defect reports to three figures");
+        t.equal(solved.result.unit_text, "u", "the mass defect is reported in atomic mass units");
     }
     {
         ModernProblem input = problem(ModernRelation::PhotonWavelength,
