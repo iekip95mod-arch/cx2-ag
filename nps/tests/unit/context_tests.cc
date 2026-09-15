@@ -603,6 +603,13 @@ void run_context_tests(TestSink &t) {
         t.check(parse_context(blob.substr(0, 44) + "13#", stored_arena, &stored).ok() &&
                     stored.derivation_status == DerivationStatus::DependencyUnavailable,
                 "and an index written before the two new outcomes existed still means what it did");
+
+        // NumericallyApproximated retains index 9 in the wire format for stored records.
+        SolutionContext approx;
+        Arena approx_arena;
+        t.check(parse_context(blob.substr(0, 44) + "9#", approx_arena, &approx).ok() &&
+                    approx.derivation_status == DerivationStatus::NumericallyApproximated,
+                "and index 9 written before the two new outcomes existed decodes to NumericallyApproximated");
     }
 
     {
