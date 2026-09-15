@@ -1865,6 +1865,16 @@
       "branch": "claude/issue-364",
       "slug": "cx2-ag-claude-review-summit",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-366",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 366,
+      "branch": "ti-info-app",
+      "slug": "cx2-ag-claude-review-arch",
+      "released": false
     }
   ]
 }
