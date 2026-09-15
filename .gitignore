@@ -27,8 +27,11 @@
 !/tools/nsptool/
 !/tools/keysvc/
 !/tools/github-events/
+!/tools/emu/
 /tools/nsptool/*
 /tools/keysvc/*
+/tools/emu/*
+!/tools/emu/*.py
 !/tools/nsptool/*.c
 !/tools/nsptool/*.py
 !/tools/keysvc/*.c
@@ -68,6 +71,11 @@ __pycache__/
 # README beside them records what each base image is and where it came from.
 /images/*
 !/images/README.md
+# The two a hosted agent needs to boot anything, and only those two. Everything else here is backups,
+# seeds and 75 per-instance directories, so a wider negation would sweep gigabytes into a commit.
+# Both are LFS tracked in .gitattributes, because a flash image is past GitHub's 100 MiB file limit.
+!/images/boot1.img
+!/images/nspire-os.img
 
 # Build trees. Anchored so a source directory named build elsewhere is not swallowed.
 /nps/build/
