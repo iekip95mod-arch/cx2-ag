@@ -1651,16 +1651,29 @@ check(r.outcome == "solved" and r.has_polar == true and r.polar.magnitude == "5"
       r.polar.angle:find("atan2", 1, true) ~= nil and
       r.polar.angle:find("-4", 1, true) ~= nil,
       "inverse component conversion preserves a negative-quadrant atan2 direction")
-check(r.polar.rank == 2 and r.polar.frame == "ground" and r.polar.unit == "m" and
+check(r.polar.polar_angle == nil and
+      r.polar.rank == 2 and r.polar.frame == "ground" and r.polar.unit == "m" and
       r.polar.angle_unit == "degrees" and r.precision.kind == "exact" and r.giac_calls == 5,
       "inverse component conversion retains rank, frame, units and angle units")
 
+script("sqrt(14)", "0", "atan2(2,1)", "0", "atan2(sqrt(5),3)", "0")
 r = nps.components_to_magnitude_angle({
     x = "1", y = "2", z = "3", rank = 3, frame = "lab", unit = "m",
     precision = exact_precision, angle_unit = "radians",
 })
-check(r.outcome == "invalid input" and r.has_polar == false and r.giac_calls == 0,
-      "the inverse component bridge preserves the family rank refusal")
+check(r.outcome == "solved" and r.has_polar == true and r.polar.rank == 3 and
+      r.polar.magnitude:find("14", 1, true) ~= nil and r.giac_calls == 6,
+      "the inverse component bridge reconstructs a rank three magnitude and direction")
+check(r.polar.polar_angle ~= nil and r.polar.polar_angle:find("atan2", 1, true) ~= nil and
+      r.polar.angle:find("atan2", 1, true) ~= nil and r.polar.angle_unit == "radians",
+      "the bridge emits both spherical angles, the polar one alongside the azimuth")
+r = nps.components_to_magnitude_angle({
+    x = "1", y = "2", z = "3", rank = 4, frame = "lab", unit = "m",
+    precision = exact_precision, angle_unit = "radians",
+})
+check(r.outcome == "invalid input" and r.detail:find("rank must be 2 or 3", 1, true) ~= nil and
+      r.has_polar == nil and r.giac_calls == 0,
+      "the inverse component bridge rejects an out-of-envelope rank before it reaches the engine")
 r = nps.components_to_magnitude_angle({
     x = "x^^2", y = "1", rank = 2, frame = "lab", unit = "m",
     precision = exact_precision, angle_unit = "radians",
