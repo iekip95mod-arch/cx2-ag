@@ -1585,6 +1585,16 @@
       "branch": "claude/issue-314",
       "slug": "cx2-ag-claude-meteor",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-165",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 165,
+      "pr": 304,
+      "branch": "claude/issue-165",
+      "slug": "cx2-ag-claude-review-arch",
+      "released": false
     }
   ]
 }
