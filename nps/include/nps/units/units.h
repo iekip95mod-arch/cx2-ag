@@ -10,11 +10,13 @@ namespace nps {
 
 // PRD section 13 and 14: quantities carry dimensions, and a derivation checks them rather than
 // trusting the numbers. Three base dimensions cover the kinematics vertical slice; the others
-// join when a family needs them, which is the same rule as everything else here.
+// join when a family needs them, which is the same rule as everything else here. Electric current
+// joined for PHYS-012, because charge, potential and resistance are not expressible without it.
 struct Dimension {
     int length = 0;
     int mass = 0;
     int time = 0;
+    int current = 0;
 };
 
 bool operator==(const Dimension &a, const Dimension &b);

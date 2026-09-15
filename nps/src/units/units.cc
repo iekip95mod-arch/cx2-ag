@@ -33,6 +33,19 @@ Dimension time_dimension() {
     return d;
 }
 
+Dimension current_dimension() {
+    Dimension d;
+    d.current = 1;
+    return d;
+}
+
+Dimension charge_dimension() {
+    Dimension d;
+    d.time = 1;
+    d.current = 1;
+    return d;
+}
+
 Dimension force_dimension() {
     Dimension d;
     d.length = 1;
@@ -49,6 +62,41 @@ Dimension energy_dimension() {
     return d;
 }
 
+Dimension power_dimension() {
+    Dimension d;
+    d.length = 2;
+    d.mass = 1;
+    d.time = -3;
+    return d;
+}
+
+Dimension potential_dimension() {
+    Dimension d;
+    d.length = 2;
+    d.mass = 1;
+    d.time = -3;
+    d.current = -1;
+    return d;
+}
+
+Dimension resistance_dimension() {
+    Dimension d;
+    d.length = 2;
+    d.mass = 1;
+    d.time = -3;
+    d.current = -2;
+    return d;
+}
+
+Dimension capacitance_dimension() {
+    Dimension d;
+    d.length = -2;
+    d.mass = -1;
+    d.time = 4;
+    d.current = 2;
+    return d;
+}
+
 const BaseUnit *base_units(size_t *count) {
     static const BaseUnit table[] = {
         {"m", length_dimension(), 1, 1},        {"km", length_dimension(), 1000, 1},
@@ -57,6 +105,17 @@ const BaseUnit *base_units(size_t *count) {
         {"min", time_dimension(), 60, 1},       {"h", time_dimension(), 3600, 1},
         {"kg", mass_dimension(), 1, 1},         {"g", mass_dimension(), 1, 1000},
         {"N", force_dimension(), 1, 1},         {"J", energy_dimension(), 1, 1},
+        {"A", current_dimension(), 1, 1},       {"mA", current_dimension(), 1, 1000},
+        {"C", charge_dimension(), 1, 1},        {"mC", charge_dimension(), 1, 1000},
+        {"uC", charge_dimension(), 1, 1000000}, {"nC", charge_dimension(), 1, 1000000000},
+        {"V", potential_dimension(), 1, 1},     {"mV", potential_dimension(), 1, 1000},
+        {"kV", potential_dimension(), 1000, 1}, {"ohm", resistance_dimension(), 1, 1},
+        {"kohm", resistance_dimension(), 1000, 1},
+        {"Mohm", resistance_dimension(), 1000000, 1},
+        {"W", power_dimension(), 1, 1},         {"kW", power_dimension(), 1000, 1},
+        {"mW", power_dimension(), 1, 1000},     {"F", capacitance_dimension(), 1, 1},
+        {"uF", capacitance_dimension(), 1, 1000000},
+        {"nF", capacitance_dimension(), 1, 1000000000},
     };
     *count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -311,54 +370,80 @@ Precision precision_of_literal(const std::string &number) {
 }  // namespace
 
 bool operator==(const Dimension &a, const Dimension &b) {
-    return a.length == b.length && a.mass == b.mass && a.time == b.time;
+    return a.length == b.length && a.mass == b.mass && a.time == b.time &&
+           a.current == b.current;
 }
 
 bool operator!=(const Dimension &a, const Dimension &b) { return !(a == b); }
 
+namespace {
+
+// One place that knows how many base dimensions there are, so a fifth one is a single edit here
+// rather than four parallel lists that drift apart.
+constexpr int kDimensionCount = 4;
+
+void dimension_powers(const Dimension &d, int (&out)[kDimensionCount]) {
+    out[0] = d.length;
+    out[1] = d.mass;
+    out[2] = d.time;
+    out[3] = d.current;
+}
+
+void dimension_from_powers(const int (&powers)[kDimensionCount], Dimension *out) {
+    out->length = powers[0];
+    out->mass = powers[1];
+    out->time = powers[2];
+    out->current = powers[3];
+}
+
+bool fits_int(int64_t value) {
+    return value >= std::numeric_limits<int>::min() && value <= std::numeric_limits<int>::max();
+}
+
+}  // namespace
+
 bool dimension_multiply(const Dimension &a, const Dimension &b, Dimension *out) {
-    int64_t length;
-    int64_t mass;
-    int64_t time;
-    if (!add_checked(static_cast<int64_t>(a.length), static_cast<int64_t>(b.length), &length) ||
-        !add_checked(static_cast<int64_t>(a.mass), static_cast<int64_t>(b.mass), &mass) ||
-        !add_checked(static_cast<int64_t>(a.time), static_cast<int64_t>(b.time), &time) ||
-        length < std::numeric_limits<int>::min() || length > std::numeric_limits<int>::max() ||
-        mass < std::numeric_limits<int>::min() || mass > std::numeric_limits<int>::max() ||
-        time < std::numeric_limits<int>::min() || time > std::numeric_limits<int>::max())
-        return false;
+    int left[kDimensionCount];
+    int right[kDimensionCount];
+    dimension_powers(a, left);
+    dimension_powers(b, right);
+    int combined[kDimensionCount];
+    for (int i = 0; i < kDimensionCount; ++i) {
+        int64_t sum;
+        if (!add_checked(static_cast<int64_t>(left[i]), static_cast<int64_t>(right[i]), &sum) ||
+            !fits_int(sum))
+            return false;
+        combined[i] = static_cast<int>(sum);
+    }
     Dimension product;
-    product.length = static_cast<int>(length);
-    product.mass = static_cast<int>(mass);
-    product.time = static_cast<int>(time);
+    dimension_from_powers(combined, &product);
     *out = product;
     return true;
 }
 
 bool dimension_power(const Dimension &a, int exponent, Dimension *out) {
-    int64_t length;
-    int64_t mass;
-    int64_t time;
-    if (!mul_checked(static_cast<int64_t>(a.length), static_cast<int64_t>(exponent), &length) ||
-        !mul_checked(static_cast<int64_t>(a.mass), static_cast<int64_t>(exponent), &mass) ||
-        !mul_checked(static_cast<int64_t>(a.time), static_cast<int64_t>(exponent), &time) ||
-        length < std::numeric_limits<int>::min() || length > std::numeric_limits<int>::max() ||
-        mass < std::numeric_limits<int>::min() || mass > std::numeric_limits<int>::max() ||
-        time < std::numeric_limits<int>::min() || time > std::numeric_limits<int>::max())
-        return false;
+    int base[kDimensionCount];
+    dimension_powers(a, base);
+    int raised[kDimensionCount];
+    for (int i = 0; i < kDimensionCount; ++i) {
+        int64_t scaled;
+        if (!mul_checked(static_cast<int64_t>(base[i]), static_cast<int64_t>(exponent), &scaled) ||
+            !fits_int(scaled))
+            return false;
+        raised[i] = static_cast<int>(scaled);
+    }
     Dimension powered;
-    powered.length = static_cast<int>(length);
-    powered.mass = static_cast<int>(mass);
-    powered.time = static_cast<int>(time);
+    dimension_from_powers(raised, &powered);
     *out = powered;
     return true;
 }
 
 std::string dimension_text(const Dimension &d) {
     std::string out;
-    const char *names[3] = {"L", "M", "T"};
-    const int powers[3] = {d.length, d.mass, d.time};
-    for (int i = 0; i < 3; ++i) {
+    const char *names[kDimensionCount] = {"L", "M", "T", "I"};
+    int powers[kDimensionCount];
+    dimension_powers(d, powers);
+    for (int i = 0; i < kDimensionCount; ++i) {
         if (powers[i] == 0)
             continue;
         if (!out.empty())
@@ -369,11 +454,12 @@ std::string dimension_text(const Dimension &d) {
 }
 
 std::string si_unit_text(const Dimension &d) {
-    const char *names[3] = {"kg", "m", "s"};
-    const int powers[3] = {d.mass, d.length, d.time};
+    const char *names[kDimensionCount] = {"kg", "m", "s", "A"};
+    const int powers[kDimensionCount] = {d.mass, d.length, d.time, d.current};
     std::string top;
     std::string bottom;
-    for (int i = 0; i < 3; ++i) {
+    int bottom_factors = 0;
+    for (int i = 0; i < kDimensionCount; ++i) {
         if (powers[i] > 0) {
             if (!top.empty())
                 top += " ";
@@ -382,6 +468,7 @@ std::string si_unit_text(const Dimension &d) {
             if (!bottom.empty())
                 bottom += " ";
             bottom += with_power(names[i], -static_cast<int64_t>(powers[i]));
+            ++bottom_factors;
         }
     }
     if (top.empty() && bottom.empty())
@@ -390,6 +477,10 @@ std::string si_unit_text(const Dimension &d) {
         return top;
     if (top.empty())
         top = "1";
+    // A division applies to the one factor after it, so an unbracketed "kg m^2/s^3 A^2" reads back
+    // as multiplied by A^2. Ohms and volts are the first dimensions with two factors below the line.
+    if (bottom_factors > 1)
+        bottom = "(" + bottom + ")";
     return top + "/" + bottom;
 }
 
