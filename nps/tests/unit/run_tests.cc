@@ -914,6 +914,8 @@ int main_body() {
     run_kinematics_tests(sink);
     sink.begin_group("planar kinematics");
     run_planar_kinematics_tests(sink);
+    sink.begin_group("optics");
+    run_optics_tests(sink);
     sink.begin_group("relative motion");
     run_relative_motion_tests(sink);
     sink.begin_group("unit conversion");
