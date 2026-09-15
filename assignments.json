@@ -1106,7 +1106,7 @@
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-gemini-review-facet",
       "released": false,
-      "selectedReview": false
+      "selectedReview": true
     },
     {
       "key": "gemini/reviewer/issue-222",
@@ -1264,7 +1264,7 @@
       "branch": "gemini/issue-207",
       "slug": "cx2-ag-claude-review-echo",
       "released": false,
-      "selectedReview": true
+      "selectedReview": false
     },
     {
       "key": "claude/reviewer/issue-270",
