@@ -92,6 +92,27 @@ async function readState(repository, api) {
   return { sha: file.sha, assignments: document.assignments };
 }
 
+async function writeAssignments(repository, state, message, api) {
+  await api('PUT', `repos/${repository}/contents/${assignmentPath}`, {
+    branch: assignmentBranch,
+    message,
+    content: Buffer.from(JSON.stringify({ version: 1, assignments: state.assignments }, null, 2) + '\n').toString('base64'),
+    ...(state.sha ? { sha: state.sha } : {}),
+  });
+}
+
+async function sweep(repository, state, api, roster) {
+  let released = 0;
+  for (const assignment of state.assignments.filter(assignment => !assignment.released)) {
+    findIdentity(roster, `${assignment.slug}[bot]`, assignment.provider, assignment.role);
+    if (await closed(repository, assignment, api)) {
+      assignment.released = true;
+      released++;
+    }
+  }
+  return released;
+}
+
 async function branchPulls(repository, branch, api) {
   const pulls = [];
   for (let page = 1; ; page++) {
@@ -194,6 +215,20 @@ export async function readAssignment(options, api, roster = loadRoster()) {
   return { ...identity, ...target };
 }
 
+export async function releaseDeadLeases(repository, api, roster = loadRoster()) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const state = await readState(repository, api);
+    const before = state.assignments.filter(assignment => !assignment.released).map(assignment => assignment.slug);
+    if (!await sweep(repository, state, api, roster)) return [];
+    const released = before.filter(slug => !state.assignments.some(assignment => !assignment.released && assignment.slug === slug));
+    try {
+      await writeAssignments(repository, state, 'Release finished worker identities', api);
+      return released;
+    } catch (error) { if (![409, 422].includes(error.status)) throw error; }
+  }
+  throw Error('Bot assignment contention exceeded eight attempts');
+}
+
 export async function reviewerCapacity(repository, api, roster = loadRoster()) {
   const state = await readState(repository, api);
   const free = Object.fromEntries(['codex', 'claude', 'gemini'].map(provider => [provider, roster.filter(identity => identity.provider === provider && identity.role === 'reviewer').length]));
@@ -217,13 +252,13 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
       await verifyOwnership(options.repository, target, identity, options.legacyOwner, api, true);
       return { ...identity, ...target };
     }
-    for (const assignment of state.assignments.filter(assignment => !assignment.released)) {
-      findIdentity(roster, `${assignment.slug}[bot]`, assignment.provider, assignment.role);
-      if (await closed(options.repository, assignment, api)) assignment.released = true;
-    }
+    const released = await sweep(options.repository, state, api, roster);
     if (target.role === 'executor' && state.assignments.some(assignment => !assignment.released && assignment.role === 'executor' && assignment.issue === target.issue)) throw Error('Another provider already has this issue');
     const candidate = roster.find(identity => identity.provider === target.provider && identity.role === target.role && !state.assignments.some(assignment => !assignment.released && assignment.slug === identity.slug));
-    if (!candidate) throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
+    if (!candidate) {
+      if (released) await writeAssignments(options.repository, state, 'Release finished worker identities', api).catch(() => {});
+      throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
+    }
     const identity = findIdentity(roster, candidate.login, target.provider, target.role);
     await verifyIdentity(identity, api);
     await verifyOwnership(options.repository, target, identity, options.legacyOwner, api);
@@ -238,12 +273,7 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
       }
     }
     try {
-      await api('PUT', `repos/${options.repository}/contents/${assignmentPath}`, {
-        branch: assignmentBranch,
-        message: 'Reserve repository worker identity',
-        content: Buffer.from(JSON.stringify({ version: 1, assignments: state.assignments }, null, 2) + '\n').toString('base64'),
-        ...(state.sha ? { sha: state.sha } : {}),
-      });
+      await writeAssignments(options.repository, state, 'Reserve repository worker identity', api);
       return { ...identity, ...target };
     } catch (error) {
       if (![409, 422].includes(error.status)) throw error;

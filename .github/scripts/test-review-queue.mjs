@@ -64,7 +64,11 @@ test('capacity release retries a waiting assignment only on its current revision
   for (const provider of ['codex', 'claude', 'gemini']) {
     const f = fixture(); f.pr.head.ref = `${provider}/issue-17`;
     f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
-    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ [provider]: 1 })), [42]);
+    const order = [];
+    const reap = async () => { order.push('reap'); return ['cx2-ag-claude-review-arch']; };
+    const capacity = async () => { order.push('capacity'); return { [provider]: 1 }; };
+    assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), [42]);
+    assert.deepEqual(order, ['reap', 'capacity']);
     assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
   }
 });
@@ -79,20 +83,31 @@ test('a Gemini PR waiting for Claude uses Claude capacity', async () => {
   }
 });
 
+test('a failing reaper still lets the capacity sweep retry a waiting assignment', async () => {
+  const f = fixture(); f.pr.head.ref = 'claude/issue-17';
+  f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+  const order = [];
+  const reap = async () => { order.push('reap'); throw Error('Bot assignment contention exceeded eight attempts'); };
+  const capacity = async () => { order.push('capacity'); return { claude: 1 }; };
+  assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), [42]);
+  assert.deepEqual(order, ['reap', 'capacity']);
+  assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
+});
+
 test('no capacity, stale revision, pending work and unrelated failures never retry', async () => {
   for (const kind of ['full', 'stale', 'pending', 'other', 'draft']) {
     const f = fixture();
     f.add(10, 'agent-review-request.yml', { head_sha: kind === 'stale' ? 'a'.repeat(40) : f.pr.head.sha, status: kind === 'pending' ? 'queued' : 'completed', conclusion: 'failure' });
     if (kind === 'draft') f.pr.draft = true;
     if (kind === 'other') f.jobs[0].steps = [{ name: 'Require a trusted PR author', conclusion: 'failure' }];
-    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: kind === 'full' ? 0 : 1, claude: 0 })), []);
+    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: kind === 'full' ? 0 : 1, claude: 0 }), async () => []), []);
   }
 });
 
 test('an allocation failure without a capacity marker is not retried', async () => {
   const f = fixture(); f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'failure' });
   f.jobs[0].steps = [{ name: 'Reserve the reviewer identity', conclusion: 'failure' }];
-  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 })), []);
+  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 }), async () => []), []);
 });
 
 test('head movement and newer run attempts prevent retry', async () => {
@@ -103,7 +118,7 @@ test('head movement and newer run attempts prevent retry', async () => {
       if (endpoint === `${root}/actions/runs/10` && kind === 'attempt') run.run_attempt++;
       return f.api(method, endpoint);
     };
-    assert.deepEqual(await retryWaitingReviews(api, async () => ({ codex: 1, claude: 0 })), []);
+    assert.deepEqual(await retryWaitingReviews(api, async () => ({ codex: 1, claude: 0 }), async () => []), []);
   }
 });
 
@@ -112,6 +127,7 @@ test('recovery uses trusted main on Ubuntu and waiting skips token publication',
   assert.match(workflow, /ref: main/);
   assert.match(workflow, /runs-on: ubuntu-latest/);
   assert.match(workflow, /actions: write/);
+  assert.match(workflow, /contents: write/);
   assert.match(workflow, /workflows: \[agent-review-request\]/);
   assert.match(workflow, /types: \[completed\]/);
   assert.doesNotMatch(workflow, /pull_request:\s|secrets\.(?!GITHUB_TOKEN)/);
