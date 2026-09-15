@@ -1,7 +1,9 @@
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-import { MAP, coverage, covers, drifted } from "./device-map-drift.mjs";
+import { MAP, coverage, covers, drifted, pullNumber } from "./device-map-drift.mjs";
 
 const SAMPLE = [
   "# Device map",
@@ -55,6 +57,25 @@ test("the map in this repository parses and every section names at least one pat
   for (const section of sections) {
     assert.ok(section.paths.length > 0, `${section.heading} declares no paths`);
   }
+});
+
+// Which pull request this is decides whether the check asks GitHub or asks git, and the first version
+// asked git on every run. That passed here and failed on every pull request, because the runner
+// checks out one commit and a development checkout does not.
+test("the pull request number is read from the event file, and its absence is not an error", () => {
+  const path = join(tmpdir(), `device-map-event-${process.pid}.json`);
+  try {
+    writeFileSync(path, JSON.stringify({ pull_request: { number: 384 } }));
+    assert.equal(pullNumber(path), 384);
+    writeFileSync(path, JSON.stringify({ ref: "refs/heads/main" }));
+    assert.equal(pullNumber(path), null, "a push event carries no pull request");
+    writeFileSync(path, "not json at all");
+    assert.equal(pullNumber(path), null, "an unreadable event must not throw");
+  } finally {
+    rmSync(path, { force: true });
+  }
+  assert.equal(pullNumber(undefined), null);
+  assert.equal(pullNumber(join(tmpdir(), "no-such-event-file.json")), null);
 });
 
 // Every path the map claims to describe has to exist, or the check silently stops guarding it and

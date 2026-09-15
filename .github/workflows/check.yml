@@ -56,6 +56,8 @@ jobs:
       # The map describes the calculator, so nothing about it is checkable by building. What is
       # checkable is whether a change to a file it describes was accompanied by reading it.
       - name: Check the device map kept up with the code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/device-map-drift.mjs
 
       - name: Verify event authentication and task routing

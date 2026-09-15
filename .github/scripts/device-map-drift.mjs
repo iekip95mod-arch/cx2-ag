@@ -49,15 +49,47 @@ export function drifted(changed, sections) {
   return found;
 }
 
-function changedFiles() {
-  const base = process.env.GITHUB_BASE_REF;
+export function pullNumber(eventPath) {
+  if (!eventPath) return null;
+  try {
+    return JSON.parse(readFileSync(eventPath, 'utf8')).pull_request?.number ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// The runner checks out a single commit with no history, so there is no origin/main and no merge
+// base to diff against. Asking git was the first version of this and it failed on every pull request
+// while passing locally, because a development checkout has the history that a CI one does not.
+// GitHub already knows which files a pull request touches and answers without any history at all.
+async function fromGitHub(repo, number, token) {
+  const files = [];
+  for (let page = 1; ; page++) {
+    const url = `https://api.github.com/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`;
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+    });
+    if (!response.ok) throw Error(`GitHub answered ${response.status} for the changed files of #${number}`);
+    const batch = await response.json();
+    for (const entry of batch) files.push(entry.filename);
+    if (batch.length < 100) return files;
+  }
+}
+
+async function changedFiles() {
+  const repo = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  const number = pullNumber(process.env.GITHUB_EVENT_PATH);
+  if (repo && token && number) return fromGitHub(repo, number, token);
+  // Outside Actions, a development checkout does have the history, which is how this is run by hand.
+  const base = process.env.GITHUB_BASE_REF || (number ? null : 'main');
   if (!base) return null;
   const out = execFileSync('git', ['diff', '--name-only', `origin/${base}...HEAD`], { encoding: 'utf8' });
   return out.split('\n').map(line => line.trim()).filter(Boolean);
 }
 
 async function main() {
-  const changed = changedFiles();
+  const changed = await changedFiles();
   if (changed === null) {
     console.log('No pull request base in this event, so there is nothing to compare the map against.');
     return;
