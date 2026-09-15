@@ -84,6 +84,18 @@ const CheckPayload *check_payload(const Derivation &derivation, const char *rule
     return derivation.check(static_cast<StepId>(index));
 }
 
+// The isolated identity node the rearrangement step records, rendered so a test can check the
+// actual algebra rather than only that a step with this rule exists.
+std::string isolated_identity_text(const Arena &arena, const Derivation &derivation) {
+    const size_t index = rule_index(derivation, "physics.relative-motion.isolate-unknown");
+    if (index == derivation.size())
+        return "";
+    const TransformationPayload *payload = derivation.transformation(static_cast<StepId>(index));
+    if (payload == nullptr)
+        return "";
+    return print(arena, payload->after);
+}
+
 const PlanPayload *root_plan(const Derivation &derivation) {
     if (derivation.roots().empty())
         return nullptr;
@@ -125,9 +137,97 @@ class FailingBackend : public Backend {
 
 bool cancel_now(void *) { return true; }
 
+RelativeMotionIdentity identity(RelativeMotionUnknown unknown) {
+    RelativeMotionIdentity input;
+    input.subject_name = "plane";
+    input.medium_name = "wind";
+    input.reference_name = "earth";
+    input.unknown = unknown;
+    // Problem 5 of the chapters 1-4 test, with the airspeed already resolved into components.
+    input.subject_relative_to_medium = parsed_vector("(171, 469.8) km/h");
+    input.medium_relative_to_reference = parsed_vector("(-171, -69.8) km/h");
+    input.subject_relative_to_reference = parsed_vector("(0, 400) km/h");
+    return input;
+}
+
+struct IdentityRun {
+    explicit IdentityRun(const RelativeMotionIdentity &problem, const Budget &budget = Budget())
+        : arena(), result(solve_relative_motion_identity(arena, derivation, problem, budget)) {}
+
+    Arena arena;
+    Derivation derivation;
+    RelativeMotionResult result;
+};
+
+bool exact_components(const Vector &value, int64_t xn, int64_t xd, int64_t yn, int64_t yd) {
+    return value.x.num == xn && value.x.den == xd && value.y.num == yn && value.y.den == yd;
+}
+
 }  // namespace
 
 void run_relative_motion_tests(TestSink &t) {
+    {
+        // The wind is the unknown, which is the arrangement the worked problem asks for.
+        IdentityRun wind(identity(RelativeMotionUnknown::MediumRelativeToReference));
+        t.equal(relative_motion_outcome_name(wind.result.outcome), "solved",
+                "a three-frame statement solves for its medium velocity");
+        t.check(wind.result.has_value && exact_components(wind.result.velocity, -95, 2, -349, 18),
+                "the wind velocity is the plane over ground minus the plane through the air");
+        t.equal(relative_direction_name(wind.result.direction), "southwest",
+                "and points into the third quadrant of the declared axes");
+        t.check(has_rule(wind.derivation, "physics.relative-motion.subscript-cancellation"),
+                "the cancellation of the inner frame is recorded as its own check");
+        t.check(has_rule(wind.derivation, "physics.relative-motion.isolate-unknown"),
+                "and the rearrangement that isolates the unknown is recorded");
+        t.check(step_with_rule(wind.derivation, "physics.relative-motion.isolate-unknown") <
+                    step_with_rule(wind.derivation, "physics.relative-motion.definition"),
+                "with the symbolic rearrangement recorded before any number is substituted");
+        t.check(wind.result.interpretation.find("medium relative to reference") !=
+                    std::string::npos,
+                "and the interpretation names which of the three velocities was unknown");
+        {
+            const std::string rendered = isolated_identity_text(wind.arena, wind.derivation);
+            t.check(rendered.find("relative_velocity(wind, earth)") != std::string::npos &&
+                        rendered.find("relative_velocity(plane, earth)") != std::string::npos &&
+                        rendered.find("relative_velocity(plane, wind)") != std::string::npos,
+                    "the isolated node for the medium-unknown arrangement names the outer frame "
+                    "plane on both terms of its right side, not the medium frame chasing itself");
+        }
+
+        // The other two arrangements of the same identity, each recovering a known input.
+        IdentityRun airspeed(identity(RelativeMotionUnknown::SubjectRelativeToMedium));
+        t.check(airspeed.result.has_value &&
+                    exact_components(airspeed.result.velocity, 95, 2, 261, 2),
+                "the same identity solves for the subject velocity through the medium");
+        {
+            const std::string rendered = isolated_identity_text(airspeed.arena, airspeed.derivation);
+            t.check(rendered.find("relative_velocity(plane, wind)") != std::string::npos &&
+                        rendered.find("relative_velocity(plane, earth)") != std::string::npos &&
+                        rendered.find("relative_velocity(wind, earth)") != std::string::npos,
+                    "the isolated node for the subject-through-medium arrangement rearranges to "
+                    "the ground velocity minus the wind velocity");
+        }
+        IdentityRun ground(identity(RelativeMotionUnknown::SubjectRelativeToReference));
+        t.check(ground.result.has_value && exact_components(ground.result.velocity, 0, 1, 1000, 9),
+                "and for the subject velocity over the reference, by reversing the subscripts of "
+                "the medium term");
+        t.equal(relative_direction_name(ground.result.direction), "north",
+                "which is due north for this fixture");
+        {
+            const std::string rendered = isolated_identity_text(ground.arena, ground.derivation);
+            t.check(rendered.find("relative_velocity(plane, earth)") != std::string::npos &&
+                        rendered.find("relative_velocity(plane, wind)") != std::string::npos &&
+                        rendered.find("relative_velocity(earth, wind)") != std::string::npos,
+                    "the isolated node for the subject-over-reference arrangement rearranges to "
+                    "the airspeed minus the reversed wind term");
+        }
+
+        RelativeMotionIdentity repeated = identity(RelativeMotionUnknown::MediumRelativeToReference);
+        repeated.medium_name = repeated.reference_name;
+        IdentityRun collided(repeated);
+        t.equal(relative_motion_outcome_name(collided.result.outcome), "invalid problem",
+                "two frames sharing a name is refused rather than cancelled away");
+    }
     {
         Run solved(problem(parsed_vector("(10, -2) m/s"), parsed_vector("(4, 3) m/s")));
         t.evidence("PHYS-001", relative_motion_outcome_name(solved.result.outcome), "solved",
