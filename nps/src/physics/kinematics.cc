@@ -4,6 +4,7 @@
 #include "nps/steps/linear.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
+#include "algebra_first.h"
 
 namespace nps {
 namespace {
@@ -1037,6 +1038,15 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             return result;
         }
 
+        // The algebra before the arithmetic, and without a backend: the unknown is isolated while
+        // the equation is still symbolic, and ALG-007's moves are the steps that say how.
+        if (hop.solve_outcome == SolveOutcome::Solved) {
+            const physics::IsolationRecord isolation = physics::record_symbolic_isolation(
+                arena, derivation, plan_id, hop.symbolic, hop_symbol, budget);
+            if (isolation.recorded && h + 1 == route.size())
+                isolated = isolation.isolated;
+        }
+
         bool giac_disagreed = false;
         // A no-solution answer has no scalar value for a backend rearrangement to corroborate.
         if (ctx.giac && hop.solve_outcome == SolveOutcome::Solved) {
@@ -1045,7 +1055,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                                &hop_isolated, &giac_disagreed);
             if (ctx.halted)
                 return result;
-            if (h + 1 == route.size())
+            if (h + 1 == route.size() && hop_isolated != kNoNode)
                 isolated = hop_isolated;
             if (giac_disagreed) {
                 result.outcome = KinematicsOutcome::VerificationFailed;

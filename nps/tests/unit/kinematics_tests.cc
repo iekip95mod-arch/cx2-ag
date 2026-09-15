@@ -1,6 +1,8 @@
 #include <string>
 
 #include "nps/physics/kinematics.h"
+#include "nps/core/parser.h"
+#include "../../src/physics/algebra_first.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
 #include "../step_invariants.h"
@@ -251,7 +253,37 @@ void test_intermediate_teaching_order(TestSink &t) {
 
 }  // namespace
 
+// The marker's step 3: the unknown is isolated while the equation is still symbolic, and only then
+// do numbers appear. No backend is configured here on purpose, because the walkthrough that runs on
+// a machine without Giac is the one being graded.
+void test_algebra_before_arithmetic(TestSink &t) {
+    {
+        const Solved s = run("find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2");
+        t.equal(s.answer, "t = 4 s", "t from v, v0 and a");
+        t.check(has(s.rules, "alg.rearrange.subtract-both-sides") &&
+                    has(s.rules, "alg.rearrange.divide-both-sides"),
+                "the isolation of t is recorded as inverse operations with no backend");
+        t.check(before(s.rules, "alg.rearrange.", "kin.substitute"),
+                "and every one of them is recorded before the substitution");
+    }
+    {
+        // A term struck out with the factor that killed it named, which is the marker's step 2.
+        Arena arena;
+        Derivation d;
+        const NodeId before_node = parse(arena, "y = v0*t + a*t^2/2").root;
+        const NodeId after_node = parse(arena, "y = a*t^2/2").root;
+        const StepId id = physics::record_vanishing_term(d, kNoStep, before_node, after_node,
+                                                         {1, 0}, "v0*t", "v0");
+        const TransformationPayload *p = d.transformation(id);
+        t.check(p && p->path.size() == 2 && p->path[0] == 1 && p->path[1] == 0,
+                "a struck out term points at the subexpression that went");
+        t.check(p && has(p->concrete_action, "v0*t") && has(p->concrete_action, "v0 is zero"),
+                "and names the factor that eliminated it");
+    }
+}
+
 void run_kinematics_tests(TestSink &t) {
+    test_algebra_before_arithmetic(t);
     for (const std::string &reply : {"[]", "[-2,2]", "[2,2]"}) {
         SequencedGiac giac(reply, "0");
         std::string rearranged;
