@@ -30,6 +30,9 @@ struct VectorExpr {
 struct MagnitudeAngleExpr {
     NodeId magnitude = kNoNode;
     NodeId angle = kNoNode;
+    // Spherical polar angle from the positive z axis, present only at rank three.
+    NodeId polar_angle = kNoNode;
+    uint8_t rank = 2;
     AngleUnit angle_unit = AngleUnit::Radians;
     Frame frame;
     Unit unit;

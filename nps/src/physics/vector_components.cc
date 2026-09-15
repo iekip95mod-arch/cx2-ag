@@ -225,30 +225,50 @@ bool add_transformation(Derivation &derivation, Meter &meter, StepId parent,
 
 StepId add_plan(Derivation &derivation, Meter &meter, ConversionDirection direction,
                 const Frame &frame, const Unit &unit, const Precision &precision,
-                AngleUnit angle_unit) {
+                AngleUnit angle_unit, uint8_t rank = 2) {
     if (!meter.step())
         return kNoStep;
     const bool to_components = direction == ConversionDirection::ToComponents;
+    const bool spherical = !to_components && rank == 3;
     Step step;
     step.phase = "plan";
     step.goal = to_components ? "Resolve magnitude and direction into Cartesian components"
                               : "Resolve Cartesian components into magnitude and direction";
-    step.rule_id = to_components ? "vec.components.plan" : "vec.polar.plan";
+    step.rule_id = to_components ? "vec.components.plan"
+                   : spherical ? "vec.polar.plan-three"
+                               : "vec.polar.plan";
     step.rule_name = "Cartesian vector conversion";
     step.explanation_short =
         to_components ? "Use x = r cos(theta) and y = r sin(theta) in the declared frame"
-                      : "Use the magnitude relation and atan2(y, x) in the declared frame";
+        : spherical
+            ? "Use the magnitude relation, atan2(sqrt(x^2 + y^2), z) and atan2(y, x) in the declared frame"
+            : "Use the magnitude relation and atan2(y, x) in the declared frame";
     step.claim = ClaimType::NoClaim;
     PlanPayload payload;
     payload.strategy_id = step.rule_id;
     payload.selected_strategy = to_components ? "Magnitude-angle component relations"
-                                               : "Magnitude relation and quadrant-aware atan2";
-    register_strategy_precondition(
-        payload, step, "pre.vector-components.rank-two", "the conversion is two-dimensional",
-        "rank comparison", EvidenceStrength::StructurallyValid,
-        to_components ? VerificationOutcome::Passed : VerificationOutcome::NotAttempted,
-        to_components ? "magnitude-angle input defines a two-component result"
-                      : "checked from the Cartesian input rank");
+                                : spherical
+                                    ? "Magnitude relation with spherical polar angle and azimuth"
+                                    : "Magnitude relation and quadrant-aware atan2";
+    if (spherical) {
+        register_strategy_precondition(
+            payload, step, "pre.vector-components.rank-three",
+            "the conversion is three-dimensional", "rank comparison",
+            EvidenceStrength::StructurallyValid, VerificationOutcome::NotAttempted,
+            "checked from the Cartesian input rank");
+        register_strategy_precondition(
+            payload, step, "pre.vector-components.spherical-convention",
+            "the spherical angle convention is declared before any angle is computed",
+            "frame declaration", EvidenceStrength::StructurallyValid,
+            VerificationOutcome::NotAttempted, "checked before evaluating either angle");
+    } else {
+        register_strategy_precondition(
+            payload, step, "pre.vector-components.rank-two", "the conversion is two-dimensional",
+            "rank comparison", EvidenceStrength::StructurallyValid,
+            to_components ? VerificationOutcome::Passed : VerificationOutcome::NotAttempted,
+            to_components ? "magnitude-angle input defines a two-component result"
+                          : "checked from the Cartesian input rank");
+    }
     register_strategy_precondition(
         payload, step, "pre.vector-components.frame-declared", "the vector frame is declared",
         "frame declaration", EvidenceStrength::StructurallyValid, VerificationOutcome::NotAttempted,
@@ -269,7 +289,8 @@ StepId add_plan(Derivation &derivation, Meter &meter, ConversionDirection direct
                                             angle_unit_name(angle_unit));
     payload.matched_problem_facts.push_back("precision: " + precision_detail(precision));
     payload.alternatives_considered.push_back(to_components ? "direct Cartesian input"
-                                                            : "single-argument inverse tangent");
+                                              : spherical ? "acos(z / r) for the polar angle"
+                                                          : "single-argument inverse tangent");
     payload.selection_rationale =
         to_components
             ? "the registered component laws retain the frame and dimension while the adapter checks each formula"
@@ -670,29 +691,62 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     if (meter.stopped())
         return halted(arena, derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                       input.precision, output_unit, halt_name(meter.halt()));
+    const bool spherical = input.rank == 3;
     const StepId plan = add_plan(derivation, meter, direction, input.frame, input.unit,
-                                 input.precision, output_unit);
+                                 input.precision, output_unit, input.rank);
     if (meter.stopped())
         return halted(arena, derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                       input.precision, output_unit, halt_name(meter.halt()));
 
-    const bool rank_ok = input.rank == 2;
-    const std::string rank_observed = "rank " + std::to_string(input.rank);
-    if (!add_check(derivation, meter, plan, "vec.polar.check-rank", "Two-dimensional vector rank",
+    const bool rank_ok = spherical ? valid_node(arena, input.z) : input.rank == 2;
+    const std::string rank_observed =
+        spherical && !rank_ok ? "rank 3 without a z component" : "rank " + std::to_string(input.rank);
+    if (!add_check(derivation, meter, plan,
+                   spherical ? "vec.polar.check-rank-three" : "vec.polar.check-rank",
+                   spherical ? "Three-dimensional vector rank" : "Two-dimensional vector rank",
                    "Check the Cartesian vector rank",
-                   "A single direction angle represents a two-dimensional vector",
-                   "obl.vector-components.rank-two", "the Cartesian vector has rank two",
-                   "rank comparison", "the conversion has exactly x and y components", "rank 2",
-                   rank_observed, EvidenceStrength::StructurallyValid, rank_ok))
+                   spherical
+                       ? "A polar angle and an azimuth represent a three-dimensional vector"
+                       : "A single direction angle represents a two-dimensional vector",
+                   spherical ? "obl.vector-components.rank-three"
+                             : "obl.vector-components.rank-two",
+                   spherical ? "the Cartesian vector has rank three"
+                             : "the Cartesian vector has rank two",
+                   "rank comparison",
+                   spherical ? "the conversion has x, y and z components"
+                             : "the conversion has exactly x and y components",
+                   spherical ? "rank 3" : "rank 2", rank_observed,
+                   EvidenceStrength::StructurallyValid, rank_ok))
         return halted(arena, derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                       input.precision, output_unit, halt_name(meter.halt()));
     derivation.complete_plan_precondition(
-        plan, "pre.vector-components.rank-two",
+        plan,
+        spherical ? "pre.vector-components.rank-three" : "pre.vector-components.rank-two",
         rank_ok ? VerificationOutcome::Passed : VerificationOutcome::Failed, rank_observed);
     if (!rank_ok)
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
                              input.precision, output_unit,
-                             "magnitude-angle conversion requires a rank 2 vector");
+                             spherical ? "a rank 3 conversion requires a z component"
+                                       : "magnitude-angle conversion requires a rank 2 or rank 3 vector");
+
+    if (spherical) {
+        const std::string convention_observed =
+            "polar angle from the positive z axis, azimuth from the positive x axis in the xy plane";
+        if (!add_check(derivation, meter, plan, "vec.polar.check-convention",
+                       "Declared spherical convention", "Check the spherical angle convention",
+                       "Two angles only name a direction once their reference axes are stated",
+                       "obl.vector-components.spherical-convention",
+                       "the polar angle is measured from the positive z axis and the azimuth from "
+                       "the positive x axis",
+                       "frame declaration",
+                       "both reported angles name the axis they are measured from",
+                       "a declared spherical convention", convention_observed,
+                       EvidenceStrength::StructurallyValid, true))
+            return halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                          input.unit, input.precision, output_unit, halt_name(meter.halt()));
+        derivation.complete_plan_precondition(plan, "pre.vector-components.spherical-convention",
+                                              VerificationOutcome::Passed, convention_observed);
+    }
 
     const bool frame_ok = !input.frame.name.empty();
     const std::string frame_observed = frame_ok ? "frame '" + input.frame.name + "'"
@@ -752,21 +806,29 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     Rational exact_x;
     Rational exact_y;
     const std::vector<SymbolValue> no_symbols;
+    Rational exact_z;
     const bool rational_x = evaluate_rational(arena, input.x, no_symbols, &exact_x);
     const bool rational_y = evaluate_rational(arena, input.y, no_symbols, &exact_y);
+    const bool rational_z =
+        !spherical || evaluate_rational(arena, input.z, no_symbols, &exact_z);
     const bool known_nonzero_component =
         (rational_x && !rational_equal(exact_x, {0, 1})) ||
-        (rational_y && !rational_equal(exact_y, {0, 1}));
-    if (exact_magnitude == nullptr && rational_x && rational_y &&
-        rational_equal(exact_x, {0, 1}) && rational_equal(exact_y, {0, 1}))
+        (rational_y && !rational_equal(exact_y, {0, 1})) ||
+        (spherical && rational_z && !rational_equal(exact_z, {0, 1}));
+    if (exact_magnitude == nullptr && rational_x && rational_y && rational_z &&
+        rational_equal(exact_x, {0, 1}) && rational_equal(exact_y, {0, 1}) &&
+        (!spherical || rational_equal(exact_z, {0, 1})))
         return invalid_input(derivation, meter, budget, model, direction, input.frame, input.unit,
                              input.precision, output_unit,
                              "the zero vector has no defined direction");
 
     Adapter adapter(arena, backend);
     const NodeId two = arena.integer("2");
-    const NodeId sum = arena.binary(
+    const NodeId planar_sum = arena.binary(
         Kind::Add, arena.binary(Kind::Pow, input.x, two), arena.binary(Kind::Pow, input.y, two));
+    const NodeId sum = spherical ? arena.binary(Kind::Add, planar_sum,
+                                                arena.binary(Kind::Pow, input.z, two))
+                                 : planar_sum;
     const NodeId magnitude_formula = arena.call("sqrt", std::vector<NodeId>{sum});
     NodeId magnitude;
     bool verification_failed = false;
@@ -930,6 +992,70 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
         return halted(arena, derivation, mark, meter, budget, model, direction, input.frame, input.unit,
                       input.precision, output_unit, halt_name(meter.halt()));
 
+    NodeId polar_angle = kNoNode;
+    if (spherical) {
+        const NodeId planar = arena.call("sqrt", std::vector<NodeId>{planar_sum});
+        Request polar;
+        polar.op = Op::Atan2;
+        polar.target = planar;
+        polar.argument = input.z;
+        const NodeId polar_formula = arena.call("atan2", std::vector<NodeId>{planar, input.z});
+        NodeId polar_radians;
+        const size_t polar_calls_before = meter.backend_calls();
+        if (!checked_value(arena, adapter, meter, polar, polar_formula, false, &polar_radians, &why,
+                           &verification_failed))
+            return meter.stopped()
+                       ? halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                                input.unit, input.precision, output_unit, why)
+                       : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                            input.frame, input.unit, input.precision, output_unit,
+                                            why, verification_failed);
+        const NodeId polar_formula_out = angle_from_radians(arena, polar_radians, output_unit);
+        polar_angle = polar_formula_out;
+        if (output_unit == AngleUnit::Degrees) {
+            Request simplify;
+            simplify.op = Op::Simplify;
+            simplify.target = polar_formula_out;
+            if (!checked_value(arena, adapter, meter, simplify, polar_formula_out, approximate,
+                               &polar_angle, &why, &verification_failed))
+                return meter.stopped()
+                           ? halted(arena, derivation, mark, meter, budget, model, direction,
+                                    input.frame, input.unit, input.precision, output_unit, why)
+                           : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                                input.frame, input.unit, input.precision,
+                                                output_unit, why, verification_failed);
+        } else if (approximate) {
+            Request numeric;
+            numeric.op = Op::Approximate;
+            numeric.target = polar_radians;
+            ResultTag tag;
+            if (!adapter_value(arena, adapter, meter, numeric, &polar_angle, &tag, &why))
+                return meter.stopped()
+                           ? halted(arena, derivation, mark, meter, budget, model, direction,
+                                    input.frame, input.unit, input.precision, output_unit, why)
+                           : conversion_failure(derivation, mark, meter, budget, model, direction,
+                                                input.frame, input.unit, input.precision,
+                                                output_unit, why, false);
+        }
+        if (!add_transformation(
+                derivation, meter, plan, "vec.polar.polar-angle", "Spherical polar angle",
+                "Compute the polar angle from the positive z axis",
+                "Apply theta = atan2(sqrt(x^2 + y^2), z)",
+                "Reach for this when a three-dimensional vector has to become a length and a "
+                "direction. One angle cannot name a direction in space, so the polar angle says how "
+                "far the vector has tipped away from the positive z axis and the azimuth says which "
+                "way it points once projected into the xy plane. It is atan2 of the planar length "
+                "against z rather than acos(z / r) because the two-argument form keeps the sign of "
+                "z without dividing by a magnitude that may not be exact.",
+                "obl.vector-components.polar-angle",
+                "the polar angle satisfies theta = atan2(sqrt(x^2 + y^2), z)", polar_formula_out,
+                polar_angle, approximate ? "Giac zero check before approximation" : "Giac zero check",
+                self_checked(approximate), EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+                VerificationOutcome::Inconclusive, meter.backend_calls() - polar_calls_before))
+            return halted(arena, derivation, mark, meter, budget, model, direction, input.frame,
+                          input.unit, input.precision, output_unit, halt_name(meter.halt()));
+    }
+
     const std::string precision_observed = precision_detail(input.precision);
     if (!add_check(derivation, meter, plan, "vec.polar.report-precision",
                    "Final-only polar precision", "Check final polar precision",
@@ -946,7 +1072,8 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
 
     VectorComponentsResult result;
     result.outcome = VectorComponentsOutcome::Solved;
-    result.polar = {magnitude, angle, output_unit, input.frame, input.unit, input.precision};
+    result.polar = {magnitude,   angle,      polar_angle,     input.rank,
+                    output_unit, input.frame, input.unit, input.precision};
     result.has_polar = true;
     result.status = derivation.outcome_from(mark);
     result.cost = meter.cost();

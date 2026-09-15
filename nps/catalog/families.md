@@ -363,20 +363,20 @@ topic_and_level Two-dimensional magnitude and direction conversion with Cartesia
 family_envelope_version 1
 accepted_expression_grammar existing scalar expression grammar for magnitude, angle, x, and y fields
 domains_and_parameter_assumptions a named Cartesian frame, a physical unit with exact positive SI scale, and an explicit degree or radian angle unit
-supported_branches_and_degenerate_cases exact symbolic components, measured final-only approximation, and quadrant-aware inverse conversion including negative x and y
+supported_branches_and_degenerate_cases exact symbolic components, measured final-only approximation, and quadrant-aware inverse conversion including negative x and y, and rank-three reconstruction into a magnitude, a polar angle from the positive z axis and an azimuth from the positive x axis
 exact_special_function_and_numerical_result_policy exact degree-to-radian factors and exact formulas require adapter zero checks before any requested final approximation, while host fixtures use scripted backend replies to test the protocol and evidence flow
-accepted_input_forms typed MagnitudeAngleExpr or rank-two Vector and VectorExpr values with explicit frame, unit, precision, and angle unit
+accepted_input_forms typed MagnitudeAngleExpr or rank-two and rank-three Vector and VectorExpr values with explicit frame, unit, precision, and angle unit
 word_language_profile_ids none, typed entry only
 parser_module_ids src/core/parser.cc, src/physics/vector_components.cc, src/cas/giac/giac_adapter.cc
-required_assumptions a supplied magnitude is nonnegative and all components use the declared Cartesian frame and shared unit, carried with the names in them, as in "vector frame is lab" and "the supplied unit has dimension L"
-supported_methods x = r cos(theta), y = r sin(theta), the existing exact vector magnitude, and quadrant-aware atan2(y, x)
-unsupported_near_neighbors rank-three direction reconstruction, implicit basis transforms, implicit angle units, automatic symbolic nonnegativity proof, and a direction for the zero vector
-strategy_ids vec.components.plan, vec.polar.plan
+required_assumptions a supplied magnitude is nonnegative, a rank-three direction uses the declared spherical convention with the polar angle from the positive z axis and the azimuth from the positive x axis in the xy plane, and all components use the declared Cartesian frame and shared unit, carried with the names in them, as in "vector frame is lab" and "the supplied unit has dimension L"
+supported_methods x = r cos(theta), y = r sin(theta), the existing exact vector magnitude, r = sqrt(x^2 + y^2 + z^2), quadrant-aware atan2(y, x), and the spherical polar angle atan2(sqrt(x^2 + y^2), z)
+unsupported_near_neighbors the vector cross product, implicit basis transforms, implicit angle units, automatic symbolic nonnegativity proof, and a direction for the zero vector
+strategy_ids vec.components.plan, vec.polar.plan, vec.polar.plan-three
 test_group_ids vector components
-proof_obligation_ids obl.vector-components.rank-two, obl.vector-components.frame-declared, obl.vector-components.angle-unit-explicit, obl.vector-components.dimensions-preserved, obl.vector-components.component-relations, obl.vector-components.magnitude-relation, obl.vector-components.quadrant-direction, obl.vector-components.precision-final, obl.plan.preconditions-hold
+proof_obligation_ids obl.vector-components.rank-two, obl.vector-components.rank-three, obl.vector-components.spherical-convention, obl.vector-components.polar-angle, obl.vector-components.frame-declared, obl.vector-components.angle-unit-explicit, obl.vector-components.dimensions-preserved, obl.vector-components.component-relations, obl.vector-components.magnitude-relation, obl.vector-components.quadrant-direction, obl.vector-components.precision-final, obl.plan.preconditions-hold
 solution_soundness_status production answers are withheld unless metadata checks and backend zero checks pass, while golden fixtures validate that evidence flow with scripted replies and do not independently establish Giac algebra
-solution_completeness_status partial, limited to two-dimensional Cartesian conversion and dependent on an available symbolic backend
-corpus_case_ids vector_components_exact, vector_components_negative_quadrant
+solution_completeness_status partial, covering two-dimensional conversion in both directions and rank-three reconstruction into magnitude and direction, dependent on an available symbolic backend
+corpus_case_ids vector_components_exact, vector_components_negative_quadrant, vector_components_spherical
 explanation_review_status core rule sequence and proof evidence covered by golden fixtures, independent explanation review not yet recorded
 learner_transfer_status not measured
 device_performance_status not measured
@@ -393,6 +393,10 @@ rule vec.components.y fixture
 rule vec.components.report-precision fixture
 rule vec.polar.plan fixture
 rule vec.polar.check-rank fixture
+rule vec.polar.check-rank-three fixture
+rule vec.polar.check-convention fixture
+rule vec.polar.plan-three fixture
+rule vec.polar.polar-angle fixture
 rule vec.polar.check-frame fixture
 rule vec.polar.check-angle-unit fixture
 rule vec.polar.check-dimension fixture
