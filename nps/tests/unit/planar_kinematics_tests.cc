@@ -331,6 +331,26 @@ void run_planar_kinematics_tests(TestSink &t) {
                 "the leftward interpretation names the final velocity the interval ends at");
     }
     {
+        // PHYS 2410 Chapters 1-4 test, problem 4(a, b): the same launch as part (c) below, read
+        // directly by the planar family since parts (a) and (b) give the elapsed time.
+        PlanarKinematicsProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        input.elapsed_time = parsed_quantity("5.50 s");
+        input.projectile = true;
+        Arena arena;
+        Derivation derivation;
+        const PlanarKinematicsResult solved = solve_planar_kinematics(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(solved.outcome), "solved",
+                "the planar family solves parts (a) and (b) with the elapsed time given");
+        t.equal(solved.displacement_text, "(116 i + 52 j) m",
+                "part (a): h = v0y t + a t^2 / 2 reaches the cliff height of 52 m");
+        t.equal(solved.final_velocity_text, "(21.0 i - 17.5 j) m/s",
+                "part (b): v_fx = v_0x since a_x = 0, and v_fy = v_0y + a t, giving an impact "
+                "speed of 27.3 m/s");
+    }
+    {
         // PHYS 2410 Chapters 1-4 test, problem 4(c): 42.0 m/s at 60.0 degrees decomposes to
         // (21.0, 36.4) m/s, and the apex is reached at 3.71 s and 67.6 m above the launch point.
         PlanarApexProblem input;
