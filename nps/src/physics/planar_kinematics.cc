@@ -97,9 +97,12 @@ NodeId rational_node(Arena &arena, const Rational &source) {
 }
 
 NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    return arena.call("dimension", {arena.integer(integer_text(dimension.length)),
-                                    arena.integer(integer_text(dimension.mass)),
-                                    arena.integer(integer_text(dimension.time))});
+    int powers[kDimensionCount];
+    dimension_powers(dimension, powers);
+    std::vector<NodeId> exponents;
+    for (int power : powers)
+        exponents.push_back(arena.integer(integer_text(power)));
+    return arena.call("dimension", exponents);
 }
 
 NodeId vector_node(Arena &arena, const Vector &vector) {

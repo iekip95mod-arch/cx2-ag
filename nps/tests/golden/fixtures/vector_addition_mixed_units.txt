@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.vectors.cartesian-addition.two-dimension
   envelope version: <not recorded>
-  normalized problem: vector_add(framed_vector(vector((3 * (2500^-1)), (1 * (500^-1))), 1000, lab, dimension(1, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0)))
+  normalized problem: vector_add(framed_vector(vector((3 * (2500^-1)), (1 * (500^-1))), 1000, lab, dimension(1, 0, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0, 0)))
   requested method: convert components to SI, add matching components, report once
   active assumption: first vector frame is lab
   active assumption: second vector frame is lab
@@ -85,8 +85,8 @@ steps
       detail: Reach for this whenever the two vectors are written in different units, or in any unit that is not the SI one. Adding a component in kilometres to one in metres would be adding two different things, so every component is put on the same scale first. The scale factors are exact, so nothing is lost here and nothing needs rounding yet.
       proof obligation: obl.physics.converts-by-table, the SI form comes from the unit table's exact factor for the entered unit
       action: (0.0012 i + 0.002 j) km becomes (1.2 i + 2 j) m, and (5 i + 5 j) m becomes (5 i + 5 j) m
-      before: vector_add(framed_vector(vector((3 * (2500^-1)), (1 * (500^-1))), 1000, lab, dimension(1, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0)))
-      after: vector_add(framed_vector(vector((6 * (5^-1)), 2), 1, lab, dimension(1, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0)))
+      before: vector_add(framed_vector(vector((3 * (2500^-1)), (1 * (500^-1))), 1000, lab, dimension(1, 0, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0, 0)))
+      after: vector_add(framed_vector(vector((6 * (5^-1)), 2), 1, lab, dimension(1, 0, 0, 0)), framed_vector(vector(5, 5), 1, lab, dimension(1, 0, 0, 0)))
       reversible: yes
       verification: unit table, passed, both unit scales were applied exactly
       verified: yes

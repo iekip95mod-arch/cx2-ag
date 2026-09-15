@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.kinematics.relative-motion.components.two-dimension
   envelope version: <not recorded>
-  normalized problem: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2), east-north)
+  normalized problem: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2), east-north)
   requested method: validate two velocity vectors, convert to SI, subtract matching components, verify, and interpret direction
   active assumption: both velocities use frame ground
   active assumption: positive i is east and positive j is north
@@ -103,8 +103,8 @@ steps
       detail: Reach for this whenever a question asks how fast one thing is moving as seen from another that is itself moving: a car from another car, a boat from the water, a plane from the air. Subtracting the reference's velocity is what it means to watch from the reference: if you were moving alongside it, its own velocity would look like zero and everything else would shift by the same amount. The order matters, because subject minus reference and reference minus subject point opposite ways.
       proof obligation: obl.relative-motion.definition-after-checks, the relative velocity definition is applied only after its conditions pass
       action: Apply v(subject/reference) = v(subject) - v(reference)
-      before: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2), east-north)
-      after: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
+      before: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2), east-north)
+      after: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2))))
       reversible: no
       verification: checked physical-law applicability, passed, the roles, ranks, frames and velocity dimensions passed
       verified: yes
@@ -117,8 +117,8 @@ steps
       detail: Reach for this whenever the two velocities are written in different units, or in any unit that is not metres per second. Subtracting a speed in km/h from one in m/s would be subtracting two different things, so both go onto the same scale first. The scale factors are exact, so this loses nothing and nothing is rounded yet.
       proof obligation: obl.physics.converts-by-table, the SI form comes from the unit table's exact factor for the entered unit
       action: Convert both velocities to m/s
-      before: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
-      after: (relative_velocity(drone, wind) = (framed_vector(vector(10, -5), 1, ground, dimension(1, 0, -1), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1), 2))))
+      before: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2))))
+      after: (relative_velocity(drone, wind) = (framed_vector(vector(10, -5), 1, ground, dimension(1, 0, -1, 0), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2))))
       reversible: yes
       verification: unit table, passed, both velocity scales were applied exactly
       verified: yes
