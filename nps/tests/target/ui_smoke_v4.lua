@@ -590,7 +590,7 @@ local calls = {
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
     solve_begin = 0, solve_advance = 0, solve_cancel = 0,
 }
-local incremental_task = nil
+incremental_task = nil
 local profile_events = {}
 local profile_finishes = {}
 local last_args = nil
