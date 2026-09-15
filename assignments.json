@@ -1295,6 +1295,16 @@
       "branch": "claude/issue-263",
       "slug": "cx2-ag-claude-orion",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-157",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 157,
+      "pr": 273,
+      "branch": "claude/issue-157",
+      "slug": "cx2-ag-claude-review-summit",
+      "released": false
     }
   ]
 }
