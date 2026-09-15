@@ -183,9 +183,29 @@ class Backend {
         terminal_detail_ = detail;
     }
 
+    // Giac's in_eval spelling names an interruption and a stack overflow as alternatives and cannot
+    // say which one it was, so the adapter reading that text is one fact short. The caller that
+    // polls the keypad holds that fact and lends it here. Same object as the terminal latch, so it
+    // reaches every adapter the request builds.
+    void watch_stop(bool (*poll)(void *), void *context) {
+        stop_poll_ = poll;
+        stop_poll_context_ = context;
+    }
+
+    // Sticky, because one request reaches Giac through several adapters and a key released between
+    // two of them must not give the same stop two different readings.
+    bool stop_requested() {
+        if (!stop_seen_ && stop_poll_ && stop_poll_(stop_poll_context_))
+            stop_seen_ = true;
+        return stop_seen_;
+    }
+
   private:
     ResultTag terminal_tag_ = ResultTag::Exact;
     std::string terminal_detail_;
+    bool (*stop_poll_)(void *) = 0;
+    void *stop_poll_context_ = 0;
+    bool stop_seen_ = false;
 };
 
 class Adapter {
