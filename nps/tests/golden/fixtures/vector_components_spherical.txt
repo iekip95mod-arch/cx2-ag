@@ -1,0 +1,169 @@
+problem: components = (0, 3, 4) m, frame = lab
+variable: magnitude and direction
+outcome: solved
+result: magnitude = 5 m, polar angle = atan2(3, 4) radians from z, azimuth = atan2(3, 0) radians
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.vectors.magnitude-components.two-dimension
+  envelope version: <not recorded>
+  normalized problem: components_to_magnitude_angle(vector(0, 3), radians, lab, 1, dimension(1, 0, 0, 0), precision(exact, 0), 3)
+  requested method: validate typed metadata, apply the magnitude relation and atan2(y, x), verify exact formulas, then approximate only final values when measured
+  active assumption: vector frame is lab
+  active assumption: the supplied unit has dimension L
+  angle convention: atan2(y, x), reported in radians
+  branch convention: <not recorded>
+  unit policy: preserve the declared physical dimension and unit, verify exact expressions before final-only approximation, with exact expressions retained
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and corroborated
+steps
+  1 plan
+    phase: plan
+    goal: Resolve Cartesian components into magnitude and direction
+    rule: vec.polar.plan-three, Cartesian vector conversion
+    claim: no claim
+    explanation: Use the magnitude relation, atan2(sqrt(x^2 + y^2), z) and atan2(y, x) in the declared frame
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Magnitude relation with spherical polar angle and azimuth
+    applicability: the conversion is three-dimensional
+    applicability: the spherical angle convention is declared before any angle is computed
+    applicability: the vector frame is declared
+    applicability: the angle unit is degrees or radians
+    applicability: magnitude and Cartesian components carry the same physical dimension
+    fact: frame: lab
+    fact: dimension: L
+    fact: angle unit: radians
+    fact: precision: exact expressions retained
+    alternative: acos(z / r) for the polar angle
+    rationale: the existing exact magnitude path and atan2 retain dimension and quadrant while the adapter checks each formula
+    verification: rank comparison, passed, rank 3
+    verification: frame declaration, passed, polar angle from the positive z axis, azimuth from the positive x axis in the xy plane
+    verification: frame declaration, passed, frame 'lab'
+    verification: angle-unit validation, passed, radians
+    verification: dimensional analysis, passed, components and magnitude have dimension L, direction has dimension 1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the Cartesian vector rank
+      rule: vec.polar.check-rank-three, Three-dimensional vector rank
+      claim: definition
+      explanation: A polar angle and an azimuth represent a three-dimensional vector
+      proof obligation: obl.vector-components.rank-three, the Cartesian vector has rank three
+      target claim: the conversion has x, y and z components
+      check method: rank comparison
+      expected: rank 3
+      observed: rank 3
+      verification: rank comparison, passed, rank 3
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check the spherical angle convention
+      rule: vec.polar.check-convention, Declared spherical convention
+      claim: definition
+      explanation: Two angles only name a direction once their reference axes are stated
+      proof obligation: obl.vector-components.spherical-convention, the polar angle is measured from the positive z axis and the azimuth from the positive x axis
+      target claim: both reported angles name the axis they are measured from
+      check method: frame declaration
+      expected: a declared spherical convention
+      observed: polar angle from the positive z axis, azimuth from the positive x axis in the xy plane
+      verification: frame declaration, passed, polar angle from the positive z axis, azimuth from the positive x axis in the xy plane
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the vector frame
+      rule: vec.polar.check-frame, Declared vector frame
+      claim: definition
+      explanation: Magnitude and direction retain the Cartesian frame
+      proof obligation: obl.vector-components.frame-declared, the vector frame is declared
+      target claim: the input and polar result use a named frame
+      check method: frame declaration
+      expected: a nonempty frame name
+      observed: frame 'lab'
+      verification: frame declaration, passed, frame 'lab'
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check the output angle unit
+      rule: vec.polar.check-angle-unit, Declared angle unit
+      claim: definition
+      explanation: Direction must be reported explicitly in degrees or radians
+      proof obligation: obl.vector-components.angle-unit-explicit, the angle unit is explicitly degrees or radians
+      target claim: the direction result names its dimensionless angle measure
+      check method: angle-unit validation
+      expected: degrees or radians
+      observed: radians
+      verification: angle-unit validation, passed, radians
+      verified: yes
+    1.5 check
+      phase: check
+      goal: Check the magnitude and direction dimensions
+      rule: vec.polar.check-dimension, Polar-law dimensions
+      claim: definition
+      explanation: The magnitude keeps the component dimension and atan2 returns a dimensionless angle
+      proof obligation: obl.vector-components.dimensions-preserved, magnitude and Cartesian components have the same physical dimension
+      target claim: magnitude has the component dimension
+      check method: dimensional analysis
+      expected: sqrt(x^2 + y^2) has the component dimension
+      observed: components and magnitude have dimension L, direction has dimension 1
+      verification: dimensional analysis, passed, components and magnitude have dimension L, direction has dimension 1
+      verified: yes
+    1.6 transformation
+      phase: solve
+      goal: Compute the vector magnitude
+      rule: vec.polar.magnitude, Vector magnitude relation
+      claim: equivalent expression
+      explanation: Apply r = sqrt(x^2 + y^2)
+      detail: Reach for this going the other way, when you have the x and y components and want the vector's length. It is Pythagoras on the same right triangle the components came from, with the two components as the legs and the length as the hypotenuse. The length is never negative, whatever signs the components carry, because the squares remove them.
+      proof obligation: obl.vector-components.magnitude-relation, the magnitude satisfies r = sqrt(x^2 + y^2)
+      action: Compute the vector magnitude
+      before: sqrt((((0^2) + (3^2)) + (4^2)))
+      after: 5
+      reversible: yes
+      verification: Giac zero check, passed, the returned exact magnitude passed an independent zero check
+      verified: yes
+      backend requests: 1
+    1.7 transformation
+      phase: solve
+      goal: Compute direction with atan2
+      rule: vec.polar.direction, Quadrant-aware vector direction
+      claim: equivalent expression
+      explanation: Apply theta = atan2(y, x)
+      detail: Reach for this for the angle that goes with the length, whenever components are being turned back into a direction. It is atan2 rather than the arctangent of y over x because dividing first loses which quadrant the vector points into: (-3, -4) and (3, 4) give the same ratio and opposite directions. Taking y and x separately keeps the two signs, so the angle lands in the right quadrant.
+      proof obligation: obl.vector-components.quadrant-direction, the direction uses atan2(y, x) and preserves the Cartesian quadrant
+      action: Compute direction with atan2
+      before: atan2(3, 0)
+      after: atan2(3, 0)
+      reversible: yes
+      verification: Giac zero check, inconclusive, Giac agrees, but Giac was also asked for part of the answer it is checking, so this corroborates the result rather than proving it
+      verified: no
+      backend requests: 2
+    1.8 transformation
+      phase: solve
+      goal: Compute the polar angle from the positive z axis
+      rule: vec.polar.polar-angle, Spherical polar angle
+      claim: equivalent expression
+      explanation: Apply theta = atan2(sqrt(x^2 + y^2), z)
+      detail: Reach for this when a three-dimensional vector has to become a length and a direction. One angle cannot name a direction in space, so the polar angle says how far the vector has tipped away from the positive z axis and the azimuth says which way it points once projected into the xy plane. It is atan2 of the planar length against z rather than acos(z / r) because the two-argument form keeps the sign of z without dividing by a magnitude that may not be exact.
+      proof obligation: obl.vector-components.polar-angle, the polar angle satisfies theta = atan2(sqrt(x^2 + y^2), z)
+      action: Compute the polar angle from the positive z axis
+      before: atan2(3, 4)
+      after: atan2(3, 4)
+      reversible: yes
+      verification: Giac zero check, inconclusive, Giac agrees, but Giac was also asked for part of the answer it is checking, so this corroborates the result rather than proving it
+      verified: no
+      backend requests: 2
+    1.9 check
+      phase: check
+      goal: Check final polar precision
+      rule: vec.polar.report-precision, Final-only polar precision
+      claim: definition
+      explanation: Exact magnitude and direction relations are verified before any requested approximation
+      proof obligation: obl.vector-components.precision-final, precision is applied only after exact polar formulas are verified
+      target claim: polar reporting preserves the declared precision
+      check method: operation ordering
+      expected: exact magnitude and direction expressions
+      observed: exact expressions retained
+      verification: operation ordering, passed, exact expressions retained
+      verified: yes
