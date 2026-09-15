@@ -1785,6 +1785,16 @@
       "branch": "claude/issue-344",
       "slug": "cx2-ag-claude-lyra",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-354",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 354,
+      "pr": 355,
+      "branch": "progress-comment-lockout",
+      "slug": "cx2-ag-claude-review-anchor",
+      "released": false
     }
   ]
 }
