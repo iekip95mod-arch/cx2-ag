@@ -1167,8 +1167,20 @@ check(vector_rules["vec.add.plan"] and vector_rules["vec.add.convert-si"] and
       "the bridge retains the vector plan, conversion, component and reporting steps")
 
 r = nps.vector_addition("(1, 2, 3) m", "(4, 5, 6) m")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the vector bridge solves a rank-three addition")
+check(r.result == "(5 i + 7 j + 9 k) m" and r.value == r.result and
+      r.precision.kind == "exact",
+      "the rank-three bridge answer carries every axis in unit-vector form")
+local rank_three_rules = {}
+for _, s in ipairs(r.steps) do rank_three_rules[s.rule] = true end
+check(rank_three_rules["vec.add.component-i"] and rank_three_rules["vec.add.component-j"] and
+      rank_three_rules["vec.add.component-k"],
+      "the bridge emits the k component step beside the i and j steps")
+
+r = nps.vector_addition("(1, 2, 3) m", "(4, 5) m")
 check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
-      "the vector bridge refuses a three-dimensional problem in the two-dimensional family")
+      "the vector bridge still refuses two vectors whose ranks disagree")
 r = nps.vector_addition("(1, 2) m", "(3, 4) s")
 check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
       "the vector bridge refuses incompatible dimensions")
