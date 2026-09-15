@@ -1774,7 +1774,7 @@
       "pr": null,
       "branch": "claude/issue-342",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-344",
@@ -1784,7 +1784,7 @@
       "pr": null,
       "branch": "claude/issue-344",
       "slug": "cx2-ag-claude-lyra",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-354",
@@ -1824,7 +1824,7 @@
       "pr": 358,
       "branch": "claude/issue-342",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-344",
@@ -1834,7 +1834,7 @@
       "pr": 362,
       "branch": "claude/issue-344",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-226",
@@ -1926,6 +1926,16 @@
       "pr": null,
       "branch": "claude/issue-341",
       "slug": "cx2-ag-claude-sirius",
+      "released": false
+    },
+    {
+      "key": "claude/executor/issue-343",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 343,
+      "pr": null,
+      "branch": "claude/issue-343",
+      "slug": "cx2-ag-claude-aurora",
       "released": false
     }
   ]
