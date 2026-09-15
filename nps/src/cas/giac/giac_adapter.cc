@@ -486,18 +486,21 @@ Response Adapter::interpret(const Request &request, const std::string &raw) {
         note_backend_reply(r.tag, r.detail);
         return r;
     }
-    if (mentions(text, "Not enough memory") || mentions(text, "stack overflow") ||
-        mentions(text, "Recursion")) {
+    // The learner asked to stop, which is its own terminal condition rather than the backend
+    // failing. Giac's other interruption message names a stack overflow as an alternative cause and
+    // cannot say which happened, so a message wearing both readings is decided by the caller's
+    // keypad poll: it says the learner asked, or nothing does and the resource reading stands.
+    const bool interruption =
+        mentions(text, "user interruption") || mentions(text, "Interrupted by user");
+    const bool resource = mentions(text, "Not enough memory") || mentions(text, "stack overflow") ||
+                          mentions(text, "Recursion");
+    if (resource && !(interruption && backend_.stop_requested())) {
         r.tag = ResultTag::ResourceFailure;
         r.detail = text;
         note_backend_reply(r.tag, r.detail);
         return r;
     }
-    // The learner asked to stop, which is its own terminal condition rather than the backend
-    // failing. Read after the resource clause on purpose: giac's other interruption message names a
-    // stack overflow as an alternative cause and cannot say which happened, so that spelling keeps
-    // the resource reading rather than claiming a request the learner may never have made.
-    if (mentions(text, "user interruption") || mentions(text, "Interrupted by user")) {
+    if (interruption) {
         r.tag = ResultTag::Cancelled;
         r.detail = text;
         note_backend_reply(r.tag, r.detail);

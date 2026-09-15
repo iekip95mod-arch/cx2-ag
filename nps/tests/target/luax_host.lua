@@ -1881,6 +1881,17 @@ r = nps.differentiate("x^2", "x")
 check(r.giac_tag == "resource failure" and r.status == "solved but unchecked",
       "while the spelling giac cannot separate from a stack overflow keeps its resource reading")
 
+-- The same spelling, with the learner holding escape while giac was working. The bridge lends the
+-- backend the keypad poll its own budget uses, so the reading giac's text cannot settle is settled.
+script(function()
+    nps.test_escape_pressed(true)
+    return "GIAC_ERROR: Stopped by user interruption or stack overflow."
+end)
+r = nps.differentiate("x^2", "x")
+nps.test_escape_pressed(false)
+check(r.giac_tag == "cancelled" and r.status == "cancelled" and r.agrees == nil,
+      "and a stop the keypad confirms reads that spelling as the cancellation it was")
+
 script("Error: Bad Argument Value")
 r = nps.integrate("x*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
