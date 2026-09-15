@@ -75,6 +75,7 @@ set(CORE_SOURCES
     src/physics/catch_up.cc
     src/physics/density.cc
     src/physics/modern.cc
+    src/physics/relativity.cc
     src/physics/kinematics.cc
     src/physics/planar_kinematics.cc
     src/physics/optics.cc
@@ -119,6 +120,7 @@ set(TEST_SOURCES
     tests/unit/catch_up_tests.cc
     tests/unit/density_tests.cc
     tests/unit/modern_tests.cc
+    tests/unit/relativity_tests.cc
     tests/unit/gravitation_tests.cc
     tests/unit/oscillation_tests.cc
     tests/unit/kinematics_tests.cc
