@@ -1835,6 +1835,16 @@
       "branch": "claude/issue-344",
       "slug": "cx2-ag-claude-review-grove",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-226",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 226,
+      "pr": null,
+      "branch": "claude/issue-226",
+      "slug": "cx2-ag-claude-meteor",
+      "released": false
     }
   ]
 }
