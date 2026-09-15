@@ -3419,11 +3419,121 @@ function templatePicker.choose()
     if entry then entry[2]() end
 end
 
+-- PERF-002. The native owner runs a solve across several advances and this drives it from the
+-- timer, so the shell paints the prefix that has been verified instead of holding one frame for the
+-- whole derivation. Units are cooperative checkpoints, so the same budget does the same work here
+-- and on the handheld.
+incrementalSolve = { active = false, units = 4, advances = 0 }
+INCREMENTAL_SOLVE_INTERVAL = 0.01
+
+function incrementalSolve.available()
+	return type(nps_nspire) == "table" and type(nps_nspire.solve_begin) == "function" and
+	       type(nps_nspire.solve_advance) == "function" and
+	       type(nps_nspire.solve_close) == "function"
+end
+
+function incrementalSolve.release()
+	if incrementalSolve.active and type(nps_nspire) == "table" and
+	   type(nps_nspire.solve_close) == "function" then
+		pcall(nps_nspire.solve_close)
+	end
+	incrementalSolve.active = false
+	incrementalSolve.progress = nil
+	incrementalSolve.request = nil
+	incrementalSolve.advances = 0
+end
+
+function incrementalSolve.label(progress)
+	if progress.state ~= "pending" then return nil end
+	local count = type(progress.step_count) == "number" and progress.step_count or 0
+	return "solving: " .. tostring(count) .. " steps so far, Esc stops"
+end
+
+-- The finished task carries the same record fields the direct solve publishes, so the viewer reads
+-- one shape and nothing downstream has to know which owner produced it.
+function incrementalSolve.record(progress, startedAt)
+	progress.mode = "solve"
+	progress.input = progress.original_expression or incrementalSolve.request
+	progress.total_ms = timer.getMilliSecCounter() - startedAt
+	progress.heap_kb = math.floor(collectgarbage("count"))
+	progress.advances = incrementalSolve.advances
+	return progress
+end
+
+function incrementalSolve.start(text, variable)
+	if not incrementalSolve.available() then return false end
+	incrementalSolve.release()
+	local ok, progress = pcall(nps_nspire.solve_begin, text, variable, "linear")
+	if not ok or type(progress) ~= "table" or progress.state ~= "pending" then
+		if ok and type(progress) == "table" then pcall(nps_nspire.solve_close) end
+		return false
+	end
+	incrementalSolve.active = true
+	incrementalSolve.request = text
+	incrementalSolve.variable = variable
+	incrementalSolve.progress = progress
+	incrementalSolve.startedAt = timer.getMilliSecCounter()
+	incrementalSolve.advances = 0
+	steps.status = incrementalSolve.label(progress)
+	timer.start(INCREMENTAL_SOLVE_INTERVAL)
+	return true
+end
+
+-- One timer fire advances a bounded number of checkpoints, repaints, and rearms only while the task
+-- is still pending. Returns whether another fire is owed.
+function incrementalSolve.tick()
+	if not incrementalSolve.active then return false end
+	local ok, progress = pcall(nps_nspire.solve_advance, incrementalSolve.units)
+	if not ok or type(progress) ~= "table" then
+		incrementalSolve.release()
+		steps.status = "steps: the incremental solve stopped reporting progress"
+		platform.window:invalidate()
+		return false
+	end
+	incrementalSolve.advances = incrementalSolve.advances + 1
+	incrementalSolve.progress = progress
+	if progress.state == "pending" then
+		steps.status = incrementalSolve.label(progress)
+		platform.window:invalidate()
+		timer.start(INCREMENTAL_SOLVE_INTERVAL)
+		return true
+	end
+	local startedAt = incrementalSolve.startedAt
+	local finished = progress.state == "complete"
+	-- release() zeroes incrementalSolve.advances, so the record has to be built from the
+	-- count the task actually reached before that reset erases it.
+	local record = finished and incrementalSolve.record(progress, startedAt) or nil
+	incrementalSolve.release()
+	if finished then
+		prepareWalkthrough(record)
+		openSteps()
+	else
+		steps.status = "steps: " .. tostring(progress.state)
+	end
+	platform.window:invalidate()
+	return false
+end
+
+-- Cancelling keeps the moves the task verified, which is what the native owner publishes, but it is
+-- not an answer and does not open the walkthrough.
+function incrementalSolve.cancel()
+	if not incrementalSolve.active then return false end
+	local ok, progress = pcall(nps_nspire.solve_cancel)
+	local count = ok and type(progress) == "table" and progress.step_count or 0
+	incrementalSolve.release()
+	timer.stop()
+	steps.status = "solve stopped after " .. tostring(count) .. " verified steps"
+	platform.window:invalidate()
+	return true
+end
+
 function on.timer()
     timer.stop()
     if templatePicker.pending then
         templatePicker.fallback()
+        return
     end
+    incrementalSolve.tick()
 end
 
 -- Steps and Physics replace one another. Full Text temporarily covers either.
@@ -3660,6 +3770,13 @@ function runSteps(mode, text)
 		return steps.status
 	end
 	if text == "" then return "nothing to work on" end
+
+	-- PERF-002. A solve goes through the incremental owner when the bridge offers one, so the
+	-- derivation progresses across paints rather than holding a frame. The other modes stay
+	-- synchronous, and a refused start falls through to the direct call below.
+	if mode == "solve" and incrementalSolve.start(text, steps.variable) then
+		return steps.status
+	end
 
 	-- PERF-006 wants total latency on target hardware with everything resident, which is this call.
 	local profileStartedAt = startResourceProfile(mode)

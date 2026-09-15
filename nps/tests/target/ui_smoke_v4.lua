@@ -116,7 +116,10 @@ check(platform.withGC(function(first, middle, last, context)
 end, "first", nil, "last"), "withGC preserves all supplied arguments including nil")
 -- A clock that moves 100 ms per reading, so consecutive presses in a test are distinct presses.
 local clock = 1000
-timer = { getMilliSecCounter = function() clock = clock + 100 return clock end }
+timer_starts, timer_stops, timer_interval = 0, 0, nil
+timer = { getMilliSecCounter = function() clock = clock + 100 return clock end,
+          start = function(seconds) timer_starts = timer_starts + 1 timer_interval = seconds end,
+          stop = function() timer_stops = timer_stops + 1 end }
 cursor = { set = function() end }
 image = { new = function() return {} end, width = function() return 1 end, height = function() return 1 end }
 local registered_menu = nil
@@ -585,7 +588,9 @@ local calls = {
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
     forces = 0, optics = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
+    solve_begin = 0, solve_advance = 0, solve_cancel = 0,
 }
+incremental_task = nil
 local profile_events = {}
 local profile_finishes = {}
 local last_args = nil
@@ -667,6 +672,50 @@ nps_split = {
         return take_step_result(text)
     end,
     solve = function(text, ...) calls.solve = calls.solve + 1 last_args = { text, ... } return take_step_result(text) end,
+    -- The incremental owner as the native bridge presents it: a task that publishes a longer
+    -- verified prefix on each advance and only carries an answer when it completes.
+    solve_begin = function(text, variable, operation)
+        calls.solve_begin = calls.solve_begin + 1
+        if type(variable) ~= "string" or variable == "" then return nil, "variable" end
+        -- Taken once here rather than per advance, since take_step_result consumes
+        -- next_step_result on first use and every advance of the same task needs the
+        -- same finished record to slice its prefix from and to complete with.
+        incremental_task = { request = text, variable = variable, operation = operation or "linear",
+                             published = 0, whole = take_step_result(text) }
+        return { state = "pending", pending = true, step_count = 0, steps = {},
+                 original_expression = text, normalized_expression = text, status = "not recorded" }
+    end,
+    solve_advance = function(units)
+        calls.solve_advance = calls.solve_advance + 1
+        if not incremental_task then return nil, "no solve is in progress" end
+        incremental_task.published = incremental_task.published + 1
+        if incremental_task.published < 3 then
+            local prefix = {}
+            local whole = incremental_task.whole
+            for i = 1, incremental_task.published do prefix[i] = whole.steps[i] end
+            return { state = "pending", pending = true, step_count = #prefix, steps = prefix,
+                     original_expression = incremental_task.request,
+                     normalized_expression = incremental_task.request, status = "not recorded" }
+        end
+        local record = incremental_task.whole
+        record.state, record.pending = "complete", false
+        record.step_count = #record.steps
+        incremental_task = nil
+        return record
+    end,
+    solve_cancel = function()
+        calls.solve_cancel = calls.solve_cancel + 1
+        if not incremental_task then return nil, "no solve is in progress" end
+        local published = incremental_task.published
+        incremental_task = nil
+        return { state = "cancelled", pending = false, step_count = published, steps = {},
+                 status = "cancelled" }
+    end,
+    solve_close = function()
+        local held = incremental_task ~= nil
+        incremental_task = nil
+        return held
+    end,
     kinematics = function(...) calls.kinematics = calls.kinematics + 1 last_args = { ... } return fake_kinematics end,
     unit_conversion = function(source, target)
         calls.unit_conversion = calls.unit_conversion + 1
@@ -975,6 +1024,58 @@ check(calls.device_identity == 1, "and does not ask again on every frame it pain
 -- Native leaves an empty work area bare, so the shell's instruction text is gone from it.
 check(text:find("Type * to enter shell", 1, true) == nil,
       "the work area carries no instruction text")
+
+-- PERF-002. A solve goes to the incremental owner, which advances a bounded number of checkpoints
+-- per timer fire, so the shell paints the prefix it has verified instead of holding one frame for
+-- the whole derivation.
+do
+    local synchronous_before = calls.solve
+    local starts_before = timer_starts
+    type_line("!s 3x=9")
+    on.enterKey()
+    check(calls.solve == synchronous_before and calls.solve_begin == 1,
+          "a solve starts the incremental owner rather than the synchronous bridge call")
+    check(incrementalSolve.active and timer_starts == starts_before + 1 and
+          timer_interval == INCREMENTAL_SOLVE_INTERVAL,
+          "starting an incremental solve arms the timer that will advance it")
+    check(tostring(steps.status):find("solving", 1, true) == 1,
+          "the shell says a solve is running while it is unfinished")
+    local published, fires = {}, 0
+    repeat
+        fires = fires + 1
+        on.timer()
+        if incrementalSolve.active and incrementalSolve.progress then
+            published[#published + 1] = incrementalSolve.progress.step_count
+        end
+    until not incrementalSolve.active or fires > 16
+    check(fires == 3 and calls.solve_advance == 3,
+          "the solve takes three timer fires, so it genuinely progresses across paints")
+    check(#published == 2 and published[1] == 1 and published[2] == 2,
+          "each unfinished fire publishes a longer verified prefix than the one before it")
+    check(type(steps.result) == "table" and steps.result.state == "complete" and
+          steps.result.advances == 3 and #steps.result.steps > published[2],
+          "the finished task reaches the viewer with the whole walkthrough and its advance count")
+    check(steps.result.mode == "solve" and steps.result.input == "3x=9" and
+          type(steps.result.total_ms) == "number",
+          "the incremental record carries the same fields the synchronous solve publishes")
+    check(not incrementalSolve.active and incremental_task == nil,
+          "finishing the solve releases the native task rather than leaving its frames charged")
+    closeSteps()
+end
+-- Cancelling keeps the moves the task verified and does not open a walkthrough for them.
+do
+    local previous = steps.result
+    type_line("!s 3x=9")
+    on.enterKey()
+    on.timer()
+    check(incrementalSolve.active and calls.solve_cancel == 0, "a cancelled solve starts unfinished")
+    check(incrementalSolve.cancel() and calls.solve_cancel == 1 and not incrementalSolve.active,
+          "cancelling stops the incremental owner through the native task")
+    check(tostring(steps.status):find("1 verified steps", 1, true) ~= nil,
+          "cancellation reports the prefix the task verified")
+    check(steps.result == previous,
+          "a cancelled solve does not replace the walkthrough the viewer was showing")
+end
 
 local giac_before_manifest = calls.giac
 local solve_before_manifest = calls.solve
@@ -2269,6 +2370,7 @@ on.escapeKey()
 -- 200-local ceiling.
 do
     local module_solve = nps_split.solve
+    local module_solve_begin = nps_split.solve_begin
     local entries = #steps.histText
     type_line("!v a b")
     fctEditor.editor.filter.enterKey()
@@ -2298,15 +2400,20 @@ do
           runSteps("variable", "\226\136\158") == "variable \226\136\158",
           "the shell accepts every identifier form and the exact bridge length limit")
     runSteps("variable", "t")
-    local solves = calls.solve
+    local begins = calls.solve_begin
     type_line("!s 2x+5=13")
     fctEditor.editor.filter.enterKey()
-    check(steps.active == true and calls.solve == solves + 1 and last_args[2] == "t",
-          "the next solve reaches the module with the last valid variable")
+    check(calls.solve_begin == begins + 1 and incremental_task ~= nil and incremental_task.variable == "t",
+          "the next solve reaches the incremental owner with the last valid variable")
+    repeat on.timer() until not incrementalSolve.active
+    check(steps.active == true, "and the finished task opens the viewer")
     on.escapeKey()
 
     -- A raise, which is what a programming error or a hostile argument produces, must not leave
-    -- the filter: outside pcall it unwinds into the OS and resets the calculator.
+    -- the filter: outside pcall it unwinds into the OS and resets the calculator. The incremental
+    -- owner swallows a solve_begin raise and falls back to the direct call, so both have to raise
+    -- to drive the raise all the way to the guard that used to see it alone.
+    nps_split.solve_begin = function() error("bad argument #2 to 'solve_begin' (simulated raise)", 0) end
     nps_split.solve = function() error("bad argument #2 to 'solve' (simulated raise)", 0) end
     type_line("!s 2x+5=13")
     local survived, why = pcall(fctEditor.editor.filter.enterKey)
@@ -2319,6 +2426,7 @@ do
     check(survived, "nor the return filter: " .. tostring(why))
     check(pcall(on.paint, gc), "the shell paints after the trapped raise")
     nps_split.solve = module_solve
+    nps_split.solve_begin = module_solve_begin
     steps.variable = "t"
     fctEditor.editor:setText("")
     fctEditor:fixContent()
@@ -2331,6 +2439,7 @@ end
 do
     type_line("!s 2x+5=13")
     fctEditor.editor.filter.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     local entries = #steps.histText
     check(steps.active == true and steps.view == "list",
           "the viewer opens on the list: " .. tostring(steps.status))
@@ -3007,6 +3116,7 @@ do
     env.on.paint(gc)
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     env.steps.result.canonical = "(1 * (2^(-1)))"
     for _ = 1, 3 do env.on.paint(gc) end
     check(mathBoxExact("(1 / 2)") ~= nil and env.steps.result.canonical == "(1 * (2^(-1)))",
@@ -3841,6 +3951,7 @@ do
     next_step_result = branchcase.result
     type_line("x^2 = 4")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     check(steps.result == branchcase.result and steps.view == "list",
           "a split opens in the viewer like any other derivation")
 
@@ -3941,6 +4052,7 @@ do
     next_step_result = branchcase.empty
     type_line("x^2 = -4")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     branchcase.answer = (painted():gsub("\n", " "))
     check(branchcase.answer:find("NO RESULT", 1, true) == nil,
           "an empty real solution set is not reported as no result")
@@ -3970,6 +4082,7 @@ do
     next_step_result = branchcase.physics
     type_line("2t = 4*(t - 5)")
     on.enterKey()
+    repeat on.timer() until not incrementalSolve.active
     check(steps.result == branchcase.physics, "the two-condition step opens in the viewer")
     steps.focus = 1
     steps.view = "step"
@@ -7355,6 +7468,7 @@ do
     next_step_result = nil
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     env.on.paint(gc)
     check(placed() > 0, "a healthy viewer frame places its math boxes: " .. placed())
     -- An incidental trigger: what is under test is the recovery, not this field.
@@ -7570,6 +7684,7 @@ do
         next_step_result = record
         env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
         env.on.enterKey()
+        repeat env.on.timer() until not env.incrementalSolve.active
         for _ = 1, reveals do env.on.tabKey() end
         for _ = 1, 4 do env.on.paint(gc) end
         drawn = {}
@@ -7621,6 +7736,7 @@ do
     next_step_result = nil
     env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
     env.on.enterKey()
+    repeat env.on.timer() until not env.incrementalSolve.active
     check(env.steps.active and env.steps.walkthrough == "full",
           "a full walkthrough is open before the progression changes")
     local said = env.stepsSetProgression("hint")
@@ -7649,6 +7765,8 @@ do
         record.normalized_expression = expression
         return record
     end
+    -- Unavailable, so the incremental owner declines and the direct override above is what runs.
+    module.solve_begin = nil
     local env = loadIsolated(module)
     env.on.paint(gc)
     env.stepsSetProgression("full")
