@@ -1903,7 +1903,7 @@ for _ = 1, 64 do
     settled = nps.solve_advance(4)
     if settled.state ~= "pending" then break end
 end
-check(settled.state == "complete" and settled.result == "(x = (b / a))",
+check(settled.state == "complete" and settled.result == "(x = (b * (a^(-1))))",
       "the incremental owner finishes a rearrangement through the same advance loop")
 nps.solve_close()
 check(not pcall(nps.solve_begin, raw_equation, "x", "quadratic"),
