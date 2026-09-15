@@ -1884,7 +1884,7 @@
       "pr": 368,
       "branch": "fix/reviewer-duplicate-token",
       "slug": "cx2-ag-claude-review-brook",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1895,8 +1895,18 @@
       "pr": 368,
       "branch": "fix/reviewer-duplicate-token",
       "slug": "cx2-ag-claude-review-crest",
-      "released": false,
+      "released": true,
       "selectedReview": true
+    },
+    {
+      "key": "claude/reviewer/issue-371",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 371,
+      "pr": 372,
+      "branch": "fix/fast-compiles-the-bridge",
+      "slug": "cx2-ag-claude-review-brook",
+      "released": false
     }
   ]
 }
