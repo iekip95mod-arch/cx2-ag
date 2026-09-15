@@ -327,20 +327,20 @@ rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
 
 family id physics.vectors.cartesian-addition.two-dimension
-topic_and_level Two-dimensional Cartesian vector addition, PRD section 11 and M1 archetype 5
-accepted_expression_grammar existing vector grammar for each addend, either unit-vector form such as 3 i + 4 j m/s or an ordered tuple such as (3, 4) m/s
+topic_and_level Two- and three-dimensional Cartesian vector addition, PRD section 11 and M1 archetype 5. The family id keeps its original spelling so existing manifests, menus and fixtures stay resolvable
+accepted_expression_grammar existing vector grammar for each addend, either unit-vector form such as 3 i + 4 j m/s or 1 i + 2 j + 3 k m, or an ordered tuple such as (3, 4) m/s
 accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form
-domains_and_parameter_assumptions both vectors have rank two, matching named frames and matching dimensions
+domains_and_parameter_assumptions both vectors have the same rank, two or three, with matching named frames and matching dimensions
 supported_branches_and_degenerate_cases exact zero and negative components, compatible units with different SI scales
 exact_special_function_and_numerical_result_policy exact rational SI conversion and addition, rounded only for final reporting
 parser_module_ids src/units/units.cc, src/physics/vector_addition.cc
 required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab"
 test_group_ids vector addition, units
-proof_obligation_ids obl.vector-add.rank-two, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.vector-add.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
-supported_methods exact SI conversion followed by matching component addition
-unsupported_near_neighbors three-dimensional addition in this archetype, implicit frame transformation, unequal dimensions
+proof_obligation_ids obl.vector-add.ranks-match, obl.vector-add.frames-match, obl.vector-add.dimensions-match, obl.vector-add.rounding-final, obl.vector-add.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-add.component-sum, obl.plan.preconditions-hold
+supported_methods exact SI conversion followed by matching component addition on every declared axis
+unsupported_near_neighbors addition of vectors whose ranks differ, rank above three, implicit frame transformation, unequal dimensions
 solution_soundness_status verified by rank, frame, dimension, exact conversion and exact rational addition records
-solution_completeness_status complete for two-dimensional Cartesian addition within exact int64 rational bounds
+solution_completeness_status complete for two- and three-dimensional Cartesian addition within exact int64 rational bounds
 corpus_case_ids vector_addition_mixed_units
 device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
@@ -353,6 +353,7 @@ rule vec.add.check-dimension fixture
 rule vec.add.convert-si fixture
 rule vec.add.component-i fixture
 rule vec.add.component-j fixture
+rule vec.add.component-k fixture
 rule vec.add.report-precision fixture
 
 family id physics.vectors.magnitude-components.two-dimension

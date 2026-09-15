@@ -730,6 +730,8 @@ void run_golden_tests(TestSink &t) {
                  kinematics_record("find v; v0 = 5 m/s; a = 3 m/s^2; t = 4 s", one_step()));
     check_golden(t, "vector_addition_mixed_units",
                  vector_addition_record("(0.00120, 0.0020) km", "(5, 5) m", Budget()));
+    check_golden(t, "vector_addition_three_dimension",
+                 vector_addition_record("1 i + 2 j + 3 k m", "4 i - 2 j + 5 k m", Budget()));
     check_golden(t, "relative_motion_mixed_units", relative_motion_record(Budget()));
     check_golden(t, "unit_conversion_powered_chain",
                  unit_conversion_record("2.50 cm^3", "m^3", Budget()));
