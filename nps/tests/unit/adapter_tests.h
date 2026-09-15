@@ -111,6 +111,7 @@ void run_differentiate_tests(TestSink &sink);
 void run_integrate_tests(TestSink &sink);
 void run_units_tests(TestSink &sink);
 void run_density_tests(TestSink &sink);
+void run_modern_tests(TestSink &sink);
 void run_gravitation_tests(TestSink &sink);
 void run_oscillation_tests(TestSink &sink);
 void run_kinematics_tests(TestSink &sink);
