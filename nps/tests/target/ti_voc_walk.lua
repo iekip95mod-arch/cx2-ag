@@ -111,6 +111,32 @@ for name, wanted in pairs(FORMULAS) do
 	end
 end
 
+-- drawString clips instead of wrapping, so an over-long definition line loses its tail silently. The
+-- budget matches the one in ti_info_widths.lua and is a calibration rather than a pixel measurement.
+local BUDGET = 48
+local function glyphs(s)
+	local n = 0
+	for _ in string.gmatch(s, "[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end
+	return n
+end
+local wide, reported = 0, {}
+on.escapeKey()
+on.escapeKey()
+for name in pairs(names) do
+	on.escapeKey()
+	on.escapeKey()
+	for i = 1, #name do on.charIn(string.sub(name, i, i)) end
+	on.enterKey()
+	for line in string.gmatch(whole(), "[^\n]+") do
+		if glyphs(line) > BUDGET and not reported[line] then
+			reported[line] = true
+			wide = wide + 1
+			failures = failures + 1
+			print(string.format("  FAIL  %d chars, %d over: %s", glyphs(line), glyphs(line) - BUDGET, line))
+		end
+	end
+end
+
 -- A query matching nothing must say so rather than showing everything.
 on.escapeKey()
 on.escapeKey()
@@ -118,6 +144,6 @@ for _, ch in ipairs({ "z", "q", "x" }) do on.charIn(ch) end
 check("a query with no match says so", string.find(render(), "no term matches", 1, true) ~= nil, true)
 
 print(failures == 0
-	and ("voc walk: " .. checked .. " terms, each typable and each with a definition, formulas shown")
+	and ("voc walk: " .. checked .. " terms, each typable and each with a definition, formulas shown, none too wide")
 	or ("voc walk: " .. failures .. " FAILED"))
 os.exit(failures == 0 and 0 or 1)

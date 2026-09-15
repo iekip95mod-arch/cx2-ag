@@ -2051,11 +2051,11 @@ function on.paint(gc)
 	gc:setFont("sansserif", "r", 7)
 	local help
 	if view.mode == "card" then
-		help = "up/down scroll   tab next card   esc list   a-z find"
+		help = "up/down scroll  tab next  esc list  a-z find"
 	elseif view.mode == "toc" then
-		help = "up/down pick   enter open   a-z find   0-7 reference"
+		help = "up/down pick  enter open  a-z find  0-7 ref"
 	elseif view.mode == "search" then
-		help = "type to filter   enter go   del erase   esc cancel"
+		help = "type to filter  enter go  del erase  esc cancel"
 	elseif view.topic == 0 then
 		help = "enter open   tab next   left/right chapter   a-z find"
 	else
