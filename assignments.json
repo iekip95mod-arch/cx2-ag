@@ -1997,6 +1997,16 @@
       "branch": "fix/emu-lfs-pointer",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-389",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 389,
+      "branch": "ci/emulator-gate",
+      "slug": "cx2-ag-claude-review-summit",
+      "released": false
     }
   ]
 }
