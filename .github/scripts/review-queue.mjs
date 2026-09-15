@@ -47,7 +47,7 @@ export async function cancelObsoleteReviews(number, api) {
 }
 
 export async function retryWaitingReviews(api, capacity = reviewerCapacity, reap = releaseDeadLeases) {
-  await reap(repository, api);
+  await reap(repository, api).catch(() => {});
   const available = await capacity(repository, api);
   const pulls = await pages(api, `${root}/pulls?state=open&base=main`);
   const retried = [];

@@ -73,6 +73,17 @@ test('capacity release retries a waiting assignment only on its current revision
   }
 });
 
+test('a failing reaper still lets the capacity sweep retry a waiting assignment', async () => {
+  const f = fixture(); f.pr.head.ref = 'claude/issue-17';
+  f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+  const order = [];
+  const reap = async () => { order.push('reap'); throw Error('Bot assignment contention exceeded eight attempts'); };
+  const capacity = async () => { order.push('capacity'); return { claude: 1 }; };
+  assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), [42]);
+  assert.deepEqual(order, ['reap', 'capacity']);
+  assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
+});
+
 test('no capacity, stale revision, pending work and unrelated failures never retry', async () => {
   for (const kind of ['full', 'stale', 'pending', 'other', 'draft']) {
     const f = fixture();
