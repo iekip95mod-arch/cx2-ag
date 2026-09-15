@@ -3262,7 +3262,7 @@ void set_magnitude_angle_expression(lua_State *L, const char *key, const Arena &
     set_field(L, "angle", print(arena, value.angle));
     if (value.polar_angle != kNoNode)
         set_field(L, "polar_angle", print(arena, value.polar_angle));
-    set_field(L, "rank", static_cast<double>(value.rank));
+    set_field(L, "rank", static_cast<int>(value.rank));
     set_field(L, "frame", value.frame.name);
     set_field(L, "unit", value.unit.text);
     set_field(L, "angle_unit", angle_unit_name(value.angle_unit));
