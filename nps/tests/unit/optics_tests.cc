@@ -147,6 +147,46 @@ void run_optics_tests(TestSink &t) {
     }
 
     {
+        const Run entering =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                        {known(OpticsVariable::IndexIncident, "1"),
+                         known(OpticsVariable::SineIncident, "0.6"),
+                         known(OpticsVariable::IndexTransmitted, "1.5")}));
+        t.equal(optics_outcome_name(entering.result.outcome), "solved",
+                "Snell's law isolates the transmitted sine entering the denser medium");
+        t.equal(entering.result.value_text, "0.4", "the transmitted sine is exactly 1*0.6/1.5");
+        t.check(!entering.result.has_critical_sine && entering.result.critical_sine_text.empty(),
+                "the denser direction has no critical angle and reports no critical sine");
+    }
+
+    {
+        const Run same_medium =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                        {known(OpticsVariable::IndexIncident, "1.5"),
+                         known(OpticsVariable::SineIncident, "0.6"),
+                         known(OpticsVariable::IndexTransmitted, "1.5")}));
+        t.equal(optics_outcome_name(same_medium.result.outcome), "solved",
+                "equal indices leave the ray undeviated");
+        t.equal(same_medium.result.value_text, "0.6",
+                "the transmitted sine equals the incident sine within one medium");
+        t.check(same_medium.result.has_critical_sine &&
+                    same_medium.result.critical_sine_text == "1",
+                "equal indices put the critical sine at grazing incidence");
+    }
+
+    {
+        const Run fractional_order =
+            run(problem(OpticsRelation::DoubleSlit, OpticsVariable::FringeOrder,
+                        {known(OpticsVariable::SlitSpacing, "1 mm"),
+                         known(OpticsVariable::SineFringe, "0.00125"),
+                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(fractional_order.result.outcome), "unphysical value",
+                "a fringe order between two integers is refused rather than reported");
+        t.check(contains(fractional_order.result.detail, "a fringe order is an integer"),
+                "the refusal says the isolated order is not an integer");
+    }
+
+    {
         const Run lens = run(problem(OpticsRelation::ThinLens, OpticsVariable::ImageDistance,
                                      {known(OpticsVariable::FocalLength, "10 cm"),
                                       known(OpticsVariable::ObjectDistance, "15 cm")}));

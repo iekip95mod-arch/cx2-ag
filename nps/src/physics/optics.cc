@@ -755,8 +755,11 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         const int transmitted_index = member_index(schema, OpticsVariable::IndexTransmitted);
         if (unknown_index != incident_index && unknown_index != transmitted_index) {
             Rational critical;
+            // Total internal reflection only exists entering the rarer medium, so a ratio above
+            // one is not a sine any angle has and is left unreported.
             if (rational_div(si_quantities[transmitted_index].value,
-                             si_quantities[incident_index].value, &critical)) {
+                             si_quantities[incident_index].value, &critical) &&
+                critical.num <= critical.den) {
                 result.has_critical_sine = true;
                 result.critical_sine_text = rational_text(critical);
             }
