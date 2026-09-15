@@ -43,6 +43,11 @@ jobs:
       group: agent-${{ matrix.provider }}-${{ matrix.branch }}
       cancel-in-progress: false
       queue: max
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+      issues: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -63,6 +68,7 @@ jobs:
       - name: Update the owned branch
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
+          ACTIONS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ matrix.pr }}
           EXECUTOR_LOGIN: ${{ matrix.login }}
         run: node .github/scripts/update-branches.mjs
