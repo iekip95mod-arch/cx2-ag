@@ -109,6 +109,31 @@ def check_resolution(tmp):
         raise AssertionError("resolve accepted two paths that do not exist")
 
 
+def check_lfs_pointer(tmp):
+    """A checkout without the LFS content has the files, and they are not images.
+
+    actions/checkout leaves pointers unless a job pulls them, so this is what a runner sees rather
+    than a corner case. The emulator given one fails somewhere far from the cause."""
+    pointer = write(tmp, "pointer.img",
+                    b"version https://git-lfs.github.com/spec/v1\n"
+                    b"oid sha256:74227e458bb5c17f9028ac3d54e1d1726f3148601fb2fb24eacc2c294d5c9838\n"
+                    b"size 524288\n")
+    assert emurun.is_lfs_pointer(pointer), "a pointer file was not recognized as one"
+
+    # The control. Without it this passes just as well for a predicate that always says yes.
+    real = write(tmp, "real.img", b"\x00\x01\x02\x03" * 64)
+    assert not emurun.is_lfs_pointer(real), "real image bytes were mistaken for a pointer"
+    assert not emurun.is_lfs_pointer(os.path.join(tmp, "absent.img")), "a missing file is not a pointer"
+
+    try:
+        emurun.resolve(pointer, real)
+    except emurun.Missing as missing:
+        assert "git lfs pull" in str(missing), "the refusal does not say how to fetch: " + str(missing)
+        assert pointer in str(missing), "the refusal does not name the pointer: " + str(missing)
+    else:
+        raise AssertionError("resolve accepted an LFS pointer as a boot image")
+
+
 def check_skip_path(tmp, capture):
     absent = os.path.join(tmp, "not-here.img")
     common = ["--boot1", absent, "--flash", absent]
@@ -134,6 +159,7 @@ def main():
         check_measuring()
         check_png(tmp)
         check_resolution(tmp)
+        check_lfs_pointer(tmp)
         check_skip_path(tmp, os.path.join(tmp, "summary.md"))
     print("emu screen and skip-path checks passed")
 
