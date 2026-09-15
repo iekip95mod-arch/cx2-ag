@@ -75,6 +75,7 @@ jobs:
       pull-requests: read
     outputs:
       branch: ${{ steps.target.outputs.branch }}
+      cycle_started_at: ${{ steps.cycle.outputs.started_at }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,6 +88,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/prepare-codex-worker.mjs --resolve
+      # None of this workflow's triggers carry a pull request, so the shared budget's start is looked
+      # up from the resolved branch rather than read off the event.
+      - name: Find the pull request this cycle belongs to
+        id: cycle
+        if: steps.target.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          started=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --limit 1 --json createdAt --jq '.[0].createdAt // ""')
+          echo "started_at=$started" >> "$GITHUB_OUTPUT"
 
   allocate:
     needs: resolve
@@ -197,6 +210,8 @@ jobs:
 
       - name: Calculate the remaining agent budget
         if: steps.key.outputs.have == 'true'
+        env:
+          AGENT_CYCLE_STARTED_AT: ${{ needs.resolve.outputs.cycle_started_at }}
         run: node .github/scripts/agent-deadline.mjs
 
       - name: Show executor model startup

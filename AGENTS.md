@@ -117,7 +117,7 @@ Never reach for the search flag instead. Its index lags behind the API, and a st
 The loop, from a goal to a closed issue:
 
 1. Pick the batch off that listing, newest findings first unless something is blocking other work.
-2. Give each worker one issue, one branch and one ongoing pull request. Run independent issues in parallel. Serialize issues that touch the same files, keeping their branches and pull requests separate.
+2. Give each worker one issue, one branch and one ongoing pull request. Run independent issues in parallel. Serialize issues that touch the same files, keeping their branches and pull requests separate. The fast gate enforces that last part rather than trusting it, so read [Declare the order when two pull requests share a file](#declare-the-order-when-two-pull-requests-share-a-file) before opening one.
 3. Branch off current main in a worktree under .Internal/workspaces/. Hosted Codex issue workers use codex/issue-N and Claude uses claude/issue-N, where N is the issue number. One worktree per lane. Register it, use it, then remove it and run git worktree prune, because the registration outlives the directory.
 4. Write the failing check first, then fix the concept that owns the defect, then prove each new guard dies under mutation. Save the source change as a patch, apply it in reverse, rebuild, confirm exactly your new rows fail, then apply it forward and rebuild. A guard nobody has watched fail is not coverage.
 5. Keep every commit scoped to the assigned issue, with an imperative subject only and a few seconds between commits. Add follow-up commits on the same branch when review requires changes.
@@ -126,13 +126,33 @@ The loop, from a goal to a closed issue:
 8. Hand the pull request to a dedicated review agent that did not write the code. It submits a native GitHub review with findings attached to diff lines and a formal verdict on the reviewed commit.
 9. Merge the pull request only after that reviewer has approved and all required checks pass. Use a merge commit through GitHub. Delete the remote branch you created and close the issues with a comment saying what was measured.
 
+### Declare the order when two pull requests share a file
+
+Two open pull requests that change the same file conflict whichever way round they land, and the one that merges second inherits the conflict. Coordinating that was a convention and nothing checked it, so the fast gate now does, through .github/scripts/pr-sequence.mjs.
+
+When your pull request and another open one touch a file in common, one of the two descriptions has to say which goes first. A line saying After #250 or Before #250 is the whole mechanism. Either description can carry it, because the order is a fact about the pair rather than about its author, so you never have to edit somebody else's lane to unblock your own.
+
+~~~text
+After #339
+~~~
+
+The gate names the other pull request and every file you share with it. It does not decide the order for you, and it should not: the right order depends on what the two changes do, and only the agent reading both can say. Prefer letting the one closer to merging go first, and say so in your own description rather than waiting for the other lane.
+
+A declaration stays true once the other pull request merges, because a merged one is no longer open and stops being compared. Nothing has to be cleaned up afterwards.
+
+Two things this deliberately does not do. It does not block on a conflict that git can already see, because git reports that one itself at merge time. And it does not stop you sharing a file, which is sometimes exactly right. It only insists that when you do, somebody wrote down the order instead of leaving it to whoever finishes first.
+
 ### The pull request review
 
 Every pull request gets a review from an agent that did not write the code. This is the one gate the autonomy does not remove, and it is not satisfied by the author rereading the diff or rerunning the author's own suite.
 
 Executors and reviewers each create a progress comment for every workflow run and retry. Within that attempt, update its comment to show queued, running, publishing and terminal state together with the configured model, effort and workflow link. Preserve comments from earlier runs and retries. Late completion or cancellation updates only its own attempt. Report an alias as an alias, never as a verified model version. Formal reviewer findings and verdicts remain native reviews, separate from the progress comment.
 
-Read the supplied execution budget before starting. Hosted executors have 30-minute jobs, reviewers have 45 minutes and clarification jobs have 15 minutes. Startup and dependency installation consume that same budget. The prompt gives an absolute UTC cutoff five minutes before the job limit and a wrap-up time five minutes before that cutoff. Check the clock before long commands and bound their timeouts to the remaining budget. At wrap-up, stop expanding the work, preserve the existing draft and report verified results and unfinished checks. A reviewer with only an environment or deadline verification gap returns BLOCKED and names what must change before retrying. Deadline guidance does not guarantee model termination, so the GitHub job limit remains the final cutoff.
+Read the supplied execution budget before starting. Two limits apply and the prompt names whichever one falls first.
+
+A pull request has four hours. That budget is shared by every worker and reviewer job on it, it runs from the moment the pull request was opened, and four hours is a ceiling rather than a default, so agent-deadline.mjs refuses a larger one. A job that starts with thirty minutes of that budget left is told thirty minutes rather than its own job limit, and a job that starts after it has run out refuses instead of beginning, preserving the branch and reporting what blocks the merge. The first worker pass happens before the pull request exists, so it is bounded by its own job limit and the four hours start when it publishes the draft.
+
+Each job also has its own limit. Hosted Claude and Codex executors have 30-minute jobs and Gemini has 20. The Claude and Codex reviewers have 120 minutes and Gemini has 60. Clarification jobs have 15 minutes. Startup and dependency installation consume that same budget. The prompt gives an absolute UTC cutoff five minutes before the job limit and a wrap-up time five minutes before that cutoff. Check the clock before long commands and bound their timeouts to the remaining budget. At wrap-up, stop expanding the work, preserve the existing draft and report verified results and unfinished checks. A reviewer with only an environment or deadline verification gap returns BLOCKED and names what must change before retrying. Deadline guidance does not guarantee model termination, so the GitHub job limit remains the final cutoff.
 
 Request your own provider's reviewer. Claude uses claude-review and Codex uses codex-review. Executors and reviewers have separate named GitHub App pools. Reserve identities through the durable allocator and reuse them through issue and PR closure. Review approval must come from the assigned reviewer Bot ID on the current commit, not merely any bot in the pool. See [CODEX.md](CODEX.md#persistent-identities) for the names and lifecycle. Keep only that provider's review label on the pull request. Apply it while the PR is still a draft, then mark the PR ready so assignment starts once. Without an explicit label, codex/ branches select Codex and other branches select Claude. After fixing review findings, remove and re-add your review label to request a fresh review. A push makes the previous approval stale but does not spend another review while implementation is still underway.
 

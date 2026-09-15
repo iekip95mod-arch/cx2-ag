@@ -13,7 +13,7 @@ const step = name => job.steps.find(entry => entry.name === name);
 test('Gemini uses durable issue allocation and isolated publication credentials', () => {
   const workflowSource = readFileSync(workflow, 'utf8');
   const workflowJobs = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"])', workflow], { encoding: 'utf8' }));
-  assert.match(workflowJobs.resolve.steps.at(-1).run, /prepare-codex-worker.mjs --resolve/);
+  assert.match(workflowJobs.resolve.steps.find(entry => entry.id === 'target').run, /prepare-codex-worker.mjs --resolve/);
   assert.match(workflowJobs.allocate.steps.at(-1).run, /allocate --provider gemini --role executor/);
   assert.deepEqual(job.needs, ['resolve', 'allocate']);
   assert.equal(job.concurrency.group, '${{ needs.resolve.outputs.branch || github.run_id }}'.replace('${{', 'agent-gemini-${{'));

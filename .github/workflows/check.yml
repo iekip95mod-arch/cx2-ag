@@ -30,6 +30,9 @@ jobs:
   fast:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -49,6 +52,14 @@ jobs:
         env:
           TEST_WORKSPACE: ${{ runner.temp }}
         run: node --test tools/github-events/bridge.test.mjs tools/github-events/receiver/receiver.test.mjs .github/scripts/test-*.mjs
+
+      # Two open pull requests editing one file conflict whoever merges second, and AGENTS.md asks for
+      # that order to be coordinated rather than discovered. This is where it stops being a convention.
+      - name: Require a declared order for overlapping pull requests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node .github/scripts/pr-sequence.mjs
 
       - name: Install prerequisites
         run: |
