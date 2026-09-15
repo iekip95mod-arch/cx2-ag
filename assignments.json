@@ -1233,6 +1233,16 @@
       "branch": "claude/issue-270",
       "slug": "cx2-ag-claude-atlas",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-156",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 156,
+      "pr": null,
+      "branch": "claude/issue-156",
+      "slug": "cx2-ag-claude-comet",
+      "released": false
     }
   ]
 }
