@@ -12,17 +12,36 @@ export async function executeGhApi(execute, args, body) {
   return stdout.trim() ? JSON.parse(stdout) : null;
 }
 
-export async function requestGitHub(request, token, method, endpoint, body, missing = false) {
-  const response = await request(`https://api.github.com/${endpoint}`, {
-    method,
-    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'cx2-agent-progress', 'X-GitHub-Api-Version': '2022-11-28' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(30000)
-  });
-  if (missing && response.status === 404) return null;
-  if (!response.ok) throw Object.assign(Error(`GitHub API ${method} ${endpoint} failed with ${response.status}`), { status: response.status });
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+const transientStatus = new Set([408, 429, 500, 502, 503, 504]);
+// A gateway can lose a request it never applied, so only methods a repeat cannot duplicate retry.
+const repeatableMethod = new Set(['GET', 'HEAD', 'PUT', 'DELETE']);
+
+export async function requestGitHub(request, token, method, endpoint, body, missing = false, options = {}) {
+  const attempts = repeatableMethod.has(method) ? options.attempts ?? 3 : 1;
+  const sleep = options.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+  for (let attempt = 1; ; attempt++) {
+    let response;
+    try {
+      response = await request(`https://api.github.com/${endpoint}`, {
+        method,
+        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'User-Agent': 'cx2-agent-progress', 'X-GitHub-Api-Version': '2022-11-28' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(30000)
+      });
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      await sleep(500 * attempt);
+      continue;
+    }
+    if (missing && response.status === 404) return null;
+    if (!response.ok) {
+      if (attempt >= attempts || !transientStatus.has(response.status)) throw Object.assign(Error(`GitHub API ${method} ${endpoint} failed with ${response.status}`), { status: response.status });
+      await sleep(500 * attempt);
+      continue;
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  }
 }
 
 export function reviewLabels(current) {
