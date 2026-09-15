@@ -1625,6 +1625,16 @@
       "branch": "claude/issue-324",
       "slug": "cx2-ag-claude-review-anchor",
       "released": true
+    },
+    {
+      "key": "claude/executor/issue-164",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 164,
+      "pr": null,
+      "branch": "claude/issue-164",
+      "slug": "cx2-ag-claude-comet",
+      "released": false
     }
   ]
 }
