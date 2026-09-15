@@ -1,8 +1,8 @@
 import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readAssignment } from './bot-identities.mjs';
+import { assignedReviewProvider, readAssignment } from './bot-identities.mjs';
 import { cancelObsoleteReviews } from './review-queue.mjs';
-import { requestGitHub, reviewLabels, reviewProvider } from './wait-for-review.mjs';
+import { requestGitHub, reviewLabels } from './wait-for-review.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
@@ -45,7 +45,7 @@ export async function discoverBranches(api, assignment = readAssignment, number)
   throw Error('Open pull requests exceed the branch update lookup limit');
 }
 
-export async function updateBranch({ pr: number, login }, api, sleep, assignment = readAssignment, actions = api, cancel = cancelObsoleteReviews) {
+export async function updateBranch({ pr: number, login }, api, sleep, assignment = readAssignment, actions = api, cancel = cancelObsoleteReviews, reviewer = assignedReviewProvider) {
   if (!Number.isSafeInteger(number) || number < 1) throw Error('Invalid branch update target');
   const endpoint = `${root}/pulls/${number}`;
   const pr = await api('GET', endpoint);
@@ -67,14 +67,18 @@ export async function updateBranch({ pr: number, login }, api, sleep, assignment
     if (merged.behind_by !== 0) return 'superseded';
     // This update is what invalidated the old revision, so it owns cancelling the review reading it.
     await cancel(number, actions);
-    // A carried label names the reviewer the PR already chose, and the branch prefix is only the fallback.
+    // A carried label names the reviewer the PR already chose, and its recorded lease answers for a PR carrying none.
     const carried = reviewLabels(current);
     if (!current.draft && carried.length < 2) {
-      const label = carried[0] ?? `${reviewProvider(current)}-review`;
-      if (carried.length) await api('DELETE', `${root}/issues/${number}/labels/${label}`, undefined, true);
-      const latest = await api('GET', endpoint);
-      if (latest.head.sha !== current.head.sha || latest.state !== 'open' || latest.draft) return 'superseded';
-      await api('POST', `${root}/issues/${number}/labels`, { labels: [label] });
+      const recorded = carried.length ? undefined : await reviewer({ repository, pr: number, branch: current.head.ref }, api);
+      // The branch prefix names the executor rather than the reviewer, so an unrecorded PR keeps no label instead of guessing one.
+      const label = carried[0] ?? (recorded && `${recorded}-review`);
+      if (label) {
+        if (carried.length) await api('DELETE', `${root}/issues/${number}/labels/${label}`, undefined, true);
+        const latest = await api('GET', endpoint);
+        if (latest.head.sha !== current.head.sha || latest.state !== 'open' || latest.draft) return 'superseded';
+        await api('POST', `${root}/issues/${number}/labels`, { labels: [label] });
+      }
     }
     return 'updated';
   }
