@@ -503,6 +503,38 @@ const ObligationSchema kLookupPreservesSolutions[] = {
 const EvidenceAlternative kModernRelationModel[] = {
     {"registered relation model", EvidenceStrength::StructurallyValid},
 };
+const EvidenceAlternative kLightSpeedComparison[] = {
+    {"exact comparison against the speed of light", EvidenceStrength::CandidateChecked},
+};
+const EvidenceAlternative kExactRationalIdentity[] = {
+    {"exact rational identity", EvidenceStrength::CandidateChecked},
+};
+const EvidenceAlternative kInvariantComparison[] = {
+    {"exact invariant comparison", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kRelativityStrategy[] = {
+    {"pre.relativity.frames-named", "the two frames are named and distinct", kFrameDeclaration, 1},
+    {"pre.relativity.subluminal-boost", "the boost speed is below the speed of light",
+     kLightSpeedComparison, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kRelativityFrames[] = {
+    {"obl.relativity.frames-distinct", "the answer names two distinct inertial frames",
+     kFrameDeclaration, 1},
+};
+const ObligationSchema kRelativitySpeedLimit[] = {
+    {"obl.relativity.speed-below-light", "the boost speed is strictly below the speed of light",
+     kLightSpeedComparison, 1},
+};
+const ObligationSchema kRelativityFactor[] = {
+    {"obl.relativity.factor-identity",
+     "the reported factor satisfies gamma^2 (1 - beta^2) = 1", kExactRationalIdentity, 1},
+};
+const ObligationSchema kRelativityInvariant[] = {
+    {"obl.relativity.invariant-holds", "the reported values satisfy the frame invariant",
+     kInvariantComparison, 1},
+};
 const ObligationSchema kModernStrategy[] = {
     {"pre.modern.compatible-dimensions", "both sides of the relation carry the same dimension",
      kDimensionalAnalysis, 1},
@@ -1183,6 +1215,24 @@ const RuleSchema kRules[] = {
     {"physics.modern.check-candidate", ClaimType::Implication, kModernCandidate, 1,
      FailureBehavior::WithholdResult},
     {"physics.modern.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.relativity.time-dilation, physics.relativity.length-contraction,
+    // physics.relativity.lorentz-transformation, physics.relativity.velocity-addition and
+    // physics.relativity.energy-momentum. One shared plan rule and one shared set of steps after it.
+    {"physics.relativity.plan", ClaimType::NoClaim, kRelativityStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.check-frames", ClaimType::Definition, kRelativityFrames, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.check-boost", ClaimType::Definition, kRelativitySpeedLimit, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.lorentz-factor", ClaimType::Definition, kRelativityFactor, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.apply", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.check-invariant", ClaimType::Implication, kRelativityInvariant, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relativity.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
     // physics.relative-motion

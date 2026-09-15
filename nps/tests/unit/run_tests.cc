@@ -908,6 +908,8 @@ int main_body() {
     run_density_tests(sink);
     sink.begin_group("modern");
     run_modern_tests(sink);
+    sink.begin_group("relativity");
+    run_relativity_tests(sink);
     sink.begin_group("gravitation");
     run_gravitation_tests(sink);
     sink.begin_group("oscillation");
