@@ -51,7 +51,7 @@ test('review setup restores missing tools, reuses cached tools and refuses stale
     } else {
       assert.equal(run.status, 0, run.stderr);
       assert.match(commands, /brew install ccache gmp php lua luajit boost/);
-      assert.match(commands, /make -C .* build-libndls build-tools/);
+      assert.match(commands, /make -C .* build-libndls build-tools build-system/);
       assert.equal(commands.includes('lfs pull'), scenario === 'download' || scenario === 'partial-cache');
       assert.match(readFileSync(envFile, 'utf8'), /PKG_CONFIG_PATH=.*luajit.*gmp/);
     }
@@ -99,7 +99,7 @@ test('Linux setup builds the pinned SDK, reuses complete prefixes and preserves 
       assert.throws(() => readFileSync(join(sdk, 'toolchain/install/.review-ready')));
     } else {
       assert.equal(run.status, 0, run.stderr);
-      assert.match(commands, /make -C .* build-libndls build-tools/);
+      assert.match(commands, /make -C .* build-libndls build-tools build-system/);
       assert.match(readFileSync(envFile, 'utf8'), /NDL_SDK=.*ndl-sdk/);
     }
   }
