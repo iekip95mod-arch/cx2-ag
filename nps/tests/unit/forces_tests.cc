@@ -125,6 +125,34 @@ void run_forces_tests(TestSink &t) {
                 "a consistent static equilibrium carries passing evidence throughout");
     }
     {
+        // The kinetic branch of the same request: the friction has a value the surfaces fix, so the
+        // entry that carries it is still the one the request asked for.
+        ForcesProblem problem = base(ForcesUnknown::FrictionForce);
+        problem.applied = parsed("9 N");
+        problem.has_applied = true;
+        problem.friction = FrictionModel::Kinetic;
+        problem.friction_coefficient = Rational{1, 4};
+        problem.motion = MotionSense::UpTheAxis;
+        problem.assume_equilibrium = false;
+        problem.acceleration = parsed("2 m/s^2");
+        problem.has_acceleration = true;
+        Run solved(problem);
+        t.check(solved.result.outcome == ForcesOutcome::Solved,
+                "a kinetic friction the request asks for solves");
+        t.check(value_is(solved.result, -5, 1),
+                "mu_k N is 5 N against the declared motion up the axis");
+        const ForceEntry *wanted = entry_of(solved.result, ForceKind::Friction);
+        t.check(wanted != nullptr && !wanted->known,
+                "the kinetic friction the request asked for is inventoried as the unknown one");
+        const ForceEntry *given_weight = entry_of(solved.result, ForceKind::Weight);
+        t.check(given_weight != nullptr && given_weight->known,
+                "the weight supplied beside the kinetic friction stays marked known");
+        t.check(has_rule(solved.derivation, "physics.forces.kinetic-friction"),
+                "the kinetic friction rule is recorded for the requested unknown");
+        t.check(solved.derivation.all_verified_from(0),
+                "a solved kinetic friction request carries passing evidence throughout");
+    }
+    {
         // The same ramp with too little friction: the assumption is tested and fails.
         ForcesProblem problem = base(ForcesUnknown::FrictionForce);
         problem.support = "ramp";
