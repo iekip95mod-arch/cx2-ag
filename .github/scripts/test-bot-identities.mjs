@@ -212,6 +212,19 @@ test('the reaper releases dead leases without an allocation and writes only when
   assert.equal(github.revision, revision + 1);
 });
 
+test('the reaper reports a reused slug only when its current lease dies', async () => {
+  const github = fixture();
+  const first = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(20).state = 'closed';
+  assert.deepEqual(await releaseDeadLeases(repository, github.api, roster), [first.slug]);
+  const reused = await allocateIdentity(options(30, 'claude', 'reviewer'), github.api, roster);
+  assert.equal(reused.slug, first.slug);
+  const dying = await allocateIdentity(options(40, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(40).state = 'closed';
+  assert.deepEqual(await releaseDeadLeases(repository, github.api, roster), [dying.slug]);
+  assert.equal(github.assignments.find(assignment => !assignment.released && assignment.slug === reused.slug).key, 'claude/reviewer/issue-30');
+});
+
 test('a merged reviewer PR frees its identity while its issue stays open', async () => {
   const github = fixture();
   const target = pr => ({ repository, provider: 'claude', role: 'reviewer', pr });

@@ -106,6 +106,7 @@ test('recovery uses trusted main on Ubuntu and waiting skips token publication',
   assert.match(workflow, /ref: main/);
   assert.match(workflow, /runs-on: ubuntu-latest/);
   assert.match(workflow, /actions: write/);
+  assert.match(workflow, /contents: write/);
   assert.match(workflow, /workflows: \[agent-review-request\]/);
   assert.match(workflow, /types: \[completed\]/);
   assert.doesNotMatch(workflow, /pull_request:\s|secrets\.(?!GITHUB_TOKEN)/);

@@ -220,7 +220,7 @@ export async function releaseDeadLeases(repository, api, roster = loadRoster()) 
     const state = await readState(repository, api);
     const before = state.assignments.filter(assignment => !assignment.released).map(assignment => assignment.slug);
     if (!await sweep(repository, state, api, roster)) return [];
-    const released = before.filter(slug => state.assignments.some(assignment => assignment.slug === slug && assignment.released));
+    const released = before.filter(slug => !state.assignments.some(assignment => !assignment.released && assignment.slug === slug));
     try {
       await writeAssignments(repository, state, 'Release finished worker identities', api);
       return released;
