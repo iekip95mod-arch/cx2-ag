@@ -60,6 +60,7 @@ local requiredSolvers = {
 	{ "work", "physics.work.constant-force-dot-product" },
 	{ "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
+	{ "forces", "physics.forces.newton-second-law" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2245,6 +2246,8 @@ menu = {
          { "Limit from the right", function() template("limit(,x,0,1)", 7) end },
          { "Limit at positive infinity", function() template("limit(,x,infinity)", 12) end },
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
+         { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
+         { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2349,6 +2352,8 @@ menu = {
        	 { "Derivative  diff(expr,var)",	function() menustring( "diff(" ) end },
        	 { "Integral  int(expr,var)",	function() menustring( "int(" ) end },
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
+       	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
+       	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -2682,6 +2687,27 @@ PHYSICS_FIXTURES = {
 			})
 		end,
 	},
+	{
+		label = "Find how hard a sliding block speeds up",
+		problem = "A 2 kilogram block on a table is pushed with 12 newtons while friction rubs " ..
+		          "back. Newton's second law along the table gives what is left over.",
+		mode = "forces",
+		run = function()
+			return nps_nspire.forces({
+				body = "block",
+				support = "table",
+				mass = "2 kg",
+				gravity = "10 m/s^2",
+				surface = "horizontal",
+				applied = "12 N",
+				friction = "kinetic",
+				friction_coefficient = "0.25",
+				motion = "up the axis",
+				equilibrium = false,
+				unknown = "acceleration",
+			})
+		end,
+	},
 }
 
 physicsBrowser = {
@@ -2800,7 +2826,8 @@ local function resultClass(r)
 	-- result test below, which would otherwise report their own escape key back to them as a failure.
 	if r.outcome == "cancelled" or r.status == "cancelled" then return "STOPPED" end
 	if not hasAnswer(r) then return "NO RESULT" end
-	local approximate = form == "numerical approximation" or
+	local approximate = r.approximation == true or
+	                    form == "numerical approximation" or
 	                    r.status == "numerically approximated" or
 	                    r.giac_tag == "approximate" or
 	                    (type(r.precision) == "table" and r.precision.kind == "measured")
@@ -3060,6 +3087,7 @@ local function displayExpression(expr, native)
 			local supported = ((word == "int" or word == "integrate") and (count == 2 or count == 4))
 				or ((word == "d" or word == "diff") and (count == 2 or count == 3))
 				or ((word == "limit" or word == "lim") and (count == 3 or count == 4))
+				or ((word == "tangent" or word == "linearize") and count == 3)
 				or (word == "sqrt" and count == 1)
 				or ((word == "sum" or word == "product") and count == 4)
 			out[#out + 1] = (sign and supported) and sign
@@ -3305,6 +3333,8 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit from the right"] = "Approach from larger values. The last argument is 1.",
     ["Limit at positive infinity"] = "Find the behavior as the variable increases without bound.",
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
+    ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
+    ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
 }
 
 function openTemplatePicker()
@@ -4419,18 +4449,17 @@ local function paintStepsFooter(gc, w, h, detail)
 	gc:setColorRGB(55, 65, 78)
 	local hint
 	local count
+	-- Whether a hint remains is not what the mode records, so every cue takes the one visibility
+	-- decision rather than recomputing a two-valued answer to a three-valued question.
+	local hinting = steps.walkthrough == "hint" and canonicalStepCount(steps.result) > 0
+	local hintCue = hinting and (finalResultVisible(steps.result) and "ANSWER shown" or "TAB next hint")
 	if steps.view == "result" then
 		hint = "UP/DOWN scroll  ESC list"
 		count = "result"
-	elseif steps.walkthrough == "hint" and canonicalStepCount(steps.result) > 0 then
+	elseif hinting then
 		count = string.format("hint %d/%d", exposedStepCount(steps.result), canonicalStepCount(steps.result))
-		if finalResultVisible(steps.result) then
-			hint = steps.view == "step" and "ANSWER shown  U/D scroll  ESC list"
-			                               or "ANSWER shown  ENTER detail  ESC close"
-		else
-			hint = steps.view == "step" and "TAB next hint  U/D scroll  ESC list"
-			                               or "TAB next hint  ENTER detail  ESC close"
-		end
+		hint = steps.view == "step" and hintCue .. "  U/D scroll  ESC list"
+		                               or hintCue .. "  ENTER detail  ESC close"
 	else
 		hint = steps.view == "step" and "UP/DOWN scroll  L/R step  ESC list"
 		                               or "UP/DOWN select  L/R fold  ENTER details"
@@ -4440,7 +4469,7 @@ local function paintStepsFooter(gc, w, h, detail)
 		        or string.format("%d/%d", steps.focus, canonicalStepCount(steps.result))
 	end
 	if steps.view == "list" and steps.listOverflow then
-		hint = steps.walkthrough == "hint" and "ENTER details  TAB next hint" or "ENTER all work  UP/DOWN select"
+		hint = hinting and ("ENTER details  " .. hintCue) or "ENTER all work  UP/DOWN select"
 	end
 	if detail then count = count .. "  " .. detail end
 	local readerHint = "  T text"

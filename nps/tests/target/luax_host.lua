@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 21,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 24,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -259,12 +259,15 @@ local expected_modules = {
     "calculus.integral.indefinite.single-variable",
     "calculus.integral.definite.single-variable",
     "calculus.limit.single-variable",
+    "calculus.tangent-line.single-variable",
+    "calculus.linearization.single-variable",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
     "physics.vectors.cartesian-addition.two-dimension",
     "physics.vectors.magnitude-components.two-dimension",
+    "physics.forces.newton-second-law",
     "physics.work.constant-force-dot-product",
     "units.chain-link-conversion",
     "units.si"
@@ -392,6 +395,33 @@ do
               case[1] .. " exposes native calculus with an independent backend comparison")
         check(record.outcome == "evaluated" and record.outcome ~= record.status,
               case[1] .. " names what the calculus engine did rather than repeating its status")
+    end
+    -- CALC-010. The tangent family answers without a backend comparison of its own, so the bridge
+    -- has to carry the slope, the point value and whether the relation is an approximation.
+    for _, case in ipairs({
+        {"tangent(x^2,x,3)", "tangent.line", false, "equal"},
+        {"linearize(x^2,x,3)", "tangent.linearization", true, "approximately equal"},
+    }) do
+        script("0", "0")
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and
+              command_has_rule(record, case[2]) and command_has_rule(record, "tangent.check-line"),
+              case[1] .. " exposes the native tangent walkthrough with its final check")
+        check(record.tangent_slope == "6" and record.tangent_point_value == "9",
+              case[1] .. " reports the slope and the point value the line was built from")
+        check(record.approximation == case[3] and record.relation == case[4],
+              case[1] .. " states whether its answer is an equality or an approximation")
+        check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+    end
+    for _, case in ipairs({
+        {"tangent(1/x,x,0)", "unsupported form"},
+        {"tangent(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the tangent envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -1365,6 +1395,75 @@ r = nps.work_local({
 check(r.outcome == "law not applicable" and r.result == nil,
       "the work bridge preserves a variable-force applicability refusal")
 
+forces_input = {
+    body = "block",
+    support = "table",
+    mass = "2 kg",
+    gravity = "10 m/s^2",
+    surface = "horizontal",
+    applied = "12 N",
+    friction = "kinetic",
+    friction_coefficient = "0.25",
+    motion = "up the axis",
+    equilibrium = false,
+    unknown = "acceleration",
+}
+before_forces = giac_calls
+r = nps.forces(forces_input)
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the forces bridge returns a verified typed solution")
+check(r.value == "3.5" and r.exact_value == "3.5" and r.unit == "m/s^2" and
+      r.result == "acceleration = 3.5 m/s^2" and r.unknown == "acceleration",
+      "the forces bridge reports the acceleration with its SI unit and exact value")
+check(giac_calls == before_forces and r.giac_calls == 0,
+      "the forces bridge answers without the backend")
+check(type(r.inventory) == "table" and #r.inventory == 4 and
+      r.along_equation ~= nil and r.across_equation ~= nil,
+      "the forces bridge emits the whole force inventory and both axis equations")
+by_kind = {}
+for _, entry in ipairs(r.inventory) do by_kind[entry.kind] = entry end
+check(by_kind.weight ~= nil and by_kind.weight.magnitude == "20 N" and
+      by_kind.normal ~= nil and by_kind.normal.across == "20 N" and
+      by_kind.applied ~= nil and by_kind.applied.along == "12 N" and
+      by_kind.friction ~= nil and by_kind.friction.along == "-5 N",
+      "each inventory entry carries the components #158 draws its labels from")
+check(type(r.pairs) == "table" and #r.pairs == 2 and r.pairs[1].on_body == "block" and
+      r.pairs[1].reaction_on == "table" and r.pairs[2].on_body == "block" and
+      r.pairs[2].reaction_on == "the Earth",
+      "the third-law pair travels beside the inventory rather than inside it")
+forces_rules = {}
+for _, s2 in ipairs(r.steps) do if s2.rule then forces_rules[s2.rule] = true end end
+check(forces_rules["physics.forces.weight"] and forces_rules["physics.forces.normal-force"] and
+      forces_rules["physics.forces.check-residual"],
+      "the forces bridge retains the weight, normal force and residual check steps")
+
+r = nps.forces({
+    body = "block", support = "table", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "horizontal", applied = "12 N", friction = "kinetic",
+    friction_coefficient = "0.25", equilibrium = false, unknown = "acceleration",
+})
+check(r.outcome == "motion sense undeclared" and r.result == nil,
+      "the forces bridge preserves an undeclared motion sense refusal")
+r = nps.forces({
+    body = "block", support = "table", mass = "2 m", gravity = "10 m/s^2",
+    surface = "horizontal", unknown = "normal force",
+})
+check(r.outcome == "dimension mismatch" and r.result == nil,
+      "the forces bridge preserves a dimension mismatch")
+r = nps.forces({
+    body = "block", support = "ramp", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "incline", incline_sin = "0.6", incline_cos = "0.7",
+    unknown = "normal force",
+})
+check(r.outcome == "incline angle not exact" and r.result == nil,
+      "the forces bridge preserves an inexact incline angle refusal")
+r = nps.forces({
+    body = "block", support = "table", mass = "2 kg", gravity = "10 m/s^2",
+    surface = "horizontal", friction = "sticky", unknown = "normal force",
+})
+check(r.outcome == "invalid problem" and #r.steps == 0,
+      "the forces bridge refuses an unknown friction model before solving")
+
 script("sqrt(3)/2", "0", "5*sqrt(3)", "0", "1/2", "0", "5", "0")
 r = nps.magnitude_angle_to_components({
     magnitude = "10", angle = "30", rank = 2, frame = "lab", unit = "m/s",
@@ -1756,6 +1855,31 @@ r = nps.differentiate("x^2", "x")
 check(r.giac_tag == "approximate" and r.giac_compare_tag == "exact" and
       r.status == "solved but unchecked" and r.agrees == nil,
       "an approximate backend answer cannot pass an exact symbolic cross-check")
+
+-- The learner pressed escape while Giac was working. Giac reports that in the result string, and a
+-- stop the learner asked for is not the same fact as a check that merely could not be used.
+script("GIAC_ERROR: Stopped by user interruption.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "cancelled" and r.status == "cancelled" and r.agrees == nil,
+      "a cancelled first verifier reply is recorded as a cancellation")
+check(r.result ~= nil and r.answer_only == false,
+      "and the derivative computed before the stop is still the answer")
+
+script("2*x", "GIAC_ERROR: Stopped by user interruption.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "exact" and r.giac_compare_tag == "cancelled" and
+      r.status == "cancelled" and r.agrees == nil,
+      "a cancelled comparison reply is recorded as a cancellation")
+
+script("[[4]]", "GIAC_ERROR: Stopped by user interruption.")
+r = nps.solve("2x + 5 = 13", "x")
+check(r.result == "4" and r.status == "cancelled" and r.giac_compare_tag == "cancelled",
+      "a cancelled supplementary equation check keeps the candidate and names the stop")
+
+script("GIAC_ERROR: Stopped by user interruption or stack overflow.")
+r = nps.differentiate("x^2", "x")
+check(r.giac_tag == "resource failure" and r.status == "solved but unchecked",
+      "while the spelling giac cannot separate from a stack overflow keeps its resource reading")
 
 script("Error: Bad Argument Value")
 r = nps.integrate("x*sin(x)", "x")

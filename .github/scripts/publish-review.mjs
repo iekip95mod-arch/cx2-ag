@@ -84,7 +84,7 @@ export async function publishReview({ repository, pr, head, appSlug, login, revi
   if (!currentHead(await api('GET', endpoint))) throw Error('PR changed before review publication');
   const published = await api('POST', `${endpoint}/reviews`, request);
   if (!Number.isSafeInteger(published.id) || published.id < 1 || published.commit_id !== head || published.state !== (effectiveReview.verdict === 'BLOCKED' ? 'COMMENTED' : effectiveReview.verdict) || published.user?.login !== login || published.user.type !== 'Bot') throw Error('Review may exist but GitHub did not confirm its expected identity, head and verdict. Inspect it before retrying.');
-  return published;
+  return { ...published, sentComments: request.comments.length };
 }
 
 async function main() {
@@ -117,7 +117,7 @@ async function main() {
     }
   };
   const published = await publishReview({ repository: process.env.REPO, pr: Number(process.env.PR), head: process.env.HEAD_SHA, appSlug: process.env.APP_SLUG, login: process.env.EXPECTED_LOGIN, review, fallbackBlocked, fallbackReason }, api);
-  const commentCount = published.state === 'COMMENTED' && (!review || review.verdict === 'BLOCKED') ? 0 : (review?.comments?.length ?? 0);
+  const commentCount = published.sentComments;
   console.log(`Published ${published.state} review ${published.id} with ${commentCount} inline comments.`);
 }
 

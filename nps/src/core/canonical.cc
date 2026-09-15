@@ -725,6 +725,12 @@ NodeId canonical_node(Arena &arena, NodeId id, const std::vector<NodeId> &normal
 
 }
 
+CanonicalRefusal canonical_refusal(const Arena &arena) {
+    if (arena.failed() && resource_status(arena.status()))
+        return CanonicalRefusal::ResourceLimit;
+    return CanonicalRefusal::Unsupported;
+}
+
 NodeId canonicalize(Arena &arena, NodeId id) {
     if (!transformable(arena, id))
         return kNoNode;

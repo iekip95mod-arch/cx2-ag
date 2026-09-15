@@ -457,6 +457,37 @@ local fake_work = {
     },
 }
 
+-- Global, since this file is at Lua's ceiling of 200 top-level locals.
+fake_forces = {
+    outcome = "solved", detail = "", solved = true, answer_only = false,
+    status = "solved and verified", result = "acceleration = 3.5 m/s^2", nodes = 24,
+    value = "3.5", exact_value = "7/2", unit = "m/s^2", unknown = "acceleration",
+    surface = "horizontal", friction_model = "kinetic",
+    along_equation = "12 - 5 = 2*a", across_equation = "N - 20 = 0",
+    consistency = "the assumed sliding motion is consistent with the solution",
+    precision = { kind = "exact", significant_digits = 0 },
+    step_count = 7, rewrites = 5, giac_calls = 0,
+    inventory = {
+        { kind = "weight", label = "Weight", agent = "Earth", magnitude = "20",
+          along = "0", across = "-20", known = true },
+        { kind = "normal", label = "Normal force", agent = "table", magnitude = "20",
+          along = "0", across = "20", known = true },
+        { kind = "applied", label = "Applied force", agent = "hand", magnitude = "12",
+          along = "12", across = "0", known = true },
+        { kind = "friction", label = "Kinetic friction", agent = "table", magnitude = "5",
+          along = "-5", across = "0", known = true },
+    },
+    pairs = {
+        { kind = "normal", on_body = "block", by_body = "table",
+          reaction_on = "table", reaction_by = "block", magnitude = "20" },
+    },
+    steps = {
+        { kind = "plan", name = "Free-body plan", goal = "Find the acceleration on block",
+          short = "Inventory the forces and sum each axis", claim = "no claim", verified = true,
+          failed = false, depth = 0 },
+    },
+}
+
 local fake_components = {
     outcome = "solved", detail = "", solved = true, answer_only = false,
     status = "solved and verified", has_components = true, nodes = 20,
@@ -537,6 +568,7 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
+    forces = 0,
     catch_up = 0, relative_motion = 0, resource_profile_begin = 0, resource_profile_finish = 0,
 }
 local profile_events = {}
@@ -586,6 +618,7 @@ local fake_manifest = {
         { kind = "solver", id = "physics.vectors.cartesian-addition.two-dimension" },
         { kind = "solver", id = "physics.kinematics.relative-motion.components.two-dimension" },
         { kind = "solver", id = "physics.vectors.magnitude-components.two-dimension" },
+        { kind = "solver", id = "physics.forces.newton-second-law" },
         { kind = "solver", id = "physics.work.constant-force-dot-product" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
@@ -633,6 +666,7 @@ nps_split = {
         return fake_relative_motion
     end,
     work = function(...) calls.work = calls.work + 1 last_args = { ... } return fake_work end,
+    forces = function(...) calls.forces = calls.forces + 1 last_args = { ... } return fake_forces end,
     magnitude_angle_to_components = function(...)
         calls.components = calls.components + 1
         last_args = { ... }
@@ -863,7 +897,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 182, "the palette holds every retained entry: " .. entries .. " of 182")
+    check(entries == 186, "the palette holds every retained entry: " .. entries .. " of 186")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -931,7 +965,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 16 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 17 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -1200,6 +1234,35 @@ check(#steps.histText == relative_history_before + 1 and
       "the relative-motion answer joins document history")
 on.escapeKey()
 
+forces_history_before = #steps.histText
+openPhysicsFixtures()
+on.arrowDown()
+on.enterKey()
+check(calls.forces == 1 and steps.result.mode == "forces" and type(last_args[1]) == "table",
+      "the tenth fixture calls the native force bridge exactly once")
+forces_input = last_args[1]
+check(forces_input.body == "block" and forces_input.support == "table" and
+      forces_input.mass == "2 kg" and forces_input.gravity == "10 m/s^2" and
+      forces_input.surface == "horizontal" and forces_input.applied == "12 N" and
+      forces_input.friction == "kinetic" and forces_input.friction_coefficient == "0.25" and
+      forces_input.motion == "up the axis" and forces_input.equilibrium == false and
+      forces_input.unknown == "acceleration",
+      "the fixture sends the declared body, surface, friction model and requested unknown")
+check(steps.result.inventory ~= nil and #steps.result.inventory == 4 and
+      steps.result.inventory[4].kind == "friction" and
+      steps.result.inventory[4].along == "-5" and
+      steps.result.pairs ~= nil and #steps.result.pairs == 1 and
+      steps.result.pairs[1].reaction_on == "table",
+      "the viewer retains the force inventory and the third-law pair it keeps out of it")
+check(#steps.histText == forces_history_before + 1 and
+      steps.histText[#steps.histText][1] == " Guided: Find how hard a sliding block speeds up" and
+      steps.histText[#steps.histText][2]:find("3.5", 1, true) ~= nil,
+      "the force answer joins document history with its value")
+on.escapeKey()
+openPhysicsFixtures()
+on.arrowUp()
+on.escapeKey()
+
 check(#steps.histText >= 10 and #histME1 >= 10,
       "guided solves join the document history")
 openPhysicsFixtures()
@@ -1341,6 +1404,14 @@ local approximate_conditional_result_class =
     painted():find("APPROXIMATE + CONDITIONAL", 1, true) ~= nil
 steps.result.precision = nil
 steps.result.assumptions = nil
+-- CALC-010. A linearization is an approximation away from the point, so the shell must not label
+-- its answer exact just because every number in it is rational.
+steps.result.approximation = true
+check(painted():find("APPROXIMATE", 1, true) ~= nil and painted():find("EXACT", 1, true) == nil,
+      "a linearization answer is labelled an approximation rather than exact")
+steps.result.approximation = nil
+check(painted():find("EXACT", 1, true) ~= nil,
+      "an ordinary exact answer keeps its exact label when no approximation is declared")
 
 -- Section 17 wants an unverified answer labelled where the student is already reading. A check that
 -- could not run and a solve the student stopped are both named outcomes, so the label reads the
@@ -6360,7 +6431,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 20 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 22 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6370,12 +6441,17 @@ do
     end
     check(state.descriptions[17]:find("smaller values", 1, true) and
           state.descriptions[18]:find("larger values", 1, true), "one-sided guidance distinguishes both approach directions")
+    -- CALC-010. The two new templates are the last of the calculus block and their guidance has to
+    -- keep the linearization an approximation rather than promising an equality.
+    check(state.labels[21] == "Tangent line at a point" and state.labels[22] == "Linearization at a point" and
+          state.descriptions[22]:find("approximation", 1, true) ~= nil,
+          "the tangent templates are offered and the linearization says it approximates")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 20, "up from the first template reaches the final template")
+    check(state.selected == 22, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()
@@ -7417,6 +7493,82 @@ do
           "the same record reopens under hint progression")
     check(hint:find("no steps", 1, true) ~= nil and hint:find("hint 0/0", 1, true) == nil,
           "and hint progression says the same rather than reporting nought revealed of nought")
+    end)()
+end
+
+-- An overflowing list changes how much room the footer has, not what the record is. A hint
+-- walkthrough with every step revealed has no next hint to offer, so both cues must reach that
+-- conclusion from the same visibility decision rather than from the two-valued mode alone.
+do
+    (function()
+    -- Past MATH_PREVIEW_BYTES the focused math row is drawn as text, which is what sets listOverflow.
+    local long_after = "(" .. string.rep("x + ", 700) .. "x)"
+    local function twoStepRecord(after_one, after_two)
+        return {
+            outcome = "solved", detail = "", solved = true, status = "solved and verified",
+            result = "x = 4", result_form = "exact", giac_tag = "exact", agrees = true,
+            step_count = 2, rewrites = 2, giac_calls = 0, nodes = 6,
+            original_expression = "2*x+5=13", normalized_expression = "2*x+5=13",
+            steps = {
+                { kind = "transformation", phase = "solve", name = "Isolate the term",
+                  goal = "Subtract five from both sides", short = "Undo the addition",
+                  claim = "equivalent expression", verified = true, failed = false, depth = 0,
+                  before = "2*x+5=13", after = after_one, action = "Subtract 5", rule = "s.subtract" },
+                { kind = "transformation", phase = "solve", name = "Divide by the coefficient",
+                  goal = "Divide both sides by two", short = "Undo the multiplication",
+                  claim = "equivalent expression", verified = true, failed = false, depth = 0,
+                  after = after_two, action = "Divide by 2", rule = "s.divide" },
+            },
+        }
+    end
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local function footerFor(record, progression, reveals)
+        env.closeSteps()
+        env.stepsSetProgression(progression)
+        env.steps.result = nil
+        next_step_result = record
+        env.fctEditor.editor:setExpression("\\0el {!s 2*x+5=13}")
+        env.on.enterKey()
+        for _ = 1, reveals do env.on.tabKey() end
+        for _ = 1, 4 do env.on.paint(gc) end
+        drawn = {}
+        env.on.paint(gc)
+        return table.concat(drawn, " ")
+    end
+
+    local exhausted = footerFor(twoStepRecord(long_after, long_after), "hint", 1)
+    check(env.steps.view == "list" and env.steps.listOverflow and env.steps.walkthrough == "hint" and
+          env.steps.revealed == 2 and env.steps.focus == 2,
+          "a hint record with both steps revealed still overflows its list")
+    check(exhausted:find("hint 2/2", 1, true) ~= nil and
+          exhausted:find("ANSWER shown", 1, true) ~= nil and
+          exhausted:find("TAB next hint", 1, true) == nil,
+          "so its overflow footer states the answer is shown rather than offering a hint that is gone")
+
+    local remaining = footerFor(twoStepRecord(long_after, long_after), "hint", 0)
+    check(env.steps.listOverflow and env.steps.revealed == 1 and env.steps.focus == 1,
+          "the same record with one hint still to come overflows the same way")
+    check(remaining:find("hint 1/2", 1, true) ~= nil and
+          remaining:find("TAB next hint", 1, true) ~= nil and
+          remaining:find("ANSWER shown", 1, true) == nil,
+          "and that overflow footer still offers the hint that exists")
+
+    local fits = footerFor(twoStepRecord("x = 8", "x = 4"), "hint", 1)
+    check(not env.steps.listOverflow and env.steps.revealed == 2,
+          "the short-expression record reveals both steps without overflowing")
+    check(fits:find("hint 2/2", 1, true) ~= nil and
+          fits:find("ANSWER shown", 1, true) ~= nil and
+          fits:find("TAB next hint", 1, true) == nil,
+          "and reaches the same conclusion, so overflow decides the wording and not the fact")
+
+    local full = footerFor(twoStepRecord(long_after, long_after), "full", 0)
+    check(env.steps.listOverflow and env.steps.walkthrough == "full",
+          "a full walkthrough overflows that list too")
+    check(full:find("ENTER all work", 1, true) ~= nil and
+          full:find("ANSWER shown", 1, true) == nil and
+          full:find("TAB next hint", 1, true) == nil,
+          "and keeps its own overflow cue rather than borrowing a hint one")
     end)()
 end
 
