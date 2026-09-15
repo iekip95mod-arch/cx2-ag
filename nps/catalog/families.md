@@ -376,7 +376,7 @@ test_group_ids vector components
 proof_obligation_ids obl.vector-components.rank-two, obl.vector-components.rank-three, obl.vector-components.spherical-convention, obl.vector-components.polar-angle, obl.vector-components.frame-declared, obl.vector-components.angle-unit-explicit, obl.vector-components.dimensions-preserved, obl.vector-components.component-relations, obl.vector-components.magnitude-relation, obl.vector-components.quadrant-direction, obl.vector-components.precision-final, obl.plan.preconditions-hold
 solution_soundness_status production answers are withheld unless metadata checks and backend zero checks pass, while golden fixtures validate that evidence flow with scripted replies and do not independently establish Giac algebra
 solution_completeness_status partial, covering two-dimensional conversion in both directions and rank-three reconstruction into magnitude and direction, dependent on an available symbolic backend
-corpus_case_ids vector_components_exact, vector_components_negative_quadrant
+corpus_case_ids vector_components_exact, vector_components_negative_quadrant, vector_components_spherical
 explanation_review_status core rule sequence and proof evidence covered by golden fixtures, independent explanation review not yet recorded
 learner_transfer_status not measured
 device_performance_status not measured
