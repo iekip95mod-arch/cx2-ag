@@ -46,6 +46,15 @@ size_t checks_of_kind(const Derivation &derivation, const std::string &rule_pref
     return count;
 }
 
+const CheckPayload *check_payload_for(const Derivation &derivation, const std::string &rule_id) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const StepId id = static_cast<StepId>(index);
+        if (derivation.at(id).rule_id == rule_id)
+            return derivation.check(id);
+    }
+    return nullptr;
+}
+
 }  // namespace
 
 void run_ranking_tests(TestSink &t) {
@@ -173,6 +182,38 @@ void run_ranking_tests(TestSink &t) {
         t.check(result.order.empty(), "a refused ranking reports no order");
         t.check(result.detail.find("landing height") != std::string::npos,
                 "the refusal names the criterion that could not be compared");
+    }
+    {
+        // Regression for the reviewer's finding on PR #362: a second criterion that is unknown for a
+        // pair already decided by the first criterion must not be recorded as "differs". The first
+        // criterion (1, 2, 3) decides every pair by itself, so the second criterion's gap for
+        // football 2 never affects the order, but its own justification step must say it is not
+        // known for every situation rather than falsely claiming a difference.
+        RankingModel model;
+        model.quantity_name = "initial speed";
+        model.criteria.push_back(RankingCriterion{"deciding component", RankingDirection::Increasing});
+        model.criteria.push_back(RankingCriterion{"secondary component", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("football 1", ranking_known(1), ranking_known(5)));
+        problem.situations.push_back(situation("football 2", ranking_known(2), ranking_unknown()));
+        problem.situations.push_back(situation("football 3", ranking_known(3), ranking_known(5)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved",
+                "a criterion that already decides every pair solves even when a later one has a gap");
+        t.equal(order_summary(result, problem), "football 3 > football 2 > football 1",
+                "the deciding component alone determines the order");
+
+        const CheckPayload *secondary = check_payload_for(derivation, "physics.ranking.criterion.secondary component");
+        t.check(secondary != nullptr, "the secondary criterion records its own justification step");
+        if (secondary != nullptr) {
+            t.equal(secondary->observed_result, "unknown for football 1 and football 2",
+                    "an unresolved pair is reported as unknown rather than as a difference");
+            t.check(secondary->observed_result.find("differs") == std::string::npos,
+                    "a gap in one situation's value is never reported as a confirmed difference");
+        }
     }
     {
         // A problem too small to rank at all: one situation cannot be placed against anything.

@@ -52,17 +52,27 @@ PairOutcome compare_situations(const RankingModel &model, const RankingSituation
 void record_criterion_step(Derivation &derivation, const RankingModel &model,
                            const RankingProblem &problem, size_t criterion_index) {
     const RankingCriterion &criterion = model.criteria[criterion_index];
+    // A pair unknown for this criterion is neither a confirmed difference nor a confirmed tie, so it
+    // is tracked apart from `varies`: a later pair that is genuinely different still wins the report,
+    // but an all-unknown-or-equal criterion must say "not known", not "common".
     bool varies = false;
+    bool unknown = false;
     std::string differing;
+    std::string unresolved;
     for (size_t i = 0; i + 1 < problem.situations.size() && !varies; ++i) {
-        for (size_t j = i + 1; j < problem.situations.size(); ++j) {
+        for (size_t j = i + 1; j < problem.situations.size() && !varies; ++j) {
             const Cmp result = compare_magnitude(criterion, problem.situations[i].values[criterion_index],
                                                  problem.situations[j].values[criterion_index]);
-            if (result != Cmp::Equal) {
+            if (result == Cmp::Unknown) {
+                if (!unknown) {
+                    unknown = true;
+                    unresolved = std::string(problem.situations[i].name) + " and " +
+                                problem.situations[j].name;
+                }
+            } else if (result != Cmp::Equal) {
                 varies = true;
                 differing = std::string(problem.situations[i].name) + " and " +
                            problem.situations[j].name;
-                break;
             }
         }
     }
@@ -72,14 +82,23 @@ void record_criterion_step(Derivation &derivation, const RankingModel &model,
     step.kind = StepKind::Check;
     step.rule_id = std::string("physics.ranking.criterion.") + criterion.name;
     step.rule_name = criterion.name;
-    step.explanation_short = varies ? (std::string(criterion.name) + " differs across situations")
-                                    : (std::string(criterion.name) + " is common to every situation");
 
     CheckPayload payload;
     payload.target_claim = std::string(model.quantity_name) + " ranked by " + criterion.name;
     payload.check_method = "qualitative comparison";
-    payload.expected_relation = varies ? "varies between situations" : "equal across situations";
-    payload.observed_result = varies ? ("differs between " + differing) : "common to all situations";
+    if (varies) {
+        step.explanation_short = std::string(criterion.name) + " differs across situations";
+        payload.expected_relation = "varies between situations";
+        payload.observed_result = "differs between " + differing;
+    } else if (unknown) {
+        step.explanation_short = std::string(criterion.name) + " is not known for every situation";
+        payload.expected_relation = "known for every situation";
+        payload.observed_result = "unknown for " + unresolved;
+    } else {
+        step.explanation_short = std::string(criterion.name) + " is common to every situation";
+        payload.expected_relation = "equal across situations";
+        payload.observed_result = "common to all situations";
+    }
     derivation.add_check(kNoStep, step, payload);
 }
 
