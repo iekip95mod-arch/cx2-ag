@@ -1022,7 +1022,7 @@
       "pr": null,
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-gemini-beryl",
-      "released": false
+      "released": true
     },
     {
       "key": "gemini/executor/issue-239",
@@ -1062,7 +1062,7 @@
       "pr": null,
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-garnet",
-      "released": false
+      "released": true
     },
     {
       "key": "gemini/reviewer/issue-209",
@@ -1072,7 +1072,7 @@
       "pr": 249,
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-gemini-review-astrolabe",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1116,7 +1116,7 @@
       "pr": 253,
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-gemini-review-gauge",
-      "released": false,
+      "released": true,
       "selectedReview": false
     },
     {
@@ -1189,7 +1189,7 @@
       "pr": 253,
       "branch": "gemini/issue-222",
       "slug": "cx2-ag-claude-review-vale",
-      "released": false,
+      "released": true,
       "selectedReview": true
     },
     {
@@ -1200,7 +1200,7 @@
       "pr": 249,
       "branch": "gemini/issue-209",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false,
+      "released": true,
       "selectedReview": true
     },
     {
@@ -1294,7 +1294,7 @@
       "pr": null,
       "branch": "claude/issue-263",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-157",
@@ -1334,7 +1334,7 @@
       "pr": 277,
       "branch": "claude/issue-263",
       "slug": "cx2-ag-claude-review-crest",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-244",
@@ -1604,6 +1604,16 @@
       "pr": 318,
       "branch": "claude/issue-314",
       "slug": "cx2-ag-claude-review-brook",
+      "released": false
+    },
+    {
+      "key": "claude/executor/issue-324",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 324,
+      "pr": null,
+      "branch": "claude/issue-324",
+      "slug": "cx2-ag-claude-orion",
       "released": false
     }
   ]
