@@ -44,6 +44,11 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "physics.vectors.magnitude-components.two-dimension"},
     {"solver", "physics.forces.newton-second-law"},
     {"solver", "physics.work.constant-force-dot-product"},
+    {"solver", "physics.optics.refraction.snell"},
+    {"solver", "physics.optics.thin-lens.image"},
+    {"solver", "physics.optics.spherical-mirror.image"},
+    {"solver", "physics.optics.double-slit.maxima"},
+    {"solver", "physics.optics.single-slit.minima"},
     {"solver", "units.chain-link-conversion"},
     {"content", "units.si"},
 #if NPS_RETAINED_FAULT_INJECTION
