@@ -1,0 +1,193 @@
+#include <cstddef>
+#include <string>
+
+#include "nps/physics/ranking.h"
+#include "unit/adapter_tests.h"
+
+namespace nps {
+namespace {
+
+RankingSituation situation(const char *name, RankingValue value) {
+    RankingSituation entry;
+    entry.name = name;
+    entry.values.push_back(value);
+    return entry;
+}
+
+RankingSituation situation(const char *name, RankingValue first, RankingValue second) {
+    RankingSituation entry;
+    entry.name = name;
+    entry.values.push_back(first);
+    entry.values.push_back(second);
+    return entry;
+}
+
+std::string order_summary(const RankingResult &result, const RankingProblem &problem) {
+    std::string text;
+    for (const RankingTier &tier : result.order) {
+        if (!text.empty())
+            text += " > ";
+        for (size_t i = 0; i < tier.situations.size(); ++i) {
+            if (i != 0)
+                text += "=";
+            text += problem.situations[tier.situations[i]].name;
+        }
+    }
+    return text;
+}
+
+size_t checks_of_kind(const Derivation &derivation, const std::string &rule_prefix) {
+    size_t count = 0;
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const Step &step = derivation.at(static_cast<StepId>(index));
+        if (step.rule_id.rfind(rule_prefix, 0) == 0)
+            ++count;
+    }
+    return count;
+}
+
+}  // namespace
+
+void run_ranking_tests(TestSink &t) {
+    {
+        // Problem 6(a): four paths between the same two points over the same interval. Average
+        // velocity is displacement over elapsed time, and both are the same for every path, so all
+        // four situations tie.
+        RankingModel model;
+        model.quantity_name = "average velocity";
+        model.criteria.push_back(RankingCriterion{"displacement over elapsed time",
+                                                   RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+        problem.situations.push_back(situation("path 2", ranking_known(1)));
+        problem.situations.push_back(situation("path 3", ranking_known(1)));
+        problem.situations.push_back(situation("path 4", ranking_known(1)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved", "problem 6a solves");
+        t.equal(order_summary(result, problem), "path 1=path 2=path 3=path 4",
+                "problem 6a: all four paths tie on average velocity");
+    }
+    {
+        // Problem 6(b): average speed is distance covered over the same elapsed time. Path 4 covers
+        // the greatest distance, paths 1 and 2 cover an equal, smaller distance, and path 3 covers
+        // the least, which is exactly the tie structure the marker's key records.
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(4)));
+        problem.situations.push_back(situation("path 2", ranking_known(4)));
+        problem.situations.push_back(situation("path 3", ranking_known(3)));
+        problem.situations.push_back(situation("path 4", ranking_known(6)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved", "problem 6b solves");
+        t.equal(order_summary(result, problem), "path 4 > path 1=path 2 > path 3",
+                "problem 6b: 4, then 1 and 2 tied, then 3");
+        t.check(checks_of_kind(derivation, "physics.ranking.criterion.") == 1,
+                "problem 6b records one criterion step");
+    }
+    {
+        // Problem 7's key version, parts (a) and (b): three footballs kicked from ground level, all
+        // reaching the same maximum height, so time of flight and initial vertical velocity both tie
+        // across the three.
+        RankingModel model;
+        model.quantity_name = "time of flight";
+        model.criteria.push_back(RankingCriterion{"maximum height", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("football 1", ranking_known(5)));
+        problem.situations.push_back(situation("football 2", ranking_known(5)));
+        problem.situations.push_back(situation("football 3", ranking_known(5)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved", "problem 7a solves");
+        t.equal(order_summary(result, problem), "football 1=football 2=football 3",
+                "problem 7a: all three tie, it depends only on the maximum height");
+    }
+    {
+        // Problem 7(c): initial horizontal velocity, ranked 3, 2, 1 by the horizontal distance each
+        // ball covers in the same time of flight.
+        RankingModel model;
+        model.quantity_name = "initial horizontal velocity";
+        model.criteria.push_back(RankingCriterion{"horizontal distance covered",
+                                                   RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("football 1", ranking_known(1)));
+        problem.situations.push_back(situation("football 2", ranking_known(2)));
+        problem.situations.push_back(situation("football 3", ranking_known(3)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved", "problem 7c solves");
+        t.equal(order_summary(result, problem), "football 3 > football 2 > football 1",
+                "problem 7c: 3, then 2, then 1");
+    }
+    {
+        // Problem 7(d): initial speed. The vertical component ties across all three footballs
+        // because they share a maximum height, so the horizontal component, which is not tied,
+        // decides the order without either component ever being combined into a speed.
+        RankingModel model;
+        model.quantity_name = "initial speed";
+        model.criteria.push_back(RankingCriterion{"initial vertical velocity",
+                                                   RankingDirection::Increasing});
+        model.criteria.push_back(RankingCriterion{"initial horizontal velocity",
+                                                   RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("football 1", ranking_known(9), ranking_known(1)));
+        problem.situations.push_back(situation("football 2", ranking_known(9), ranking_known(2)));
+        problem.situations.push_back(situation("football 3", ranking_known(9), ranking_known(3)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "solved", "problem 7d solves");
+        t.equal(order_summary(result, problem), "football 3 > football 2 > football 1",
+                "problem 7d: the vertical component ties so the horizontal one decides");
+        t.check(checks_of_kind(derivation, "physics.ranking.criterion.") == 2,
+                "problem 7d records a justification step for each criterion");
+    }
+    {
+        // The test paper's version of problem 7 is not solved: final speed on landing depends on the
+        // drop between launch and landing height, which is not given here, so the ranking must
+        // refuse rather than guess.
+        RankingModel model;
+        model.quantity_name = "final speed";
+        model.criteria.push_back(RankingCriterion{"landing height", RankingDirection::Decreasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("terrain 1", ranking_unknown()));
+        problem.situations.push_back(situation("terrain 2", ranking_unknown()));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "indeterminate order",
+                "final speed against unstated landing heights refuses rather than guesses");
+        t.check(result.order.empty(), "a refused ranking reports no order");
+        t.check(result.detail.find("landing height") != std::string::npos,
+                "the refusal names the criterion that could not be compared");
+    }
+    {
+        // A problem too small to rank at all: one situation cannot be placed against anything.
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(ranking_outcome_name(result.outcome), "too few situations",
+                "a single situation cannot be ranked against anything");
+    }
+}
+
+}  // namespace nps
