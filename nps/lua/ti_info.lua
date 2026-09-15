@@ -18,6 +18,349 @@ local L = 14
 local HEAD = 2
 local BODY = 9
 
+-- Cards come first and are named by what the question sounds like, not by which chapter it came
+-- from. In a test the reader knows the wording in front of them and does not know the chapter, so
+-- recognition is the index. Every card has the same five parts in the same order, so once you have
+-- read one you know where to look in all of them.
+local cards = {
+	{
+		name = "Speeds up or slows down in a line",
+		lines = {
+			"LOOKS LIKE",
+			"A car accelerates from 10 to 30 m/s in 4 s.",
+			"How far does it travel? A train brakes to a",
+			"stop. Anything moving straight with a steady",
+			"change of speed.",
+			"",
+			"YOU NEED  three of these five",
+			"v\226\130\128 start speed    v end speed",
+			"a acceleration   t time    \206\148x distance",
+			"",
+			"FORMULA  pick the one missing what you",
+			"neither know nor want",
+			{ m = "v=v\226\130\128+a*t", alt = "v = v0 + a t" },
+			{ m = "\206\148x=v\226\130\128*t+1/2*a*t^2", alt = "dx = v0 t + a t^2/2" },
+			{ m = "v^2=v\226\130\128^2+2*a*\206\148x", alt = "v^2 = v0^2 + 2 a dx" },
+			"",
+			"STEPS",
+			"1  Column of knowns, with units.",
+			"2  Write the formula in symbols.",
+			"3  Rearrange for the unknown.",
+			"4  Substitute, carry units, box it.",
+			"",
+			"TRAP",
+			"Slowing down means a has the opposite sign",
+			"to v, not that a is negative by itself.",
+		},
+	},
+	{
+		name = "Dropped, or thrown straight up",
+		lines = {
+			"LOOKS LIKE",
+			"A stone is dropped from a 45 m bridge. A ball",
+			"is thrown up at 12 m/s. How long, how fast,",
+			"how high.",
+			"",
+			"YOU NEED",
+			"a = \2269.80 m/s\194\178 always, taking up as positive",
+			"v\226\130\128 = 0 if it was dropped or released",
+			"v = 0 at the highest point",
+			"",
+			"FORMULA  same three as the straight line",
+			{ m = "\206\148y=v\226\130\128*t+1/2*a*t^2", alt = "dy = v0 t + a t^2/2" },
+			{ m = "t=sqrt(2*\206\148y/a)", alt = "t = sqrt(2 dy / a)" },
+			"",
+			"STEPS",
+			"1  Choose up as positive and keep it.",
+			"2  Falling below the start makes \206\148y negative.",
+			"3  Dropped from rest kills the v\226\130\128t term.",
+			"4  Solve, then check the sign is sensible.",
+			"",
+			"TRAP",
+			"At the top v is zero but a is still \2269.80.",
+			"Gravity does not switch off.",
+		},
+	},
+	{
+		name = "Position given as a formula in t",
+		lines = {
+			"LOOKS LIKE",
+			"x = 50t + 10t\194\178. Find the average velocity over",
+			"the first 3 s, the velocity at t = 3 s, the",
+			"acceleration at t = 3 s.",
+			"",
+			"YOU NEED  the formula and the instants",
+			"",
+			"FORMULA",
+			{ m = "v=dx/dt", alt = "v = dx/dt" },
+			{ m = "a=dv/dt", alt = "a = dv/dt" },
+			{ m = "v_avg=\206\148x/\206\148t", alt = "v_avg = dx / dt" },
+			"",
+			"STEPS",
+			"1  Average asks for two instants. Work out",
+			"   x at each and divide the change by \206\148t.",
+			"2  Instantaneous asks for one instant.",
+			"   Differentiate, then put the time in.",
+			"3  Acceleration is one more derivative.",
+			"",
+			"TRAP",
+			"Average and instantaneous are different",
+			"numbers whenever a is not zero. 80 and 110",
+			"in the example above.",
+		},
+	},
+	{
+		name = "Two objects, one clock",
+		lines = {
+			"LOOKS LIKE",
+			"A key falls 45 m into a boat that is 12 m away",
+			"and moving steadily. A car passes under a",
+			"dropped ball. One catches the other.",
+			"",
+			"YOU NEED  enough about ONE of them to get t",
+			"",
+			"STEPS",
+			"1  Two columns, one per object, kept apart.",
+			"2  Solve the object you have enough about.",
+			"   That gives t.",
+			"3  Carry that same t into the other column.",
+			"4  Use it there to get what was asked.",
+			"",
+			"WORKED",
+			"Key: \206\148y = \22645 m, v\226\130\128 = 0, a = \2269.80",
+			{ m = "t=sqrt(2*(-45)/(-9.80))=3.03", alt = "t = sqrt(2(-45)/(-9.80)) = 3.03 s" },
+			"Boat: constant speed, so",
+			{ m = "v=12/3.03=3.96", alt = "v = 12 / 3.03 = 3.96 m/s" },
+			"",
+			"TRAP",
+			"Do not average the two motions. They are",
+			"separate, joined only at one instant.",
+		},
+	},
+	{
+		name = "Launched at an angle",
+		lines = {
+			"LOOKS LIKE",
+			"A stone is fired at 42 m/s at 60\194\176 and hits a",
+			"cliff 5.5 s later. Anything that flies.",
+			"",
+			"YOU NEED  v\226\130\128, the angle, and one more thing",
+			"",
+			"FORMULA  split once, never mix again",
+			{ m = "v\226\130\128x=v\226\130\128*cos(\206\184)", alt = "v0x = v0 cos(th)" },
+			{ m = "v\226\130\128y=v\226\130\128*sin(\206\184)", alt = "v0y = v0 sin(th)" },
+			"across  ax = 0, so x = v\226\130\128x t",
+			{ m = "\206\148y=v\226\130\128y*t-1/2*g*t^2", alt = "dy = v0y t - g t^2/2" },
+			"",
+			"STEPS",
+			"1  Two columns, across and up.",
+			"2  Across has no acceleration, so its speed",
+			"   never changes.",
+			"3  Up is a free fall problem.",
+			"4  The two share only t.",
+			"",
+			"TRAP",
+			"A negative vy at the end just means it is",
+			"falling when it arrives.",
+		},
+	},
+	{
+		name = "Highest point, hang time, range",
+		lines = {
+			"LOOKS LIKE",
+			"How high does it get, how long is it in the",
+			"air, how far does it land.",
+			"",
+			"YOU NEED  v\226\130\128y, and g",
+			"",
+			"FORMULA",
+			"at the top the vertical speed is zero",
+			{ m = "t=v\226\130\128y/g", alt = "t_up = v0y / g" },
+			{ m = "H=v\226\130\128y^2/(2*g)", alt = "H = v0y^2 / (2 g)" },
+			"level ground only:",
+			{ m = "R=v\226\130\128^2*sin(2*\206\184)/g", alt = "R = v0^2 sin(2 th) / g" },
+			"",
+			"STEPS",
+			"1  Get v\226\130\128y first.",
+			"2  Time to the top, then double it for the",
+			"   whole flight on level ground.",
+			"3  Range is the across speed times that time.",
+			"",
+			"CHECK IT TWICE",
+			"Do H both ways, by time and by the v\194\178",
+			"formula. Same answer means no slip.",
+		},
+	},
+	{
+		name = "Add or subtract vectors",
+		lines = {
+			"LOOKS LIKE",
+			"Two displacements, two forces, two velocities",
+			"to be combined. Anything with i, j, k in it.",
+			"",
+			"FORMULA  add the components separately",
+			{ m = "3*i-2*j+4*k", alt = "3i - 2j + 4k" },
+			"",
+			"STEPS",
+			"1  Put both into component form.",
+			"2  Add the i parts, then the j parts, then",
+			"   the k parts. Nothing crosses over.",
+			"3  Scaling multiplies every component.",
+			"",
+			"TRAP",
+			"Units must match before you add. Kilometers",
+			"and metres in the same sum is the usual",
+			"lost mark.",
+		},
+	},
+	{
+		name = "Magnitude and angle, or back again",
+		lines = {
+			"LOOKS LIKE",
+			"A speed of 20 m/s at 30\194\176 above horizontal.",
+			"Or components given, direction wanted.",
+			"",
+			"FORMULA",
+			{ m = "ax=a*cos(\206\184)", alt = "ax = a cos(th)" },
+			{ m = "ay=a*sin(\206\184)", alt = "ay = a sin(th)" },
+			{ m = "a=sqrt(ax^2+ay^2)", alt = "a = sqrt(ax^2 + ay^2)" },
+			{ m = "tan(\206\184)=ay/ax", alt = "tan(th) = ay / ax" },
+			"",
+			"STEPS",
+			"1  Angle is from the positive x axis unless",
+			"   the question says otherwise.",
+			"2  Compute, then check the quadrant.",
+			"",
+			"TRAP",
+			"A calculator gives the arctangent in only",
+			"two quadrants. Check the signs of both",
+			"components and add 180\194\176 if needed.",
+		},
+	},
+	{
+		name = "Dot product, or angle between",
+		lines = {
+			"LOOKS LIKE",
+			"a . b asked for, or the angle between two",
+			"vectors, or is this perpendicular.",
+			"",
+			"FORMULA",
+			{ m = "a*b=ax*bx+ay*by+a_z*b_z", alt = "a.b = ax bx + ay by + az bz" },
+			{ m = "a*b=a*b*cos(\207\134)", alt = "a.b = a b cos(phi)" },
+			"",
+			"STEPS",
+			"1  Multiply matching components and add.",
+			"2  For the angle, divide by both magnitudes",
+			"   and take the inverse cosine.",
+			"",
+			"TRAP",
+			"The answer is a number, not a vector. Zero",
+			"means the two are perpendicular.",
+		},
+	},
+	{
+		name = "Cross product",
+		lines = {
+			"LOOKS LIKE",
+			"a \195\151 b asked for, a vector perpendicular to",
+			"both, or the area they span.",
+			"",
+			"FORMULA  set out the determinant",
+			"   | i    j    k  |",
+			"   | ax   ay   a_z |",
+			"   | bx   by   b_z |",
+			"",
+			"i  (ayb_z \226\136\146 a_zby)",
+			"j  \226\136\146(axb_z \226\136\146 a_zbx)",
+			"k  (axby \226\136\146 aybx)",
+			"",
+			"STEPS",
+			"1  Write the three rows.",
+			"2  Expand along the top, one term at a time.",
+			"3  Mind the minus on the j term.",
+			"",
+			"TRAP",
+			"Order matters. b \195\151 a is the negative of",
+			"a \195\151 b. Parallel vectors give zero.",
+		},
+	},
+	{
+		name = "Wind, current, as seen from",
+		lines = {
+			"LOOKS LIKE",
+			"A plane in wind, a boat in a current, a speed",
+			"relative to something else that is moving.",
+			"",
+			"FORMULA  chain the labels",
+			{ m = "v_PA=v_PB+v_BA", alt = "v_PA = v_PB + v_BA" },
+			"the inner letters match and cancel",
+			"",
+			"STEPS",
+			"1  Name all three velocities with two",
+			"   letters each, and say which is wanted.",
+			"2  Write the chain so the inner letters",
+			"   cancel. That is the check.",
+			"3  Work in components.",
+			"4  Convert to magnitude and angle last.",
+			"",
+			"TRAP",
+			"Report the bearing as asked, such as 22.2\194\176",
+			"south of west, not as a bare angle.",
+		},
+	},
+	{
+		name = "Rank these and justify",
+		lines = {
+			"LOOKS LIKE",
+			"Four paths, three kicks, rank by speed or",
+			"time or height. Marks are for the reason.",
+			"",
+			"STEPS",
+			"1  Write the formula for the quantity first.",
+			"2  Say which parts are the same for every",
+			"   case and which differ.",
+			"3  Rank from that, and name any ties.",
+			"",
+			"THE TWO THAT CATCH PEOPLE",
+			"average velocity uses displacement, so",
+			"  paths between the same two points tie",
+			"average speed uses path length, so they",
+			"  separate by how far they went",
+			"",
+			"PROJECTILES ON LEVEL GROUND",
+			"time and height come from the up part",
+			"range comes from the across part",
+			"",
+			"TRAP",
+			"A tie is a real answer. Say it and say why.",
+		},
+	},
+	{
+		name = "Units, density, figures",
+		lines = {
+			"LOOKS LIKE",
+			"Convert, or find a density, or how many",
+			"significant figures.",
+			"",
+			"FORMULA",
+			{ m = "\207\129=m/V", alt = "rho = m / V" },
+			"",
+			"STEPS",
+			"1  Multiply by a ratio that equals 1, set so",
+			"   the unit you do not want cancels.",
+			"2  One ratio at a time. Carry the units.",
+			"3  Round once, at the end.",
+			"",
+			"TRAP",
+			"Going cm to m is 100 on a length, so it is",
+			"100\194\179 on a volume. Cube the conversion.",
+			"",
+			"Answer carries the fewest figures that went",
+			"into it.",
+		},
+	},
+}
+
 local chapters = {
 	{
 		title = "W  Reading a word problem",
@@ -1203,6 +1546,9 @@ local function current()
 end
 
 local function body()
+	if view.mode == "card" then
+		return cards[view.card].lines
+	end
 	if view.mode == "toc" then
 		local out = {}
 		for i, row in ipairs(contents()) do
@@ -1213,7 +1559,7 @@ local function body()
 	if view.mode == "search" then
 		local rowsOut = {}
 		for i, hit in ipairs(view.hits or {}) do
-			rowsOut[i] = hit[3]
+			rowsOut[i] = hit.text
 		end
 		if #rowsOut == 0 then
 			rowsOut[1] = view.query == "" and "type to search" or "no match"
@@ -1245,6 +1591,12 @@ function contents()
 		return toc
 	end
 	toc = {}
+	toc[#toc + 1] = { head = true, text = "WHAT DOES YOUR QUESTION LOOK LIKE?" }
+	for i, card in ipairs(cards) do
+		toc[#toc + 1] = { card = i, text = "  " .. card.name }
+	end
+	toc[#toc + 1] = { head = true, text = "" }
+	toc[#toc + 1] = { head = true, text = "REFERENCE" }
 	for ci, chapter in ipairs(chapters) do
 		toc[#toc + 1] = { head = true, text = chapter.title }
 		for ti, topic in ipairs(chapter.topics) do
@@ -1267,6 +1619,9 @@ local function tocStep(from, delta)
 	local i = from + delta
 	while i >= 1 and i <= #list and list[i].head do
 		i = i + delta
+	end
+	if i < 1 or i > #list then
+		return from
 	end
 	if i < 1 or i > #list then
 		return from
@@ -1311,8 +1666,21 @@ local function drawPlot(gc, plot, x0, y0, w, h)
 	gc:setColorRGB(0, 0, 0)
 end
 
+-- How far the page can scroll is found by filling the viewport from the last row backwards, because
+-- a typeset formula is about three text rows tall and counting uniform rows caps the scroll short of
+-- the end. That left the bottom of every card carrying a formula unreachable.
 local function clamp()
-	local limit = #body() - rows()
+	local list = body()
+	local viewport = (platform.window and platform.window:height() or 240) - 38
+	local limit = #list - 1
+	local used = 0
+	for i = #list, 1, -1 do
+		used = used + itemHeight(list[i])
+		if used > viewport then
+			break
+		end
+		limit = i - 1
+	end
 	if limit < 0 then limit = 0 end
 	if view.scroll > limit then view.scroll = limit end
 	if view.scroll < 0 then view.scroll = 0 end
@@ -1334,8 +1702,11 @@ function on.paint(gc)
 	gc:fillRect(0, 0, w, 18)
 	gc:setColorRGB(255, 255, 255)
 	gc:setFont("sansserif", "b", HEAD + 8)
-	if view.mode == "toc" then
-		gc:drawString("ti_info   everything in chapters 1 to 4", 4, 1, "top")
+	if view.mode == "card" then
+		gc:drawString(cards[view.card].name, 4, 1, "top")
+		gc:drawString(view.card .. "/" .. #cards, w - 40, 1, "top")
+	elseif view.mode == "toc" then
+		gc:drawString("ti_info   pick what your question looks like", 4, 1, "top")
 	elseif view.mode == "search" then
 		gc:drawString("find: " .. (view.query or ""), 4, 1, "top")
 		gc:drawString(#(view.hits or {}) .. " hit", w - 46, 1, "top")
@@ -1420,14 +1791,17 @@ function on.paint(gc)
 		local hit = view.hits[view.hit]
 		gc:setColorRGB(90, 90, 90)
 		gc:setFont("sansserif", "r", 7)
-		gc:drawString(chapters[hit[1]].title .. "  " .. hit[4], 4, platform.window:height() - 22, "top")
+		local from = hit.card and "card" or (chapters[hit.chapter].title .. "  " .. hit.where)
+		gc:drawString(from, 4, platform.window:height() - 22, "top")
 	end
 
 	gc:setColorRGB(110, 110, 110)
 	gc:setFont("sansserif", "r", 7)
 	local help
-	if view.mode == "toc" then
-		help = "up/down pick   enter open   a-z find   0-7 chapter"
+	if view.mode == "card" then
+		help = "up/down scroll   tab next card   esc list   a-z find"
+	elseif view.mode == "toc" then
+		help = "up/down pick   enter open   a-z find   0-7 reference"
 	elseif view.mode == "search" then
 		help = "type to filter   enter go   del erase   esc cancel"
 	elseif view.topic == 0 then
@@ -1439,6 +1813,11 @@ function on.paint(gc)
 end
 
 function on.arrowDown()
+	if view.mode == "card" then
+		view.scroll = view.scroll + 1
+		repaint()
+		return
+	end
 	if view.mode == "toc" then
 		view.pick = tocStep(view.pick, 1)
 		if view.pick > view.scroll + rows() then
@@ -1467,6 +1846,11 @@ function on.arrowDown()
 end
 
 function on.arrowUp()
+	if view.mode == "card" then
+		view.scroll = view.scroll - 1
+		repaint()
+		return
+	end
 	if view.mode == "toc" then
 		view.pick = tocStep(view.pick, -1)
 		if view.pick <= view.scroll + 1 then
@@ -1515,7 +1899,11 @@ end
 function on.enterKey()
 	if view.mode == "toc" then
 		local row = contents()[view.pick]
-		if row and row.chapter then
+		if row and row.card then
+			view.card = row.card
+			view.mode = "card"
+			view.scroll = 0
+		elseif row and row.chapter then
 			view.chapter, view.topic = row.chapter, row.topic
 			view.selected = row.topic
 			view.mode = "browse"
@@ -1528,12 +1916,16 @@ function on.enterKey()
 		local hit = (view.hits or {})[view.hit or 1]
 		view.mode = "browse"
 		view.scroll = 0
-		if hit then
-			view.chapter, view.topic = hit[1], hit[2]
-			view.selected = hit[2]
+		if hit and hit.card then
+			view.card = hit.card
+			view.mode = "card"
+			view.scroll = math.max(0, (hit.line or 1) - 2)
+		elseif hit then
+			view.chapter, view.topic = hit.chapter, hit.topic
+			view.selected = hit.topic
 			-- Land on the matched line, not merely the page holding it. A match below the fold on a
 			-- long page is invisible otherwise, and the reader has to hunt for what they just found.
-			view.scroll = math.max(0, (hit[5] or 1) - 2)
+			view.scroll = math.max(0, (hit.line or 1) - 2)
 		end
 		repaint()
 		return
@@ -1549,6 +1941,12 @@ on.returnKey = on.enterKey
 
 function on.escapeKey()
 	if view.mode == "toc" then
+		return
+	end
+	if view.mode == "card" then
+		view.mode = "toc"
+		view.scroll = math.max(0, view.pick - 2)
+		repaint()
 		return
 	end
 	if view.mode == "browse" and view.topic ~= 0 then
@@ -1583,17 +1981,37 @@ local function runSearch()
 	if needle == "" then
 		return
 	end
+	-- Cards are searched first and land straight on the card, because during a test the card is the
+	-- answer and the reference page behind it is the long way round.
+	for i, card in ipairs(cards) do
+		local hit = string.find(string.lower(card.name), needle, 1, true)
+		local where = 1
+		if not hit then
+			for li, line in ipairs(card.lines) do
+				local text = type(line) == "table" and (line.alt or line.m) or line
+				if text ~= "" and string.find(string.lower(text), needle, 1, true) then
+					hit, where = true, li
+					break
+				end
+			end
+		end
+		if hit then
+			view.hits[#view.hits + 1] = { card = i, text = card.name, where = "card", line = where }
+		end
+	end
 	for ci, chapter in ipairs(chapters) do
 		for ti, topic in ipairs(chapter.topics) do
 			if string.find(string.lower(topic.name), needle, 1, true) then
-				view.hits[#view.hits + 1] = { ci, ti, topic.name, chapter.title, 1 }
+				view.hits[#view.hits + 1] =
+					{ chapter = ci, topic = ti, text = topic.name, where = chapter.title, line = 1 }
 			end
 			for li, line in ipairs(topic.lines) do
 				-- A formula line is a table, and it is searched by its plain spelling so a query for
 				-- a symbol still finds the typeset row it belongs to.
 				local text = type(line) == "table" and (line.alt or line.m) or line
 				if text ~= "" and string.find(string.lower(text), needle, 1, true) then
-					view.hits[#view.hits + 1] = { ci, ti, text, topic.name, li }
+					view.hits[#view.hits + 1] =
+						{ chapter = ci, topic = ti, text = text, where = topic.name, line = li }
 					break
 				end
 			end
@@ -1651,7 +2069,13 @@ on.deleteKey = on.backspaceKey
 -- Tab walks topic to topic without a trip back through the menu, and rolls into the next chapter
 -- at the end, so the whole book is reachable from one key.
 local function step(delta)
-	if view.mode == "search" then
+	if view.mode == "search" or view.mode == "toc" then
+		return
+	end
+	if view.mode == "card" then
+		view.card = (view.card - 1 + delta) % #cards + 1
+		view.scroll = 0
+		repaint()
 		return
 	end
 	local target = (view.topic == 0 and (view.selected or 1) or view.topic) + delta
