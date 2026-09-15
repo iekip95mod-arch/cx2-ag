@@ -157,10 +157,13 @@ local terms = {
 			"Speed is the magnitude of instantaneous",
 			"velocity.",
 		} },
-	{ name = "Magnitude", ch = 3, eq = { "a = √(ax² + ay²)" },
+	{ name = "Magnitude", ch = 3, eq = { "|a| = √(ax² + ay²)" },
 		def = {
 			"The size of a vector, without its direction.",
 			"Never negative.",
+			"",
+			"The bars mean magnitude. |a| is a number,",
+			"a on its own is the vector it came from.",
 		} },
 	{ name = "Position", ch = 2, sym = "x, m",
 		def = {
@@ -180,7 +183,7 @@ local terms = {
 			"two angles, or by its components.",
 		} },
 	{ name = "Projectile motion", ch = 4,
-		eq = { "x = v₀cosθ₀ t", "y = v₀sinθ₀ t − g t²/2", "ax = 0,  ay = −g" },
+		eq = { "x = (v₀ cosθ₀) t", "y = (v₀ sinθ₀) t − g t²/2", "ax = 0,  ay = −g" },
 		def = {
 			"The motion of a particle launched with an",
 			"initial velocity, where during the flight",
@@ -188,7 +191,7 @@ local terms = {
 			"vertical acceleration is the free-fall",
 			"acceleration −g, taking upward as positive.",
 		} },
-	{ name = "Range, horizontal", ch = 4, sym = "R, m", eq = { "R = v₀² sin2θ₀ / g" },
+	{ name = "Range, horizontal", ch = 4, sym = "R, m", eq = { "R = v₀² sin(2θ₀) / g" },
 		def = {
 			"The horizontal distance from the launch",
 			"point to the point at which the particle",
@@ -250,7 +253,7 @@ local terms = {
 			"arithmetic and algebra.",
 		} },
 	{ name = "Scalar product", ch = 3, sym = "a · b",
-		eq = { "a · b = a b cosφ", "a · b = axbx + ayby + azbz" },
+		eq = { "a · b = |a| |b| cosφ", "a · b = ax bx + ay by + az bz" },
 		def = {
 			"A scalar built from two vectors, where φ is",
 			"the angle between their directions. It is the",
@@ -277,7 +280,7 @@ local terms = {
 			"base quantities by international agreement.",
 		} },
 	{ name = "Speed, average", ch = 2, sym = "s_avg, m/s",
-		eq = { "s_avg = total distance / Δt" },
+		eq = { "s_avg = (total distance) / Δt" },
 		def = {
 			"Depends on the total distance the particle",
 			"moves in the time interval, not on its",
@@ -331,11 +334,11 @@ local terms = {
 			"north). Obeys the rules of vector algebra.",
 		} },
 	{ name = "Vector product", ch = 3, sym = "a × b",
-		eq = { "c = a b sinφ", "b × a = −(a × b)" },
+		eq = { "|a × b| = |a| |b| sinφ", "b × a = −(a × b)" },
 		def = {
 			"A vector built from two vectors, where φ is",
 			"the smaller of the angles between their",
-			"directions. Its magnitude is c.",
+			"directions. That product is its magnitude.",
 			"",
 			"Its direction is perpendicular to the plane",
 			"defined by the two vectors, given by a",
