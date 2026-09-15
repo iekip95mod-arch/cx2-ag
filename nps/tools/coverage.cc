@@ -289,7 +289,7 @@ int selftest() {
         {"family id staged.one", true, "", "a valid family header reads back"},
         {"family ix staged.one", false, "family ix staged.one",
          "a family header with a misspelled id word is refused"},
-        {"family", false, "family", "a bare family header is refused, not skipped"},
+        {"family", false, "malformed: family", "a bare family header is refused, not skipped"},
         {"family id", false, "family id", "a family header with no family id is refused"},
         {"family id.staged.one", false, "family id.staged.one",
          "a dot instead of space after family id is refused"},
