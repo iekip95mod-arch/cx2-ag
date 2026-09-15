@@ -382,6 +382,7 @@ jobs:
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
+        continue-on-error: true
         if: steps.key.outputs.have == 'true'
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
@@ -426,6 +427,7 @@ jobs:
           exit 1
 
       - name: Record the reviewer outcome
+        continue-on-error: true
         if: always() && steps.bot.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
@@ -628,6 +630,7 @@ jobs:
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -637,6 +640,7 @@ jobs:
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
 
       - name: Record the reviewer outcome
+        continue-on-error: true
         if: always() && steps.bot.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
@@ -812,6 +816,7 @@ jobs:
         run: node .github/scripts/publish-review.mjs
 
       - name: Disclose the configured review model and effort
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -821,6 +826,7 @@ jobs:
         run: node .github/scripts/wait-for-review.mjs --review-disclosure
 
       - name: Record the reviewer outcome
+        continue-on-error: true
         if: always() && steps.bot.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
