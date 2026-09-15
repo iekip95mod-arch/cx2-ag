@@ -47,6 +47,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node .github/scripts/review-discussion.mjs prepare
+      - name: Select the Claude answer model
+        id: model
+        shell: bash
+        env:
+          CLAUDE_MODEL: ${{ vars.CLAUDE_REVIEW_MODEL || vars.CLAUDE_MODEL || 'opus' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_REVIEW_EFFORT || vars.CLAUDE_EFFORT || 'high' }}
+        run: |
+          model=$CLAUDE_MODEL
+          effort=$CLAUDE_EFFORT
+          selected=$(jq -r '[((.issue.labels // []) + (.pull_request.labels // []))[].name | select(startswith("model:"))] | unique | .[]' "$GITHUB_EVENT_PATH")
+          if [ "$(printf '%s\n' "$selected" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+            echo "::error::Keep only one model label."
+            exit 1
+          fi
+          case "$selected" in
+            model:opus|model:sonnet) model=${selected#model:} ;;
+            '') ;;
+            *) echo "::error::$selected is not a Claude model label."; exit 1 ;;
+          esac
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          echo "effort=$effort" >> "$GITHUB_OUTPUT"
       - name: Restore Codex subscription login
         if: steps.question.outputs.ready == 'true' && steps.question.outputs.answered != 'true' && steps.question.outputs.provider == 'codex'
         id: codex
@@ -98,8 +119,8 @@ jobs:
         working-directory: ${{ runner.temp }}/discussion-empty
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          REVIEW_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
-          REVIEW_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+          REVIEW_MODEL: ${{ steps.model.outputs.model }}
+          REVIEW_EFFORT: ${{ steps.model.outputs.effort }}
         run: |
           test -n "$CLAUDE_CODE_OAUTH_TOKEN"
           claude -p --model "$REVIEW_MODEL" --effort "$REVIEW_EFFORT" \
@@ -139,8 +160,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.bot.outputs.token }}
           APP_SLUG: ${{ steps.bot.outputs.app-slug }}
-          REVIEW_MODEL: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_MODEL || 'gpt-5.6-sol') || steps.question.outputs.provider == 'gemini' && (vars.GEMINI_MODEL || 'gemini-3.8-flash-high') || (vars.CLAUDE_MODEL || 'opus') }}
-          REVIEW_EFFORT: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_EFFORT || 'high') || steps.question.outputs.provider == 'gemini' && (vars.GEMINI_EFFORT || 'high') || (vars.CLAUDE_EFFORT || 'high') }}
+          REVIEW_MODEL: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_MODEL || 'gpt-5.6-sol') || steps.question.outputs.provider == 'gemini' && (vars.GEMINI_MODEL || 'gemini-3.8-flash-high') || steps.model.outputs.model }}
+          REVIEW_EFFORT: ${{ steps.question.outputs.provider == 'codex' && (vars.CODEX_EFFORT || 'high') || steps.question.outputs.provider == 'gemini' && (vars.GEMINI_EFFORT || 'high') || steps.model.outputs.effort }}
         run: node .github/scripts/review-discussion.mjs publish
       - name: Continue the assigned executor
         if: steps.question.outputs.ready == 'true' && steps.question.outputs.canonical == 'true'
