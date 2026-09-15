@@ -112,6 +112,7 @@ void run_integrate_tests(TestSink &sink);
 void run_units_tests(TestSink &sink);
 void run_density_tests(TestSink &sink);
 void run_kinematics_tests(TestSink &sink);
+void run_planar_kinematics_tests(TestSink &sink);
 void run_relative_motion_tests(TestSink &sink);
 void run_unit_conversion_tests(TestSink &sink);
 void run_vector_addition_tests(TestSink &sink);
