@@ -1,4 +1,3 @@
-require 'shellwords'
 require 'yaml'
 
 root = File.expand_path('../..', __dir__)
@@ -6,7 +5,7 @@ workflow = YAML.load_file(ARGV.fetch(0, File.join(root, '.github/workflows/check
 events = workflow.fetch('on', workflow[true])
 jobs = workflow.fetch('jobs')
 failures = []
-{ 'fast' => 'ubuntu-24.04', 'emulator' => 'ubuntu-24.04', 'full' => 'ubuntu-24.04-arm' }.each do |name, runner|
+{ 'fast' => 'ubuntu-24.04', 'full' => 'ubuntu-24.04-arm' }.each do |name, runner|
   failures << "#{name} must use #{runner}" unless jobs.fetch(name)['runs-on'] == runner
 end
 reviews = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml')).fetch('jobs')
@@ -33,24 +32,17 @@ failures << 'CI cancellation must be isolated by ref and event' unless workflow[
 failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branches'] == ['main']
 failures << 'Pull requests must run CI when opened, updated, reopened or ready for review' unless events.dig('pull_request', 'types') == ['opened', 'synchronize', 'reopened', 'ready_for_review']
 failures << 'Manual runs must remain available' unless events.key?('workflow_dispatch')
-failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device']).empty?
+failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device', 'emulator', 'codeql']).empty?
 failures << 'Draft PRs must skip approval waiting while ready PRs and main keep their gates' unless jobs.fetch('review-ready')['if'] == "github.event_name != 'pull_request' || github.event.pull_request.draft == false"
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
-['full', 'emulator'].each do |name|
+['full'].each do |name|
   job = jobs.fetch(name)
   failures << "#{name} must wait for fast and current-head approval" unless Array(job['needs']).sort == ['fast', 'review-ready'] && job['if'].nil?
 end
-codeql = jobs.fetch('codeql')
-failures << 'CodeQL must wait for every execution gate and reviewer approval' unless Array(codeql['needs']).sort == ['emulator', 'fast', 'full', 'review-ready'] && codeql['if'].nil?
 review = jobs.fetch('review-ready')
 failures << 'Review readiness must follow fast without waiting on the suites it gates' unless Array(review['needs']) == ['fast'] && !review['continue-on-error']
 failures << 'Review readiness must use a read-only token' unless review['permissions'] == { 'contents' => 'read', 'actions' => 'read', 'pull-requests' => 'read' }
 gate = review.fetch('steps').find { |step| step['run'] == 'node .github/scripts/wait-for-review.mjs' }
 failures << 'Review readiness must target the PR head and number' unless gate && gate.dig('env', 'PR_NUMBER') == '${{ github.event.pull_request.number }}' && gate.dig('env', 'PR_HEAD_SHA') == '${{ github.event.pull_request.head.sha }}' && !gate.key?('if') && !gate['continue-on-error']
-emulator_commands = jobs.fetch('emulator').fetch('steps').map { |step| step['run'] }.compact.map { |script| Shellwords.split(script) }
-has_headless_tests = emulator_commands.any? do |command|
-  command.first == 'make' && command.each_cons(2).include?(['-C', 'vendor/firebird-src/headless']) && command.include?('check') && command.include?('test-build')
-end
-failures << 'Emulator must build and run its headless regression suites' unless has_headless_tests
 abort(failures.join("\n")) unless failures.empty?
 puts 'CI scheduling contracts passed'
