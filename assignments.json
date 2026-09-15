@@ -1645,6 +1645,16 @@
       "branch": "claude/issue-298",
       "slug": "cx2-ag-claude-orion",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-268",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 268,
+      "pr": null,
+      "branch": "claude/issue-268",
+      "slug": "cx2-ag-claude-aurora",
+      "released": false
     }
   ]
 }
