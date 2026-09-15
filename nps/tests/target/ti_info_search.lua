@@ -76,6 +76,28 @@ for _, case in ipairs(cases) do
 		string.find(page, "find: ", 1, true) == nil, true)
 end
 
+-- There is no key on this keyboard for v₀, √, ρ or Δ, so a reader types the plain spelling. None of
+-- these four queries share a single byte with the row they have to reach, because that row is written
+-- in the book's notation. They pass only through the fold, and they are the reason it exists.
+local folded = {
+	{ query = "v0", expect = "v\226\130\128" },
+	{ query = "sqrt", expect = "\226\136\154" },
+	{ query = "rho", expect = "\207\129" },
+	{ query = "dx", expect = "\206\148x" },
+}
+
+for _, case in ipairs(folded) do
+	reset()
+	type_in(case.query)
+	local hits = rendered()
+	check("'" .. case.query .. "' matches something",
+		string.find(hits, "no match", 1, true) == nil, true)
+	on.enterKey()
+	local page = rendered()
+	check("'" .. case.query .. "' lands on a page written in notation",
+		string.find(page, case.expect, 1, true) ~= nil, true)
+end
+
 -- The negative control: a query matching nothing must say so and must not navigate anywhere.
 reset()
 type_in("qqzzxx")

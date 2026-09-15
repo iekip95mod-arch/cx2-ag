@@ -44,9 +44,9 @@ local cards = {
 			"",
 			"FORMULA  pick the one missing what you",
 			"neither know nor want",
-			{ m = "v=v\226\130\128+a*t", alt = "v = v0 + a t" },
-			{ m = "\206\148x=v\226\130\128*t+1/2*a*t^2", alt = "dx = v0 t + a t^2/2" },
-			{ m = "v^2=v\226\130\128^2+2*a*\206\148x", alt = "v^2 = v0^2 + 2 a dx" },
+			{ m = "v=v\226\130\128+a*t", alt = "v = v\226\130\128 + a t" },
+			{ m = "\206\148x=v\226\130\128*t+1/2*a*t^2", alt = "\206\148x = v\226\130\128t + a t\194\178/2" },
+			{ m = "v^2=v\226\130\128^2+2*a*\206\148x", alt = "v\194\178 = v\226\130\128\194\178 + 2a \206\148x" },
 			"",
 			"STEPS",
 			"1  Column of knowns, with units.",
@@ -80,8 +80,8 @@ local cards = {
 			"v = 0 at the highest point of a throw",
 			"",
 			"FORMULA  same three as the straight line",
-			{ m = "\206\148y=v\226\130\128*t+1/2*a*t^2", alt = "dy = v0 t + a t^2/2" },
-			{ m = "t=sqrt(2*\206\148y/a)", alt = "t = sqrt(2 dy / a)" },
+			{ m = "\206\148y=v\226\130\128*t+1/2*a*t^2", alt = "\206\148y = v\226\130\128t + a t\194\178/2" },
+			{ m = "t=sqrt(2*\206\148y/a)", alt = "t = \226\136\154(2\206\148y / a)" },
 			"",
 			"STEPS",
 			"1  Choose up as positive and keep it.",
@@ -117,7 +117,7 @@ local cards = {
 			"FORMULA",
 			{ m = "v=dx/dt", alt = "v = dx/dt" },
 			{ m = "a=dv/dt", alt = "a = dv/dt" },
-			{ m = "v_avg=\206\148x/\206\148t", alt = "v_avg = dx / dt" },
+			{ m = "v_avg=\206\148x/\206\148t", alt = "v_avg = \206\148x / \206\148t" },
 			"",
 			"STEPS",
 			"1  Average asks for two instants. Work out",
@@ -160,7 +160,7 @@ local cards = {
 			"",
 			"WORKED",
 			"Key: \206\148y = \226\136\14645 m, v\226\130\128 = 0, a = \226\136\1469.80",
-			{ m = "t=sqrt(2*(-45)/(-9.80))=3.03", alt = "t = sqrt(2(-45)/(-9.80)) = 3.03 s" },
+			{ m = "t=sqrt(2*(-45)/(-9.80))=3.03", alt = "t = \226\136\154(2(\226\136\14645)/(\226\136\1469.80)) = 3.03 s" },
 			"Boat: constant speed, so",
 			{ m = "v=12/3.03=3.96", alt = "v = 12 / 3.03 = 3.96 m/s" },
 			"",
@@ -186,10 +186,10 @@ local cards = {
 			"    written as \226\136\1469.80 once up is positive",
 			"",
 			"FORMULA  split once, never mix again",
-			{ m = "v\226\130\128x=v\226\130\128*cos(\206\184)", alt = "v0x = v0 cos(th)" },
-			{ m = "v\226\130\128y=v\226\130\128*sin(\206\184)", alt = "v0y = v0 sin(th)" },
+			{ m = "v\226\130\128x=v\226\130\128*cos(\206\184)", alt = "v\226\130\128x = v\226\130\128 cos\206\184" },
+			{ m = "v\226\130\128y=v\226\130\128*sin(\206\184)", alt = "v\226\130\128y = v\226\130\128 sin\206\184" },
 			"across  ax = 0, so x = v\226\130\128x t",
-			{ m = "\206\148y=v\226\130\128y*t-1/2*g*t^2", alt = "dy = v0y t - g t^2/2" },
+			{ m = "\206\148y=v\226\130\128y*t-1/2*g*t^2", alt = "\206\148y = v\226\130\128y t \226\136\146 g t\194\178/2" },
 			"",
 			"STEPS",
 			"1  Two columns, across and up.",
@@ -221,10 +221,10 @@ local cards = {
 			"",
 			"FORMULA",
 			"at the top the vertical speed is zero",
-			{ m = "t=v\226\130\128y/g", alt = "t_up = v0y / g" },
-			{ m = "H=v\226\130\128y^2/(2*g)", alt = "H = v0y^2 / (2 g)" },
+			{ m = "t=v\226\130\128y/g", alt = "t_up = v\226\130\128y / g" },
+			{ m = "H=v\226\130\128y^2/(2*g)", alt = "H = v\226\130\128y\194\178 / (2g)" },
 			"level ground only:",
-			{ m = "R=v\226\130\128^2*sin(2*\206\184)/g", alt = "R = v0^2 sin(2 th) / g" },
+			{ m = "R=v\226\130\128^2*sin(2*\206\184)/g", alt = "R = v\226\130\128\194\178 sin(2\206\184) / g" },
 			"",
 			"STEPS",
 			"1  Get v\226\130\128y first.",
@@ -255,7 +255,7 @@ local cards = {
 			"x component is 3, the y is \226\136\1462, the z is 4.",
 			"",
 			"FORMULA  add the components separately",
-			{ m = "3*i-2*j+4*k", alt = "3i - 2j + 4k" },
+			{ m = "3*i-2*j+4*k", alt = "3i \226\136\146 2j + 4k" },
 			"",
 			"STEPS",
 			"1  Put both into component form.",
@@ -290,10 +290,10 @@ local cards = {
 			"components you get a and \206\184.",
 			"",
 			"FORMULA",
-			{ m = "ax=a*cos(\206\184)", alt = "ax = a cos(th)" },
-			{ m = "ay=a*sin(\206\184)", alt = "ay = a sin(th)" },
-			{ m = "a=sqrt(ax^2+ay^2)", alt = "a = sqrt(ax^2 + ay^2)" },
-			{ m = "tan(\206\184)=ay/ax", alt = "tan(th) = ay / ax" },
+			{ m = "ax=a*cos(\206\184)", alt = "ax = a cos\206\184" },
+			{ m = "ay=a*sin(\206\184)", alt = "ay = a sin\206\184" },
+			{ m = "abs(a)=sqrt(ax^2+ay^2)", alt = "|a| = \226\136\154(ax\194\178 + ay\194\178)" },
+			{ m = "tan(\206\184)=ay/ax", alt = "tan\206\184 = ay / ax" },
 			"",
 			"STEPS",
 			"1  Angle is from the positive x axis unless",
@@ -323,8 +323,8 @@ local cards = {
 			"      direction. Written without arrows",
 			"",
 			"FORMULA",
-			{ m = "a*b=ax*bx+ay*by+a_z*b_z", alt = "a.b = ax bx + ay by + az bz" },
-			{ m = "a*b=a*b*cos(\207\134)", alt = "a.b = a b cos(phi)" },
+			{ m = "a*b=ax*bx+ay*by+az*bz", alt = "a \194\183 b = ax bx + ay by + az bz" },
+			{ m = "a*b=abs(a)*abs(b)*cos(\207\134)", alt = "a \194\183 b = |a| |b| cos\207\134" },
 			"",
 			"STEPS",
 			"1  Multiply matching components and add.",
@@ -522,7 +522,7 @@ local cards = {
 			"given, not as many as the calculator shows.",
 			"",
 			"FORMULA",
-			{ m = "\207\129=m/V", alt = "rho = m / V" },
+			{ m = "\207\129=m/V", alt = "\207\129 = m / V" },
 			"",
 			"STEPS",
 			"1  Multiply by a ratio that equals 1, set so",
@@ -663,7 +663,7 @@ local chapters = {
 					"free fall anywhere    a = −9.80 m/s²",
 					"projectile, across    ax = 0",
 					"constant velocity     a = 0",
-					"level ground          dy = 0 over the",
+					"level ground          Δy = 0 over the",
 					"                      whole flight",
 					"returns to the start  displacement = 0",
 					"                      but distance is",
@@ -853,15 +853,15 @@ local chapters = {
 				name = "Constant acceleration: the five",
 				lines = {
 					"1   leaves out x",
-					{ m = "v=v\226\130\128+a*t", alt = "v = v0 + a t" },
+					{ m = "v=v\226\130\128+a*t", alt = "v = v\226\130\128 + a t" },
 					"2   leaves out v",
-					{ m = "\206\148x=v\226\130\128*t+1/2*a*t^2", alt = "dx = v0 t + a t^2/2" },
+					{ m = "\206\148x=v\226\130\128*t+1/2*a*t^2", alt = "\206\148x = v\226\130\128t + a t\194\178/2" },
 					"3   leaves out t",
-					{ m = "v^2=v\226\130\128^2+2*a*\206\148x", alt = "v^2 = v0^2 + 2 a dx" },
+					{ m = "v^2=v\226\130\128^2+2*a*\206\148x", alt = "v\194\178 = v\226\130\128\194\178 + 2a \206\148x" },
 					"4   leaves out a",
-					{ m = "\206\148x=(v\226\130\128+v)/2*t", alt = "dx = (v0 + v) t/2" },
+					{ m = "\206\148x=(v\226\130\128+v)/2*t", alt = "\206\148x = (v\226\130\128 + v) t/2" },
 					"5   leaves out v\226\130\128",
-					{ m = "\206\148x=v*t-1/2*a*t^2", alt = "dx = v t - a t^2/2" },
+					{ m = "\206\148x=v*t-1/2*a*t^2", alt = "\206\148x = v t \226\136\146 a t\194\178/2" },
 					"",
 					"Each one leaves out a different quantity.",
 					"List what you know, see what you want, and",
@@ -1003,7 +1003,7 @@ local chapters = {
 					"H = v₀y² / (2 g)   above the launch",
 					"",
 					"Range on level ground only:",
-					"  R = v₀^2 sin2θ / g",
+					"  R = v₀² sin(2θ) / g",
 					"",
 					"Final speed from the two components:",
 					"  v = √(vx² + vy²)",
@@ -1086,11 +1086,11 @@ local chapters = {
 					"Known v₀, a, t and want v:",
 					"  v = v₀ + a t",
 					"",
-					"Known v₀, a, x and want v, no time given:",
-					"  v² = v₀^2 + 2 a x",
+					"Known v₀, a, Δx and want v, no time given:",
+					"  v² = v₀² + 2a Δx",
 					"",
-					"Known v₀, v, t and want x, no a given:",
-					"  x = (v₀ + v) t / 2",
+					"Known v₀, v, t and want Δx, no a given:",
+					"  Δx = (v₀ + v) t / 2",
 					"",
 					"If the quantity you neither know nor want",
 					"appears in the equation you picked, pick a",
@@ -1185,19 +1185,19 @@ local chapters = {
 					"they meet. The clock is what they share.",
 					"",
 					"KEY                BOAT",
-					"dy = -45 m         dx = 12 m",
+					"Δy = −45 m         Δx = 12 m",
 					"ay = −9.80 m/s²   ax = 0",
 					"v₀ = 0             v₀ = ?",
 					"",
-					"1  dy = v₀ t + ay t² / 2",
+					"1  Δy = v₀ t + ay t² / 2",
 					"2  v₀ t struck out, released from rest",
-					"3  t = √(2 dy / ay)",
-					"4  t = √(2(-45 m)/(−9.80 m/s²))",
+					"3  t = √(2 Δy / ay)",
+					"4  t = √(2(−45 m)/(−9.80 m/s²))",
 					"     t = 3.03 s",
 					"",
-					"5  dx = v₀ t + ax t² / 2",
+					"5  Δx = v₀ t + ax t² / 2",
 					"6  ax t² / 2 struck out, constant velocity",
-					"7  v₀ = dx / t = 12 m / 3.03 s",
+					"7  v₀ = Δx / t = 12 m / 3.03 s",
 					"",
 					"   v₀ = 3.96 m/s",
 					"",
@@ -1223,9 +1223,9 @@ local chapters = {
 					"read at a chosen instant.",
 					"",
 					"(a) average needs two instants",
-					"1  v_avg = dx / dt = (x(3) - x(0)) / 3",
+					"1  v_avg = Δx / Δt = (x(3) − x(0)) / 3",
 					"2  x(0) = 0",
-					"3  x(3) = 50(3) + 10(3)^2 = 240 m",
+					"3  x(3) = 50(3) + 10(3)² = 240 m",
 					"4  v_avg = (240 m - 0) / 3 s",
 					"",
 					"   v_avg = 80 m/s",
@@ -1249,7 +1249,7 @@ local chapters = {
 			{
 				name = "Cross and dot together",
 				lines = {
-					"d1 = 3i - 2j + 4k, d2 = -5i + 2j - k.",
+					"d1 = 3i − 2j + 4k, d2 = −5i + 2j − k.",
 					"Find (d1 + d2) . (d1 × 4d2).",
 					"",
 					"SAME PROBLEM, OTHER WORDINGS",
@@ -1259,26 +1259,26 @@ local chapters = {
 					"parallelogram they span, that is the",
 					"magnitude of the cross.",
 					"",
-					"1  d1 + d2 = (3-5)i + (-2+2)j + (4-1)k",
+					"1  d1 + d2 = (3−5)i + (−2+2)j + (4−1)k",
 					"",
-					"   d1 + d2 = -2i + 0j + 3k",
+					"   d1 + d2 = −2i + 0j + 3k",
 					"",
-					"2  4d2 = -20i + 8j - 4k",
+					"2  4d2 = −20i + 8j − 4k",
 					"",
 					"3  set out the determinant",
 					"     | i     j    k  |",
-					"     | 3    -2    4  |",
-					"     | -20   8   -4  |",
+					"     | 3    −2    4  |",
+					"     | −20   8   −4  |",
 					"",
-					"4  i term  ((-2)(-4) - (4)(8))   = -24",
-					"   j term -((3)(-4) - (4)(-20))  = -68",
-					"   k term  ((3)(8) - (-2)(-20))  = -16",
+					"4  i term  ((−2)(−4) − (4)(8))   = −24",
+					"   j term −((3)(−4) − (4)(−20))  = −68",
+					"   k term  ((3)(8) − (−2)(−20))  = −16",
 					"",
-					"   d1 × 4d2 = -24i - 68j - 16k",
+					"   d1 × 4d2 = −24i − 68j − 16k",
 					"",
 					"5  dot it with step 1",
-					"   (-2)(-24) + (0)(-68) + (3)(-16)",
-					"   = 48 + 0 - 48",
+					"   (−2)(−24) + (0)(−68) + (3)(−16)",
+					"   = 48 + 0 − 48",
 					"",
 					"   result = 0",
 					"",
@@ -1302,7 +1302,7 @@ local chapters = {
 					"with theta = 0 so v₀y = 0. A cannon fires",
 					"onto a hill. A golf ball lands on a green",
 					"above the tee. Landing higher or lower than",
-					"the launch only changes the sign of dy.",
+					"the launch only changes the sign of Δy.",
 					"",
 					"ACROSS             UP",
 					"v₀x = v₀ cos60°   v₀y = v₀ sin60°",
@@ -1312,16 +1312,16 @@ local chapters = {
 					"",
 					"(a) height of the cliff",
 					"1  h = v₀y t + ay t² / 2",
-					"2  h = 36.4(5.50) + (-9.80)(5.50)^2 / 2",
+					"2  h = 36.4(5.50) + (−9.80)(5.50)² / 2",
 					"",
 					"   h = 52.0 m",
 					"",
 					"(b) speed at impact",
 					"3  vfx = v₀x = 21.0 m/s, since ax = 0",
 					"4  vfy = v₀y + ay t",
-					"5  vfy = 36.4 + (-9.80)(5.50) = -12.5 m/s",
+					"5  vfy = 36.4 + (−9.80)(5.50) = −12.5 m/s",
 					"6  vf = √(vfx² + vfy²)",
-					"7  vf = √(21.0^2 + (-12.5)^2)",
+					"7  vf = √(21.0² + (−12.5)²)",
 					"",
 					"   vf = 27.3 m/s",
 					"",
@@ -1331,15 +1331,15 @@ local chapters = {
 					"",
 					"(c) maximum height, route one",
 					"8   vy = 0 at the top, so t_H = -v₀y / ay",
-					"9   t_H = -36.4 / -9.80 = 3.71 s",
-					"10  H = v₀y t_H + ay t_H^2 / 2",
+					"9   t_H = −36.4 / −9.80 = 3.71 s",
+					"10  H = v₀y t_H + ay t_H² / 2",
 					"",
 					"    H = 67.6 m",
 					"",
 					"(c) maximum height, route two",
 					"11  vy² = v₀y² + 2 ay H, with vy = 0",
 					"12  H = -v₀y² / (2 ay)",
-					"13  H = -(36.4)^2 / (2(-9.80))",
+					"13  H = −(36.4)² / (2(−9.80))",
 					"",
 					"    H = 67.6 m",
 					"",
@@ -1381,10 +1381,10 @@ local chapters = {
 					"",
 					"5  v_WE = 400j - (171i + 470j)",
 					"",
-					"   v_WE = -171 i - 69.8 j  km/h",
+					"   v_WE = −171 i − 69.8 j  km/h",
 					"",
 					"6  magnitude",
-					"   √(171^2 + 69.8^2)",
+					"   √(171² + 69.8²)",
 					"",
 					"   v_WE = 185 km/h",
 					"",
@@ -1408,8 +1408,8 @@ local chapters = {
 					"then by average speed, and justify.",
 					"",
 					"(a) average velocity",
-					"1  v_avg = dx / dt",
-					"2  dx is the same for every path, they",
+					"1  v_avg = Δx / Δt",
+					"2  Δx is the same for every path, they",
 					"   share a start and a finish",
 					"3  dt is given as the same",
 					"",
@@ -1490,7 +1490,7 @@ local chapters = {
 					"   ρ = 2000 kg/m³",
 					"",
 					"Check the cube. Going from cm to m is a",
-					"factor of 100 on a length, so it is 100^3,",
+					"factor of 100 on a length, so it is 100³,",
 					"a million, on a volume. Forgetting to cube",
 					"the conversion is the usual slip here.",
 					"",
@@ -2222,26 +2222,56 @@ function on.escapeKey()
 	repaint()
 end
 
--- Plain substring matching, lowered on both sides. No pattern is built from the typed text, so a
--- query containing a bracket or a percent sign searches for that character instead of failing or
--- quietly meaning something else.
+-- There is no key on this keyboard for a subscript, a root sign or a Greek letter, so a reader who
+-- wants the free-fall row types v0 and one who wants the magnitude row types sqrt. Both sides of
+-- every comparison are folded to that plain spelling, which lets the page itself be written in the
+-- notation the book uses without putting its rows out of reach of the only alphabet you can type.
+local FOLD = {
+	["\226\130\128"] = "0", ["\226\130\129"] = "1", ["\226\130\130"] = "2", ["\226\130\131"] = "3",
+	["\194\178"] = "^2", ["\194\179"] = "^3",
+	["\226\136\154"] = "sqrt", ["\226\136\146"] = "-",
+	["\206\148"] = "d", ["\206\184"] = "th", ["\207\134"] = "phi", ["\207\129"] = "rho",
+	["\207\128"] = "pi", ["\194\183"] = ".", ["\195\151"] = "x", ["\194\176"] = "deg",
+}
+
+-- Walked a codepoint at a time rather than substituted, because a replacement pass would have to
+-- build a pattern out of multibyte text and the whole point of the matching below is that it never
+-- builds one.
+local function fold(s)
+	local out, i = {}, 1
+	while i <= #s do
+		local b = string.byte(s, i)
+		local n = 1
+		if b >= 0xF0 then n = 4
+		elseif b >= 0xE0 then n = 3
+		elseif b >= 0xC0 then n = 2 end
+		local chunk = string.sub(s, i, i + n - 1)
+		out[#out + 1] = FOLD[chunk] or chunk
+		i = i + n
+	end
+	return string.lower(table.concat(out))
+end
+
+-- Plain substring matching, folded and lowered on both sides. No pattern is built from the typed
+-- text, so a query containing a bracket or a percent sign searches for that character instead of
+-- failing or quietly meaning something else.
 local function runSearch()
 	view.hits = {}
 	view.hit = 1
 	view.scroll = 0
-	local needle = string.lower(view.query or "")
+	local needle = fold(view.query or "")
 	if needle == "" then
 		return
 	end
 	-- Cards are searched first and land straight on the card, because during a test the card is the
 	-- answer and the reference page behind it is the long way round.
 	for i, card in ipairs(cards) do
-		local hit = string.find(string.lower(card.name), needle, 1, true)
+		local hit = string.find(fold(card.name), needle, 1, true)
 		local where = 1
 		if not hit then
 			for li, line in ipairs(card.lines) do
 				local text = type(line) == "table" and (line.alt or line.m) or line
-				if text ~= "" and string.find(string.lower(text), needle, 1, true) then
+				if text ~= "" and string.find(fold(text), needle, 1, true) then
 					hit, where = true, li
 					break
 				end
@@ -2253,15 +2283,15 @@ local function runSearch()
 	end
 	for ci, chapter in ipairs(chapters) do
 		for ti, topic in ipairs(chapter.topics) do
-			if string.find(string.lower(topic.name), needle, 1, true) then
+			if string.find(fold(topic.name), needle, 1, true) then
 				view.hits[#view.hits + 1] =
 					{ chapter = ci, topic = ti, text = topic.name, where = chapter.title, line = 1 }
 			end
 			for li, line in ipairs(topic.lines) do
-				-- A formula line is a table, and it is searched by its plain spelling so a query for
-				-- a symbol still finds the typeset row it belongs to.
+				-- A formula line is a table, and it is searched through the same fold as the prose, so
+				-- a typed symbol still finds the typeset row it belongs to.
 				local text = type(line) == "table" and (line.alt or line.m) or line
-				if text ~= "" and string.find(string.lower(text), needle, 1, true) then
+				if text ~= "" and string.find(fold(text), needle, 1, true) then
 					view.hits[#view.hits + 1] =
 						{ chapter = ci, topic = ti, text = text, where = topic.name, line = li }
 					break
