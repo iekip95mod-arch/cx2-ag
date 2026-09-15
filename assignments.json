@@ -1265,6 +1265,16 @@
       "slug": "cx2-ag-claude-review-echo",
       "released": false,
       "selectedReview": true
+    },
+    {
+      "key": "claude/reviewer/issue-270",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 270,
+      "pr": 271,
+      "branch": "claude/issue-270",
+      "slug": "cx2-ag-claude-review-grove",
+      "released": false
     }
   ]
 }
