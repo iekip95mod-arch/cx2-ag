@@ -236,6 +236,96 @@ rule eq.linear.check-by-substitution fixture
 rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
 
+family id physics.modern.photon-wavelength
+topic_and_level Photon energy and wavelength through E*lambda = hc, and the de Broglie wavelength of a momentum written as pc, PRD section 9 PHYS-024
+accepted_expression_grammar existing quantity grammar for the numeric field, with the unit supplied by the variable rather than typed
+accepted_input_forms one typed unknown and one distinct typed known, each in the unit its variable declares
+domains_and_parameter_assumptions photon energy in eV and wavelength in nm, both strictly positive, with hc taken as the tabulated 1239.8 eV nm
+supported_branches_and_degenerate_cases either the energy or the wavelength may be unknown, with an explicit refusal of a non-positive given and of a given handed over in another unit of the same dimension
+exact_special_function_and_numerical_result_policy exact rational substitution in the declared eV and nm units with no SI conversion, since the SI values of these quantities do not fit the exact integer rationals every step here checks with, and measured precision applied only after candidate verification
+parser_module_ids src/units/units.cc, src/physics/modern.cc, src/steps/linear.cc
+required_assumptions the quantum travels in free space, carried as "the quantum travels in free space, where hc is the tabulated 1239.8 eV nm", together with the recorded working-unit assumption
+test_group_ids modern, units
+proof_obligation_ids obl.modern.dimensions-agree, obl.modern.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods exact substitution into E*lambda = hc followed by the existing exact linear solver
+unsupported_near_neighbors the Bohr model and hydrogen transition energies, radioactive decay and half-life, Compton scattering, the uncertainty principle, blackbody and Wien displacement, and any input written in joules or metres
+solution_soundness_status verified by dimensional analysis and exact substitution into both the Planck relation and the collected linear equation
+solution_completeness_status complete for one unknown and one compatible known when the unique exact rational answer fits
+corpus_case_ids not yet filed
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge not yet implemented
+isolated_runtime_status not measured
+release_status in development, unreleased
+rule physics.modern.planck-relation fixture
+rule physics.modern.check-dimensions fixture
+rule physics.modern.substitute fixture
+rule physics.modern.check-candidate fixture
+rule physics.modern.significant-figures fixture
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+
+family id physics.modern.photoelectric
+topic_and_level The Einstein photoelectric equation Kmax = E - phi above the threshold, PRD section 9 PHYS-024
+accepted_expression_grammar existing quantity grammar for each numeric field, with the unit supplied by the variable rather than typed
+accepted_input_forms one typed unknown and exactly two distinct typed knowns, each in electronvolts
+domains_and_parameter_assumptions photon energy, work function and maximum kinetic energy all in eV and all strictly positive
+supported_branches_and_degenerate_cases any one of the three may be unknown, with an explicit refusal when the photon energy is at or below the work function, since that surface emits nothing rather than emitting a negative kinetic energy
+exact_special_function_and_numerical_result_policy exact rational substitution in electronvolts with no SI conversion, and measured precision applied only after candidate verification
+parser_module_ids src/units/units.cc, src/physics/modern.cc, src/steps/linear.cc
+required_assumptions one photon ejects one electron from a clean surface with no collision losses, together with the recorded working-unit assumption
+test_group_ids modern, units
+proof_obligation_ids obl.modern.dimensions-agree, obl.modern.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods exact substitution into Kmax = E - phi followed by the existing exact linear solver
+unsupported_near_neighbors the stopping potential and its retarding voltage, the threshold frequency read from a slope, photocurrent and intensity, and the work function read off a plotted line
+solution_soundness_status verified by dimensional analysis and exact substitution into both the photoelectric equation and the collected linear equation
+solution_completeness_status complete for one unknown and two compatible knowns above the threshold when the unique exact rational answer fits
+corpus_case_ids not yet filed
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge not yet implemented
+isolated_runtime_status not measured
+release_status in development, unreleased
+rule physics.modern.einstein-photoelectric fixture
+rule physics.modern.check-dimensions fixture
+rule physics.modern.substitute fixture
+rule physics.modern.check-candidate fixture
+rule physics.modern.significant-figures fixture
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+
+family id physics.modern.mass-energy
+topic_and_level Mass-energy equivalence in binding-energy problems through E = dm*c^2, PRD section 9 PHYS-024
+accepted_expression_grammar existing quantity grammar for the numeric field, with the unit supplied by the variable rather than typed
+accepted_input_forms one typed unknown and one distinct typed known, the mass defect in u and the rest energy in MeV
+domains_and_parameter_assumptions both quantities strictly positive, with c^2 taken as the tabulated 931.49 MeV per atomic mass unit
+supported_branches_and_degenerate_cases either the mass defect or the released energy may be unknown, with an explicit refusal of a non-positive given
+exact_special_function_and_numerical_result_policy exact rational substitution in the declared u and MeV units with no SI conversion, and measured precision applied only after candidate verification
+parser_module_ids src/units/units.cc, src/physics/modern.cc, src/steps/linear.cc
+required_assumptions the mass defect is the whole energy release, carried as "the mass defect is the whole energy release, with 931.49 MeV per atomic mass unit", together with the recorded working-unit assumption
+test_group_ids modern, units
+proof_obligation_ids obl.modern.dimensions-agree, obl.modern.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods exact substitution into E = dm*c^2 followed by the existing exact linear solver
+unsupported_near_neighbors the mass defect assembled from a nuclide table, binding energy per nucleon, Q values of a written reaction, relativistic kinetic energy, and the relativistic energy-momentum relation which PHYS-023 owns
+solution_soundness_status verified by dimensional analysis and exact substitution into both the mass-energy relation and the collected linear equation
+solution_completeness_status complete for one unknown and one compatible known when the unique exact rational answer fits
+corpus_case_ids not yet filed
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge not yet implemented
+isolated_runtime_status not measured
+release_status in development, unreleased
+rule physics.modern.mass-energy-equivalence fixture
+rule physics.modern.check-dimensions fixture
+rule physics.modern.substitute fixture
+rule physics.modern.check-candidate fixture
+rule physics.modern.significant-figures fixture
+rule eq.linear.inverse-operations fixture
+rule eq.linear.check-by-substitution fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+
 family id physics.vectors.cartesian-addition.two-dimension
 topic_and_level Two-dimensional Cartesian vector addition, PRD section 11 and M1 archetype 5
 accepted_expression_grammar existing vector grammar for each addend, either unit-vector form such as 3 i + 4 j m/s or an ordered tuple such as (3, 4) m/s
