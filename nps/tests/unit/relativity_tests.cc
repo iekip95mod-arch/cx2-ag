@@ -238,6 +238,15 @@ void run_relativity_tests(TestSink &t) {
                 "the transformed position is reported in the moving frame");
         t.equal(reported(solved, RelativityVariable::TransformedTime), "0.5 s in ship",
                 "the transformed event time is reported in the moving frame");
+        t.equal(solved.equation,
+                "[(xprime = (gamma * (x + (-(beta * (c * t)))))), "
+                "((c * tprime) = (gamma * ((c * t) + (-(beta * x)))))]",
+                "the model records both halves of the transformation with c in each");
+        t.equal(solved.substituted,
+                "[(149896229 = ((5 * (4^-1)) * (299792458 + (-((3 * (5^-1)) * (299792458 * 1)))))), "
+                "((299792458 * (1 * (2^-1))) = ((5 * (4^-1)) * ((299792458 * 1) + "
+                "(-((3 * (5^-1)) * 299792458)))))]",
+                "the substituted transformation is a true equation on both halves");
         t.check(contains_text(solved.rules, "physics.relativity.check-invariant"),
                 "the transformation is checked against the invariant interval");
     }
@@ -283,6 +292,11 @@ void run_relativity_tests(TestSink &t) {
                 "the momentum energy is reported alongside it");
         t.equal(reported(solved, RelativityVariable::KineticEnergy), "234.5 MeV in station",
                 "the kinetic energy is the total energy less the rest energy");
+        t.equal(solved.substituted,
+                "[((2345 * (2^-1)) = ((5 * (4^-1)) * 938)), "
+                "((1407 * (2^-1)) = (((5 * (4^-1)) * (3 * (5^-1))) * 938)), "
+                "((469 * (2^-1)) = ((2345 * (2^-1)) + (-938)))]",
+                "every reported energy has its own recorded equation on exact values");
     }
     {
         // A measured given rounds once, at the end, and the rounding is compared against the exact

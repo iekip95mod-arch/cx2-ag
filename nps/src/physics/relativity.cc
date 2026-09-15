@@ -54,7 +54,7 @@ const RelationShape &shape_of(RelativityRelation relation) {
         "the object moves along the same shared x axis the boost points along",
         false};
     static const RelationShape energy = {
-        "physics.relativity.energy-momentum", "E = gamma E0, pc = gamma beta E0",
+        "physics.relativity.energy-momentum", "E = gamma E0, pc = gamma beta E0, K = E - E0",
         {RelativityVariable::RestEnergy}, 1,
         {RelativityVariable::TotalEnergy, RelativityVariable::MomentumEnergy,
          RelativityVariable::KineticEnergy},
@@ -222,21 +222,35 @@ int read_index(const RelationShape &shape, RelativityVariable variable) {
 }
 
 // The relation written over its own symbols, so the model and the substituted copy share a shape.
+// Relations that report more than one value record one equation per reported value, in a list.
 NodeId build_relation(Arena &arena, RelativityRelation relation, const NodeId *reads,
-                      const NodeId *reports, NodeId beta, NodeId gamma) {
+                      const NodeId *reports, NodeId beta, NodeId gamma, NodeId light) {
     switch (relation) {
         case RelativityRelation::TimeDilation:
             return arena.binary(Kind::Equals, reports[0], arena.binary(Kind::Mul, gamma, reads[0]));
         case RelativityRelation::LengthContraction:
             return arena.binary(
                 Kind::Equals, arena.binary(Kind::Mul, reports[0], gamma), reads[0]);
-        case RelativityRelation::LorentzTransformation:
-            return arena.binary(
+        case RelativityRelation::LorentzTransformation: {
+            // c carries the event time into a length, which is what makes the two halves of the
+            // transformation the same equation written twice.
+            const NodeId event_light_time = arena.binary(Kind::Mul, light, reads[1]);
+            const NodeId transformed_light_time = arena.binary(Kind::Mul, light, reports[1]);
+            const NodeId position = arena.binary(
                 Kind::Equals, reports[0],
                 arena.binary(Kind::Mul, gamma,
                              arena.binary(Kind::Add, reads[0],
                                           arena.unary(Kind::Neg,
-                                                      arena.binary(Kind::Mul, beta, reads[1])))));
+                                                      arena.binary(Kind::Mul, beta,
+                                                                   event_light_time)))));
+            const NodeId time = arena.binary(
+                Kind::Equals, transformed_light_time,
+                arena.binary(Kind::Mul, gamma,
+                             arena.binary(Kind::Add, event_light_time,
+                                          arena.unary(Kind::Neg,
+                                                      arena.binary(Kind::Mul, beta, reads[0])))));
+            return arena.list({position, time});
+        }
         case RelativityRelation::VelocityAddition:
             return arena.binary(
                 Kind::Equals,
@@ -244,8 +258,17 @@ NodeId build_relation(Arena &arena, RelativityRelation relation, const NodeId *r
                              arena.binary(Kind::Add, arena.integer("1"),
                                           arena.binary(Kind::Mul, reads[0], beta))),
                 arena.binary(Kind::Add, reads[0], beta));
-        case RelativityRelation::EnergyMomentum:
-            return arena.binary(Kind::Equals, reports[0], arena.binary(Kind::Mul, gamma, reads[0]));
+        case RelativityRelation::EnergyMomentum: {
+            const NodeId total =
+                arena.binary(Kind::Equals, reports[0], arena.binary(Kind::Mul, gamma, reads[0]));
+            const NodeId momentum = arena.binary(
+                Kind::Equals, reports[1],
+                arena.binary(Kind::Mul, arena.binary(Kind::Mul, gamma, beta), reads[0]));
+            const NodeId kinetic = arena.binary(
+                Kind::Equals, reports[2],
+                arena.binary(Kind::Add, reports[0], arena.unary(Kind::Neg, reads[0])));
+            return arena.list({total, momentum, kinetic});
+        }
     }
     return kNoNode;
 }
@@ -525,7 +548,7 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     const NodeId beta_symbol = arena.symbol("beta");
     const NodeId gamma_symbol = arena.symbol("gamma");
     const NodeId equation = build_relation(arena, problem.relation, read_symbols, report_symbols,
-                                           beta_symbol, gamma_symbol);
+                                           beta_symbol, gamma_symbol, arena.symbol("c"));
     *model = equation;
     if (arena.failed())
         return failed(RelativityOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
@@ -736,7 +759,8 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         report_values[index] = rational_node(arena, computed.values[index]);
     const NodeId substituted =
         build_relation(arena, problem.relation, read_values, report_values,
-                       rational_node(arena, beta), rational_node(arena, gamma));
+                       rational_node(arena, beta), rational_node(arena, gamma),
+                       rational_node(arena, Rational{kLightSpeed, 1}));
     if (arena.failed())
         return failed(RelativityOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
                       status_name(arena.status()));
