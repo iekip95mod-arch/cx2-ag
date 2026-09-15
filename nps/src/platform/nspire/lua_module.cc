@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -35,6 +36,7 @@
 #include "nps/steps/matrix.h"
 #include "nps/steps/rewrite.h"
 #include "nps/steps/rearrange.h"
+#include "nps/steps/solve_task.h"
 #include "nps/steps/differentiate.h"
 #include "nps/cas/giac_adapter.h"
 #include "nps/steps/integrate.h"
@@ -1963,6 +1965,132 @@ int l_solve(lua_State *L) { return solve_into(L, true); }
 // cross-check off by accident.
 int l_solve_local(lua_State *L) { return solve_into(L, false); }
 
+// PERF-002 asks for a solve that is computed incrementally within a documented memory budget, so
+// the task outlives the call that starts it and the Lua owner advances it a bounded number of
+// cooperative checkpoints per paint. One resident task, because the viewer shows one solve.
+constexpr size_t kSolveTaskFrameBytes = 65536;
+
+std::unique_ptr<SolveTask> resident_solve;
+
+const char *task_state_name(TaskState state) {
+    switch (state) {
+        case TaskState::Pending: return "pending";
+        case TaskState::Complete: return "complete";
+        case TaskState::Cancelled: return "cancelled";
+        case TaskState::AllocationFailed: return "allocation_failed";
+        case TaskState::Invalid: break;
+    }
+    return "invalid";
+}
+
+// The published prefix goes over whatever the state is, because a cancelled or exhausted solve
+// keeps the moves it verified and the viewer is entitled to show them.
+void push_solve_progress(lua_State *L, SolveTask &task) {
+    const Derivation &d = task.published();
+    const SolveResources resources = task.resources();
+    lua_newtable(L);
+    set_field(L, "state", task_state_name(task.state()));
+    set_field(L, "pending", task.state() == TaskState::Pending);
+    set_field(L, "status", derivation_status_name(d.context.derivation_status));
+    set_expression_context(L, d.context);
+    set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));
+    set_field(L, "frame_capacity", static_cast<int>(resources.frame_capacity));
+    set_field(L, "frame_live_bytes", static_cast<int>(resources.frame_live_bytes));
+    set_field(L, "frame_peak_bytes", static_cast<int>(resources.frame_peak_bytes));
+    set_field(L, "live_frames", static_cast<int>(resources.live_frames));
+    set_cost(L, task.arena(), d, resources.cost, 0);
+    const SolveTaskResult *result = task.result();
+    if (result) {
+        if (const SolveResult *linear = std::get_if<SolveResult>(result)) {
+            const Attempt a = linear_attempt(task.arena(), *linear);
+            set_field(L, "outcome", a.outcome);
+            set_field(L, "detail", a.detail);
+            set_field(L, "solved", a.solved);
+            set_field(L, "has_result", a.has_result);
+            if (!a.answer.empty())
+                set_field(L, "result", a.answer);
+        } else {
+            const RearrangeResult &r = std::get<RearrangeResult>(*result);
+            set_field(L, "outcome", rearrange_outcome_name(r.outcome));
+            set_field(L, "detail", r.detail);
+            set_field(L, "solved", r.outcome == RearrangeOutcome::Isolated);
+            set_field(L, "has_result", r.formula != kNoNode);
+            if (r.formula != kNoNode)
+                set_field(L, "result", print(task.arena(), r.formula));
+        }
+    }
+    if (d.size() == 0)
+        push_empty_steps(L);
+    else
+        push_steps(L, task.arena(), d);
+}
+
+// Starting a solve replaces the resident one. An abandoned viewer must not keep its frames charged
+// against the next solve's budget, and close is what releases them.
+int l_solve_begin(lua_State *L) {
+    // Argument checks come first: a raise is a longjmp, which skips the GcPause destructor.
+    size_t text_size = 0;
+    const char *text_data = luaL_checklstring(L, 1, &text_size);
+    const char *operation = scalar_string_argument(L, 3, "linear");
+    const NumericMode mode = mode_argument(L, 4);
+    const std::string named(operation);
+    if (named != "linear" && named != "rearrange")
+        luaL_error(L, "solve operation has to be 'linear' or 'rearrange', not '%s'", operation);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable))
+        return 2;
+    const std::string text(text_data, text_size);
+    GcPause paused(L);
+    resident_solve.reset();
+
+    SolveRequest request;
+    request.original_expression = text;
+    request.numeric_mode = mode;
+    resident_solve = std::make_unique<SolveTask>(
+        named == "linear" ? SolveOperation::Linear : SolveOperation::Rearrange, std::move(request),
+        variable, kSolveTaskFrameBytes);
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+// Units are cooperative checkpoints rather than milliseconds, so the same call does the same work
+// on the host and on the handheld and a test can pin the prefix a given budget reaches.
+int l_solve_advance(lua_State *L) {
+    const lua_Integer units = luaL_optinteger(L, 1, 1);
+    if (units < 0)
+        luaL_argerror(L, 1, "units cannot be negative");
+    if (!resident_solve) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no solve is in progress");
+        return 2;
+    }
+    GcPause paused(L);
+    resident_solve->advance(static_cast<size_t>(units));
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+int l_solve_cancel(lua_State *L) {
+    if (!resident_solve) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no solve is in progress");
+        return 2;
+    }
+    GcPause paused(L);
+    resident_solve->cancel();
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+// Releasing the frames is separate from cancelling, because the viewer reads the published prefix
+// of a cancelled solve and only closes it when it moves on.
+int l_solve_close(lua_State *L) {
+    const bool held = resident_solve != nullptr;
+    resident_solve.reset();
+    lua_pushboolean(L, held);
+    return 1;
+}
+
 int differentiate_into(lua_State *L, bool cross) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
@@ -3733,6 +3861,10 @@ const luaL_Reg lib[] = {
 #endif
 #endif
     {"solve", l_solve},
+    {"solve_begin", l_solve_begin},
+    {"solve_advance", l_solve_advance},
+    {"solve_cancel", l_solve_cancel},
+    {"solve_close", l_solve_close},
     {"solve_local", l_solve_local},
     {"differentiate", l_differentiate},
     {"differentiate_local", l_differentiate_local},

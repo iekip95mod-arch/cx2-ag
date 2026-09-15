@@ -1800,6 +1800,67 @@ check(giac_calls == 0 and r.solved == true, "solve_local makes no Giac call")
 check(r.original_expression == raw_equation and
       r.normalized_expression == "((3 * x) = 9)",
       "the equation bridge preserves source bytes and publishes its normalized AST spelling")
+
+-- PERF-002. The incremental owner has to make a solve progress across several calls rather than
+-- drain it in one, so this counts the advances and pins the prefix each one has published.
+local begun = nps.solve_begin(raw_equation, "x", "linear")
+check(begun.state == "pending" and begun.pending == true and begun.step_count == 0,
+      "solve_begin publishes a pending task that has recorded nothing yet")
+check(begun.frame_capacity > 0 and begun.frame_peak_bytes <= begun.frame_capacity,
+      "solve_begin reports a frame budget and stays inside it")
+check(begun.original_expression == raw_equation,
+      "the incremental owner preserves the source bytes of its request")
+local advances, partial, progress = 0, nil, nps.solve_begin(raw_equation, "x", "linear")
+repeat
+    advances = advances + 1
+    progress = nps.solve_advance(1)
+    if progress.state == "pending" and progress.step_count > 0 and not partial then
+        partial = progress.step_count
+    end
+until progress.state ~= "pending" or advances > 64
+check(progress.state == "complete" and advances > 1,
+      "a linear solve takes more than one advance to finish, so it progresses across paints")
+check(type(partial) == "number" and partial > 0 and partial < progress.step_count,
+      "an unfinished advance publishes a shorter verified prefix than the finished solve")
+check(progress.solved == true and progress.result == "3" and #progress.steps == progress.step_count,
+      "the finished incremental solve carries the same answer and walkthrough as the direct bridge")
+check(progress.frame_peak_bytes > 0 and progress.frame_peak_bytes <= progress.frame_capacity,
+      "the incremental solve keeps its peak frame use inside the documented budget")
+check(nps.solve_close() == true and nps.solve_close() == false,
+      "closing the resident solve releases it once")
+local missing, reason = nps.solve_advance(1)
+check(missing == nil and reason == "no solve is in progress",
+      "advancing with no resident solve refuses instead of raising")
+check(select(1, nps.solve_cancel()) == nil,
+      "cancelling with no resident solve refuses instead of raising")
+nps.solve_begin(raw_equation, "x", "linear")
+local reached = nil
+for _ = 1, 64 do
+    reached = nps.solve_advance(1)
+    if reached.state ~= "pending" or reached.step_count > 0 then break end
+end
+local cancelled = nps.solve_cancel()
+check(cancelled.state == "cancelled" and cancelled.status == "cancelled",
+      "cancelling a pending incremental solve reports a cancelled task")
+check(cancelled.step_count == reached.step_count and cancelled.result == nil,
+      "cancellation preserves the verified prefix and withholds an answer")
+nps.solve_close()
+local rearranged = nps.solve_begin("a*x=b", "x", "rearrange")
+check(rearranged.state == "pending", "the incremental owner accepts a rearrangement request")
+local settled
+for _ = 1, 64 do
+    settled = nps.solve_advance(4)
+    if settled.state ~= "pending" then break end
+end
+check(settled.state == "complete" and settled.result == "(x = (b / a))",
+      "the incremental owner finishes a rearrangement through the same advance loop")
+nps.solve_close()
+check(not pcall(nps.solve_begin, raw_equation, "x", "quadratic"),
+      "an unknown incremental operation is refused rather than silently solved")
+local refused, why = nps.solve_begin(raw_equation, "2x", "linear")
+check(refused == nil and type(why) == "string",
+      "the incremental owner refuses a variable that is not an identifier")
+nps.solve_close()
 local raw_integral = "  x*2  "
 r = nps.integrate_local(raw_integral, "x")
 check(giac_calls == 0 and r.solved == true, "integrate_local makes no Giac call")
@@ -2249,7 +2310,8 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "kinematics_local", "catch_up", "unit_conversion", "density",
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
-                        "components_to_magnitude_angle", "typed_check" }) do
+                        "components_to_magnitude_angle", "typed_check", "solve_begin",
+                        "solve_advance", "solve_cancel", "solve_close" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
