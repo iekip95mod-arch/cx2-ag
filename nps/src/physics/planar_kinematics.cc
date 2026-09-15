@@ -954,6 +954,12 @@ PlanarApexResult apex_failed(PlanarKinematicsOutcome outcome, DerivationStatus s
 
 }  // namespace
 
+bool apex_routes_agree(Arena &arena, NodeId route_one_value, NodeId route_two_value) {
+    const NodeId route_one_canonical = canonicalize(arena, route_one_value);
+    const NodeId route_two_canonical = canonicalize(arena, route_two_value);
+    return !arena.failed() && route_one_canonical == route_two_canonical;
+}
+
 PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
                                    const PlanarApexProblem &problem, const Budget &budget,
                                    Backend *giac) {
@@ -1080,9 +1086,7 @@ PlanarApexResult solve_planar_apex(Arena &arena, Derivation &derivation,
                            "route two could not reach the apex height: " + route_two_result.detail);
     }
 
-    const NodeId route_one_canonical = canonicalize(arena, route_one_result.value);
-    const NodeId route_two_canonical = canonicalize(arena, route_two_result.value);
-    const bool routes_agree = !arena.failed() && route_one_canonical == route_two_canonical;
+    const bool routes_agree = apex_routes_agree(arena, route_one_result.value, route_two_result.value);
     const std::string agreement_detail =
         "route one (time to the apex, then the displacement equation) reached " +
         route_one_result.value_text +

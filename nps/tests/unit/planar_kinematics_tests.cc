@@ -367,23 +367,17 @@ void run_planar_kinematics_tests(TestSink &t) {
         t.check(!refused.has_value, "the refusal offers no apex height");
     }
     {
-        // Both routes are exact rational arithmetic over the same inputs, so they cannot disagree
-        // through any valid problem; only a defect in the comparison itself could let them.
-        // physics.planar-kinematics.check-apex-routes was watched failing by reversing the fix,
-        // reverting to a comparison that always reported agreement: with that reversal, this same
-        // stone problem still reported "solved" with no check recorded, so the guard was confirmed
-        // to depend on the comparison rather than to pass unconditionally.
-        PlanarApexProblem input;
-        input.body_name = "stone";
-        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
-        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        // Both routes are exact rational arithmetic over the same inputs, so a real problem can
+        // never make them disagree; only a defect in the comparison itself could. apex_routes_agree
+        // is the exact comparison check-apex-routes records, isolated so it can be driven with
+        // literal values no valid problem would ever produce, and watched fail: reverting it in
+        // planar_kinematics.cc to `return true;`, rebuilding and rerunning this case fails the
+        // second assertion below; restoring the real comparison passes it again.
         Arena arena;
-        Derivation derivation;
-        const PlanarApexResult solved = solve_planar_apex(arena, derivation, input);
-        t.equal(planar_kinematics_outcome_name(solved.outcome), "solved",
-                "the two-route check passes rather than being vacuously true");
-        t.check(has_rule(derivation, "physics.planar-kinematics.check-apex-routes"),
-                "the agreement check is recorded rather than skipped");
+        t.check(apex_routes_agree(arena, arena.integer("67"), arena.integer("67")),
+                "two routes that canonicalize to the same value agree");
+        t.check(!apex_routes_agree(arena, arena.integer("67"), arena.integer("68")),
+                "two routes that canonicalize to different values are caught disagreeing");
     }
 }
 

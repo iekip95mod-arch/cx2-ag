@@ -109,6 +109,12 @@ struct PlanarApexResult {
     Cost cost;
 };
 
+// The independent-route agreement that check-apex-routes records: canonicalize both routes' values
+// and compare them. Isolated from computing the two routes so a test can supply mismatched values
+// directly and watch the guard fail, mirroring verify_integer_division's proof-corruption pattern in
+// nps/tests/unit/integer_tests.cc.
+bool apex_routes_agree(Arena &arena, NodeId route_one_value, NodeId route_two_value);
+
 // Route one isolates the time at which the vertical velocity is zero, then substitutes it into the
 // displacement equation. Route two reaches the same height directly from v^2 = v0^2 + 2 a x with the
 // apex velocity given as zero. The two share the model and the inputs but not the equation, so their
