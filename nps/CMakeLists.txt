@@ -78,6 +78,7 @@ set(CORE_SOURCES
     src/physics/relativity.cc
     src/physics/kinematics.cc
     src/physics/planar_kinematics.cc
+    src/physics/position_motion.cc
     src/physics/optics.cc
     src/physics/relative_motion.cc
     src/physics/unit_conversion.cc
@@ -85,6 +86,7 @@ set(CORE_SOURCES
     src/physics/vector_components.cc
     src/physics/forces.cc
     src/physics/relation.cc
+    src/physics/ranking.cc
     src/physics/gravitation.cc
     src/physics/oscillation.cc
     src/physics/work.cc
@@ -125,12 +127,14 @@ set(TEST_SOURCES
     tests/unit/oscillation_tests.cc
     tests/unit/kinematics_tests.cc
     tests/unit/planar_kinematics_tests.cc
+    tests/unit/position_motion_tests.cc
     tests/unit/optics_tests.cc
     tests/unit/relative_motion_tests.cc
     tests/unit/unit_conversion_tests.cc
     tests/unit/vector_addition_tests.cc
     tests/unit/vector_components_tests.cc
     tests/unit/forces_tests.cc
+    tests/unit/ranking_tests.cc
     tests/unit/work_tests.cc
     tests/unit/context_tests.cc
     tests/unit/golden_tests.cc

@@ -918,6 +918,8 @@ int main_body() {
     run_kinematics_tests(sink);
     sink.begin_group("planar kinematics");
     run_planar_kinematics_tests(sink);
+    sink.begin_group("position motion");
+    run_position_motion_tests(sink);
     sink.begin_group("optics");
     run_optics_tests(sink);
     sink.begin_group("relative motion");
@@ -930,6 +932,8 @@ int main_body() {
     run_vector_components_tests(sink);
     sink.begin_group("forces");
     run_forces_tests(sink);
+    sink.begin_group("ranking");
+    run_ranking_tests(sink);
     sink.begin_group("work");
     run_work_tests(sink);
     sink.begin_group("context");
