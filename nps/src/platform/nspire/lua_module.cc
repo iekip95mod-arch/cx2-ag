@@ -357,9 +357,7 @@ constexpr ResultForm primary_result_form(bool has_local_result, bool answer_only
     if (answer_only)
         return backend_form;
     if (has_local_result)
-        return status == DerivationStatus::NumericallyApproximated
-                   ? ResultForm::NumericalApproximation
-                   : ResultForm::ElementaryClosedForm;
+        return ResultForm::ElementaryClosedForm;
     if (backend_form != ResultForm::NoResult)
         return backend_form;
     return status == DerivationStatus::Unsupported ? ResultForm::UnsupportedSymbolicForm

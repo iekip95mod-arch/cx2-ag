@@ -592,7 +592,7 @@ check(decimal_integer.outcome == "unsupported form" and decimal_integer.numeric_
 script("1/2", "0")
 local decimal_diff = nps.walkthrough("diff(0.5*x,x)", "x", "decimal")
 check(type(decimal_diff) == "table" and decimal_diff.solved, "decimal differentiate walkthrough succeeds")
-check(decimal_diff.result_form == "elementary closed form",
+check(decimal_diff.result_form == "elementary closed form" and decimal_diff.result == "(0.5 * 1)",
       "decimal mode classifies an exact decimal rewrite as elementary closed form")
 check(decimal_diff.numeric_mode == "decimal",
       "and records decimal numeric mode")

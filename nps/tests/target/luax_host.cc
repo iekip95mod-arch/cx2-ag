@@ -31,9 +31,6 @@ static_assert(integrate_cross_check_route(false, nps::IntegrateOutcome::Integrat
 static_assert(primary_result_form(true, false, nps::DerivationStatus::SolvedAndVerified,
                                   nps::ResultForm::NoResult) ==
               nps::ResultForm::ElementaryClosedForm);
-static_assert(primary_result_form(true, false, nps::DerivationStatus::NumericallyApproximated,
-                                  nps::ResultForm::NoResult) ==
-              nps::ResultForm::NumericalApproximation);
 static_assert(primary_result_form(false, true, nps::DerivationStatus::SolvedAndVerified,
                                   nps::ResultForm::NumericalApproximation) ==
               nps::ResultForm::NumericalApproximation);

@@ -604,16 +604,12 @@ void run_context_tests(TestSink &t) {
                     stored.derivation_status == DerivationStatus::DependencyUnavailable,
                 "and an index written before the two new outcomes existed still means what it did");
 
-        // NumericallyApproximated has a reader in the bridge for restored-record compatibility.
+        // NumericallyApproximated retains index 9 in the wire format for stored records.
         SolutionContext approx;
         Arena approx_arena;
-        const auto num_approx_index =
-            static_cast<uint64_t>(DerivationStatus::NumericallyApproximated);
-        t.check(parse_context(blob.substr(0, 44) + std::to_string(num_approx_index) + "#",
-                              approx_arena, &approx)
-                        .ok() &&
+        t.check(parse_context(blob.substr(0, 44) + "9#", approx_arena, &approx).ok() &&
                     approx.derivation_status == DerivationStatus::NumericallyApproximated,
-                "a restored context preserves DerivationStatus::NumericallyApproximated");
+                "and index 9 written before the two new outcomes existed decodes to NumericallyApproximated");
     }
 
     {
