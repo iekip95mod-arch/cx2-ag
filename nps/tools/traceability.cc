@@ -575,6 +575,9 @@ int selftest() {
     const std::string good_prd = std::string(made) + "/prd-good.md";
     const std::string malformed_prd = std::string(made) + "/prd-malformed.md";
     const std::string unmatched_prd = std::string(made) + "/prd-unmatched.md";
+    const std::string wide_domain_prd = std::string(made) + "/prd-wide-domain.md";
+    const std::string short_scope_prd = std::string(made) + "/prd-short-scope.md";
+    const std::string late_module_prd = std::string(made) + "/prd-late-module.md";
     const std::string good_catalog = std::string(made) + "/catalog-good.md";
     const std::string unevidenced_catalog = std::string(made) + "/catalog-unevidenced.md";
     const std::string untagged_catalog = std::string(made) + "/catalog-untagged.md";
@@ -600,6 +603,28 @@ int selftest() {
         out << "| ID | Priority | Requirement |\n|---|---|---|\n"
             << "| MATH-001 | P0 | The solver shall do the thing. |\n"
             << "| PHYS-025 | P1 | Every chemistry module shall expose conditions. |\n";
+    }
+    {
+        // A domain that runs past one word, so the scope reader cannot take words[1] for the domain.
+        std::ofstream out(wide_domain_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every physics engine module shall expose conditions. |\n";
+    }
+    {
+        // An attempted scope that stops before its domain, which is too short to read one from.
+        std::ofstream out(short_scope_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every module shall. |\n";
+    }
+    {
+        // The production population this join does not cover: an Every row whose module word comes
+        // after shall, which is ordinary prose rather than a universal module scope.
+        std::ofstream out(late_module_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every physics solver shall expose a module condition. |\n";
     }
     {
         std::ofstream out(good_catalog.c_str());
@@ -658,6 +683,18 @@ int selftest() {
     const int unmatched_status = analyse(unmatched_prd, evidence_file, good_catalog, report,
                                          &unmatched);
     const std::string unmatched_report = file_text(report);
+    Outcome wide_domain;
+    const int wide_domain_status = analyse(wide_domain_prd, evidence_file, good_catalog, report,
+                                           &wide_domain);
+    const std::string wide_domain_report = file_text(report);
+    Outcome short_scope;
+    const int short_scope_status = analyse(short_scope_prd, evidence_file, good_catalog, report,
+                                           &short_scope);
+    const std::string short_scope_report = file_text(report);
+    Outcome late_module;
+    const int late_module_status = analyse(late_module_prd, evidence_file, good_catalog, report,
+                                           &late_module);
+    const std::string late_module_report = file_text(report);
     Outcome untagged;
     const int untagged_status = analyse(good_prd, evidence_file, untagged_catalog, report,
                                         &untagged);
@@ -724,6 +761,23 @@ int selftest() {
         {unmatched_report.find("unmet, no applicable catalog families for chemistry") !=
              std::string::npos,
          "that fault is still written into the report row"},
+        {wide_domain_status == 1 && wide_domain.universal_scope_faults == 1 &&
+             wide_domain.universal_family_gaps == 0,
+         "a scope whose domain runs past one word is a fault, not a domain read from that word"},
+        {wide_domain_report.find("unmet, malformed universal module scope") != std::string::npos &&
+             wide_domain_report.find("none, malformed scope") != std::string::npos,
+         "that fault names no domain and no applicable family in the report row"},
+        {short_scope_status == 1 && short_scope.universal_scope_faults == 1 &&
+             short_scope.universal_family_gaps == 0,
+         "an attempted scope too short to carry a domain is a fault that fails the run"},
+        {short_scope_report.find("unmet, malformed universal module scope") != std::string::npos,
+         "that fault reads as a malformed scope rather than as an unmatched domain"},
+        {late_module_status == 0 && late_module.universal_scope_faults == 0 &&
+             late_module.universal_family_gaps == 0,
+         "an Every row whose module word follows shall is not module-scoped and stays clean"},
+        {late_module_report.find("| PHYS-025 | P1 | evidenced | physics.kinematics.probe |") !=
+             std::string::npos,
+         "that row is evidenced by its own passing check, which is the control on the line above"},
         {untagged_status == 0 && untagged.untagged_groups == 1 && untagged.missing_groups == 0,
          "a group that ran with nothing tagged stays a gap the run survives"},
         {absent_status == 1 && absent.missing_groups == 1,

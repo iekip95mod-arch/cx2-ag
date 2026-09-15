@@ -1653,7 +1653,10 @@ if(NOT CMAKE_CROSSCOMPILING)
     # something stages one.
     add_test(NAME coverage_selftest COMMAND nps_coverage --selftest)
 
-    # A requirement listed twice, on a staged PRD, because the one in the tree lists each once.
+    # Staged PRDs and catalogs, because the ones in the tree list each requirement once and carry a
+    # single universal module scope. Every arm of that scope reader is driven from here: the domain
+    # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
+    # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
