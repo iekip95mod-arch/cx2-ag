@@ -792,6 +792,20 @@ const ObligationSchema kComponentSum[] = {
 };
 
 // vector components and polar form
+const ObligationSchema kVectorSphericalStrategy[] = {
+    {"pre.vector-components.rank-three", "the conversion is three-dimensional", kRankComparison, 1},
+    {"pre.vector-components.spherical-convention",
+     "the spherical angle convention is declared before any angle is computed", kFrameDeclaration,
+     1},
+    {"pre.vector-components.frame-declared", "the vector frame is declared", kFrameDeclaration, 1},
+    {"pre.vector-components.angle-unit", "the angle unit is degrees or radians",
+     kAngleUnitValidation, 1},
+    {"pre.vector-components.dimensions-preserved",
+     "magnitude and Cartesian components carry the same physical dimension", kDimensionalAnalysis,
+     1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
 const ObligationSchema kVectorComponentsStrategy[] = {
     {"pre.vector-components.rank-two", "the conversion is two-dimensional", kRankComparison, 1},
     {"pre.vector-components.frame-declared", "the vector frame is declared", kFrameDeclaration, 1},
@@ -817,6 +831,18 @@ const ObligationSchema kComponentsFrame[] = {
 };
 const ObligationSchema kComponentsRankTwo[] = {
     {"obl.vector-components.rank-two", "the Cartesian vector has rank two", kRankComparison, 1},
+};
+const ObligationSchema kComponentsRankThree[] = {
+    {"obl.vector-components.rank-three", "the Cartesian vector has rank three", kRankComparison, 1},
+};
+const ObligationSchema kSphericalConvention[] = {
+    {"obl.vector-components.spherical-convention",
+     "the polar angle is measured from the positive z axis and the azimuth from the positive x axis",
+     kFrameDeclaration, 1},
+};
+const ObligationSchema kPolarAngleRelation[] = {
+    {"obl.vector-components.polar-angle",
+     "the polar angle satisfies theta = atan2(sqrt(x^2 + y^2), z)", kGiacZero, 1},
 };
 // The one obligation whose text differs between two correct runs: the Cartesian pass says
 // "component formulas" where the polar pass says "polar formulas". The id is what both share, and
@@ -1369,6 +1395,14 @@ const RuleSchema kRules[] = {
     {"vec.polar.check-frame", ClaimType::Definition, kComponentsFrame, 1,
      FailureBehavior::WithholdResult},
     {"vec.polar.check-rank", ClaimType::Definition, kComponentsRankTwo, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.polar.check-rank-three", ClaimType::Definition, kComponentsRankThree, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.polar.check-convention", ClaimType::Definition, kSphericalConvention, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.polar.plan-three", ClaimType::NoClaim, kVectorSphericalStrategy, 6,
+     FailureBehavior::WithholdResult},
+    {"vec.polar.polar-angle", ClaimType::EquivalentExpression, kPolarAngleRelation, 1,
      FailureBehavior::WithholdResult},
     {"vec.polar.direction", ClaimType::EquivalentExpression, kQuadrantDirection, 1,
      FailureBehavior::WithholdResult},

@@ -618,7 +618,7 @@ void run_vector_components_tests(TestSink &t) {
         Vector input;
         input.x = {3, 1};
         input.y = {4, 1};
-        input.rank = 3;
+        input.rank = 4;
         input.frame.name = "lab";
         input.unit.text = "m";
         input.unit.dimension = {1, 0, 0};
@@ -627,10 +627,11 @@ void run_vector_components_tests(TestSink &t) {
         const VectorComponentsResult result = components_to_magnitude_angle(
             arena, derivation, input, AngleUnit::Radians, backend);
         t.check(result.outcome == VectorComponentsOutcome::InvalidInput &&
-                    result.detail == "magnitude-angle conversion requires a rank 2 vector" &&
+                    result.detail ==
+                        "magnitude-angle conversion requires a rank 2 or rank 3 vector" &&
                     backend.commands.empty() && has_rule(derivation, "vec.polar.check-rank") &&
                     derivation.context.derivation_status == DerivationStatus::InvalidInput,
-                "polar conversion records and refuses a rank outside its two-dimensional envelope");
+                "polar conversion records and refuses a rank outside its supported envelope");
     }
 
     {
@@ -807,6 +808,72 @@ void run_vector_components_tests(TestSink &t) {
                     derivation.context.derivation_status == DerivationStatus::NotRecorded,
                 "cancelled polar conversion leaves no backend call or partial derivation");
     }
+
+    {
+        // Rank three reconstruction, with the polar angle measured from the positive z axis and the
+        // azimuth from the positive x axis, both named in the derivation's convention check.
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"5", "0", "atan2(3,0)", "0", "atan2(3,4)", "0"});
+        VectorExpr input;
+        input.x = parsed(arena, "0");
+        input.y = parsed(arena, "3");
+        input.z = parsed(arena, "4");
+        input.rank = 3;
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.equal(vector_components_outcome_name(result.outcome), "solved",
+                "a rank three Cartesian vector reconstructs a magnitude and a direction");
+        t.check(result.has_polar && result.polar.rank == 3 &&
+                    print(arena, result.polar.magnitude) == "5",
+                "the rank three magnitude comes from sqrt(x^2 + y^2 + z^2)");
+        t.check(result.polar.polar_angle != kNoNode &&
+                    print(arena, result.polar.polar_angle).find("atan2") != std::string::npos &&
+                    print(arena, result.polar.angle).find("atan2") != std::string::npos,
+                "both spherical angles are reported as quadrant-aware atan2 expressions");
+        t.check(has_rule(derivation, "vec.polar.check-rank-three") &&
+                    has_rule(derivation, "vec.polar.check-convention") &&
+                    has_rule(derivation, "vec.polar.polar-angle") &&
+                    !has_rule(derivation, "vec.polar.check-rank"),
+                "the spherical pass records its own rank, convention and polar angle rules");
+        t.check(has_obligation(derivation, "obl.vector-components.rank-three") &&
+                    has_obligation(derivation, "obl.vector-components.spherical-convention") &&
+                    has_obligation(derivation, "obl.vector-components.polar-angle"),
+                "the spherical pass carries rank three, convention and polar angle obligations");
+        t.check(check_detail(derivation, "vec.polar.check-convention")
+                        .find("positive z axis") != std::string::npos,
+                "the declared convention names the axis each angle is measured from");
+        t.check(result.cost.backend_calls == 6 && backend.commands.size() == 6,
+                "the spherical pass spends one checked value on each of magnitude and both angles");
+    }
+
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({});
+        VectorExpr input;
+        input.x = parsed(arena, "1");
+        input.y = parsed(arena, "1");
+        input.rank = 3;
+        input.frame.name = "lab";
+        input.unit.text = "m";
+        input.unit.dimension = {1, 0, 0};
+        input.unit.scale = {1, 1};
+
+        const VectorComponentsResult result = components_to_magnitude_angle(
+            arena, derivation, input, AngleUnit::Radians, backend);
+        t.equal(result.detail, "a rank 3 conversion requires a z component",
+                "a rank three claim without a z component is refused before any backend work");
+        t.check(!result.has_polar && backend.commands.empty() &&
+                    !has_obligation(derivation, "obl.vector-components.polar-angle"),
+                "the refused spherical conversion records no polar angle evidence");
+    }
+
 }
 
 }  // namespace nps
