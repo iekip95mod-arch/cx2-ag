@@ -43,9 +43,9 @@ struct Run {
 void run_position_motion_tests(TestSink &t) {
     {
         Run solved(problem("50*t + 10*t^2", "0 s", "3.0 s", "3.0 s"));
-        t.evidence("PHYS-342", solved.result.outcome == PositionMotionOutcome::Solved,
-                  "a position function of time solves rather than being refused for having no "
-                  "constant-acceleration slot");
+        t.check(solved.result.outcome == PositionMotionOutcome::Solved,
+               "a position function of time solves rather than being refused for having no "
+               "constant-acceleration slot");
         t.equal(rational_text(solved.result.average_velocity.value), "80",
                "the average velocity over the declared interval is the secant, not the "
                "derivative");
@@ -75,8 +75,8 @@ void run_position_motion_tests(TestSink &t) {
         // A linear position function: the velocity is constant and the acceleration is zero,
         // which the second differentiation has to reach rather than assume.
         Run solved(problem("5*t + 3", "0 s", "2 s", "2 s"));
-        t.evidence("PHYS-342", solved.result.outcome == PositionMotionOutcome::Solved,
-                  "a linear position function solves");
+        t.check(solved.result.outcome == PositionMotionOutcome::Solved,
+               "a linear position function solves");
         t.equal(rational_text(solved.result.average_velocity.value), "5",
                "a linear position function's average velocity matches its constant slope");
         t.equal(rational_text(solved.result.instantaneous_velocity.value), "5",
@@ -90,9 +90,9 @@ void run_position_motion_tests(TestSink &t) {
         // nps/src/steps/differentiate.cc:396 explicitly refuses rather than silently applying the
         // wrong rule.
         Run solved(problem("t^t", "0 s", "2 s", "2 s"));
-        t.evidence("PHYS-342", solved.result.outcome == PositionMotionOutcome::UnsupportedForm,
-                  "a position function the differentiation engine cannot handle is refused rather "
-                  "than answered wrong");
+        t.check(solved.result.outcome == PositionMotionOutcome::UnsupportedForm,
+               "a position function the differentiation engine cannot handle is refused rather "
+               "than answered wrong");
         t.check(!solved.result.detail.empty(),
                 "the refusal names what it could not do");
     }
