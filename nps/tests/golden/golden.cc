@@ -367,7 +367,7 @@ void check_golden_invariants(TestSink &sink) {
     // VER-002 over this population, with the readings printed apart. The exact count is the
     // one that settles a claim: both sides closed, both evaluated, and equal. The sampled count is
     // corroboration and is worded as such, because VER-009 forbids a spot check standing in for a
-    // symbolic proof. The two declined counts are printed beside them so an exclusion that grew
+    // symbolic proof. The declined count is printed beside them so an exclusion that grew
     // would be visible rather than quiet.
     const invariants::Claim *equivalence = g_pass.find("VER-002");
     sink.evidence("VER-002",
