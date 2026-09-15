@@ -86,6 +86,11 @@ void run_forces_tests(TestSink &t) {
                 "the residual and dimension checks are recorded");
         t.check(solved.derivation.all_verified_from(0),
                 "every claim in a solved force problem has passing evidence");
+        bool every_entry_known = true;
+        for (const ForceEntry &entry : solved.result.inventory)
+            every_entry_known = every_entry_known && entry.known;
+        t.check(every_entry_known,
+                "an acceleration request supplies every force, so no entry is marked unknown");
         t.evidence("PHYS-008",
                    value_is(solved.result, 7, 2) && solved.result.inventory.size() == 4,
                    "weight, normal, applied and friction are inventoried and summed");
@@ -110,6 +115,12 @@ void run_forces_tests(TestSink &t) {
                 "the friction equilibrium needs is distinct from the maximum available");
         t.check(has_rule(solved.derivation, "physics.forces.static-friction-limit"),
                 "the static limit comparison is recorded");
+        const ForceEntry *wanted = entry_of(solved.result, ForceKind::Friction);
+        t.check(wanted != nullptr && !wanted->known,
+                "the friction the request asked for is inventoried as the unknown one");
+        const ForceEntry *given_weight = entry_of(solved.result, ForceKind::Weight);
+        t.check(given_weight != nullptr && given_weight->known,
+                "the weight supplied with the problem stays marked known beside it");
         t.check(solved.derivation.all_verified_from(0),
                 "a consistent static equilibrium carries passing evidence throughout");
     }
@@ -183,6 +194,40 @@ void run_forces_tests(TestSink &t) {
         t.check(value_is(solved.result, 14, 1),
                 "2 N of net force plus the 12 N slope component needs 14 N");
         t.equal(solved.result.unit_text, "N", "a force answer carries newtons");
+        const ForceEntry *push = entry_of(solved.result, ForceKind::Applied);
+        t.check(push != nullptr,
+                "the applied force being solved for joins the inventory it is missing from");
+        t.check(push != nullptr && push->along.num == 14 && push->along.den == 1 &&
+                    push->magnitude.num == 14 && push->magnitude.den == 1,
+                "the inventoried applied force carries the solved 14 N along the slope");
+        t.equal(push != nullptr ? push->magnitude_text : std::string(), std::string("14 N"),
+                "the solved entry is rendered like every other inventory entry");
+        t.check(push != nullptr && !push->known,
+                "the force the request asked for is the one entry marked unknown");
+        bool others_known = true;
+        for (const ForceEntry &entry : solved.result.inventory) {
+            if (entry.kind != ForceKind::Applied)
+                others_known = others_known && entry.known;
+        }
+        t.check(others_known, "the forces the problem supplied stay marked known");
+    }
+    {
+        // The shape the bridge suite publishes: a frictionless horizontal push solved for.
+        ForcesProblem problem = base(ForcesUnknown::AppliedForce);
+        problem.assume_equilibrium = false;
+        problem.acceleration = parsed("1 m/s^2");
+        problem.has_acceleration = true;
+        Run solved(problem);
+        t.check(solved.result.outcome == ForcesOutcome::Solved &&
+                    value_is(solved.result, 2, 1),
+                "a 2 kg block accelerating at 1 m/s^2 needs a 2 N push");
+        t.equal(solved.result.value_text, std::string("2"),
+                "the solved applied force prints as a whole number of newtons");
+        t.check(solved.result.inventory.size() == 3,
+                "the weight, the normal force and the solved push are the whole inventory");
+        const ForceEntry *push = entry_of(solved.result, ForceKind::Applied);
+        t.equal(push != nullptr ? push->along_text : std::string(), std::string("2 N"),
+                "the solved entry's along component is rendered in newtons");
     }
     {
         ForcesProblem problem = base(ForcesUnknown::FrictionForce);
@@ -302,6 +347,9 @@ void run_forces_tests(TestSink &t) {
                 "the answer text is the solved normal force rather than an axis total");
         t.check(has_rule(solved.derivation, "physics.forces.check-residual"),
                 "the normal force answer is substituted back into the axis sum");
+        const ForceEntry *support = entry_of(solved.result, ForceKind::Normal);
+        t.check(support != nullptr && !support->known,
+                "the normal force the request asked for is inventoried as the unknown one");
         t.check(solved.derivation.all_verified_from(0),
                 "a normal force answer carries passing evidence throughout");
     }
