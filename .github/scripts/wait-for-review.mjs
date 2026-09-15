@@ -25,15 +25,19 @@ export async function requestGitHub(request, token, method, endpoint, body, miss
   return text ? JSON.parse(text) : null;
 }
 
+export function reviewLabels(current) {
+  return current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review', 'gemini-review'].includes(name));
+}
+
 export function reviewProvider(current) {
-  const labels = current.labels.map(label => label.name).filter(name => ['codex-review', 'claude-review', 'gemini-review'].includes(name));
+  const labels = reviewLabels(current);
   if (labels.length > 1) throw Error('Keep only the selected provider review label');
   return labels[0]?.replace('-review', '') ?? (/^(codex|claude|gemini)\//.exec(current.head.ref)?.[1] ?? 'claude');
 }
 
 async function selectedProvider(read, repository, pr, current, options = {}) {
   const fallback = reviewProvider(current);
-  if (current.labels.some(label => ['codex-review', 'claude-review', 'gemini-review'].includes(label.name))) return fallback;
+  if (reviewLabels(current).length) return fallback;
   const lookup = options.providerLookup ?? assignedReviewProvider;
   const provider = await lookup({ repository, pr, branch: current.head.ref }, (method, endpoint, body) => read(endpoint, false, body), options.roster);
   return provider ?? fallback;
