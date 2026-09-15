@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { runClaudeReview } from './run-claude-review.mjs';
 
@@ -20,6 +23,7 @@ test('Claude CLI reads GitHub through the assigned reviewer token and publishes 
     assert.equal(execution.env.GH_TOKEN, 'assigned-reviewer-token');
     assert.equal(execution.env.GITHUB_TOKEN, '');
     assert.equal(execution.env.ANTHROPIC_API_KEY, '');
+    assert.deepEqual(execution.stdio, ['pipe', 'pipe', 'inherit']);
     return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: verdict }) };
   });
   assert.deepEqual(JSON.parse(review), verdict);
@@ -34,4 +38,17 @@ test('Claude CLI refuses partial, failed, missing and malformed verdicts', () =>
   assert.throws(() => runClaudeReview(options, () => ({ error: Error('timeout'), stdout: JSON.stringify(completed) })), /execution failed/);
   assert.throws(() => runClaudeReview(options, () => ({ status: 0, stdout: 'invalid' })), SyntaxError);
   assert.throws(() => runClaudeReview({ ...options, now: 2500 }, () => assert.fail('Expired execution')), /exhausted/);
+});
+
+test('A killed CLI records its exit status and signal where a reaped job leaves them readable', () => {
+  const summary = join(mkdtempSync(join(tmpdir(), 'claude-review-summary-')), 'summary.md');
+  process.env.GITHUB_STEP_SUMMARY = summary;
+  try {
+    assert.throws(() => runClaudeReview(options, () => ({ status: null, signal: 'SIGTERM', stdout: '' })), /exit status none, signal SIGTERM/);
+    assert.match(readFileSync(summary, 'utf8'), /exit status none, signal SIGTERM/);
+    assert.throws(() => runClaudeReview(options, () => ({ error: Error('spawn failed'), status: null, stdout: '' })), /error spawn failed/);
+    assert.match(readFileSync(summary, 'utf8'), /exit status none, signal none, error spawn failed/);
+  } finally {
+    delete process.env.GITHUB_STEP_SUMMARY;
+  }
 });
