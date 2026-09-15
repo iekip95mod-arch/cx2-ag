@@ -1654,7 +1654,7 @@
       "pr": null,
       "branch": "claude/issue-268",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-308",
@@ -1674,7 +1674,7 @@
       "pr": 333,
       "branch": "claude/issue-268",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-298",
@@ -1714,6 +1714,16 @@
       "pr": 339,
       "branch": "claude/issue-338",
       "slug": "cx2-ag-claude-review-grove",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-347",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 347,
+      "pr": 348,
+      "branch": "claude/agent-budget",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
