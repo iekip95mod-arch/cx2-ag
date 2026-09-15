@@ -10,6 +10,7 @@
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/modern.h"
+#include "nps/physics/optics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -379,6 +380,45 @@ std::string work_record(const char *force_text, const char *displacement_text,
         answer = result.value_text + " " + result.unit_text;
     const std::string detail = result.detail.empty() ? result.interpretation : result.detail;
     return header(problem_text, "W", work_outcome_name(result.outcome), answer, detail) +
+           render_derivation(arena, derivation);
+}
+
+// The optics problems are typed rather than parsed, so the fixture states the relation, the
+// unknown and each given in the spelling the engine reports it back under.
+std::string optics_record(OpticsRelation relation, OpticsVariable unknown,
+                          const std::vector<std::pair<OpticsVariable, const char *> > &knowns,
+                          const Budget &budget) {
+    OpticsProblem problem;
+    problem.relation = relation;
+    problem.unknown = unknown;
+    std::string problem_text = std::string(optics_relation_name(relation)) + "; find " +
+                               optics_variable_name(unknown);
+    std::string why;
+    for (size_t i = 0; i < knowns.size(); ++i) {
+        OpticsKnown entry;
+        entry.variable = knowns[i].first;
+        if (!parse_quantity(knowns[i].second, &entry.quantity, &why))
+            return std::string("the fixture's own input did not parse: ") + why;
+        problem.knowns.push_back(entry);
+        problem_text += std::string("; ") + optics_variable_name(knowns[i].first) + " = " +
+                        knowns[i].second;
+    }
+    Arena arena;
+    Derivation derivation;
+    const OpticsResult result = solve_optics(arena, derivation, problem, budget);
+    std::string answer;
+    if (result.outcome == OpticsOutcome::Solved) {
+        answer = result.value_text;
+        if (!result.unit_text.empty())
+            answer += " " + result.unit_text;
+        if (result.has_magnification)
+            answer += ", magnification " + result.magnification_text;
+    }
+    if (result.has_critical_sine)
+        answer += (answer.empty() ? "" : "; ") + std::string("critical sine ") +
+                  result.critical_sine_text;
+    return header(problem_text, optics_variable_name(unknown), optics_outcome_name(result.outcome),
+                  answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -807,6 +847,40 @@ void run_golden_tests(TestSink &t) {
                              WorkForceProfile::Constant, Budget()));
     check_golden(t, "work_variable_force_refused",
                  work_record("(3, 4) N", "(2, 1) m", WorkForceProfile::Variable, Budget()));
+    check_golden(t, "optics_refraction_transmitted_sine",
+                 optics_record(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                               {{OpticsVariable::IndexIncident, "2"},
+                                {OpticsVariable::SineIncident, "0.3"},
+                                {OpticsVariable::IndexTransmitted, "1"}},
+                               Budget()));
+    check_golden(t, "optics_refraction_total_internal",
+                 optics_record(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                               {{OpticsVariable::IndexIncident, "2"},
+                                {OpticsVariable::SineIncident, "0.8"},
+                                {OpticsVariable::IndexTransmitted, "1"}},
+                               Budget()));
+    check_golden(t, "optics_thin_lens_real_image",
+                 optics_record(OpticsRelation::ThinLens, OpticsVariable::ImageDistance,
+                               {{OpticsVariable::FocalLength, "10 cm"},
+                                {OpticsVariable::ObjectDistance, "15 cm"}},
+                               Budget()));
+    check_golden(t, "optics_spherical_mirror_image",
+                 optics_record(OpticsRelation::SphericalMirror, OpticsVariable::ImageDistance,
+                               {{OpticsVariable::FocalLength, "20 cm"},
+                                {OpticsVariable::ObjectDistance, "30 cm"}},
+                               Budget()));
+    check_golden(t, "optics_double_slit_wavelength",
+                 optics_record(OpticsRelation::DoubleSlit, OpticsVariable::Wavelength,
+                               {{OpticsVariable::SlitSpacing, "1 mm"},
+                                {OpticsVariable::SineFringe, "0.0012"},
+                                {OpticsVariable::FringeOrder, "2"}},
+                               Budget()));
+    check_golden(t, "optics_single_slit_minimum",
+                 optics_record(OpticsRelation::SingleSlit, OpticsVariable::SineFringe,
+                               {{OpticsVariable::SlitSpacing, "0.1 mm"},
+                                {OpticsVariable::Wavelength, "0.0000006 m"},
+                                {OpticsVariable::FringeOrder, "1"}},
+                               Budget()));
     check_golden(t, "vector_components_exact", exact_vector_components_record(Budget()));
     check_golden(t, "vector_components_negative_quadrant",
                  negative_quadrant_polar_record(Budget()));
