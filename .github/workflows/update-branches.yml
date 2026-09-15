@@ -4,6 +4,9 @@ on:
     branches: [main]
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: [check]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -13,7 +16,7 @@ permissions:
 
 jobs:
   discover:
-    if: github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'workflow_run' || github.event.workflow_run.pull_requests[0] != null)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -30,7 +33,7 @@ jobs:
       - id: branches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
         run: node .github/scripts/update-branches.mjs --discover
 
   update:
