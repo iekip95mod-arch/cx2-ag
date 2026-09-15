@@ -330,6 +330,72 @@ void run_planar_kinematics_tests(TestSink &t) {
         t.check(solved.result.interpretation.find("(-3 i - 16 j) m/s") != std::string::npos,
                 "the leftward interpretation names the final velocity the interval ends at");
     }
+    {
+        // PHYS 2410 Chapters 1-4 test, problem 4(c): 42.0 m/s at 60.0 degrees decomposes to
+        // (21.0, 36.4) m/s, and the apex is reached at 3.71 s and 67.6 m above the launch point.
+        PlanarApexProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult solved = solve_planar_apex(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(solved.outcome), "solved",
+                "an upward projectile reaches its apex through two independent routes");
+        t.equal(solved.time_to_apex_text, "3.71",
+                "the time to the apex comes from v = v0 + a t with the apex velocity zero");
+        t.equal(solved.height_text, "67.6",
+                "the apex height agrees between the time-to-apex route and v^2 = v0^2 + 2 a x");
+        t.check(has_rule(derivation, "physics.planar-kinematics.check-apex-routes"),
+                "the two-route agreement is recorded through the family's check vocabulary");
+        t.check(check_detail(derivation, "physics.planar-kinematics.check-apex-routes")
+                    .find("67.6") != std::string::npos,
+                "the recorded check names the height both routes reached");
+    }
+    {
+        // A projectile with no upward component never rises above the launch point, so there is no
+        // apex to ask for.
+        PlanarApexProblem input;
+        input.body_name = "puck";
+        input.initial_velocity = parsed_vector("(5, 0) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult refused = solve_planar_apex(arena, derivation, input);
+        t.equal(planar_kinematics_outcome_name(refused.outcome), "no apex above the launch point",
+                "a projectile with no upward component is refused rather than given a height");
+        t.check(!refused.has_value, "the refusal offers no apex height");
+    }
+    {
+        // A cancelled nested solve_kinematics call must report cancellation rather than being
+        // collapsed into a generic verification failure, which would misreport a stopped run as a
+        // physics disagreement.
+        PlanarApexProblem input;
+        input.body_name = "stone";
+        input.initial_velocity = parsed_vector("(21.0, 36.4) m/s");
+        input.acceleration = parsed_vector("(0, -9.80) m/s^2");
+        Budget budget;
+        budget.poll = cancel_now;
+        Arena arena;
+        Derivation derivation;
+        const PlanarApexResult cancelled = solve_planar_apex(arena, derivation, input, budget);
+        t.equal(planar_kinematics_outcome_name(cancelled.outcome), "cancelled",
+                "a cancelled apex solve reports cancellation instead of a verification failure");
+        t.check(!cancelled.has_value, "a cancelled apex solve offers no height");
+    }
+    {
+        // Both routes are exact rational arithmetic over the same inputs, so a real problem can
+        // never make them disagree; only a defect in the comparison itself could. apex_routes_agree
+        // is the exact comparison check-apex-routes records, isolated so it can be driven with
+        // literal values no valid problem would ever produce, and watched fail: reverting it in
+        // planar_kinematics.cc to `return true;`, rebuilding and rerunning this case fails the
+        // second assertion below; restoring the real comparison passes it again.
+        Arena arena;
+        t.check(apex_routes_agree(arena, arena.integer("67"), arena.integer("67")),
+                "two routes that canonicalize to the same value agree");
+        t.check(!apex_routes_agree(arena, arena.integer("67"), arena.integer("68")),
+                "two routes that canonicalize to different values are caught disagreeing");
+    }
 }
 
 }  // namespace nps
