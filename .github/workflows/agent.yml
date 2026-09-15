@@ -35,6 +35,8 @@ jobs:
       pull-requests: read
     outputs:
       branch: ${{ steps.target.outputs.branch }}
+      model: ${{ steps.model.outputs.model }}
+      effort: ${{ steps.model.outputs.effort }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -48,6 +50,27 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BOT_PROVIDER: claude
         run: node .github/scripts/prepare-codex-worker.mjs --resolve
+      - name: Select the executor model
+        id: model
+        shell: bash
+        env:
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+        run: |
+          model=$CLAUDE_MODEL
+          effort=$CLAUDE_EFFORT
+          selected=$(jq -r '[((.issue.labels // []) + (.pull_request.labels // []))[].name | select(startswith("model:"))] | unique | .[]' "$GITHUB_EVENT_PATH")
+          if [ "$(printf '%s\n' "$selected" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+            echo "::error::Keep only one model label."
+            exit 1
+          fi
+          case "$selected" in
+            model:opus|model:sonnet) model=${selected#model:} ;;
+            '') ;;
+            *) echo "::error::$selected is not a Claude model label."; exit 1 ;;
+          esac
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+          echo "effort=$effort" >> "$GITHUB_OUTPUT"
 
   allocate:
     needs: resolve
@@ -87,8 +110,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      WORKER_MODEL: ${{ vars.CLAUDE_MODEL || 'opus' }}
-      WORKER_EFFORT: ${{ vars.CLAUDE_EFFORT || 'high' }}
+      WORKER_MODEL: ${{ needs.resolve.outputs.model }}
+      WORKER_EFFORT: ${{ needs.resolve.outputs.effort }}
       AGENT_JOB_TIMEOUT_MINUTES: 30
     permissions:
       contents: read
