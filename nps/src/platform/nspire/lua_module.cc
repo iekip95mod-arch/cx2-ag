@@ -45,6 +45,7 @@
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
+#include "nps/physics/forces.h"
 #include "nps/physics/work.h"
 #include "nps/platform/nspire/device_identity.h"
 #include "nps/platform/nspire/integrity.h"
@@ -529,6 +530,10 @@ CrossCheck ask_giac(lua_State *L, Arena &arena, DerivationStatus status, Op op, 
     out.raw = r.raw;
     out.detail = r.detail;
     out.calls = adapter.call_count();
+    // A backend that stopped because the learner asked it to reaches the same field the escape
+    // check writes, so where the stop was noticed does not decide what it is called.
+    if (r.tag == ResultTag::Cancelled)
+        out.cancelled = true;
     if (!r.usable())
         return out;
     const NodeId single = r.single_value();
@@ -564,6 +569,8 @@ CrossCheck ask_giac(lua_State *L, Arena &arena, DerivationStatus status, Op op, 
     zero.target = arena.binary(Kind::Add, ours, negated);
     Response z = adapter.run(zero);
     out.calls = adapter.call_count();
+    if (z.tag == ResultTag::Cancelled)
+        out.cancelled = true;
     out.comparison_attempted = true;
     out.comparison_tag = tag_name(z.tag);
     out.comparison_form = result_form(z);
@@ -580,6 +587,10 @@ bool dependency_failure_tag(const std::string &tag) {
     return tag == "unavailable" || tag == "backend error";
 }
 
+// A cancellation leads, because the learner asking to stop is the one terminal condition that is
+// not a statement about the backend. It is read before the dependency and comparison cases for the
+// same reason section 15 keeps the four apart: a stop nobody recorded reads as a check that merely
+// could not run, and the two are different facts.
 DerivationStatus cross_checked_status(DerivationStatus local, const CrossCheck &check) {
     if (check.cancelled)
         return DerivationStatus::Cancelled;
@@ -1383,6 +1394,21 @@ int parse_failed(lua_State *L, const ParseResult &r) {
     return 2;
 }
 
+// canonicalize answers kNoNode for a form it does not handle as well as for a limit it hit, and the
+// arena is the only thing that knows which. Naming the limit unconditionally sent a reader to
+// shorten an expression whose size was never the problem.
+int canonical_refused(lua_State *L, const Arena &arena) {
+    lua_pushnil(L);
+    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported) {
+        lua_pushliteral(L, "this expression has no canonical form in StepCAS");
+        return 2;
+    }
+    std::string msg = "the expression outgrew the limits while being put in canonical form: ";
+    msg += status_name(arena.status());
+    lua_pushlstring(L, msg.data(), msg.size());
+    return 2;
+}
+
 int expression_resource_failure(lua_State *L, const std::string &detail) {
     return typed_failure(L, "resource exceeded", "resource limit reached", detail);
 }
@@ -1779,11 +1805,8 @@ int l_canonical(lua_State *L) {
         return parse_failed(L, parsed);
 
     NodeId c = canonicalize(arena, parsed.root);
-    if (c == kNoNode) {
-        lua_pushnil(L);
-        lua_pushstring(L, "the expression outgrew the limits while being put in canonical form");
-        return 2;
-    }
+    if (c == kNoNode)
+        return canonical_refused(L, arena);
 
     std::string out = print(arena, c);
     lua_pushlstring(L, out.data(), out.size());
@@ -2548,6 +2571,15 @@ int calculus_into(lua_State *L) {
     if (!answer.empty()) set_field(L, "result", answer);
     if (command.kind == CommandKind::Limit && !answer.empty())
         set_field(L, "limit_exists", !result.does_not_exist);
+    // The tangent family reports what the line was built from and whether the relation it states is
+    // an equality. A linearization is an approximation away from the point and says so here.
+    if (result.slope != kNoNode) set_field(L, "tangent_slope", print(arena, result.slope));
+    if (result.point_value != kNoNode)
+        set_field(L, "tangent_point_value", print(arena, result.point_value));
+    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) {
+        set_field(L, "approximation", result.approximate);
+        set_field(L, "relation", result.approximate ? "approximately equal" : "equal");
+    }
     if (result.infinity != 0) set_field(L, "infinite_limit", true);
     const ResultForm backend_form =
         result.backend_attempted ? result_form(result.backend_result) : ResultForm::NoResult;
@@ -2602,7 +2634,8 @@ int l_walkthrough(lua_State *L) {
             lua_setfield(L, -2, "request_expression");
             return 1;
         }
-        if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral) {
+        if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
         lua_settop(L, 3);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2611,7 +2644,8 @@ int l_walkthrough(lua_State *L) {
         lua_replace(L, 2);
         }
     }
-    if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral)
+    if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
+        kind == CommandKind::Tangent || kind == CommandKind::Linearize)
         return calculus_into(L);
     int count;
     if (kind == CommandKind::Solve)
@@ -3211,6 +3245,223 @@ int l_work(lua_State *L) { return work_into(L, true); }
 
 int l_work_local(lua_State *L) { return work_into(L, false); }
 
+// PHYS-008. The force family reaches Lua as one table in and one record out, so #158 can draw a
+// diagram from the same inventory the equations were summed from.
+bool optional_quantity(lua_State *L, int table_index, const char *key, Quantity *value,
+                       bool *present, std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        *present = false;
+        return true;
+    }
+    lua_pop(L, 1);
+    if (!quantity_field(L, table_index, key, value, why))
+        return false;
+    *present = true;
+    return true;
+}
+
+bool optional_rational(lua_State *L, int table_index, const char *key, Rational *value,
+                       std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    Precision ignored;
+    return rational_field(L, table_index, key, value, &ignored, why);
+}
+
+bool optional_name(lua_State *L, int table_index, const char *key, std::string *value,
+                   std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    if (lua_type(L, -1) == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    lua_pop(L, 1);
+    return string_field(L, table_index, key, value, why);
+}
+
+bool optional_boolean(lua_State *L, int table_index, const char *key, bool *value,
+                      std::string *why) {
+    if (!field_value(L, table_index, key, why))
+        return false;
+    const int kind = lua_type(L, -1);
+    if (kind == LUA_TNIL) {
+        lua_pop(L, 1);
+        return true;
+    }
+    if (kind != LUA_TBOOLEAN) {
+        lua_pop(L, 1);
+        *why = std::string(key) + " must be a boolean";
+        return false;
+    }
+    *value = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return true;
+}
+
+void set_force_entry(lua_State *L, int index, const ForceEntry &entry) {
+    lua_pushinteger(L, static_cast<lua_Integer>(index));
+    lua_newtable(L);
+    set_field(L, "kind", force_kind_name(entry.kind));
+    set_field(L, "label", entry.label);
+    set_field(L, "agent", entry.agent);
+    set_field(L, "magnitude", entry.magnitude_text);
+    set_field(L, "along", entry.along_text);
+    set_field(L, "across", entry.across_text);
+    set_field(L, "known", entry.known);
+    lua_settable(L, -3);
+}
+
+int l_forces(lua_State *L) {
+    if (lua_type(L, 1) != LUA_TTABLE)
+        return typed_failure(L, "invalid problem", "invalid input", "forces input must be a table");
+
+    ForcesProblem problem;
+    std::string why;
+    if (!optional_name(L, 1, "body", &problem.body, &why) ||
+        !optional_name(L, 1, "support", &problem.support, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!quantity_field(L, 1, "mass", &problem.mass, &why) ||
+        !quantity_field(L, 1, "gravity", &problem.gravity, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string surface = "horizontal";
+    if (!optional_name(L, 1, "surface", &surface, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (surface == "horizontal")
+        problem.surface = SurfaceKind::Horizontal;
+    else if (surface == "incline")
+        problem.surface = SurfaceKind::Incline;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "surface must be horizontal or incline");
+    if (!optional_rational(L, 1, "incline_sin", &problem.incline_sin, &why) ||
+        !optional_rational(L, 1, "incline_cos", &problem.incline_cos, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    if (!optional_quantity(L, 1, "applied", &problem.applied, &problem.has_applied, &why) ||
+        !optional_quantity(L, 1, "tension", &problem.tension, &problem.has_tension, &why) ||
+        !optional_quantity(L, 1, "acceleration", &problem.acceleration, &problem.has_acceleration,
+                           &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string friction = "frictionless";
+    if (!optional_name(L, 1, "friction", &friction, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (friction == "frictionless")
+        problem.friction = FrictionModel::None;
+    else if (friction == "static")
+        problem.friction = FrictionModel::Static;
+    else if (friction == "kinetic")
+        problem.friction = FrictionModel::Kinetic;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "friction must be frictionless, static or kinetic");
+    if (!optional_rational(L, 1, "friction_coefficient", &problem.friction_coefficient, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string motion = "undeclared";
+    if (!optional_name(L, 1, "motion", &motion, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (motion == "undeclared")
+        problem.motion = MotionSense::Undeclared;
+    else if (motion == "up the axis")
+        problem.motion = MotionSense::UpTheAxis;
+    else if (motion == "down the axis")
+        problem.motion = MotionSense::DownTheAxis;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "motion must be undeclared, up the axis or down the axis");
+    if (!optional_boolean(L, 1, "equilibrium", &problem.assume_equilibrium, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string unknown;
+    if (!string_field(L, 1, "unknown", &unknown, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (unknown == "acceleration")
+        problem.unknown = ForcesUnknown::Acceleration;
+    else if (unknown == "applied force")
+        problem.unknown = ForcesUnknown::AppliedForce;
+    else if (unknown == "normal force")
+        problem.unknown = ForcesUnknown::NormalForce;
+    else if (unknown == "friction force")
+        problem.unknown = ForcesUnknown::FrictionForce;
+    else
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "unknown must be acceleration, applied force, normal force or "
+                             "friction force");
+
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    const ForcesResult result = solve_forces(arena, derivation, problem, interactive_budget());
+
+    lua_newtable(L);
+    set_field(L, "outcome", forces_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == ForcesOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "unknown", forces_unknown_name(problem.unknown));
+    set_field(L, "surface", surface_kind_name(problem.surface));
+    set_field(L, "friction_model", friction_model_name(problem.friction));
+    if (result.has_value) {
+        set_field(L, "result", std::string(forces_unknown_name(problem.unknown)) + " = " +
+                                   result.value_text + " " + result.unit_text);
+        set_field(L, "value", result.value_text);
+        set_field(L, "exact_value", rational_text(result.value));
+        set_field(L, "unit", result.unit_text);
+    }
+    if (!result.along_equation_text.empty())
+        set_field(L, "along_equation", result.along_equation_text);
+    if (!result.across_equation_text.empty())
+        set_field(L, "across_equation", result.across_equation_text);
+    if (!result.consistency.empty())
+        set_field(L, "consistency", result.consistency);
+    set_field(L, "static_checked", result.static_checked);
+    if (result.static_checked) {
+        set_field(L, "required_friction", rational_text(result.required_friction));
+        set_field(L, "maximum_static_friction", rational_text(result.maximum_static_friction));
+    }
+
+    lua_pushstring(L, "inventory");
+    lua_newtable(L);
+    for (size_t i = 0; i < result.inventory.size(); ++i)
+        set_force_entry(L, static_cast<int>(i + 1), result.inventory[i]);
+    lua_settable(L, -3);
+
+    lua_pushstring(L, "pairs");
+    lua_newtable(L);
+    for (size_t i = 0; i < result.pairs.size(); ++i) {
+        const InteractionPair &pair = result.pairs[i];
+        lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+        lua_newtable(L);
+        set_field(L, "kind", force_kind_name(pair.kind));
+        set_field(L, "on_body", pair.on_body);
+        set_field(L, "by_body", pair.by_body);
+        set_field(L, "reaction_on", pair.reaction_on);
+        set_field(L, "reaction_by", pair.reaction_by);
+        set_field(L, "magnitude", pair.magnitude_text);
+        lua_settable(L, -3);
+    }
+    lua_settable(L, -3);
+
+    const std::string assumptions = joined(derivation.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    push_steps(L, arena, derivation);
+    return 1;
+}
+
 int l_magnitude_angle_to_components(lua_State *L) {
     MagnitudeAngleExpr input;
     std::string magnitude;
@@ -3367,6 +3618,7 @@ const luaL_Reg lib[] = {
     {"vector_addition", l_vector_addition},
     {"relative_motion", l_relative_motion},
     {"relative_motion_local", l_relative_motion_local},
+    {"forces", l_forces},
     {"work", l_work},
     {"work_local", l_work_local},
     {"magnitude_angle_to_components", l_magnitude_angle_to_components},

@@ -908,6 +908,8 @@ int main_body() {
     run_density_tests(sink);
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);
+    sink.begin_group("planar kinematics");
+    run_planar_kinematics_tests(sink);
     sink.begin_group("relative motion");
     run_relative_motion_tests(sink);
     sink.begin_group("unit conversion");
@@ -916,6 +918,8 @@ int main_body() {
     run_vector_addition_tests(sink);
     sink.begin_group("vector components");
     run_vector_components_tests(sink);
+    sink.begin_group("forces");
+    run_forces_tests(sink);
     sink.begin_group("work");
     run_work_tests(sink);
     sink.begin_group("context");

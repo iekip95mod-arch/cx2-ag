@@ -56,7 +56,10 @@ test('inline requests retain exact left, right and context anchors', () => {
 test('both providers submit one native formal review with attached comments for either verdict', async () => {
   for (const provider of ['codex', 'claude', 'gemini']) for (const verdict of ['APPROVED', 'CHANGES_REQUESTED']) {
     const f = fixture(provider, verdict);
-    assert.equal((await publishReview(f.options, f.api)).id, 456);
+    const published = await publishReview(f.options, f.api);
+    assert.equal(published.id, 456);
+    // The reported count is what was sent, so a fallback cannot be logged with the findings it dropped.
+    assert.equal(published.sentComments, f.options.review.comments.length);
     assert.deepEqual(f.calls.filter(call => call.method === 'POST'), [{ method: 'POST', path: `${f.endpoint}/reviews`, body: { commit_id: head, event: verdict === 'APPROVED' ? 'APPROVE' : 'REQUEST_CHANGES', body: f.options.review.body, comments: [inline] } }]);
     assert.equal(f.calls.filter(call => call.path === f.endpoint).length, 2);
   }
@@ -197,6 +200,7 @@ test('CLI publishes trustworthy reviews when present and falls back to explicit 
     assert.equal(postsMissing[0].body.event, 'COMMENT');
     assert.match(postsMissing[0].body.body, /<!-- review-blocked -->/);
     assert.deepEqual(postsMissing[0].body.comments, []);
+    assert.match(runMissing.stdout, /with 0 inline comments/);
 
     // 2. Malformed review file with FALLBACK_BLOCKED=true publishes BLOCKED review
     const fBad = fixture(provider, 'BLOCKED'); fBad.published.state = 'COMMENTED';
@@ -223,6 +227,20 @@ test('CLI publishes trustworthy reviews when present and falls back to explicit 
     assert.equal(postsValid.length, 1);
     assert.equal(postsValid[0].body.event, 'APPROVE');
     assert.deepEqual(postsValid[0].body.comments, fValid.options.review.comments);
+    assert.match(runValid.stdout, new RegExp(`with ${fValid.options.review.comments.length} inline comments`));
+
+    // 5. A verdict whose only anchor is outside the diff falls back, and the log counts what was sent
+    const fAnchor = fixture(provider, 'BLOCKED'); fAnchor.published.state = 'COMMENTED';
+    const logAnchor = join(directory, 'anchor-calls.jsonl'); const configAnchor = join(directory, 'anchor-fixture.json'); const anchorReview = join(directory, 'anchor.json');
+    writeFileSync(anchorReview, JSON.stringify({ verdict: 'CHANGES_REQUESTED', body: 'One finding, anchored outside the diff.', comments: [{ path: 'nps/src/absent.cc', line: 11, side: 'RIGHT', body: 'Unanchored finding' }] }));
+    writeFileSync(configAnchor, JSON.stringify({ responses: fAnchor.responses, log: logAnchor }));
+    const runAnchor = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', FEEDBACK_FIXTURE: configAnchor, REVIEW_FILE: anchorReview, REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fAnchor.options.appSlug, EXPECTED_LOGIN: fAnchor.options.login, FALLBACK_BLOCKED: 'true' } });
+    assert.equal(runAnchor.status, 0, runAnchor.stderr);
+    const postsAnchor = readFileSync(logAnchor, 'utf8').trim().split('\n').map(JSON.parse).filter(call => call.args[2] === 'POST');
+    assert.equal(postsAnchor.length, 1);
+    assert.equal(postsAnchor[0].body.event, 'COMMENT');
+    assert.deepEqual(postsAnchor[0].body.comments, []);
+    assert.match(runAnchor.stdout, /Published COMMENTED review \d+ with 0 inline comments/);
 
     // 4. Missing review file WITHOUT FALLBACK_BLOCKED fails closed
     const runNoFallback = spawnSync(process.execPath, [join(scripts, 'publish-review.mjs')], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GH_TOKEN: 'fixture-private-token', REVIEW_FILE: join(directory, 'nonexistent2.json'), REPO: repository, PR: '91', HEAD_SHA: head, APP_SLUG: fMissing.options.appSlug, EXPECTED_LOGIN: fMissing.options.login } });
