@@ -101,11 +101,16 @@ jobs:
       # A suite that is not registered is silently not run, and -R reports success over whichever
       # ones were. This caught luax_host going missing when the runner had luajit but not its
       # headers.
+      # Asked by name rather than by counting rows, because ctest adds the setup test of any fixture
+      # a selected test requires. ui_smoke_v4 requires nps_evidence_luax, which exists only when
+      # luajit does, so a count that reads 2 today reads 3 the moment the bridge is buildable.
       - name: Check both suites are registered
         run: |
-          found=$(ctest --test-dir nps/build/host -N -R '^(unit|ui_smoke_v4)$' | grep -c "Test *#")
-          echo "registered: $found"
-          test "$found" -eq 2
+          ctest --test-dir nps/build/host -N | sed -n 's/^ *Test *#[0-9]*: *//p' > /tmp/registered.txt
+          cat /tmp/registered.txt
+          for suite in unit ui_smoke_v4; do
+            grep -qx "$suite" /tmp/registered.txt || { echo "not registered: $suite"; exit 1; }
+          done
 
       # Without luajit nothing in a host configure compiles lua_module.cc at all, so the bridge
       # reached review green twice on code that does not build. Asserting the target exists is what
