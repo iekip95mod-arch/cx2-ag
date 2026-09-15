@@ -1854,7 +1854,7 @@
       "pr": null,
       "branch": "claude/issue-364",
       "slug": "cx2-ag-claude-sirius",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-364",
@@ -1864,7 +1864,7 @@
       "pr": 365,
       "branch": "claude/issue-364",
       "slug": "cx2-ag-claude-review-summit",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-366",
@@ -1916,6 +1916,16 @@
       "pr": 356,
       "branch": "claude/issue-181",
       "slug": "cx2-ag-claude-review-crest",
+      "released": false
+    },
+    {
+      "key": "claude/executor/issue-341",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 341,
+      "pr": null,
+      "branch": "claude/issue-341",
+      "slug": "cx2-ag-claude-sirius",
       "released": false
     }
   ]
