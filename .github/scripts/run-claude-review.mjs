@@ -1,14 +1,19 @@
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { agentDeadline } from './agent-deadline.mjs';
+
+function recordExecution(run) {
+  const outcome = `exit status ${run.status ?? 'none'}, signal ${run.signal ?? 'none'}${run.error ? `, error ${run.error.message}` : ''}`;
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `The Claude review CLI ended with ${outcome}. Its stderr is in this job log, streamed while it ran.\n`);
+  return outcome;
+}
 
 export function runClaudeReview({ startedAt, timeoutMinutes, now, prompt, schema, model, effort, allowedTools }, execute = spawnSync) {
   const budget = agentDeadline({ startedAt, timeoutMinutes, now });
   const args = ['--print', '--model', model, '--effort', effort, '--max-turns', '256', '--output-format', 'json', '--json-schema', schema, '--permission-mode', 'acceptEdits', '--tools', 'Read,Write,Edit,Grep,Glob,Bash', '--allowedTools', allowedTools];
-  const run = execute('claude', args, { input: `${budget.text}\n\n${prompt}`, encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GITHUB_TOKEN: '', ANTHROPIC_API_KEY: '' } });
-  if (run.stderr) process.stderr.write(run.stderr);
-  if (run.error || run.status !== 0) throw Error('Claude review execution failed. No approval will be published');
+  const run = execute('claude', args, { input: `${budget.text}\n\n${prompt}`, encoding: 'utf8', timeout: budget.remaining * 1000, killSignal: 'SIGKILL', maxBuffer: 8 * 1024 * 1024, stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, GITHUB_TOKEN: '', ANTHROPIC_API_KEY: '' } });
+  if (run.error || run.status !== 0) throw Error(`Claude review execution failed with ${recordExecution(run)}. No approval will be published`);
   const envelope = JSON.parse(run.stdout);
   if (envelope.type !== 'result' || envelope.subtype !== 'success' || envelope.is_error !== false || !envelope.structured_output || typeof envelope.structured_output !== 'object' || Array.isArray(envelope.structured_output)) throw Error('Claude did not return a complete structured review');
   return JSON.stringify(envelope.structured_output);
