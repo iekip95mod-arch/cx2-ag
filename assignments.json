@@ -1505,6 +1505,16 @@
       "branch": "claude/issue-301",
       "slug": "cx2-ag-claude-review-brook",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-163",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 163,
+      "pr": null,
+      "branch": "claude/issue-163",
+      "slug": "cx2-ag-claude-nebula",
+      "released": false
     }
   ]
 }
