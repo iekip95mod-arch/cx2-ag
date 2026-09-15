@@ -9,6 +9,7 @@
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
+#include "nps/physics/modern.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -272,6 +273,55 @@ std::string unit_conversion_record(const char *source_text, const char *target_t
     const std::string problem_text = std::string(source_text) + " to " + target_text;
     return header(problem_text, "converted quantity", unit_conversion_outcome_name(result.outcome),
                   result.value_text, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+// The modern family reads its own eV, nm, u and MeV working units, which the unit table does not
+// carry, so the fixture attaches the declared unit the way the bridge does.
+Quantity modern_declared(ModernVariable variable, const char *text) {
+    Quantity parsed;
+    std::string why;
+    parse_quantity(text, &parsed, &why);
+    Unit unit;
+    unit.text = modern_variable_unit(variable);
+    switch (variable) {
+        case ModernVariable::Wavelength: unit.dimension.length = 1; break;
+        case ModernVariable::MassDefect: unit.dimension.mass = 1; break;
+        default:
+            unit.dimension.length = 2;
+            unit.dimension.mass = 1;
+            unit.dimension.time = -2;
+            break;
+    }
+    unit.scale.num = 1;
+    unit.scale.den = 1;
+    parsed.unit = unit;
+    return parsed;
+}
+
+std::string modern_record(ModernRelation relation, ModernVariable unknown,
+                          const std::vector<std::pair<ModernVariable, const char *> > &knowns,
+                          const Budget &budget) {
+    ModernProblem problem;
+    problem.relation = relation;
+    problem.unknown = unknown;
+    std::string problem_text = std::string("find ") + modern_variable_name(unknown);
+    for (size_t i = 0; i < knowns.size(); ++i) {
+        ModernKnown entry;
+        entry.variable = knowns[i].first;
+        entry.quantity = modern_declared(knowns[i].first, knowns[i].second);
+        problem.knowns.push_back(entry);
+        problem_text += std::string("; ") + modern_variable_name(knowns[i].first) + " = " +
+                        knowns[i].second + " " + modern_variable_unit(knowns[i].first);
+    }
+    Arena arena;
+    Derivation derivation;
+    const ModernResult result = solve_modern(arena, derivation, problem, budget);
+    std::string answer;
+    if (result.outcome == ModernOutcome::Solved)
+        answer = result.value_text + " " + result.unit_text;
+    return header(problem_text, modern_variable_name(unknown),
+                  modern_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -741,6 +791,17 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "density_mass_cubic_prefix",
                  density_record(DensityVariable::Mass, DensityVariable::Density, "2 g/cm^3",
                                 DensityVariable::Volume, "3 cm^3", Budget()));
+    check_golden(t, "modern_photon_energy_measured",
+                 modern_record(ModernRelation::PhotonWavelength, ModernVariable::PhotonEnergy,
+                               {{ModernVariable::Wavelength, "620.0"}}, Budget()));
+    check_golden(t, "modern_photoelectric_work_function",
+                 modern_record(ModernRelation::Photoelectric, ModernVariable::WorkFunction,
+                               {{ModernVariable::PhotonEnergy, "3.50"},
+                                {ModernVariable::KineticEnergy, "1.20"}},
+                               Budget()));
+    check_golden(t, "modern_mass_defect_energy",
+                 modern_record(ModernRelation::MassEnergy, ModernVariable::RestEnergy,
+                               {{ModernVariable::MassDefect, "0.0304"}}, Budget()));
     check_golden(t, "work_negative_mixed_units",
                  work_record("(2.00, -3.00) N", "(-100, 400) cm",
                              WorkForceProfile::Constant, Budget()));

@@ -499,6 +499,27 @@ const ObligationSchema kLookupPreservesSolutions[] = {
      kKnownQuantityLookup, 1},
 };
 
+// modern
+const EvidenceAlternative kModernRelationModel[] = {
+    {"registered relation model", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kModernStrategy[] = {
+    {"pre.modern.compatible-dimensions", "both sides of the relation carry the same dimension",
+     kDimensionalAnalysis, 1},
+    {"pre.modern.linear-unknown", "the relation is linear in the requested unknown",
+     kModernRelationModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kModernDimensions[] = {
+    {"obl.modern.dimensions-agree", "the two sides of the relation carry the same dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kModernCandidate[] = {
+    {"obl.modern.candidate-satisfies", "the candidate satisfies the original relation",
+     kSubstituteOriginalRelation, 1},
+};
+
 // relative motion
 const ObligationSchema kRelativeMotionStrategy[] = {
     {"pre.relative-motion.rank-two", "both inputs are two-dimensional velocities", kRankComparison,
@@ -1145,6 +1166,23 @@ const RuleSchema kRules[] = {
     {"physics.density.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
      FailureBehavior::WithholdResult},
     {"physics.density.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.modern.photon-wavelength, physics.modern.photoelectric and
+    // physics.modern.mass-energy. One plan rule each, and one shared set of steps after it.
+    {"physics.modern.planck-relation", ClaimType::NoClaim, kModernStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.einstein-photoelectric", ClaimType::NoClaim, kModernStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.mass-energy-equivalence", ClaimType::NoClaim, kModernStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.check-dimensions", ClaimType::Definition, kModernDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.check-candidate", ClaimType::Implication, kModernCandidate, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.modern.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
     // physics.relative-motion
