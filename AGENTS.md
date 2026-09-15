@@ -38,7 +38,7 @@ This repository exists for agents to work in. The maintainer grants the followin
 
 That grant covers iekip95mod-arch/cx2-ag and its local checkouts and worktrees. It does not extend to unrelated repositories or remotes.
 
-Main requires a pull request with one approving review, the selected reviewer's approval check and passing fast, full and emulator checks. CodeQL continues after review approval but is not a required merge check. Merge once the required gates pass without waiting for CodeQL. New commits dismiss previous approvals. Direct pushes, force pushes and deletion of main are blocked. Queue a merge with gh pr merge --auto --merge when checks are still running. Autonomy removes requests for maintainer permission, not these merge requirements.
+Main requires a pull request with one approving review, the selected reviewer's approval check and passing fast and full checks. Merge once those gates pass. New commits dismiss previous approvals. Direct pushes, force pushes and deletion of main are blocked. Queue a merge with gh pr merge --auto --merge when checks are still running. Autonomy removes requests for maintainer permission, not these merge requirements.
 
 Still off limits without a word from the maintainer:
 
@@ -183,7 +183,7 @@ Every review covers the entire cumulative PR against its base, including earlier
 
 Use BLOCKED with no inline findings when only infrastructure, missing prerequisites or the deadline prevents required verification. This publishes a non-approving review and leaves merge gates closed without automatically spending another worker on unchanged code. Name what must change before retrying. Use CHANGES_REQUESTED for applicable code defects. Rejections resume the assigned executor even after a draft handoff. A failed review gate suppresses its recovery wakeup only after confirmed rejection delivery, or when the assigned reviewer explicitly reports BLOCKED. Retry an environment-blocked review only after its prerequisites or verification evidence change.
 
-CodeQL findings also require executor attention when the scan finishes successfully. The verified GitHub security bot's commented reviews resume the assigned executor and wake desktop subscribers. If the PR has already merged, the feedback route creates a new issue and dispatches that provider there instead of reopening or publishing to the completed branch. Acknowledge them as the executor, investigate each applicable alert, test the repair and reply in its inline thread with evidence. Do not blindly apply suggestions, dismiss alerts or resolve threads to clear the merge gate. Record any false-positive assessment with evidence. A security comment is not reviewer approval. Require a new analysis to confirm the repair. App authentication uses explicit named secrets from its pool, never dynamic access to the entire secrets context.
+Nothing scans this repository now that the CodeQL job is gone, so a security defect is found by a reviewer reading the diff or not at all. The handling in review-feedback.mjs stays because it covers any security bot comment rather than CodeQL alone, and it is dormant rather than wrong. If a security comment does arrive, acknowledge it as the executor, investigate the alert, test the repair and reply in its thread with evidence. Do not dismiss an alert or resolve a thread to clear a gate, and record a false-positive assessment with the evidence behind it. A security comment is not reviewer approval. App authentication uses explicit named secrets from its pool, never dynamic access to the entire secrets context.
 
 The scope of a review is the diff and the issues that diff claims to close. Nothing else. Judge whether each commit fixes what its issue describes, whether the guards hold, and whether the change broke something that used to work. That question has an answer, and the review ends when it is answered.
 
@@ -237,7 +237,7 @@ Executors, reviewers and CI use Ubuntu. Codex and Claude model jobs and full bri
 
 The account now supports 40 concurrent Actions jobs. Executor and reviewer identities are separate capacity limits, with twelve of each role per provider. Preserve the per-branch and per-PR queues so increased runner capacity cannot create simultaneous writers on one branch.
 
-- check.yml runs fast first, then full and emulator in parallel after fast succeeds and the current PR review is approved. CodeQL waits for all three to succeed and for the current PR reviewer to approve. A failed review prevents CodeQL from starting. After a successful review retry on the same commit, rerun the failed CI jobs to release CodeQL. Main pushes and manual runs do not wait for a PR review. Emulator builds Firebird headless and runs its regression suites without TI images. It does not establish TI OS boot or StepCAS package loading. The linux-parity and device jobs have been removed.
+- check.yml runs fast first, then full after fast succeeds and the current PR review is approved. Main pushes and manual runs do not wait for a PR review. The linux-parity, device, emulator and codeql jobs have all been removed. The emulator is now something you drive yourself rather than a gate somebody else ran for you, so read [Drive the emulator yourself](#drive-the-emulator-yourself).
 - agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude, codex or gemini label on an issue selects that provider. Implementation runs claim the issue and prepare its branch before the model starts. See [CODEX.md](CODEX.md) for dispatch, credentials and resume instructions.
 - agent-review-request.yml selects and reserves a Claude, Codex or Gemini reviewer when a pull request is opened, taken out of draft or given the corresponding review label. It applies the assigned bot's reviewer label. That event starts agent-review.yml, which verifies the assignment before using subscription credentials. Re-requesting review retains that bot. The review-approved check requires its fresh approval on the exact current commit. A missing credential, skipped review, stale review or changes-requested verdict cannot satisfy it.
 - agent-review-feedback.yml resumes the assigned executor after its reviewer approves or requests changes on the current commit. Codex resumes Codex, Claude resumes Claude and Gemini resumes Gemini. All keep the existing issue, identity, branch and PR. Verify live state before acting on a continuation because delivery may repeat.
@@ -457,6 +457,28 @@ None of this licenses pulling something in for its own sake. A dependency alread
 ## Device and research work
 
 Run calculator validation through the emulator. Do not upload to a physical handheld, send it key events, restart it or ask the maintainer to perform a hardware run. Use an isolated emulator instance and preserve other workers' sessions and retained images.
+
+### Drive the emulator yourself
+
+No CI job boots the calculator for you. tools/emu is how you do it, and it runs anywhere the emulator binary and two images are present.
+
+~~~sh
+make -C vendor/firebird-src/headless -j3
+python3 tools/emu/emurun.py --png screen.png --out screen.ppm
+~~~
+
+That boots TI OS, waits for the OS banner rather than sleeping a fixed span, captures the screen and refuses a frame too flat to be one. It takes about 30 seconds on an idle machine. Point it somewhere else with --boot1 and --flash, or NPS_EMU_BOOT1 and NPS_EMU_FLASH, and copy the flash image into your own workspace first so another lane's run is not sharing it. Pass --skip-when-absent where a missing image should report as a skip rather than a failure.
+
+Import tools/emu/emurun.py for anything longer than a screenshot. Emulator.boot, shot, svc and resume are the whole surface, and tools/emu/screen.py compares two frames when the question is whether something changed.
+
+Four things cost a session each to find, so do not rediscover them.
+
+- `ln c` goes first. Until the link is up every ln command answers that it was dropped rather than sent, which otherwise looks exactly like a calculator ignoring you.
+- `stop` quits the emulator. It sets exiting = true at core/debug.cpp:832. Every other command breaks in on its own, so there is never a reason to send it.
+- A screenshot command that returned is not a file that exists. Writing into a dead emulator's stdin succeeds and the read times out empty. Stat the file, which is what Emulator.shot does.
+- An idle guest sits in Wait For Interrupt and its PC does not move. That is the OS waiting for input, not a hang.
+
+Keys are the part that does not work yet. keysvc is resident and answers on service 0x4B45, a bogus service id answers nothing, and a tap it accepts still leaves every pixel where it was. Issue #386 has the byte-level evidence. Until it closes, a screenshot proves what drew and nothing proves what a keypress did, so do not report navigation you have not seen on a frame.
 
 keysvc acknowledges before applying events. Host tools, emulator input and the resident key service are different mechanisms. Verify visible effects when claiming UI behavior.
 

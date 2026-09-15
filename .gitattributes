@@ -15,6 +15,12 @@
 # the only thing in the repository big enough to want LFS and slow enough to deserve it.
 /vendor/toolchain/*.tar.zst filter=lfs diff=lfs merge=lfs -text
 
+# The boot ROM and one flash image, so a runner that has neither can still boot the calculator and
+# screenshot it. Both are byte-exact and both are past the 100 MiB file limit, so LFS rather than
+# git. Only the two named in .gitignore are tracked: the rest of images/ is about 12 GB.
+/images/boot1.img filter=lfs diff=lfs merge=lfs -text
+/images/nspire-os.img filter=lfs diff=lfs merge=lfs -text
+
 # The folder-hiding prototype recognizes factory files by size and CRC32, so its provenance copies
 # and the evidence beside them are byte-exact records too. Normalizing themes.csv took it from the
 # 191 bytes factory_manifest.h records to 188, which is a recognition failure in every clone.
