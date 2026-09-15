@@ -23,6 +23,8 @@ struct Run {
     std::string rules;
     std::string context_family;
     std::string assumptions;
+    std::string report_rule;
+    std::string report_evidence;
 };
 
 Run collect(Arena &arena, Derivation &derivation, const RelationResult &result) {
@@ -39,6 +41,16 @@ Run collect(Arena &arena, Derivation &derivation, const RelationResult &result) 
         run.all_verified = run.all_verified && step.verified();
         if (!step.verified())
             run.unverified += step.rule_id + " ";
+        if (step.rule_id.ends_with(".significant-figures")) {
+            run.report_rule = step.rule_id;
+            // The outcome ahead of the sentence, so a passed record and a failed one carrying the
+            // same detail cannot read identically here.
+            for (const VerificationRecord &check : step.verifications) {
+                run.report_evidence += verification_outcome_name(check.outcome);
+                run.report_evidence += ", ";
+                run.report_evidence += check.detail;
+            }
+        }
         if (step.kind == StepKind::Plan)
             ++run.plan;
         if (step.kind == StepKind::Check)
@@ -209,6 +221,67 @@ void run_oscillation_tests(TestSink &t) {
                 "a cancelled wave run reports cancellation rather than an answer");
         t.check(stopped.result.value == kNoNode,
                 "a cancelled wave run returns no value to display");
+    }
+    {
+        RelationProblem input = oscillation_problem(OscillationVariable::RestoringForce);
+        input.knowns.push_back(
+            oscillation_known(OscillationVariable::Stiffness, quantity("2.0 N/m")));
+        input.knowns.push_back(
+            oscillation_known(OscillationVariable::Displacement, quantity("0.15 m")));
+        const Run solved = run_oscillation(input);
+        t.equal(relation_outcome_name(solved.result.outcome), "solved",
+                "measured harmonic inputs still solve");
+        t.equal(solved.result.value_text, "0.30",
+                "the displayed harmonic answer is rounded to the fewest measured figures");
+        t.check(exact_value(solved.result, 3, 10),
+                "rounding the report leaves the exact harmonic value alone");
+        t.check(solved.result.quantity.precision.kind == NumberKind::Measured &&
+                    solved.result.quantity.precision.significant_digits == 2,
+                "the reported harmonic quantity carries the combined measured precision");
+        t.equal(solved.result.unit_text, "kg m/s^2",
+                "a reported harmonic answer keeps its SI unit text");
+        t.equal(solved.report_rule, "physics.oscillation.significant-figures",
+                "the harmonic reporting step is recorded under its own rule id");
+        t.check(solved.rules.rfind("physics.oscillation.significant-figures") >
+                    solved.rules.find("physics.oscillation.check-candidate"),
+                "harmonic reporting happens after candidate verification");
+        t.equal(solved.report_evidence,
+                "passed, 0.30 is within half a unit in the last place of 0.3",
+                "the harmonic report step names its outcome and both compared values");
+        t.equal(derivation_status_name(solved.result.status), "solved and verified",
+                "a reported harmonic answer keeps its verified status");
+    }
+    {
+        RelationProblem input = wave_problem(WaveVariable::Speed);
+        input.knowns.push_back(wave_known(WaveVariable::Frequency, quantity("2.5 s^-1")));
+        input.knowns.push_back(wave_known(WaveVariable::Wavelength, quantity("0.40 m")));
+        const Run solved = run_wave(input);
+        t.equal(relation_outcome_name(solved.result.outcome), "solved",
+                "measured wave inputs still solve");
+        t.equal(solved.result.value_text, "1.0",
+                "the displayed wave answer is rounded to the fewest measured figures");
+        t.check(exact_value(solved.result, 1, 1),
+                "rounding the report leaves the exact wave value alone");
+        t.equal(solved.report_rule, "physics.wave.significant-figures",
+                "the wave reporting step is recorded under its own rule id");
+        t.equal(solved.report_evidence,
+                "passed, 1.0 is within half a unit in the last place of 1",
+                "the wave report step names its outcome and both compared values");
+        t.equal(solved.unverified, "", "the wave reporting claim carries passing evidence");
+    }
+    {
+        t.equal(oscillation_variable_name(OscillationVariable::RestoringForce), "restoring force",
+                "the harmonic restoring force is named for display");
+        t.equal(oscillation_variable_name(OscillationVariable::Stiffness), "stiffness",
+                "the harmonic stiffness is named for display");
+        t.equal(oscillation_variable_name(OscillationVariable::Displacement), "displacement",
+                "the harmonic displacement is named for display");
+        t.equal(wave_variable_name(WaveVariable::Speed), "wave speed",
+                "the wave speed is named for display");
+        t.equal(wave_variable_name(WaveVariable::Frequency), "frequency",
+                "the wave frequency is named for display");
+        t.equal(wave_variable_name(WaveVariable::Wavelength), "wavelength",
+                "the wave wavelength is named for display");
     }
 }
 

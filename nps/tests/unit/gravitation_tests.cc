@@ -24,6 +24,8 @@ struct Run {
     std::string rules;
     std::string context_family;
     std::string assumptions;
+    std::string report_rule;
+    std::string report_evidence;
 };
 
 Run run(const RelationProblem &input, const Budget &budget = Budget()) {
@@ -42,6 +44,16 @@ Run run(const RelationProblem &input, const Budget &budget = Budget()) {
         run.all_verified = run.all_verified && step.verified();
         if (!step.verified())
             run.unverified += step.rule_id + " ";
+        if (step.rule_id.ends_with(".significant-figures")) {
+            run.report_rule = step.rule_id;
+            // The outcome ahead of the sentence, so a passed record and a failed one carrying the
+            // same detail cannot read identically here.
+            for (const VerificationRecord &check : step.verifications) {
+                run.report_evidence += verification_outcome_name(check.outcome);
+                run.report_evidence += ", ";
+                run.report_evidence += check.detail;
+            }
+        }
         switch (step.kind) {
             case StepKind::Plan: ++run.plan; break;
             case StepKind::Transformation: ++run.transformations; break;
@@ -159,6 +171,45 @@ void run_gravitation_tests(TestSink &t) {
                 "a cancelled gravitation run reports cancellation rather than an answer");
         t.check(stopped.result.value == kNoNode,
                 "a cancelled gravitation run returns no value to display");
+    }
+    {
+        RelationProblem input = gravitation_problem(GravitationVariable::Force);
+        input.knowns.push_back(gravitation_known(GravitationVariable::FirstMass, quantity("2.0 kg")));
+        input.knowns.push_back(
+            gravitation_known(GravitationVariable::SecondMass, quantity("3.0 kg")));
+        input.knowns.push_back(
+            gravitation_known(GravitationVariable::Separation, quantity("1.0 m")));
+        const Run solved = run(input);
+        t.equal(relation_outcome_name(solved.result.outcome), "solved",
+                "measured gravitation inputs still solve");
+        t.equal(solved.result.value_text, "0.00000000040",
+                "the displayed gravitation answer is rounded to the fewest measured figures");
+        t.check(exact_value(solved.result, 10011, 25000000000000),
+                "rounding the report leaves the exact value alone");
+        t.check(solved.result.quantity.precision.kind == NumberKind::Measured &&
+                    solved.result.quantity.precision.significant_digits == 2,
+                "the reported gravitation quantity carries the combined measured precision");
+        t.equal(solved.report_rule, "physics.gravitation.significant-figures",
+                "the gravitation reporting step is recorded under its own rule id");
+        t.check(solved.rules.rfind("physics.gravitation.significant-figures") >
+                    solved.rules.find("physics.gravitation.check-candidate"),
+                "gravitation reporting happens after candidate verification");
+        t.equal(solved.report_evidence,
+                "passed, 0.00000000040 is within half a unit in the last place of "
+                "0.00000000040044",
+                "the gravitation report step names its outcome and both compared values");
+        t.equal(derivation_status_name(solved.result.status), "solved and verified",
+                "a reported gravitation answer keeps its verified status");
+    }
+    {
+        t.equal(gravitation_variable_name(GravitationVariable::Force), "gravitational force",
+                "the gravitation force position is named for display");
+        t.equal(gravitation_variable_name(GravitationVariable::FirstMass), "first mass",
+                "the first gravitation mass is named for display");
+        t.equal(gravitation_variable_name(GravitationVariable::SecondMass), "second mass",
+                "the second gravitation mass is named for display");
+        t.equal(gravitation_variable_name(GravitationVariable::Separation), "separation",
+                "the gravitation separation is named for display");
     }
 }
 
