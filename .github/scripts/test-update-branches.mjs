@@ -7,9 +7,9 @@ import { discoverBranches, updateBranch } from './update-branches.mjs';
 const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
 
-function fixture(provider = 'codex') {
+function fixture(provider = 'codex', labels = [`${provider}-review`]) {
   const identity = { provider, branch: `${provider}/issue-42`, login: 'executor[bot]', userId: 7, appId: 8, secretName: 'EXECUTOR_KEY' };
-  const pr = { number: 90, state: 'open', draft: false, mergeable: true, user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: [{ name: `${provider}-review` }] };
+  const pr = { number: 90, state: 'open', draft: false, mergeable: true, user: { login: identity.login, id: 7, type: 'Bot' }, base: { ref: 'main', repo: { full_name: repository } }, head: { ref: identity.branch, sha: 'a'.repeat(40), repo: { full_name: repository } }, labels: labels.map(name => ({ name })) };
   const writes = [];
   const runs = [];
   let behind = 1;
@@ -151,4 +151,36 @@ test('the branch updater is granted the workflow token it cancels superseded rev
   assert.equal(workflow.jobs.update.permissions.actions, 'write');
   assert.equal(workflow.jobs.update.steps.at(-1).env.ACTIONS_TOKEN, '${{ secrets.GITHUB_TOKEN }}');
   assert.equal(workflow.jobs.discover.permissions, undefined);
+});
+
+test('an update re-requests the review label the PR carries rather than the branch prefix provider', async () => {
+  for (const [branch, reviewer] of [['gemini', 'claude'], ['claude', 'codex'], ['codex', 'gemini']]) {
+    const f = fixture(branch, [`${reviewer}-review`, 'defect']);
+    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
+      `PUT ${root}/pulls/90/update-branch`,
+      `DELETE ${root}/issues/90/labels/${reviewer}-review`,
+      `POST ${root}/issues/90/labels`,
+    ]);
+    assert.deepEqual(f.writes.at(-1).body.labels, [`${reviewer}-review`]);
+    assert.equal(f.writes.some(write => write.endpoint.includes(`${branch}-review`)), false);
+  }
+});
+
+test('an update requests the branch prefix provider when the PR carries no review label', async () => {
+  for (const [branch, labels] of [['claude', []], ['claude', ['defect']], ['codex', []], ['gemini', ['defect']]]) {
+    const f = fixture(branch, labels);
+    assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+    assert.deepEqual(f.writes.map(write => `${write.method} ${write.endpoint}`), [
+      `PUT ${root}/pulls/90/update-branch`,
+      `POST ${root}/issues/90/labels`,
+    ]);
+    assert.deepEqual(f.writes.at(-1).body.labels, [`${branch}-review`]);
+  }
+});
+
+test('an update leaves an ambiguous review label pair alone', async () => {
+  const f = fixture('claude', ['claude-review', 'gemini-review']);
+  assert.equal(await updateBranch({ pr: 90, login: f.identity.login }, f.api, async () => {}, f.assignment), 'updated');
+  assert.deepEqual(f.writes.map(write => write.method), ['PUT']);
 });
