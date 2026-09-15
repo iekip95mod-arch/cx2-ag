@@ -1,6 +1,5 @@
 #include "nps/physics/relative_motion.h"
 
-#include <limits>
 #include <utility>
 #include <vector>
 
@@ -806,9 +805,9 @@ bool reversed_subscripts(const Vector &source, Vector *out) {
     const Rational components[3] = {source.x, source.y, source.z};
     Rational *targets[3] = {&out->x, &out->y, &out->z};
     for (size_t axis = 0; axis < 3; ++axis) {
-        if (components[axis].num == std::numeric_limits<int64_t>::min())
+        if (!negate_fraction(components[axis].num, components[axis].den, &targets[axis]->num,
+                             &targets[axis]->den))
             return false;
-        targets[axis]->num = -components[axis].num;
     }
     return true;
 }
@@ -852,7 +851,11 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
     RelativeMotionProblem inner;
     inner.axes = problem.axes;
     std::string rearrangement;
-    bool reverse_needed = false;
+    // The RHS of the isolated identity, named explicitly per branch rather than derived from
+    // inner.subject_name/reference_name, because the frame that plays "subject" in the inner
+    // two-frame problem is not always the frame ("a") that anchors both RHS terms in the outer
+    // three-frame identity.
+    std::string add_subject, add_reference, sub_subject, sub_reference;
     switch (problem.unknown) {
         case RelativeMotionUnknown::SubjectRelativeToReference:
             inner.subject_name = a;
@@ -864,7 +867,10 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
                               DerivationStatus::ResourceLimitReached,
                               "reversing the subscripts overflows exact integer arithmetic");
             }
-            reverse_needed = true;
+            add_subject = a;
+            add_reference = b;
+            sub_subject = c;
+            sub_reference = b;
             rearrangement = pair_text(a, c) + " = " + pair_text(a, b) + " - " + pair_text(c, b);
             break;
         case RelativeMotionUnknown::SubjectRelativeToMedium:
@@ -872,6 +878,10 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
             inner.reference_name = b;
             inner.subject_velocity = problem.subject_relative_to_reference;
             inner.reference_velocity = problem.medium_relative_to_reference;
+            add_subject = a;
+            add_reference = c;
+            sub_subject = b;
+            sub_reference = c;
             rearrangement = pair_text(a, b) + " = " + pair_text(a, c) + " - " + pair_text(b, c);
             break;
         case RelativeMotionUnknown::MediumRelativeToReference:
@@ -879,6 +889,10 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
             inner.reference_name = c;
             inner.subject_velocity = problem.subject_relative_to_reference;
             inner.reference_velocity = problem.subject_relative_to_medium;
+            add_subject = a;
+            add_reference = c;
+            sub_subject = a;
+            sub_reference = b;
             rearrangement = pair_text(b, c) + " = " + pair_text(a, c) + " - " + pair_text(a, b);
             break;
     }
@@ -906,12 +920,9 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
                                   relative_symbol(arena, b, c)));
     const NodeId isolated = arena.binary(
         Kind::Equals, relative_symbol(arena, inner.subject_name, inner.reference_name),
-        arena.binary(Kind::Add,
-                     relative_symbol(arena, inner.subject_name,
-                                     reverse_needed ? b : c),
+        arena.binary(Kind::Add, relative_symbol(arena, add_subject, add_reference),
                      arena.unary(Kind::Neg,
-                                 relative_symbol(arena, reverse_needed ? c : inner.reference_name,
-                                                 reverse_needed ? b : c))));
+                                 relative_symbol(arena, sub_subject, sub_reference))));
     if (arena.failed()) {
         return failed(RelativeMotionOutcome::ResourceExceeded,
                       DerivationStatus::ResourceLimitReached, status_name(arena.status()));
