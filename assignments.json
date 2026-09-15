@@ -1253,6 +1253,16 @@
       "branch": "claude/issue-157",
       "slug": "cx2-ag-claude-ember",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-207",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 207,
+      "pr": 251,
+      "branch": "gemini/issue-207",
+      "slug": "cx2-ag-claude-review-echo",
+      "released": false
     }
   ]
 }
