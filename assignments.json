@@ -1223,6 +1223,16 @@
       "slug": "cx2-ag-claude-review-delta",
       "released": false,
       "selectedReview": true
+    },
+    {
+      "key": "claude/executor/issue-270",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 270,
+      "pr": null,
+      "branch": "claude/issue-270",
+      "slug": "cx2-ag-claude-atlas",
+      "released": false
     }
   ]
 }
