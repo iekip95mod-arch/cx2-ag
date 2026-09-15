@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { runClaudeReview } from './run-claude-review.mjs';
+import { autocompactTokens, runClaudeReview } from './run-claude-review.mjs';
 
 const options = { startedAt: 1000, now: 1060, timeoutMinutes: 30, prompt: 'Review this revision', schema: '{"type":"object"}', model: 'opus', effort: 'high', allowedTools: 'Read,Bash(node --test:*)' };
 const verdict = { verdict: 'APPROVED', body: 'Verified the regression', comments: [] };
@@ -16,6 +16,7 @@ test('Claude CLI reads GitHub through the assigned reviewer token and publishes 
     assert.equal(args[args.indexOf('--model') + 1], 'opus');
     assert.equal(args[args.indexOf('--effort') + 1], 'high');
     assert.equal(args[args.indexOf('--max-turns') + 1], '256');
+    assert.equal(args[args.indexOf('--autocompact') + 1], String(autocompactTokens));
     assert.equal(args[args.indexOf('--json-schema') + 1], options.schema);
     assert.equal(args[args.indexOf('--allowedTools') + 1], options.allowedTools);
     assert.equal(execution.timeout, 1440000);
@@ -27,6 +28,21 @@ test('Claude CLI reads GitHub through the assigned reviewer token and publishes 
     return { status: 0, stdout: JSON.stringify({ type: 'result', subtype: 'success', is_error: false, structured_output: verdict }) };
   });
   assert.deepEqual(JSON.parse(review), verdict);
+});
+
+// Every Claude agent gets the same compaction window. A reviewer that compacts at a different point
+// than the executor it is judging is the kind of difference nobody notices until a long run truncates.
+test('every Claude agent invocation carries the shared compaction window', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const scripts = dirname(fileURLToPath(import.meta.url));
+  const workflow = join(scripts, '../workflows/agent.yml');
+  const job = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0])["jobs"]["respond"])', workflow], { encoding: 'utf8' }));
+  const action = job.steps.find(step => (step.uses ?? '').includes('claude-code-action'));
+  assert.ok(action.with.claude_args.includes(`--autocompact ${autocompactTokens}`), 'the executor action must set the window');
+  const general = job.steps.find(step => step.name === 'Answer an unassigned request');
+  assert.ok(general.run.includes(`--autocompact ${autocompactTokens}`), 'the unassigned-request CLI must set the window');
 });
 
 test('Claude CLI refuses partial, failed, missing and malformed verdicts', () => {

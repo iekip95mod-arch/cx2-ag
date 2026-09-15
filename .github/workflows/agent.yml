@@ -271,6 +271,7 @@ jobs:
             --model ${{ env.WORKER_MODEL }}
             --effort ${{ env.WORKER_EFFORT }}
             --max-turns 160
+            --autocompact 400000
             --dangerously-skip-permissions
 
       - name: Show executor publication
@@ -288,7 +289,7 @@ jobs:
           TASK: ${{ github.event.inputs.task || github.event.client_payload.task }}
         run: |
           printf '%s\n\n%s\n' "$AGENT_TIME_BUDGET" "$TASK" > "$RUNNER_TEMP/claude-general-request.txt"
-          claude -p --model "$WORKER_MODEL" --effort "$WORKER_EFFORT" --tools 'Read,Glob,Grep,Bash' --allowedTools 'Read,Glob,Grep,Bash(date:*)' < "$RUNNER_TEMP/claude-general-request.txt" > "$RUNNER_TEMP/claude-general-reply.md"
+          claude -p --model "$WORKER_MODEL" --effort "$WORKER_EFFORT" --autocompact 400000 --tools 'Read,Glob,Grep,Bash' --allowedTools 'Read,Glob,Grep,Bash(date:*)' < "$RUNNER_TEMP/claude-general-request.txt" > "$RUNNER_TEMP/claude-general-reply.md"
           printf 'Configured model: %s (selected model or alias)\nConfigured effort: %s\n' "$WORKER_MODEL" "$WORKER_EFFORT" >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/claude-general-reply.md" >> "$GITHUB_STEP_SUMMARY"
 
