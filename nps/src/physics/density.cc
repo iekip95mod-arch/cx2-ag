@@ -5,6 +5,7 @@
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
 #include "nps/steps/linear.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -50,142 +51,19 @@ DensityResult failed(DensityOutcome outcome, DerivationStatus status, const std:
     return result;
 }
 
-bool normalize_copy(const Rational &source, Rational *normalized) {
-    *normalized = source;
-    return normalise(&normalized->num, &normalized->den);
-}
-
-bool valid_quantity(const Quantity &quantity, std::string *detail) {
-    Rational normalized;
-    if (!normalize_copy(quantity.value, &normalized)) {
-        *detail = "the quantity has an invalid exact value";
-        return false;
-    }
-    if (!normalize_copy(quantity.unit.scale, &normalized) || normalized.num <= 0) {
-        *detail = "the unit has an invalid SI conversion scale";
-        return false;
-    }
-    switch (quantity.precision.kind) {
-        case NumberKind::Exact:
-            if (quantity.precision.significant_digits != 0) {
-                *detail = "an exact value cannot carry a measured significant-figure count";
-                return false;
-            }
-            return true;
-        case NumberKind::Measured:
-            if (quantity.precision.significant_digits == 0 ||
-                quantity.precision.significant_digits > 18) {
-                *detail = "a measured value needs between 1 and 18 significant figures";
-                return false;
-            }
-            return true;
-    }
-    *detail = "the quantity has an invalid precision kind";
-    return false;
-}
-
-std::string value_text(const Quantity &quantity) {
-    Rational normalized;
-    if (!normalize_copy(quantity.value, &normalized))
-        return "invalid exact value";
-    std::string text = rational_text(normalized);
-    if (quantity.precision.kind == NumberKind::Measured) {
-        std::string measured;
-        if (rounded_text(normalized, quantity.precision.significant_digits, &measured))
-            text = measured;
-    }
-    return text;
-}
+using measure::normalize_copy;
+using measure::rational_node;
+using measure::rational_of_node;
+using measure::transformation_step;
+using measure::valid_quantity;
+using measure::value_text;
+using measure::verification;
 
 std::string known_text(const DensityKnown &known) {
-    std::string text = std::string(density_variable_name(known.variable)) + " = " +
-                       value_text(known.quantity);
-    if (!known.quantity.unit.text.empty())
-        text += " " + known.quantity.unit.text;
-    return text;
+    return measure::known_text(density_variable_name(known.variable), known.quantity);
 }
 
-Unit si_unit(DensityVariable variable) {
-    Unit unit;
-    unit.dimension = variable_dimension(variable);
-    unit.text = si_unit_text(unit.dimension);
-    unit.scale.num = 1;
-    unit.scale.den = 1;
-    return unit;
-}
-
-NodeId rational_node(Arena &arena, const Rational &rational) {
-    if (rational.den == 1)
-        return arena.integer(integer_text(rational.num));
-    NodeId numerator = arena.integer(integer_text(rational.num));
-    NodeId denominator = arena.integer(integer_text(rational.den));
-    NodeId reciprocal = arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
-bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
-    if (id == kNoNode)
-        return false;
-    const Node &node = arena.at(id);
-    int64_t integer;
-    if (node.kind == Kind::Integer || node.kind == Kind::Neg) {
-        if (small_integer(arena, id, &integer)) {
-            value->num = integer;
-            value->den = 1;
-            return true;
-        }
-        if (node.kind != Kind::Neg)
-            return false;
-        Rational inner;
-        Rational zero;
-        return rational_of_node(arena, arena.children(node)[0], &inner) &&
-               rational_sub(zero, inner, value);
-    }
-    const ChildView children = arena.children(node);
-    if (node.kind != Kind::Mul || children.size() != 2)
-        return false;
-    Rational numerator;
-    if (!rational_of_node(arena, children[0], &numerator) || numerator.den != 1)
-        return false;
-    const Node &reciprocal = arena.at(children[1]);
-    const ChildView reciprocal_children = arena.children(reciprocal);
-    int64_t denominator;
-    int64_t exponent;
-    if (reciprocal.kind != Kind::Pow || reciprocal_children.size() != 2 ||
-        !small_integer(arena, reciprocal_children[0], &denominator) ||
-        !small_integer(arena, reciprocal_children[1], &exponent) || exponent != -1 ||
-        denominator == 0) {
-        return false;
-    }
-    value->num = numerator.num;
-    value->den = denominator;
-    return normalise(&value->num, &value->den);
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-// detailed has no default on purpose. STEP-021 wants every transformation to say how to recognise
-// its rule again, and a builder that lets the field be left out is why it was empty here.
-Step transformation_step(const char *goal, const char *rule_id, const char *rule_name,
-                         const char *explanation, const char *detailed) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = ClaimType::SolutionSetPreserved;
-    return step;
-}
+Unit si_unit(DensityVariable variable) { return measure::si_unit(variable_dimension(variable)); }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status) {
@@ -577,106 +455,39 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     result.value_text = rational_text(candidate);
     result.unit_text = result.quantity.unit.text;
     if (result.quantity.precision.kind == NumberKind::Measured) {
-        std::string reported;
-        const unsigned digits = result.quantity.precision.significant_digits;
-        if (!rounded_text(candidate, digits, &reported)) {
-            result.outcome = DensityOutcome::ArithmeticOverflow;
-            result.status = DerivationStatus::ResourceLimitReached;
-            result.detail = "reporting the measured precision exceeds exact integer arithmetic";
-            result.value = kNoNode;
-            result.value_text.clear();
-            result.unit_text.clear();
-            return result;
-        }
-        if (reported != result.value_text) {
-            // Checked against the string this step records. The predicate parses the reported text
-            // back and measures the error, so it shares no path with rounded_text. A wrong
-            // predicate it cannot catch, and units_tests pins that with negative cases.
-            const HalfPlace checked =
-                precision_rounding_valid(candidate, reported, result.quantity.precision);
-            if (checked == HalfPlace::Outside) {
-                result.outcome = DensityOutcome::VerificationFailed;
-                result.status = DerivationStatus::VerificationFailed;
-                result.detail = reported + " is further than half a unit in its last place from " +
-                                result.value_text;
+        const measure::ReportOutcome reported = measure::report_measured_precision(
+            arena, derivation, meter, candidate, solved.solution, result.quantity.precision,
+            "physics.density.significant-figures",
+            "Reach for this once, at the very end, and never partway through. A measured value is "
+            "only as good as the figures it was written with, so the answer is reported to the "
+            "fewest significant figures among the measurements it came from. Rounding before "
+            "dividing would throw away figures the final rounding cannot get back, which is why "
+            "every step above this one keeps the exact value.",
+            &result.value_text, &result.detail);
+        switch (reported) {
+            case measure::ReportOutcome::Overflow:
+                result.outcome = DensityOutcome::ArithmeticOverflow;
+                result.status = DerivationStatus::ResourceLimitReached;
                 result.value = kNoNode;
                 result.value_text.clear();
                 result.unit_text.clear();
                 return result;
-            }
-            if (checked == HalfPlace::Unreadable) {
-                // Never compared, so there is no verdict to refuse on. The exact value above is the
-                // answer and it stands; what is withheld is the rounded spelling.
-                if (!meter.step())
-                    return DensityResult();
-                result.status = DerivationStatus::SolvedButUnchecked;
-                result.detail = reported +
-                                " could not be read back as a decimal, so it was never compared "
-                                "against " +
-                                result.value_text;
-                Step s;
-                s.phase = "report";
-                s.goal = "Report the answer to the measured precision";
-                s.rule_id = "physics.density.significant-figures";
-                s.rule_name = "Significant figures";
-                s.claim = ClaimType::NoClaim;
-                s.explanation_short =
-                    "Use the fewest significant figures among the measured givens";
-                s.explanation_detailed =
-                    "The rounded spelling could not be read back as a decimal, so it was never "
-                    "compared against the exact value. The exact value is reported instead, since "
-                    "showing a rounding nothing checked would be showing an answer with no "
-                    "evidence behind it.";
-                s.proof_obligations.push_back(
-                    {"obl.physics.reported-within-half-place",
-                     "the reported value is within half a unit in the last place of the exact one"});
-                s.verifications.push_back(verification(
-                    "exact comparison against the unrounded value", result.detail,
-                    EvidenceStrength::CandidateChecked, VerificationOutcome::Inconclusive));
-                CheckPayload check;
-                check.target_claim =
-                    "the reported value is within half a unit in the last place of the exact one";
-                check.check_method =
-                    "read the rounded text back and compare it against the exact value";
-                check.expected_relation = "the difference is at most half a unit in the last place";
-                check.observed_result = result.detail;
-                derivation.add_check(kNoStep, std::move(s), std::move(check));
+            case measure::ReportOutcome::OutsideHalfPlace:
+                result.outcome = DensityOutcome::VerificationFailed;
+                result.status = DerivationStatus::VerificationFailed;
+                result.value = kNoNode;
+                result.value_text.clear();
+                result.unit_text.clear();
                 return result;
-            }
-            if (!meter.step())
-                return DensityResult();
-            Step step;
-            step.phase = "report";
-            step.goal = "Report the answer to the measured precision";
-            step.rule_id = "physics.density.significant-figures";
-            step.rule_name = "Significant figures";
-            step.explanation_short = "Use the fewest significant figures among the measured givens";
-            step.explanation_detailed =
-                "Reach for this once, at the very end, and never partway through. A measured value "
-                "is only as good as the figures it was written with, so the answer is reported to "
-                "the fewest significant figures among the measurements it came from. Rounding "
-                "before dividing would throw away figures the final rounding cannot get back, "
-                "which is why every step above this one keeps the exact value.";
-            step.claim = ClaimType::NoClaim;
-            step.verifications.push_back(verification(
-                "exact comparison against the unrounded value",
-                reported + " is within half a unit in the last place of " + result.value_text,
-                EvidenceStrength::CandidateChecked, VerificationOutcome::Passed));
-            step.proof_obligations.push_back(
-                {"obl.physics.reported-within-half-place",
-                 "the reported value is within half a unit in the last place of the exact one"});
-            TransformationPayload payload;
-            payload.before = solved.solution;
-            payload.after = reported.find('.') == std::string::npos ? arena.integer(reported)
-                                                                    : arena.decimal(reported);
-            payload.concrete_action = "Report " + result.value_text + " as " + reported;
-            payload.reversible = false;
-            if (arena.failed())
+            case measure::ReportOutcome::Cancelled: return DensityResult();
+            case measure::ReportOutcome::ArenaFailed:
                 return failed(DensityOutcome::ResourceExceeded,
-                              DerivationStatus::ResourceLimitReached,
-                              status_name(arena.status()));
-            derivation.add_transformation(kNoStep, std::move(step), std::move(payload));
-            result.value_text = reported;
+                              DerivationStatus::ResourceLimitReached, status_name(arena.status()));
+            case measure::ReportOutcome::Unreadable:
+                result.status = DerivationStatus::SolvedButUnchecked;
+                return result;
+            case measure::ReportOutcome::Unchanged:
+            case measure::ReportOutcome::Rounded: break;
         }
     }
     return result;
