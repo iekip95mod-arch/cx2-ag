@@ -340,6 +340,12 @@ test('a new assignment must deliver a review before an older approval can releas
   assert.equal(await reviewState(fixture([run(3)], { requests: [request] }), repository, 85, sha), 'approved');
   assert.equal(await reviewState(fixture([run(1)], { requests: [{ ...request, display_title: 'Assign reviewer for PR #85 (metadata)' }] }), repository, 85, sha), 'approved');
 });
+test('a skipped duplicate assignment trigger does not override a successful one', async () => {
+  const success = run(10, { display_title: 'Assign reviewer for PR #85 (requested)', run_started_at: '2026-09-15T20:44:45Z' });
+  const skipped = run(11, { display_title: 'Assign reviewer for PR #85 (requested)', conclusion: 'skipped', run_started_at: '2026-09-15T20:45:36Z', run_attempt: undefined });
+  const review = run(20, { created_at: '2026-09-15T20:46:00Z' });
+  assert.equal(await reviewState(fixture([review], { requests: [success, skipped] }), repository, 85, sha), 'approved');
+});
 test('rerunning an older assignment blocks approval from its previous attempt', async () => {
   const request = run(100, { display_title: 'Assign reviewer for PR #85 (requested)', run_attempt: 2, run_started_at: '2026-09-12T18:00:00Z', status: 'in_progress', conclusion: null });
   const previous = run(101, { created_at: '2026-09-12T17:00:00Z' });
