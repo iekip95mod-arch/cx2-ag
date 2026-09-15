@@ -35,6 +35,7 @@
 #include "nps/steps/matrix.h"
 #include "nps/steps/rewrite.h"
 #include "nps/steps/rearrange.h"
+#include "nps/steps/solve_task.h"
 #include "nps/steps/differentiate.h"
 #include "nps/cas/giac_adapter.h"
 #include "nps/steps/integrate.h"
@@ -42,6 +43,7 @@
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/optics.h"
+#include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -1963,6 +1965,131 @@ int l_solve(lua_State *L) { return solve_into(L, true); }
 // cross-check off by accident.
 int l_solve_local(lua_State *L) { return solve_into(L, false); }
 
+// PERF-002 asks for a solve that is computed incrementally within a documented memory budget, so
+// the task outlives the call that starts it and the Lua owner advances it a bounded number of
+// cooperative checkpoints per paint. One resident task, because the viewer shows one solve.
+constexpr size_t kSolveTaskFrameBytes = 65536;
+
+std::optional<SolveTask> resident_solve;
+
+const char *task_state_name(TaskState state) {
+    switch (state) {
+        case TaskState::Pending: return "pending";
+        case TaskState::Complete: return "complete";
+        case TaskState::Cancelled: return "cancelled";
+        case TaskState::AllocationFailed: return "allocation_failed";
+        case TaskState::Invalid: break;
+    }
+    return "invalid";
+}
+
+// The published prefix goes over whatever the state is, because a cancelled or exhausted solve
+// keeps the moves it verified and the viewer is entitled to show them.
+void push_solve_progress(lua_State *L, SolveTask &task) {
+    const Derivation &d = task.published();
+    const SolveResources resources = task.resources();
+    lua_newtable(L);
+    set_field(L, "state", task_state_name(task.state()));
+    set_field(L, "pending", task.state() == TaskState::Pending);
+    set_field(L, "status", derivation_status_name(d.context.derivation_status));
+    set_expression_context(L, d.context);
+    set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));
+    set_field(L, "frame_capacity", static_cast<int>(resources.frame_capacity));
+    set_field(L, "frame_live_bytes", static_cast<int>(resources.frame_live_bytes));
+    set_field(L, "frame_peak_bytes", static_cast<int>(resources.frame_peak_bytes));
+    set_field(L, "live_frames", static_cast<int>(resources.live_frames));
+    set_cost(L, task.arena(), d, resources.cost, 0);
+    const SolveTaskResult *result = task.result();
+    if (result) {
+        if (const SolveResult *linear = std::get_if<SolveResult>(result)) {
+            const Attempt a = linear_attempt(task.arena(), *linear);
+            set_field(L, "outcome", a.outcome);
+            set_field(L, "detail", a.detail);
+            set_field(L, "solved", a.solved);
+            set_field(L, "has_result", a.has_result);
+            if (!a.answer.empty())
+                set_field(L, "result", a.answer);
+        } else {
+            const RearrangeResult &r = std::get<RearrangeResult>(*result);
+            set_field(L, "outcome", rearrange_outcome_name(r.outcome));
+            set_field(L, "detail", r.detail);
+            set_field(L, "solved", r.outcome == RearrangeOutcome::Isolated);
+            set_field(L, "has_result", r.formula != kNoNode);
+            if (r.formula != kNoNode)
+                set_field(L, "result", print(task.arena(), r.formula));
+        }
+    }
+    if (d.size() == 0)
+        push_empty_steps(L);
+    else
+        push_steps(L, task.arena(), d);
+}
+
+// Starting a solve replaces the resident one. An abandoned viewer must not keep its frames charged
+// against the next solve's budget, and close is what releases them.
+int l_solve_begin(lua_State *L) {
+    // Argument checks come first: a raise is a longjmp, which skips the GcPause destructor.
+    size_t text_size = 0;
+    const char *text_data = luaL_checklstring(L, 1, &text_size);
+    const char *operation = scalar_string_argument(L, 3, "linear");
+    const NumericMode mode = mode_argument(L, 4);
+    const std::string named(operation);
+    if (named != "linear" && named != "rearrange")
+        luaL_error(L, "solve operation has to be 'linear' or 'rearrange', not '%s'", operation);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable))
+        return 2;
+    const std::string text(text_data, text_size);
+    GcPause paused(L);
+    resident_solve.reset();
+
+    SolveRequest request;
+    request.original_expression = text;
+    request.numeric_mode = mode;
+    resident_solve.emplace(named == "linear" ? SolveOperation::Linear : SolveOperation::Rearrange,
+                           std::move(request), variable, kSolveTaskFrameBytes);
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+// Units are cooperative checkpoints rather than milliseconds, so the same call does the same work
+// on the host and on the handheld and a test can pin the prefix a given budget reaches.
+int l_solve_advance(lua_State *L) {
+    const lua_Integer units = luaL_optinteger(L, 1, 1);
+    if (units < 0)
+        luaL_argerror(L, 1, "units cannot be negative");
+    if (!resident_solve) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no solve is in progress");
+        return 2;
+    }
+    GcPause paused(L);
+    resident_solve->advance(static_cast<size_t>(units));
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+int l_solve_cancel(lua_State *L) {
+    if (!resident_solve) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no solve is in progress");
+        return 2;
+    }
+    GcPause paused(L);
+    resident_solve->cancel();
+    push_solve_progress(L, *resident_solve);
+    return 1;
+}
+
+// Releasing the frames is separate from cancelling, because the viewer reads the published prefix
+// of a cancelled solve and only closes it when it moves on.
+int l_solve_close(lua_State *L) {
+    const bool held = resident_solve.has_value();
+    resident_solve.reset();
+    lua_pushboolean(L, held);
+    return 1;
+}
+
 int differentiate_into(lua_State *L, bool cross) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
@@ -3435,6 +3562,123 @@ bool optional_boolean(lua_State *L, int table_index, const char *key, bool *valu
     return true;
 }
 
+bool motion_stage_field(lua_State *L, int table_index, const char *key, MotionStage *value,
+                        std::string *why) {
+    std::string name = motion_stage_name(*value);
+    if (!optional_name(L, table_index, key, &name, why))
+        return false;
+    if (name == "event")
+        *value = MotionStage::Event;
+    else if (name == "state")
+        *value = MotionStage::State;
+    else if (name == "interval")
+        *value = MotionStage::Interval;
+    else {
+        *why = std::string(key) + " must be event, state or interval";
+        return false;
+    }
+    return true;
+}
+
+void set_planar_vector(lua_State *L, const char *key, const Vector &vector,
+                       const std::string &text, MotionStage stage) {
+    lua_pushstring(L, key);
+    lua_newtable(L);
+    set_field(L, "result", text);
+    set_field(L, "exact_x", rational_text(vector.x));
+    set_field(L, "exact_y", rational_text(vector.y));
+    set_field(L, "unit", vector.unit.text);
+    set_field(L, "frame", vector.frame.name);
+    set_field(L, "rank", static_cast<int>(vector.rank));
+    set_field(L, "stage", motion_stage_name(stage));
+    set_precision(L, vector.precision);
+    lua_settable(L, -3);
+}
+
+int l_planar_kinematics(lua_State *L) {
+    if (lua_type(L, 1) != LUA_TTABLE) {
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "planar kinematics input must be a table");
+    }
+
+    PlanarKinematicsProblem problem;
+    std::string why;
+    if (!string_field(L, 1, "body_name", &problem.body_name, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!field_value(L, 1, "initial_velocity", &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!vector_table(L, -1, &problem.initial_velocity, &why)) {
+        lua_pop(L, 1);
+        return typed_failure(L, "invalid problem", "invalid input", "initial_velocity: " + why);
+    }
+    lua_pop(L, 1);
+    if (!field_value(L, 1, "acceleration", &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!vector_table(L, -1, &problem.acceleration, &why)) {
+        lua_pop(L, 1);
+        return typed_failure(L, "invalid problem", "invalid input", "acceleration: " + why);
+    }
+    lua_pop(L, 1);
+    if (!quantity_field(L, 1, "elapsed_time", &problem.elapsed_time, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    if (!motion_stage_field(L, 1, "initial_velocity_stage", &problem.initial_velocity_stage,
+                            &why) ||
+        !motion_stage_field(L, 1, "acceleration_stage", &problem.acceleration_stage, &why) ||
+        !motion_stage_field(L, 1, "elapsed_time_stage", &problem.elapsed_time_stage, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string axes = planar_axes_name(problem.axes);
+    if (!optional_name(L, 1, "axes", &axes, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (axes == "right-up")
+        problem.axes = PlanarAxes::RightUp;
+    else
+        return typed_failure(L, "invalid problem", "invalid input", "axes must be right-up");
+
+    if (!optional_boolean(L, 1, "projectile", &problem.projectile, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    const Budget budget = interactive_budget();
+    PlanarKinematicsResult result;
+    if (GiacBackend::available(L)) {
+        GiacBackend backend(L);
+        result = solve_planar_kinematics(arena, derivation, problem, budget, &backend);
+    } else {
+        result = solve_planar_kinematics(arena, derivation, problem, budget, nullptr);
+    }
+
+    lua_newtable(L);
+    set_field(L, "outcome", planar_kinematics_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == PlanarKinematicsOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    if (result.has_value) {
+        set_field(L, "result", result.displacement_text);
+        set_field(L, "value", result.displacement_text);
+        set_field(L, "interpretation", result.interpretation);
+        set_planar_vector(L, "displacement", result.displacement, result.displacement_text,
+                          result.displacement_stage);
+        set_planar_vector(L, "final_velocity", result.final_velocity, result.final_velocity_text,
+                          result.final_velocity_stage);
+        set_precision(L, result.displacement.precision);
+    }
+    if (result.equation != kNoNode)
+        set_field(L, "equation", print(arena, result.equation));
+    if (result.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, result.substituted));
+    const std::string assumptions = joined(derivation.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    push_steps(L, arena, derivation);
+    return 1;
+}
+
 void set_force_entry(lua_State *L, int index, const ForceEntry &entry) {
     lua_pushinteger(L, static_cast<lua_Integer>(index));
     lua_newtable(L);
@@ -3733,6 +3977,10 @@ const luaL_Reg lib[] = {
 #endif
 #endif
     {"solve", l_solve},
+    {"solve_begin", l_solve_begin},
+    {"solve_advance", l_solve_advance},
+    {"solve_cancel", l_solve_cancel},
+    {"solve_close", l_solve_close},
     {"solve_local", l_solve_local},
     {"differentiate", l_differentiate},
     {"differentiate_local", l_differentiate_local},
@@ -3750,6 +3998,7 @@ const luaL_Reg lib[] = {
     {"forces", l_forces},
     {"work", l_work},
     {"work_local", l_work_local},
+    {"planar_kinematics", l_planar_kinematics},
     {"magnitude_angle_to_components", l_magnitude_angle_to_components},
     {"components_to_magnitude_angle", l_components_to_magnitude_angle},
 #if NPS_GIAC

@@ -1,6 +1,8 @@
 #include <string>
 
 #include "nps/physics/kinematics.h"
+#include "nps/core/parser.h"
+#include "../../src/physics/algebra_first.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
 #include "../step_invariants.h"
@@ -251,14 +253,46 @@ void test_intermediate_teaching_order(TestSink &t) {
 
 }  // namespace
 
+// The marker's step 3: the unknown is isolated while the equation is still symbolic, and only then
+// do numbers appear. No backend is configured here on purpose, because the walkthrough that runs on
+// a machine without Giac is the one being graded.
+void test_algebra_before_arithmetic(TestSink &t) {
+    {
+        const Solved s = run("find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2");
+        t.equal(s.answer, "t = 4 s", "t from v, v0 and a");
+        t.check(has(s.rules, "alg.rearrange.subtract-both-sides") &&
+                    has(s.rules, "alg.rearrange.divide-both-sides"),
+                "the isolation of t is recorded as inverse operations with no backend");
+        t.check(before(s.rules, "alg.rearrange.", "kin.substitute"),
+                "and every one of them is recorded before the substitution");
+    }
+    {
+        // A term struck out with the factor that killed it named, which is the marker's step 2.
+        Arena arena;
+        Derivation d;
+        const NodeId before_node = parse(arena, "y = v0*t + a*t^2/2").root;
+        const NodeId after_node = parse(arena, "y = a*t^2/2").root;
+        const StepId id = physics::record_vanishing_term(d, kNoStep, before_node, after_node,
+                                                         {1, 0}, "v0*t", "v0");
+        const TransformationPayload *p = d.transformation(id);
+        t.check(p && p->path.size() == 2 && p->path[0] == 1 && p->path[1] == 0,
+                "a struck out term points at the subexpression that went");
+        t.check(p && has(p->concrete_action, "v0*t") && has(p->concrete_action, "v0 is zero"),
+                "and names the factor that eliminated it");
+    }
+}
+
 void run_kinematics_tests(TestSink &t) {
+    test_algebra_before_arithmetic(t);
     for (const std::string &reply : {"[]", "[-2,2]", "[2,2]"}) {
         SequencedGiac giac(reply, "0");
         std::string rearranged;
         const Solved solved = run_with("find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2",
                                        &giac, &rearranged);
-        t.check(solved.answer == "t = 4 s" && rearranged.empty() && giac.commands.size() == 1,
+        t.check(solved.answer == "t = 4 s" && giac.commands.size() == 1,
                 "a non-singleton backend collection cannot supply a kinematics rearrangement");
+        t.check(rearranged == "((v + (-v0)) * (a^(-1)))",
+                "and the isolated form on the result is the one ALG-007 reached without it");
         t.check(!has(solved.rules, "kin.rearrange"),
                 "no symbolic transformation is recorded from an arbitrary selected root");
     }
@@ -452,10 +486,10 @@ void run_kinematics_tests(TestSink &t) {
         Solved s = run_with("find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2", &giac, &rearranged);
         t.equal(s.answer, "t = 4 s", "the answer is the linear solver's");
         t.equal(rearranged, "((v + (-v0)) * (a^(-1)))", "and the symbolic form is Giac's");
-        t.check(has(s.rules, "kin.rearrange kin.substitute"),
+        t.check(before(s.rules, "kin.rearrange", "kin.substitute"),
                 "the rearrangement step comes before the substitution");
         t.evidence("PHYS-005",
-                   s.answer == "t = 4 s" && has(s.rules, "kin.rearrange kin.substitute"),
+                   s.answer == "t = 4 s" && before(s.rules, "kin.rearrange", "kin.substitute"),
                    "the physical equation is isolated symbolically before values are substituted");
         t.equal(s.status, "solved and corroborated",
                 "and the run is corroborated rather than verified, because Giac wrote the form it "
@@ -584,8 +618,10 @@ void run_kinematics_tests(TestSink &t) {
         std::string rearranged;
         Solved s = run_with("find t; v = 17 m/s; v0 = 5 m/s; a = 3 m/s^2", &giac, &rearranged);
         t.equal(s.answer, "t = 4 s", "a backend that fails leaves the solve to the linear solver");
-        t.check(rearranged.empty() && !has(s.rules, "kin.rearrange"),
-                "with no rearrangement step rather than an unchecked one");
+        t.check(!has(s.rules, "kin.rearrange"),
+                "with no backend rearrangement step rather than an unchecked one");
+        t.check(has(s.rules, "alg.rearrange.divide-both-sides"),
+                "while the isolation itself is still recorded, because it never needed the backend");
         // A backend that was asked and declined has to look different from no backend at all,
         // which it did not: both left a solve with no rearrangement and nothing saying why.
         t.check(has(s.goals, "Rearrange for t symbolically"),
@@ -638,8 +674,8 @@ void run_kinematics_tests(TestSink &t) {
                     "a two hop route spends no more steps than its step budget allows");
         }
         t.evidence("PERF-008", measured,
-                   "1:r2/0 2:r3/0 3:r4/0 4:r5/3 5:r6/5 6:r7/6 7:r8/7 8:r9/8 9:r10/9 10:r11/9 "
-                   "11:r12/11 12:r13/12 13:s13/13 14:s13/13 15:s13/13 16:s13/13",
+                   "1:r2/0 2:r3/0 3:r4/0 4:r5/3 5:r6/5 6:r7/6 7:r8/6 8:r9/8 9:r10/9 10:r11/10 "
+                   "11:r12/11 12:r13/12 13:r14/12 14:r15/14 15:r16/15 16:s16/16",
                    "the work spent and the work recorded both answer to the step cap rather than "
                    "to the number of engines the route runs through");
     }
