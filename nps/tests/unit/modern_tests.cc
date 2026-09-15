@@ -72,9 +72,9 @@ Run run(const ModernProblem &input, const Budget &budget = Budget()) {
         }
     }
     if (out.result.substituted != kNoNode)
-        out.substituted = to_text(arena, out.result.substituted);
+        out.substituted = print(arena, out.result.substituted);
     if (out.result.equation != kNoNode)
-        out.equation = to_text(arena, out.result.equation);
+        out.equation = print(arena, out.result.equation);
     return out;
 }
 
@@ -97,14 +97,15 @@ bool poll_after(void *context) {
 
 void run_modern_tests(TestSink &t) {
     {
-        // A 620 nm photon is 1239.8/620, reported to the three figures the wavelength carries.
+        // A 620.0 nm photon is 1239.8/620.0, reported to the four figures the wavelength carries,
+        // which is fewer than the five the tabulated constant is quoted to.
         ModernProblem input = problem(ModernRelation::PhotonWavelength,
                                       ModernVariable::PhotonEnergy);
-        input.knowns.push_back(known(ModernVariable::Wavelength, "620"));
+        input.knowns.push_back(known(ModernVariable::Wavelength, "620.0"));
         const Run solved = run(input);
         t.equal(modern_outcome_name(solved.result.outcome), "solved",
                 "a wavelength gives its photon energy");
-        t.equal(solved.result.value_text, "2.00", "the photon energy reports to three figures");
+        t.equal(solved.result.value_text, "2.000", "the photon energy reports to four figures");
         t.equal(solved.result.unit_text, "eV", "the photon energy is reported in electronvolts");
         t.equal(solved.equation, "((E * lambda) = (12398 * (10^-1)))",
                 "the model is the Planck relation with its tabulated constant");
@@ -234,8 +235,8 @@ void run_modern_tests(TestSink &t) {
         PollAfter poll;
         poll.stop_at = 1;
         Budget budget;
-        budget.cancel = poll_after;
-        budget.cancel_context = &poll;
+        budget.poll = poll_after;
+        budget.poll_context = &poll;
         ModernProblem input = problem(ModernRelation::PhotonWavelength,
                                       ModernVariable::PhotonEnergy);
         input.knowns.push_back(known(ModernVariable::Wavelength, "620"));
