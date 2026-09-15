@@ -1634,7 +1634,7 @@
       "pr": null,
       "branch": "claude/issue-164",
       "slug": "cx2-ag-claude-comet",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-298",
@@ -1644,7 +1644,7 @@
       "pr": null,
       "branch": "claude/issue-298",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-268",
@@ -1684,7 +1684,7 @@
       "pr": 332,
       "branch": "claude/issue-298",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-164",
@@ -1694,7 +1694,7 @@
       "pr": 335,
       "branch": "claude/issue-164",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-308",
@@ -1724,6 +1724,16 @@
       "pr": 348,
       "branch": "claude/agent-budget",
       "slug": "cx2-ag-claude-review-anchor",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-206",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 206,
+      "pr": 282,
+      "branch": "claude/issue-206",
+      "slug": "cx2-ag-claude-review-cairn",
       "released": false
     }
   ]
