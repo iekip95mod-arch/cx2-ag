@@ -75,7 +75,7 @@ local cards = {
 			"t   time since release, s",
 			"",
 			"Two of those are free:",
-			"a = \2269.80 m/s\194\178 always, taking up as positive",
+			"a = \226\136\1469.80 m/s\194\178 always, taking up as positive",
 			"v\226\130\128 = 0 if it was dropped or just released",
 			"v = 0 at the highest point of a throw",
 			"",
@@ -90,7 +90,7 @@ local cards = {
 			"4  Solve, then check the sign is sensible.",
 			"",
 			"TRAP",
-			"At the top v is zero but a is still \2269.80.",
+			"At the top v is zero but a is still \226\136\1469.80.",
 			"Gravity does not switch off.",
 		},
 	},
@@ -148,7 +148,7 @@ local cards = {
 			"\206\148x  distance traveled by the moving one, m",
 			"v\226\130\128  starting speed of whichever object you",
 			"    are solving, m/s. Zero if it was dropped",
-			"a   acceleration, \2269.80 m/s\194\178 for the falling",
+			"a   acceleration, \226\136\1469.80 m/s\194\178 for the falling",
 			"    one, zero for anything at steady speed",
 			"",
 			"STEPS",
@@ -159,7 +159,7 @@ local cards = {
 			"4  Use it there to get what was asked.",
 			"",
 			"WORKED",
-			"Key: \206\148y = \22645 m, v\226\130\128 = 0, a = \2269.80",
+			"Key: \206\148y = \226\136\14645 m, v\226\130\128 = 0, a = \226\136\1469.80",
 			{ m = "t=sqrt(2*(-45)/(-9.80))=3.03", alt = "t = sqrt(2(-45)/(-9.80)) = 3.03 s" },
 			"Boat: constant speed, so",
 			{ m = "v=12/3.03=3.96", alt = "v = 12 / 3.03 = 3.96 m/s" },
@@ -183,7 +183,7 @@ local cards = {
 			"v\226\130\128x sideways part of v\226\130\128, m/s",
 			"v\226\130\128y upward part of v\226\130\128, m/s",
 			"g   9.80 m/s\194\178, the size of gravity. It is",
-			"    written as \2269.80 once up is positive",
+			"    written as \226\136\1469.80 once up is positive",
 			"",
 			"FORMULA  split once, never mix again",
 			{ m = "v\226\130\128x=v\226\130\128*cos(\206\184)", alt = "v0x = v0 cos(th)" },
@@ -252,7 +252,7 @@ local cards = {
 			"",
 			"A component is how much of the vector lies",
 			"along one axis. Writing 3i \226\136\146 2j + 4k says the",
-			"x component is 3, the y is \2262, the z is 4.",
+			"x component is 3, the y is \226\136\1462, the z is 4.",
 			"",
 			"FORMULA  add the components separately",
 			{ m = "3*i-2*j+4*k", alt = "3i - 2j + 4k" },
@@ -2057,9 +2057,9 @@ function on.paint(gc)
 	elseif view.mode == "search" then
 		help = "type to filter  enter go  del erase  esc cancel"
 	elseif view.topic == 0 then
-		help = "enter open   tab next   left/right chapter   a-z find"
+		help = "enter open  tab next  left/right ch  a-z find"
 	else
-		help = "up/down scroll   tab next topic   esc back   a-z find"
+		help = "up/down scroll  tab next  esc back  a-z find"
 	end
 	gc:drawString(help, 4, platform.window:height() - 12, "top")
 end
