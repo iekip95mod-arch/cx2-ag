@@ -4449,18 +4449,17 @@ local function paintStepsFooter(gc, w, h, detail)
 	gc:setColorRGB(55, 65, 78)
 	local hint
 	local count
+	-- Whether a hint remains is not what the mode records, so every cue takes the one visibility
+	-- decision rather than recomputing a two-valued answer to a three-valued question.
+	local hinting = steps.walkthrough == "hint" and canonicalStepCount(steps.result) > 0
+	local hintCue = hinting and (finalResultVisible(steps.result) and "ANSWER shown" or "TAB next hint")
 	if steps.view == "result" then
 		hint = "UP/DOWN scroll  ESC list"
 		count = "result"
-	elseif steps.walkthrough == "hint" and canonicalStepCount(steps.result) > 0 then
+	elseif hinting then
 		count = string.format("hint %d/%d", exposedStepCount(steps.result), canonicalStepCount(steps.result))
-		if finalResultVisible(steps.result) then
-			hint = steps.view == "step" and "ANSWER shown  U/D scroll  ESC list"
-			                               or "ANSWER shown  ENTER detail  ESC close"
-		else
-			hint = steps.view == "step" and "TAB next hint  U/D scroll  ESC list"
-			                               or "TAB next hint  ENTER detail  ESC close"
-		end
+		hint = steps.view == "step" and hintCue .. "  U/D scroll  ESC list"
+		                               or hintCue .. "  ENTER detail  ESC close"
 	else
 		hint = steps.view == "step" and "UP/DOWN scroll  L/R step  ESC list"
 		                               or "UP/DOWN select  L/R fold  ENTER details"
@@ -4470,7 +4469,7 @@ local function paintStepsFooter(gc, w, h, detail)
 		        or string.format("%d/%d", steps.focus, canonicalStepCount(steps.result))
 	end
 	if steps.view == "list" and steps.listOverflow then
-		hint = steps.walkthrough == "hint" and "ENTER details  TAB next hint" or "ENTER all work  UP/DOWN select"
+		hint = hinting and ("ENTER details  " .. hintCue) or "ENTER all work  UP/DOWN select"
 	end
 	if detail then count = count .. "  " .. detail end
 	local readerHint = "  T text"
