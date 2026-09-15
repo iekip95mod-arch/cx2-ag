@@ -7,7 +7,7 @@ context
   capability manifest: <current>
   problem family: physics.vectors.cartesian-addition.two-dimension
   envelope version: <not recorded>
-  normalized problem: vector_add(framed_vector(vector(1, 2, 3), 1, lab, dimension(1, 0, 0)), framed_vector(vector(4, -2, 5), 1, lab, dimension(1, 0, 0)))
+  normalized problem: vector_add(framed_vector(vector(1, 2, 3), 1, lab, dimension(1, 0, 0, 0)), framed_vector(vector(4, -2, 5), 1, lab, dimension(1, 0, 0, 0)))
   requested method: convert components to SI, add matching components, report once
   active assumption: first vector frame is lab
   active assumption: second vector frame is lab

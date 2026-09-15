@@ -41,6 +41,15 @@ std::string si_value(const std::string &text) {
     return rational_text(v) + " " + si_unit_text(q.unit.dimension);
 }
 
+// The dimension of a spelling, for asserting that its SI spelling parses back to the same thing.
+Dimension parse_dimension(const std::string &text) {
+    Unit u;
+    std::string why;
+    if (!parse_unit(text, &u, &why))
+        return Dimension();
+    return u.dimension;
+}
+
 std::string number(const std::string &text) {
     Rational r;
     if (!rational_from_text(text, &r))
@@ -1315,6 +1324,33 @@ void run_units_tests(TestSink &t) {
     t.equal(precision_text(counted.precision), "exact", "which is a count and limits nothing");
     t.equal(counted.frame.name, default_frame_name(),
             "an entered vector is in the problem's frame, never in no frame at all");
+
+    // PHYS-012 and PHYS-013's additional-units clause: charge, potential, resistance and
+    // capacitance are not expressible in length, mass and time alone.
+    t.equal(unit_dimension("A"), "I", "current is a base dimension of its own");
+    t.equal(unit_dimension("C"), "T I", "a coulomb is an ampere second");
+    t.equal(unit_dimension("V"), "L^2 M T^-3 I^-1", "a volt is energy per unit charge");
+    t.equal(unit_dimension("ohm"), "L^2 M T^-3 I^-2", "an ohm is volts per ampere");
+    t.equal(unit_dimension("W"), "L^2 M T^-3", "a watt is joules per second and carries no current");
+    t.equal(unit_dimension("F"), "L^-2 M^-1 T^4 I^2", "a farad is coulombs per volt");
+    t.equal(unit_dimension("V/A"), "L^2 M T^-3 I^-2",
+            "and the ohm agrees with the quotient it is defined as");
+    t.equal(unit_dimension("J/C"), "L^2 M T^-3 I^-1", "as the volt agrees with joules per coulomb");
+    t.equal(unit_dimension("V*A"), "L^2 M T^-3", "and the watt with volt amperes");
+    t.equal(unit_scale("kohm"), "1000", "the prefixed spellings scale to the SI unit exactly");
+    t.equal(unit_scale("mA"), "0.001", "including the ones below it");
+    t.equal(unit_scale("uC"), "0.000001", "and the microcoulomb a charge problem is written in");
+    t.equal(si_value("2.5 kohm"), "2500 kg m^2/(s^3 A^2)",
+            "a resistance converts to its SI unit and reports it");
+    t.equal(si_value("12 mV"), "0.012 kg m^2/(s^3 A)", "as a potential does");
+    // A division applies to the one factor after it, so a denominator of two factors has to be
+    // bracketed or the SI spelling reads back as multiplied by the second one.
+    t.equal(unit_dimension(si_unit_text(parse_dimension("ohm"))), "L^2 M T^-3 I^-2",
+            "and the SI spelling of an ohm parses back to the dimension it came from");
+    t.equal(unit_dimension(si_unit_text(parse_dimension("V"))), "L^2 M T^-3 I^-1",
+            "as the spelling of a volt does");
+    t.equal(unit_dimension(si_unit_text(parse_dimension("m/s^2"))), "L T^-2",
+            "while a single denominator factor stays unbracketed and still round-trips");
 }
 
 }  // namespace nps

@@ -26,9 +26,12 @@ NodeId rational_node(Arena &arena, const Rational &value) {
 }
 
 NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    return arena.call("dimension", {arena.integer(std::to_string(dimension.length)),
-                                    arena.integer(std::to_string(dimension.mass)),
-                                    arena.integer(std::to_string(dimension.time))});
+    int powers[kDimensionCount];
+    dimension_powers(dimension, powers);
+    std::vector<NodeId> exponents;
+    for (int power : powers)
+        exponents.push_back(arena.integer(std::to_string(power)));
+    return arena.call("dimension", exponents);
 }
 
 const char *angle_unit_name(AngleUnit unit) {

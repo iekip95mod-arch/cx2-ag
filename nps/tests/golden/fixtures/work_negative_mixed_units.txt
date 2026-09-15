@@ -8,7 +8,7 @@ context
   capability manifest: <current>
   problem family: physics.work.constant-force-dot-product
   envelope version: <not recorded>
-  normalized problem: work_problem(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0), 2), constant)
+  normalized problem: work_problem(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0, 0), 2), constant)
   requested method: validate constant-force applicability, convert component vectors to SI, evaluate the existing exact dot product, and report once
   active assumption: force profile is constant
   active assumption: force frame is lab
@@ -120,8 +120,8 @@ steps
       detail: Reach for this when a constant force acts over a straight displacement and the question asks for work or energy transferred. The dot product is what makes only the part of the force along the displacement count: a force at right angles to the motion does no work at all, which is why pushing sideways on a sliding box changes nothing. It needs the force to be constant, so a spring or any varying force is a different problem.
       proof obligation: obl.work.law-applied-after-checks, all applicability checks precede the work definition
       action: Apply the constant-force definition W = F dot d
-      before: work_problem(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0), 2), constant)
-      after: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0), 2)))
+      before: work_problem(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0, 0), 2), constant)
+      after: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0, 0), 2)))
       reversible: no
       verification: checked physical-law applicability, passed, the force profile, vector ranks, frames and quantity roles all passed
       verified: yes
@@ -134,8 +134,8 @@ steps
       detail: Reach for this whenever the force and the displacement are written in units that are not newtons and metres. Multiplying a force in kilonewtons by a distance in centimetres gives a number in neither joules nor anything else, so both go onto the SI scale first and the answer comes out in joules. The scale factors are exact, so nothing is lost here and nothing is rounded yet.
       proof obligation: obl.physics.converts-by-table, the SI form comes from the unit table's exact factor for the entered unit
       action: (2 i - 3 j) N and (-100 i + 400 j) cm become (2 i - 3 j) kg m/s^2 and (-1 i + 4 j) m
-      before: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0), 2)))
-      after: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-1, 4), 1, lab, dimension(1, 0, 0), 2)))
+      before: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-100, 400), (1 * (100^-1)), lab, dimension(1, 0, 0, 0), 2)))
+      after: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-1, 4), 1, lab, dimension(1, 0, 0, 0), 2)))
       reversible: yes
       verification: unit table, passed, both vector scales were applied exactly
       verified: yes
@@ -161,7 +161,7 @@ steps
       detail: Reach for this once the force and displacement are both in SI and the dot product is ready to be worked out. Multiply the two i components, multiply the two j components, and add the results: one number out of two vectors, which is what makes work a scalar with no direction of its own. A negative answer is meaningful rather than an error, and means the force opposed the motion, the way friction does.
       proof obligation: obl.work.dot-is-the-definition, the value written down is the component dot product the definition names
       action: vector_dot gives -14
-      before: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2), 2), framed_vector(vector(-1, 4), 1, lab, dimension(1, 0, 0), 2)))
+      before: (W = dot(framed_vector(vector(2, -3), 1, lab, dimension(1, 1, -2, 0), 2), framed_vector(vector(-1, 4), 1, lab, dimension(1, 0, 0, 0), 2)))
       after: (W = -14)
       reversible: yes
       verification: nps vector_dot, passed, -14
