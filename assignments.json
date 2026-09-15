@@ -1744,7 +1744,7 @@
       "pr": null,
       "branch": "claude/issue-346",
       "slug": "cx2-ag-claude-atlas",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-181",
@@ -1814,7 +1814,7 @@
       "pr": 357,
       "branch": "claude/issue-346",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-342",
@@ -1956,6 +1956,16 @@
       "pr": 375,
       "branch": "claude/issue-343",
       "slug": "cx2-ag-claude-review-echo",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-384",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 384,
+      "branch": "docs/device-map",
+      "slug": "cx2-ag-claude-review-delta",
       "released": false
     }
   ]
