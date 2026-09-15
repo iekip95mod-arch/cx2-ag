@@ -1473,6 +1473,57 @@ r = nps.work_local({
 check(r.outcome == "law not applicable" and r.result == nil,
       "the work bridge preserves a variable-force applicability refusal")
 
+local planar_kinematics_input = {
+    body_name = "ball",
+    initial_velocity = {
+        x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+        precision = exact_precision,
+    },
+    acceleration = {
+        x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "2 s",
+}
+script("-12")
+r = nps.planar_kinematics(planar_kinematics_input)
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the planar-kinematics bridge returns a verified typed solution")
+check(r.result == "(6 i - 12 j) m" and r.displacement.result == "(6 i - 12 j) m" and
+      r.displacement.exact_x == "6" and r.displacement.exact_y == "-12" and
+      r.displacement.unit == "m" and r.displacement.frame == "lab" and
+      r.displacement.stage == "interval",
+      "the planar-kinematics bridge returns the displacement in unit-vector form")
+check(r.final_velocity.result == "(3 i - 16 j) m/s" and r.final_velocity.exact_x == "3" and
+      r.final_velocity.exact_y == "-16" and r.final_velocity.stage == "state",
+      "the planar-kinematics bridge returns the final velocity as a terminal state")
+check(r.giac_calls == 1 and giac_calls > 0,
+      "the planar-kinematics bridge checks the shared-time identity with Giac")
+local planar_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then planar_rules[s.rule] = true end end
+check(planar_rules["physics.planar-kinematics.component-i"] and
+      planar_rules["physics.planar-kinematics.component-j"] and
+      planar_rules["physics.planar-kinematics.check-shared-time"],
+      "the planar-kinematics bridge retains both axis and shared-time provenance")
+
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = {
+        x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "3 s",
+    projectile = true,
+})
+check(r.outcome == "not a projectile" and r.result == nil,
+      "the planar-kinematics bridge preserves the projectile precondition refusal")
+
+r = nps.planar_kinematics({})
+check(r.outcome == "invalid problem" and r.detail:find("body_name", 1, true) ~= nil and
+      #r.steps == 0,
+      "the planar-kinematics bridge returns a structured missing-field refusal")
+
 forces_input = {
     body = "block",
     support = "table",
@@ -2188,7 +2239,7 @@ check(collectgarbage("count") - before <= 4096, "the collector runs after a pars
 do
     local table_arguments = {
         "catch_up", "relative_motion", "relative_motion_local", "work", "work_local",
-        "magnitude_angle_to_components", "components_to_magnitude_angle",
+        "planar_kinematics", "magnitude_angle_to_components", "components_to_magnitude_angle",
     }
     for _, name in ipairs(table_arguments) do
         local running = nil

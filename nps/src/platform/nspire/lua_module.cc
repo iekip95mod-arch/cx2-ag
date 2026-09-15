@@ -42,6 +42,7 @@
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/optics.h"
+#include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -3435,6 +3436,123 @@ bool optional_boolean(lua_State *L, int table_index, const char *key, bool *valu
     return true;
 }
 
+bool motion_stage_field(lua_State *L, int table_index, const char *key, MotionStage *value,
+                        std::string *why) {
+    std::string name = motion_stage_name(*value);
+    if (!optional_name(L, table_index, key, &name, why))
+        return false;
+    if (name == "event")
+        *value = MotionStage::Event;
+    else if (name == "state")
+        *value = MotionStage::State;
+    else if (name == "interval")
+        *value = MotionStage::Interval;
+    else {
+        *why = std::string(key) + " must be event, state or interval";
+        return false;
+    }
+    return true;
+}
+
+void set_planar_vector(lua_State *L, const char *key, const Vector &vector,
+                       const std::string &text, MotionStage stage) {
+    lua_pushstring(L, key);
+    lua_newtable(L);
+    set_field(L, "result", text);
+    set_field(L, "exact_x", rational_text(vector.x));
+    set_field(L, "exact_y", rational_text(vector.y));
+    set_field(L, "unit", vector.unit.text);
+    set_field(L, "frame", vector.frame.name);
+    set_field(L, "rank", static_cast<int>(vector.rank));
+    set_field(L, "stage", motion_stage_name(stage));
+    set_precision(L, vector.precision);
+    lua_settable(L, -3);
+}
+
+int l_planar_kinematics(lua_State *L) {
+    if (lua_type(L, 1) != LUA_TTABLE) {
+        return typed_failure(L, "invalid problem", "invalid input",
+                             "planar kinematics input must be a table");
+    }
+
+    PlanarKinematicsProblem problem;
+    std::string why;
+    if (!string_field(L, 1, "body_name", &problem.body_name, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!field_value(L, 1, "initial_velocity", &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!vector_table(L, -1, &problem.initial_velocity, &why)) {
+        lua_pop(L, 1);
+        return typed_failure(L, "invalid problem", "invalid input", "initial_velocity: " + why);
+    }
+    lua_pop(L, 1);
+    if (!field_value(L, 1, "acceleration", &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (!vector_table(L, -1, &problem.acceleration, &why)) {
+        lua_pop(L, 1);
+        return typed_failure(L, "invalid problem", "invalid input", "acceleration: " + why);
+    }
+    lua_pop(L, 1);
+    if (!quantity_field(L, 1, "elapsed_time", &problem.elapsed_time, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    if (!motion_stage_field(L, 1, "initial_velocity_stage", &problem.initial_velocity_stage,
+                            &why) ||
+        !motion_stage_field(L, 1, "acceleration_stage", &problem.acceleration_stage, &why) ||
+        !motion_stage_field(L, 1, "elapsed_time_stage", &problem.elapsed_time_stage, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    std::string axes = planar_axes_name(problem.axes);
+    if (!optional_name(L, 1, "axes", &axes, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+    if (axes == "right-up")
+        problem.axes = PlanarAxes::RightUp;
+    else
+        return typed_failure(L, "invalid problem", "invalid input", "axes must be right-up");
+
+    if (!optional_boolean(L, 1, "projectile", &problem.projectile, &why))
+        return typed_failure(L, "invalid problem", "invalid input", why);
+
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    const Budget budget = interactive_budget();
+    PlanarKinematicsResult result;
+    if (GiacBackend::available(L)) {
+        GiacBackend backend(L);
+        result = solve_planar_kinematics(arena, derivation, problem, budget, &backend);
+    } else {
+        result = solve_planar_kinematics(arena, derivation, problem, budget, nullptr);
+    }
+
+    lua_newtable(L);
+    set_field(L, "outcome", planar_kinematics_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == PlanarKinematicsOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    if (result.has_value) {
+        set_field(L, "result", result.displacement_text);
+        set_field(L, "value", result.displacement_text);
+        set_field(L, "interpretation", result.interpretation);
+        set_planar_vector(L, "displacement", result.displacement, result.displacement_text,
+                          result.displacement_stage);
+        set_planar_vector(L, "final_velocity", result.final_velocity, result.final_velocity_text,
+                          result.final_velocity_stage);
+        set_precision(L, result.displacement.precision);
+    }
+    if (result.equation != kNoNode)
+        set_field(L, "equation", print(arena, result.equation));
+    if (result.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, result.substituted));
+    const std::string assumptions = joined(derivation.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    push_steps(L, arena, derivation);
+    return 1;
+}
+
 void set_force_entry(lua_State *L, int index, const ForceEntry &entry) {
     lua_pushinteger(L, static_cast<lua_Integer>(index));
     lua_newtable(L);
@@ -3750,6 +3868,7 @@ const luaL_Reg lib[] = {
     {"forces", l_forces},
     {"work", l_work},
     {"work_local", l_work_local},
+    {"planar_kinematics", l_planar_kinematics},
     {"magnitude_angle_to_components", l_magnitude_angle_to_components},
     {"components_to_magnitude_angle", l_components_to_magnitude_angle},
 #if NPS_GIAC
