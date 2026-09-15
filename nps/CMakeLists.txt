@@ -81,6 +81,9 @@ set(CORE_SOURCES
     src/physics/vector_addition.cc
     src/physics/vector_components.cc
     src/physics/forces.cc
+    src/physics/relation.cc
+    src/physics/gravitation.cc
+    src/physics/oscillation.cc
     src/physics/work.cc
     src/units/units.cc
     src/platform/nspire/device_identity.cc
@@ -113,6 +116,8 @@ set(TEST_SOURCES
     tests/unit/units_tests.cc
     tests/unit/catch_up_tests.cc
     tests/unit/density_tests.cc
+    tests/unit/gravitation_tests.cc
+    tests/unit/oscillation_tests.cc
     tests/unit/kinematics_tests.cc
     tests/unit/planar_kinematics_tests.cc
     tests/unit/relative_motion_tests.cc
