@@ -590,7 +590,7 @@ test_group_ids kinematics, units
 # solve nests it and the record carries what it raised.
 proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold
 supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear solver
-unsupported_near_neighbors two bodies at equal position, projectile motion in two dimensions, forces, energy
+unsupported_near_neighbors two bodies at equal position, forces, energy
 solution_soundness_status verified, dimensions checked and the answer substituted back by the linear solver
 solution_completeness_status partial, one body and one axis
 corpus_case_ids the golden fixtures naming this family
