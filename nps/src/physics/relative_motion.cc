@@ -134,6 +134,50 @@ bool needs_conversion(const Vector &vector) {
     return !normalized(vector.unit.scale, &scale) || scale.num != 1 || scale.den != 1;
 }
 
+// units.cc's to_si(Vector) refuses rank one, since every other Vector consumer is rank two or
+// three. A one-dimensional relative-velocity vector only has its x component active, so this
+// converts that single component the same way to_si does and leaves y and z at zero, without
+// touching the shared Vector conversion that every rank-two and rank-three caller still uses.
+bool to_si_relative(const Vector &v, Vector *out) {
+    if (v.rank != 1)
+        return to_si(v, out);
+    Rational converted_x;
+    if (!rational_mul(v.x, v.unit.scale, &converted_x))
+        return false;
+    Vector converted = v;
+    converted.x = converted_x;
+    converted.y = Rational();
+    converted.z = Rational();
+    converted.unit.text = si_unit_text(v.unit.dimension);
+    converted.unit.scale = Rational{1, 1};
+    if (!rational_equal(v.unit.scale, Rational{1, 1})) {
+        converted.precision =
+            precision_product(converted_x, v.x, v.precision, v.unit.scale, Precision());
+    }
+    *out = std::move(converted);
+    return true;
+}
+
+// units.cc's vector_sub converts its inputs to SI itself, and that inner conversion refuses rank
+// one the same way the outer one does, so a rank-one difference has to be taken directly on the
+// single active component instead. By the time this runs, frames, dimensions and rank already
+// matched and both inputs are already SI, so what is left is the one subtraction and its combined
+// precision, the same as vector_sub records for each axis.
+bool vector_sub_relative(const Vector &a, const Vector &b, Vector *out, std::string *error) {
+    if (a.rank != 1)
+        return vector_sub(a, b, out, error);
+    Vector difference = a;
+    if (!rational_sub(a.x, b.x, &difference.x)) {
+        *error = "a component difference does not fit an exact fraction";
+        return false;
+    }
+    difference.y = Rational();
+    difference.z = Rational();
+    difference.precision = precision_sum(difference.x, a.precision, b.precision);
+    *out = std::move(difference);
+    return true;
+}
+
 VerificationRecord verification(const char *method, const std::string &detail,
                                 EvidenceStrength passing, VerificationOutcome outcome) {
     VerificationRecord record;
@@ -321,7 +365,7 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
     plan_step.claim = ClaimType::NoClaim;
     register_strategy_precondition(
         plan, plan_step, "pre.relative-motion.rank-two",
-        "both inputs share a supported rank, one or two", "rank comparison",
+        "both inputs are two-dimensional velocities", "rank comparison",
         EvidenceStrength::StructurallyValid, VerificationOutcome::NotAttempted,
         "checked before subtracting components");
     register_strategy_precondition(
@@ -356,12 +400,13 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
                               std::to_string(problem.reference_velocity.rank);
     if (!add_check(derivation, meter, plan_id, "physics.relative-motion.check-rank",
                    "Relative-motion vector rank", "Check both velocity ranks",
-                   "This family resolves motion along one axis or in one Cartesian plane",
-                   "obl.relative-motion.rank-two", "both velocity vectors share rank one or rank two",
+                   "This family resolves motion in one Cartesian plane",
+                   "obl.relative-motion.rank-two", "both velocity vectors have rank two",
                    "rank comparison", ranks, EvidenceStrength::StructurallyValid,
                    rank_ok ? VerificationOutcome::Passed : VerificationOutcome::Failed,
-                   "both velocities are one-dimensional or both are two-dimensional",
-                   "matching rank of 1 or 2", ranks)) {
+                   "both velocities are two-dimensional",
+                   problem.subject_velocity.rank == 1 ? "rank 1 and rank 1" : "rank 2 and rank 2",
+                   ranks)) {
         return RelativeMotionResult();
     }
     derivation.complete_plan_precondition(
@@ -473,8 +518,8 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
 
     Vector subject_si;
     Vector reference_si;
-    if (!to_si(problem.subject_velocity, &subject_si) ||
-        !to_si(problem.reference_velocity, &reference_si)) {
+    if (!to_si_relative(problem.subject_velocity, &subject_si) ||
+        !to_si_relative(problem.reference_velocity, &reference_si)) {
         return failed(RelativeMotionOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached,
                       "a velocity component does not fit exact arithmetic after SI conversion");
@@ -507,7 +552,7 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
 
     Vector relative;
     std::string subtraction_error;
-    if (!vector_sub(subject_si, reference_si, &relative, &subtraction_error)) {
+    if (!vector_sub_relative(subject_si, reference_si, &relative, &subtraction_error)) {
         return failed(RelativeMotionOutcome::ArithmeticOverflow,
                       DerivationStatus::ResourceLimitReached, subtraction_error);
     }
