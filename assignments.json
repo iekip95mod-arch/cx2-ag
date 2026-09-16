@@ -2096,7 +2096,7 @@
       "pr": null,
       "branch": "claude/issue-379",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-396",
@@ -2116,7 +2116,7 @@
       "pr": 399,
       "branch": "claude/issue-379",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-380",
@@ -2136,7 +2136,7 @@
       "pr": 401,
       "branch": "fix/ti-info-content",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-380",
@@ -2226,6 +2226,16 @@
       "pr": 406,
       "branch": "fix/reclaim-landed-leases",
       "slug": "cx2-ag-claude-review-echo",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-376",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 376,
+      "pr": 408,
+      "branch": "claude/issue-376",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
