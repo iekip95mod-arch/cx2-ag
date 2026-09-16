@@ -4,9 +4,12 @@
 #include <vector>
 
 #include "nps/core/context.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
+
+using measure::dimension_node;
 
 NodeId rational_node(Arena &arena, const Rational &value) {
     if (value.den == 1)
@@ -26,14 +29,10 @@ NodeId vector_node(Arena &arena, const Vector &value) {
 }
 
 NodeId vector_model_node(Arena &arena, const Vector &value) {
-    int powers[kDimensionCount];
-    dimension_powers(value.unit.dimension, powers);
-    std::vector<NodeId> exponents;
-    for (int power : powers)
-        exponents.push_back(arena.integer(integer_text(power)));
-    NodeId dimension = arena.call("dimension", exponents);
-    return arena.call("framed_vector", {vector_node(arena, value), rational_node(arena, value.unit.scale),
-                                         arena.symbol(value.frame.name), dimension});
+    return arena.call("framed_vector",
+                      {vector_node(arena, value), rational_node(arena, value.unit.scale),
+                       arena.symbol(value.frame.name),
+                       dimension_node(arena, value.unit.dimension)});
 }
 
 VerificationRecord verification(const std::string &method, const std::string &detail,

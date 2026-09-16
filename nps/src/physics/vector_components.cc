@@ -5,9 +5,12 @@
 
 #include "nps/core/context.h"
 #include "nps/core/evaluate.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
+
+using measure::dimension_node;
 
 enum class ConversionDirection : uint8_t {
     ToComponents,
@@ -23,15 +26,6 @@ NodeId rational_node(Arena &arena, const Rational &value) {
     return arena.binary(Kind::Mul, arena.integer(std::to_string(normalized.num)),
                         arena.binary(Kind::Pow, arena.integer(std::to_string(normalized.den)),
                                      arena.integer("-1")));
-}
-
-NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    int powers[kDimensionCount];
-    dimension_powers(dimension, powers);
-    std::vector<NodeId> exponents;
-    for (int power : powers)
-        exponents.push_back(arena.integer(std::to_string(power)));
-    return arena.call("dimension", exponents);
 }
 
 const char *angle_unit_name(AngleUnit unit) {

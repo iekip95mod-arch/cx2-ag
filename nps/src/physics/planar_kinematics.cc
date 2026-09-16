@@ -12,6 +12,8 @@
 namespace nps {
 namespace {
 
+using measure::dimension_node;
+
 Dimension velocity_dimension() {
     Dimension dimension;
     dimension.length = 1;
@@ -96,15 +98,6 @@ NodeId rational_node(Arena &arena, const Rational &source) {
     const NodeId denominator = arena.integer(integer_text(value.den));
     return arena.binary(Kind::Mul, numerator,
                         arena.binary(Kind::Pow, denominator, arena.integer("-1")));
-}
-
-NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    int powers[kDimensionCount];
-    dimension_powers(dimension, powers);
-    std::vector<NodeId> exponents;
-    for (int power : powers)
-        exponents.push_back(arena.integer(integer_text(power)));
-    return arena.call("dimension", exponents);
 }
 
 NodeId vector_node(Arena &arena, const Vector &vector) {

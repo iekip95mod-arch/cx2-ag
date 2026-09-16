@@ -6,9 +6,12 @@
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
+
+using measure::dimension_node;
 
 Dimension force_dimension() {
     Dimension dimension;
@@ -98,15 +101,6 @@ NodeId rational_node(Arena &arena, const Rational &source) {
     const NodeId reciprocal =
         arena.binary(Kind::Pow, denominator, arena.integer("-1"));
     return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
-NodeId dimension_node(Arena &arena, const Dimension &dimension) {
-    int powers[kDimensionCount];
-    dimension_powers(dimension, powers);
-    std::vector<NodeId> exponents;
-    for (int power : powers)
-        exponents.push_back(arena.integer(integer_text(power)));
-    return arena.call("dimension", exponents);
 }
 
 NodeId vector_node(Arena &arena, const Vector &vector) {

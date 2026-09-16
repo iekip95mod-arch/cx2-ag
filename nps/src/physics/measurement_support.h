@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "nps/core/ast.h"
 #include "nps/core/budgets.h"
@@ -83,6 +84,16 @@ inline NodeId rational_node(Arena &arena, const Rational &rational) {
     NodeId denominator = arena.integer(integer_text(rational.den));
     NodeId reciprocal = arena.binary(Kind::Pow, denominator, arena.integer("-1"));
     return arena.binary(Kind::Mul, numerator, reciprocal);
+}
+
+// dimension_powers owns the count, so a new base dimension is still one edit rather than nine.
+inline NodeId dimension_node(Arena &arena, const Dimension &dimension) {
+    int powers[kDimensionCount];
+    dimension_powers(dimension, powers);
+    std::vector<NodeId> exponents;
+    for (int power : powers)
+        exponents.push_back(arena.integer(integer_text(power)));
+    return arena.call("dimension", exponents);
 }
 
 inline bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
