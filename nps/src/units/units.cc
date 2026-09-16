@@ -255,6 +255,15 @@ struct UnitScanner {
             *error = "a unit ends with nothing after its last operator";
             return false;
         }
+        // si_unit_text puts a one above the line when no exponent is positive, so the parser reads
+        // that back as the dimensionless factor it means rather than refusing its own spelling.
+        if (text[at] == '1') {
+            ++at;
+            *dimension = Dimension();
+            scale->num = 1;
+            scale->den = 1;
+            return exponent(power);
+        }
         if (!is_letter(text[at])) {
             *error = std::string("unexpected character in a unit: ") + text[at];
             return false;
