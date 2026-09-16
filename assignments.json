@@ -2447,6 +2447,16 @@
       "branch": "claude/issue-137",
       "slug": "cx2-ag-claude-ember",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-419",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 419,
+      "pr": 441,
+      "branch": "claude/issue-419",
+      "slug": "cx2-ag-claude-review-anchor",
+      "released": false
     }
   ]
 }
