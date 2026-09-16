@@ -381,6 +381,45 @@ test('a landed branch frees its slot even with the issue open and the branch sti
   assert.equal(github.assignments.filter(assignment => assignment.issue === 5 && !assignment.released).length, 1);
 });
 
+// Reclaiming a spent lease must not hand the issue's own leftovers the power to refuse it. `settled`
+// is a snapshot and it reverts: a closed pull request reopens, or the lane opens its next draft on the
+// same branch, and by then the lease is already gone. If the previous holder counted as a rival, the
+// issue would be locked out of every identity including the one that made those leftovers.
+test('an issue is not locked out by the branch and PR its own previous lease left behind', async () => {
+  const github = fixture();
+  github.pull(87, 20, 'claude');
+  const first = await allocateIdentity({ repository, provider: 'claude', role: 'executor', pr: 87 }, github.api, roster);
+  github.branches.add('claude/issue-20');
+  github.pull(87, 20, 'claude').state = 'closed';
+  // Another issue allocating sweeps the spent lease and takes the freed name for itself.
+  const other = await allocateIdentity(options(99, 'claude'), github.api, roster);
+  assert.equal(other.login, first.login);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, true);
+  // The lane was never dead. It opens its next draft on the same branch, so the branch stops being
+  // settled while the lease it used to hold is already gone.
+  github.pull(88, 20, 'claude');
+  const resumed = await allocateIdentity(options(20, 'claude'), github.api, roster);
+  assert.notEqual(resumed.login, first.login);
+  assert.equal(github.assignments.filter(assignment => assignment.issue === 20 && !assignment.released).length, 1);
+});
+
+// Only an executor lease is reclaimed on a landed branch. A reviewer lease is keyed to its pull request
+// rather than to the branch, and `closed()` already decides it, so reclaiming one on branch state would
+// free a reviewer that is still mid-review.
+test('a reviewer lease survives a landed branch that would reclaim an executor', async () => {
+  const github = fixture();
+  const reviewer = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);
+  const worker = await allocateIdentity(options(20, 'claude'), github.api, roster);
+  // One closed pull request on the shared branch. That settles the branch, and the issue stays open, so
+  // the executor lease is spent and the reviewer lease is not: `closed()` decides a reviewer by its own
+  // pull request rather than by what else has landed on the branch it happens to be watching.
+  github.pull(87, 20, 'claude').state = 'closed';
+  assert.equal(github.ticket(20).state, 'open');
+  await allocateIdentity(options(99, 'claude'), github.api, roster);
+  assert.equal(github.assignments.find(assignment => assignment.slug === worker.slug).released, true);
+  assert.equal(github.assignments.find(assignment => assignment.slug === reviewer.slug).released, false);
+});
+
 test('a merged linked PR releases the identity after its issue closes', async () => {
   const github = fixture();
   const first = await allocateIdentity(options(20), github.api, roster);
