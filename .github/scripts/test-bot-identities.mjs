@@ -46,6 +46,31 @@ test('reviewer provider lookup uses only this PR active lease and rejects ambigu
   assert.equal(await assignedReviewProvider({ ...target, branch: 'codex/issue-42' }, f.api, roster), 'codex');
 });
 
+// The reviewer key is the branch, so a second pull request there is meant to keep the same bot. The
+// record kept naming the first one, and reviewerMatches makes that mismatch fatal, so the reviewer
+// the allocator had just handed out was refused by the job it was handed to.
+test('a reviewer lease reused for the next PR on its branch names that PR', async () => {
+  const github = fixture();
+  const first = github.pull(301, 55, 'claude');
+  const before = await allocateIdentity({ repository, provider: 'claude', role: 'reviewer', pr: 301 }, github.api, roster);
+  first.state = 'closed';
+  github.pull(302, 55, 'claude');
+  const after = await allocateIdentity({ repository, provider: 'claude', role: 'reviewer', pr: 302 }, github.api, roster);
+  assert.equal(after.login, before.login, 'the branch keeps its reviewer across the two pull requests');
+  assert.deepEqual(github.assignments.filter(assignment => !assignment.released).map(assignment => assignment.pr), [302]);
+  await selectReviewProvider({ repository, pr: 302, branch: 'claude/issue-55', login: after.login }, github.api, roster);
+  assert.equal(await assignedReviewProvider({ repository, pr: 302, branch: 'claude/issue-55' }, github.api, roster), 'claude');
+});
+
+test('a reviewer lease is not taken from a pull request that is still open', async () => {
+  const github = fixture();
+  github.pull(311, 56, 'claude');
+  await allocateIdentity({ repository, provider: 'claude', role: 'reviewer', pr: 311 }, github.api, roster);
+  github.pull(312, 56, 'claude');
+  await assert.rejects(allocateIdentity({ repository, provider: 'claude', role: 'reviewer', pr: 312 }, github.api, roster), /still serves an open pull request/);
+  assert.deepEqual(github.assignments.filter(assignment => !assignment.released).map(assignment => assignment.pr), [311]);
+});
+
 function fixture() {
   const tickets = new Map();
   const pulls = new Map();

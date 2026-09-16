@@ -291,6 +291,18 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
     const existing = state.assignments.find(assignment => assignment.key === target.key && !assignment.released);
     if (existing) {
       if (existing.branch !== target.branch) throw Error('This issue already has a different assigned branch');
+      // The key is the branch, so the next pull request on it keeps this bot, but reviewerMatches
+      // wants the record to name the pull request it is serving rather than the one before it.
+      if (existing.pr && target.pr && existing.pr !== target.pr) {
+        if (!await closed(options.repository, existing, api)) throw Error('The lease still serves an open pull request');
+        existing.pr = target.pr;
+        try {
+          await writeAssignments(options.repository, state, 'Point the lease at its current pull request', api);
+        } catch (error) {
+          if ([409, 422].includes(error.status)) continue;
+          throw error;
+        }
+      }
       const identity = findIdentity(roster, `${existing.slug}[bot]`, target.provider, target.role);
       await verifyIdentity(identity, api);
       await verifyOwnership(options.repository, target, identity, options.legacyOwner, api, true);
