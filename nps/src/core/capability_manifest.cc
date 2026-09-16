@@ -42,6 +42,7 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "physics.kinematics.relative-motion.components.two-dimension"},
     {"solver", "physics.density.mass-volume"},
     {"solver", "physics.vectors.cartesian-addition.two-dimension"},
+    {"solver", "physics.vectors.cartesian-cross-product.three-dimension"},
     {"solver", "physics.vectors.magnitude-components.two-dimension"},
     {"solver", "physics.forces.newton-second-law"},
     {"solver", "physics.work.constant-force-dot-product"},

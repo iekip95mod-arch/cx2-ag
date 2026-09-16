@@ -48,6 +48,7 @@
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
+#include "nps/physics/vector_cross.h"
 #include "nps/physics/forces.h"
 #include "nps/physics/work.h"
 #include "nps/platform/nspire/device_identity.h"
@@ -3240,6 +3241,40 @@ int l_vector_addition(lua_State *L) {
     return 1;
 }
 
+int l_vector_cross(lua_State *L) {
+    const char *first_text = scalar_string_argument(L, 1);
+    const char *second_text = scalar_string_argument(L, 2);
+    GcPause paused(L);
+
+    VectorCrossProblem problem;
+    std::string why;
+    if (!parse_vector(first_text, &problem.first, &why) ||
+        !parse_vector(second_text, &problem.second, &why))
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const VectorCrossResult r = solve_vector_cross(arena, d, problem, interactive_budget());
+
+    lua_newtable(L);
+    set_field(L, "outcome", vector_cross_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == VectorCrossOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    if (r.has_value) {
+        set_field(L, "result", r.value_text);
+        set_field(L, "value", r.value_text);
+        set_precision(L, r.value.precision);
+    }
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
 constexpr char kRelativeMotionGiacMethod[] = "Giac Simplify and local canonical comparison";
 
 int relative_motion_into(lua_State *L, bool cross) {
@@ -3995,6 +4030,7 @@ const luaL_Reg lib[] = {
     {"density", l_density},
     {"optics", l_optics},
     {"vector_addition", l_vector_addition},
+    {"vector_cross", l_vector_cross},
     {"relative_motion", l_relative_motion},
     {"relative_motion_local", l_relative_motion_local},
     {"forces", l_forces},
