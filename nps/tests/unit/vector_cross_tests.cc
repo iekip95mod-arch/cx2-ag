@@ -64,12 +64,21 @@ void run_vector_cross_tests(TestSink &t) {
                 "the derivation checks orthogonality to the second operand");
         t.check(has_rule(derivation, "vec.cross.check-anticommutative"),
                 "the derivation checks anticommutativity");
-        t.evidence("PHYS-361", result.has_value && has_rule(derivation, "vec.cross.plan") &&
+        t.evidence("PHYS-025", result.has_value && has_rule(derivation, "vec.cross.plan") &&
+                   has_rule(derivation, "vec.cross.check-frame") &&
+                   has_rule(derivation, "vec.cross.check-rank") &&
+                   has_rule(derivation, "vec.cross.check-dimension") &&
                    has_rule(derivation, "vec.cross.check-orthogonal-first") &&
                    has_rule(derivation, "vec.cross.check-orthogonal-second") &&
-                   has_rule(derivation, "vec.cross.check-anticommutative"),
-                   "the cross product family exists, converts to SI, expands the determinant and "
-                   "verifies orthogonality and anticommutativity");
+                   has_rule(derivation, "vec.cross.check-anticommutative") &&
+                   result.value.frame.name == default_frame_name(),
+                   "the cross product exposes its coordinate frame, model preconditions, "
+                   "determinant expansion and orthogonality and anticommutativity checks");
+        t.evidence("ALG-011", result.has_value && has_rule(derivation, "vec.cross.component-i") &&
+                   has_rule(derivation, "vec.cross.component-j") &&
+                   has_rule(derivation, "vec.cross.component-k"),
+                   "three-dimensional vectors entered in unit-vector form cross component by "
+                   "component");
     }
 
     {

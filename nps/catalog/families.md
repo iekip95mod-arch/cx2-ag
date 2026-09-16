@@ -371,7 +371,7 @@ supported_methods exact SI conversion followed by determinant expansion into thr
 unsupported_near_neighbors cross product of vectors whose rank is not three, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
 solution_soundness_status verified by rank, frame, dimension-product, exact conversion, exact rational determinant expansion, exact orthogonality and exact anticommutativity records
 solution_completeness_status complete for three-dimensional Cartesian cross products within exact int64 rational bounds; the typed C++ engine only, with no Lua bridge or menu entry yet
-corpus_case_ids none yet
+corpus_case_ids vector_cross_torque_mixed_units
 device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet built for the device target

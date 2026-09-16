@@ -198,8 +198,9 @@ VectorCrossResult solve_vector_cross(Arena &arena, Derivation &derivation,
         VerificationOutcome::NotAttempted, "checked before crossing components");
     register_strategy_precondition(
         plan, plan_step, "pre.vector-cross.dimension-product",
-        "the product of the two vectors' dimensions fits the dimension table", "dimension product",
-        EvidenceStrength::DimensionallyValid, VerificationOutcome::NotAttempted,
+        "the product of the two vectors' dimensions fits the dimension table",
+        "dimensional multiplication", EvidenceStrength::DimensionallyValid,
+        VerificationOutcome::NotAttempted,
         "checked before crossing components");
     if (!meter.step())
         return halted_result(arena, derivation, mark, meter, budget, model, problem);
@@ -265,7 +266,7 @@ VectorCrossResult solve_vector_cross(Arena &arena, Derivation &derivation,
                               "giving a torque",
                               "obl.vector-cross.dimension-product",
                               "the product of the two operand dimensions fits the dimension table",
-                              "dimension product", dimension_observed,
+                              "dimensional multiplication", dimension_observed,
                               EvidenceStrength::DimensionallyValid, dimension_ok),
                    "the product dimension fits", "a representable product dimension",
                    dimension_observed))
