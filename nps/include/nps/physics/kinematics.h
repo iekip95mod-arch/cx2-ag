@@ -78,6 +78,48 @@ KinematicsResult solve_kinematics(Arena &arena, Derivation &derivation,
                                   const KinematicsProblem &problem,
                                   const Budget &budget = Budget(), Backend *giac = nullptr);
 
+// A named one-dimensional problem, one half of a coupled pair.
+struct CoupledKinematicsBody {
+    std::string name;
+    KinematicsProblem problem;
+};
+
+// Two bodies over one shared interval, where the first body's solved unknown is the quantity the
+// second body's problem is missing. coupled_known is the symbol in second.problem that the first
+// body's answer fills; it is not among second.problem.knowns because solving it is the join.
+struct CoupledKinematicsProblem {
+    CoupledKinematicsBody first;
+    CoupledKinematicsBody second;
+    std::string coupled_known;
+};
+
+enum class CoupledKinematicsOutcome : uint8_t {
+    Solved,
+    FirstUnsolved,
+    SecondUnsolved,
+    InvalidInput,
+    Cancelled,
+    ResourceExceeded,
+};
+
+const char *coupled_kinematics_outcome_name(CoupledKinematicsOutcome outcome);
+
+struct CoupledKinematicsResult {
+    CoupledKinematicsOutcome outcome = CoupledKinematicsOutcome::InvalidInput;
+    KinematicsResult first;
+    KinematicsResult second;
+    std::string detail;
+    Cost cost;
+};
+
+// Solves the first body, then declares its answer a known of the second body's problem with the
+// handover recorded as its own step naming both bodies, and solves the second body from there. The
+// two derivations share one Derivation, so a reader sees both routes plus the join between them.
+CoupledKinematicsResult solve_coupled_kinematics(Arena &arena, Derivation &derivation,
+                                                 const CoupledKinematicsProblem &problem,
+                                                 const Budget &budget = Budget(),
+                                                 Backend *giac = nullptr);
+
 }  // namespace nps
 
 #endif
