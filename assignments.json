@@ -2437,6 +2437,16 @@
       "branch": "claude/issue-426",
       "slug": "cx2-ag-claude-comet",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-137",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 137,
+      "pr": null,
+      "branch": "claude/issue-137",
+      "slug": "cx2-ag-claude-ember",
+      "released": false
     }
   ]
 }
