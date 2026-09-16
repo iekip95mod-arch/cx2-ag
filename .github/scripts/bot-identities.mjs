@@ -309,31 +309,35 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
       return { ...identity, ...target };
     }
     const released = await sweep(options.repository, state, api, roster);
-    if (target.role === 'executor' && state.assignments.some(assignment => !assignment.released && assignment.role === 'executor' && assignment.issue === target.issue)) throw Error('Another provider already has this issue');
-    const candidate = roster.find(identity => identity.provider === target.provider && identity.role === target.role && !state.assignments.some(assignment => !assignment.released && assignment.slug === identity.slug));
-    if (!candidate) {
-      if (released) await writeAssignments(options.repository, state, 'Release finished worker identities', api).catch(() => {});
-      throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
-    }
-    const identity = findIdentity(roster, candidate.login, target.provider, target.role);
-    await verifyIdentity(identity, api);
-    await verifyOwnership(options.repository, target, identity, options.legacyOwner, api, false,
-      state.assignments.filter(assignment => assignment.key === target.key && assignment.released));
-    state.assignments.push({ ...target, slug: identity.slug, released: false });
-    const branch = await api('GET', `repos/${options.repository}/git/ref/heads/${assignmentBranch}`, undefined, true);
-    if (!branch) {
-      const main = await api('GET', `repos/${options.repository}/git/ref/heads/main`);
-      try {
-        await api('POST', `repos/${options.repository}/git/refs`, { ref: `refs/heads/${assignmentBranch}`, sha: main.object.sha });
-      } catch (error) {
-        if (error.status !== 422 || !await api('GET', `repos/${options.repository}/git/ref/heads/${assignmentBranch}`, undefined, true)) throw error;
-      }
-    }
+    // A refusal keeps the sweep it already paid for, from a snapshot taken before the unmade reservation.
+    const swept = { sha: state.sha, assignments: [...state.assignments] };
     try {
-      await writeAssignments(options.repository, state, 'Reserve repository worker identity', api);
-      return { ...identity, ...target };
+      if (target.role === 'executor' && state.assignments.some(assignment => !assignment.released && assignment.role === 'executor' && assignment.issue === target.issue)) throw Error('Another provider already has this issue');
+      const candidate = roster.find(identity => identity.provider === target.provider && identity.role === target.role && !state.assignments.some(assignment => !assignment.released && assignment.slug === identity.slug));
+      if (!candidate) throw Object.assign(Error(`All ${roster.filter(identity => identity.provider === target.provider && identity.role === target.role).length} ${target.provider} ${target.role} bots are occupied`), { code: 'BOT_POOL_OCCUPIED' });
+      const identity = findIdentity(roster, candidate.login, target.provider, target.role);
+      await verifyIdentity(identity, api);
+      await verifyOwnership(options.repository, target, identity, options.legacyOwner, api, false,
+        state.assignments.filter(assignment => assignment.key === target.key && assignment.released));
+      state.assignments.push({ ...target, slug: identity.slug, released: false });
+      const branch = await api('GET', `repos/${options.repository}/git/ref/heads/${assignmentBranch}`, undefined, true);
+      if (!branch) {
+        const main = await api('GET', `repos/${options.repository}/git/ref/heads/main`);
+        try {
+          await api('POST', `repos/${options.repository}/git/refs`, { ref: `refs/heads/${assignmentBranch}`, sha: main.object.sha });
+        } catch (error) {
+          if (error.status !== 422 || !await api('GET', `repos/${options.repository}/git/ref/heads/${assignmentBranch}`, undefined, true)) throw error;
+        }
+      }
+      try {
+        await writeAssignments(options.repository, state, 'Reserve repository worker identity', api);
+        return { ...identity, ...target };
+      } catch (error) {
+        if (![409, 422].includes(error.status)) throw error;
+      }
     } catch (error) {
-      if (![409, 422].includes(error.status)) throw error;
+      if (released) await writeAssignments(options.repository, swept, 'Release finished worker identities', api).catch(() => {});
+      throw error;
     }
   }
   throw Error('Bot assignment contention exceeded eight attempts');
