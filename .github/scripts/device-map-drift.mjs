@@ -39,10 +39,35 @@ export function covers(entry, file) {
   return file.startsWith(entry.endsWith('/') ? entry : entry + '/');
 }
 
-export function drifted(changed, sections) {
+// The error below offers a body sentence instead of a map edit, and for a while it was the only part
+// of this file that did. The body is scanned for the marker rather than matched over the whole text,
+// the way pr-sequence.mjs reads its ordering line, and folded because an executor writes it by hand.
+export function declaredMapLines(body) {
+  const text = (body ?? '').toLowerCase();
+  const marker = 'device map:';
+  const lines = [];
+  for (let at = text.indexOf(marker); at >= 0; at = text.indexOf(marker, at + marker.length)) {
+    const start = at + marker.length;
+    const end = text.indexOf('\n', start);
+    const line = text.slice(start, end < 0 ? text.length : end).trim();
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
+// The heading has to come first on the line, so the reason can follow it and a line that merely
+// mentions the map clears nothing.
+export function declares(lines, heading) {
+  const folded = heading.toLowerCase();
+  return lines.some(line => line.startsWith(folded));
+}
+
+export function drifted(changed, sections, body) {
   if (changed.includes(MAP)) return [];
+  const declared = declaredMapLines(body);
   const found = [];
   for (const section of sections) {
+    if (declares(declared, section.heading)) continue;
     const hits = changed.filter(file => section.paths.some(entry => covers(entry, file)));
     if (hits.length) found.push({ heading: section.heading, files: hits.sort() });
   }
@@ -76,33 +101,49 @@ async function fromGitHub(repo, number, token) {
   }
 }
 
+// Asked rather than read out of the event payload, because an author who adds the sentence and
+// reruns the job has not pushed anything, so the payload that started it carries the old body.
+async function bodyFromGitHub(repo, number, token) {
+  const response = await fetch(`https://api.github.com/repos/${repo}/pulls/${number}`, {
+    headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' },
+  });
+  if (!response.ok) throw Error(`GitHub answered ${response.status} for the description of #${number}`);
+  return (await response.json()).body ?? '';
+}
+
 async function changedFiles() {
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
   const number = pullNumber(process.env.GITHUB_EVENT_PATH);
-  if (repo && token && number) return fromGitHub(repo, number, token);
+  if (repo && token && number) {
+    return {
+      changed: await fromGitHub(repo, number, token),
+      body: await bodyFromGitHub(repo, number, token),
+    };
+  }
   // Outside Actions, a development checkout does have the history, which is how this is run by hand.
+  // There is no description to read there, so a by-hand run reports the drift without the escape.
   const base = process.env.GITHUB_BASE_REF || (number ? null : 'main');
   if (!base) return null;
   const out = execFileSync('git', ['diff', '--name-only', `origin/${base}...HEAD`], { encoding: 'utf8' });
-  return out.split('\n').map(line => line.trim()).filter(Boolean);
+  return { changed: out.split('\n').map(line => line.trim()).filter(Boolean), body: '' };
 }
 
 async function main() {
-  const changed = await changedFiles();
-  if (changed === null) {
+  const pull = await changedFiles();
+  if (pull === null) {
     console.log('No pull request base in this event, so there is nothing to compare the map against.');
     return;
   }
   const sections = coverage(readFileSync(MAP, 'utf8'));
   if (sections.length === 0) throw Error(`${MAP} declares no covers lines, so this check sees nothing`);
-  const found = drifted(changed, sections);
+  const found = drifted(pull.changed, sections, pull.body);
   if (found.length === 0) {
     console.log(`device map: ${sections.length} sections, nothing this branch changed is described by one.`);
     return;
   }
   for (const section of found) {
-    console.log(`::error::This branch changes ${section.files.join(', ')}, which ${MAP} describes under "${section.heading}". Read that section and either update it or say in the pull request body why it is still true.`);
+    console.log(`::error::This branch changes ${section.files.join(', ')}, which ${MAP} describes under "${section.heading}". Read that section. Update it if the change made it wrong, or put a line saying Device map: ${section.heading} in the pull request body, followed by why it is still true.`);
   }
   process.exitCode = 1;
 }
