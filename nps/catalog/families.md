@@ -674,7 +674,7 @@ solution_soundness_status verified by rank, frame, stage and dimension checks, t
 solution_completeness_status partial, one body under constant acceleration with the horizontal axis unaccelerated
 corpus_case_ids not yet filed
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics, not reachable from the Ki V4 menu, see #382
+direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics, reachable from the Ki V4 menu's guided physics browser as of #382
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
 
