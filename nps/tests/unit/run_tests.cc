@@ -914,6 +914,8 @@ int main_body() {
     run_gravitation_tests(sink);
     sink.begin_group("oscillation");
     run_oscillation_tests(sink);
+    sink.begin_group("circular motion");
+    run_circular_motion_tests(sink);
     sink.begin_group("kinematics");
     run_kinematics_tests(sink);
     sink.begin_group("planar kinematics");
