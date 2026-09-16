@@ -610,7 +610,7 @@ local fake_catch_up = {
 local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
-    unit_conversion = 0, density = 0, vector_addition = 0, work = 0, components = 0,
+    unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, work = 0, components = 0,
     forces = 0, optics = 0,
     catch_up = 0, relative_motion = 0, planar_kinematics = 0,
     resource_profile_begin = 0, resource_profile_finish = 0,
@@ -663,6 +663,7 @@ local fake_manifest = {
         { kind = "solver", id = "physics.kinematics.catch-up.equal-position" },
         { kind = "solver", id = "physics.density.mass-volume" },
         { kind = "solver", id = "physics.vectors.cartesian-addition.two-dimension" },
+        { kind = "solver", id = "physics.vectors.cartesian-cross-product.three-dimension" },
         { kind = "solver", id = "physics.kinematics.relative-motion.components.two-dimension" },
         { kind = "solver", id = "physics.vectors.magnitude-components.two-dimension" },
         { kind = "solver", id = "physics.forces.newton-second-law" },
@@ -756,6 +757,23 @@ nps_split = {
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
         return fake_vector_addition
+    end,
+    -- Built here rather than as another upvalue, because the main chunk is at Lua's 200-local ceiling.
+    vector_cross = function(...)
+        calls.vector_cross = calls.vector_cross + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified",
+            result = "(0.0 i + 0.0 j + 3.0 k) N m", value = "(0.0 i + 0.0 j + 3.0 k) N m",
+            precision = { kind = "measured", significant_digits = 2 },
+            nodes = 22, step_count = 5, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Vector cross product", goal = "Cross two Cartesian vectors",
+                  short = "Expand the determinant", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
     end,
     relative_motion = function(...)
         calls.relative_motion = calls.relative_motion + 1
@@ -1119,7 +1137,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 23 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 24 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -1174,7 +1192,7 @@ check(fctEditor.editor.visible == false and fctEditor.editor.x == -10000,
 text = painted()
 check(text:find("Guided physics", 1, true) ~= nil and
       text:find("Change units when the unit is cubed", 1, true) ~= nil and
-      text:find("See what happens when units cannot match", 1, true) ~= nil,
+      text:find("Split a speed into sideways and up parts", 1, true) ~= nil,
       "the 320 by 240 browser exposes its first seven fixtures")
 check(paintedRun():find("How many cubic metres is 2.50 cubic centimetres?", 1, true) ~= nil,
       "the selected fixture explains its structured problem")
@@ -1237,10 +1255,24 @@ on.escapeKey()
 openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
+check(calls.vector_cross == 1 and steps.result.mode == "vector_cross",
+      "the fifth fixture runs the vector cross product through its native bridge")
+check(type(last_args[1]) == "string" and last_args[1]:find("k cm", 1, true) ~= nil and
+      type(last_args[2]) == "string" and last_args[2]:find("k N", 1, true) ~= nil,
+      "and hands it both rank-three operands, which is the rank the family needs")
+text = painted()
+answer_box = mathBoxShowing("3.0 ")
+check(answer_box ~= nil and answer_box.expr:find(") N m", 1, true) ~= nil,
+      "the turning effect renders as a vector carrying its own product unit")
+on.escapeKey()
+
+openPhysicsFixtures()
+on.arrowDown()
+on.enterKey()
 check(calls.work == 1 and steps.result.mode == "work" and
       type(last_args[1]) == "table" and last_args[1].force.frame == "lab" and
       last_args[1].force.precision.kind == "exact",
-      "the fifth fixture sends typed work vectors to the native bridge")
+      "the sixth fixture sends typed work vectors to the native bridge")
 text = painted()
 check(mathBoxShowing("-14 kg m^2/s^2") ~= nil and
       text:find("opposite", 1, true) ~= nil and text:find("displacement", 1, true) ~= nil,
@@ -1252,7 +1284,7 @@ on.arrowDown()
 on.enterKey()
 check(calls.components == 1 and steps.result.mode == "magnitude_angle_to_components" and
       type(last_args[1]) == "table" and last_args[1].angle_unit == "degrees",
-      "the sixth fixture sends typed magnitude and angle metadata to the native bridge")
+      "the seventh fixture sends typed magnitude and angle metadata to the native bridge")
 text = painted()
 answer_box = mathBoxShowing("5*√(3)")
 check(answer_box ~= nil and answer_box.expr:find(") m/s", 1, true) ~= nil,
@@ -1269,7 +1301,7 @@ openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
 check(calls.unit_conversion == 2 and steps.result.outcome == "dimension mismatch",
-      "the seventh fixture exercises a typed dimensional refusal")
+      "the eighth fixture exercises a typed dimensional refusal")
 text = painted()
 -- The verdict wraps when it is long, so the refusal's reason is read across the rows it took
 -- rather than on one of them.
@@ -1283,14 +1315,14 @@ on.arrowDown()
 text = painted()
 check(text:find("Find when a fast runner catches a slow one", 1, true) ~= nil and
       text:find("Change units when the unit is cubed", 1, true) == nil,
-      "the eighth fixture scrolls into the 320 by 240 browser")
+      "the ninth fixture scrolls into the 320 by 240 browser")
 check(paintedRun():find("Boreal starts 5 seconds later at 4 metres per second", 1, true) ~= nil,
       "the catch-up fixture explains its delayed-start event")
 local catch_up_history_before = #steps.histText
 on.enterKey()
 check(calls.catch_up == 1 and steps.result.mode == "catch_up" and
       type(last_args[1]) == "table",
-      "the eighth fixture calls the native catch-up bridge exactly once")
+      "the ninth fixture calls the native catch-up bridge exactly once")
 local catch_up_input = last_args[1]
 check(catch_up_input.first.name == "Atlas" and catch_up_input.second.name == "Boreal" and
       catch_up_input.first.frame == "track" and catch_up_input.second.frame == "track" and
@@ -1354,7 +1386,7 @@ local relative_history_before = #steps.histText
 on.enterKey()
 check(calls.relative_motion == 1 and steps.result.mode == "relative_motion" and
       type(last_args[1]) == "table",
-      "the ninth fixture calls the native relative-motion bridge exactly once")
+      "the tenth fixture calls the native relative-motion bridge exactly once")
 local relative_input = last_args[1]
 check(relative_input.subject_name == "drone" and relative_input.reference_name == "wind" and
       relative_input.subject_velocity.x == "36" and relative_input.subject_velocity.y == "-18" and
@@ -1393,7 +1425,7 @@ openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
 check(calls.forces == 1 and steps.result.mode == "forces" and type(last_args[1]) == "table",
-      "the tenth fixture calls the native force bridge exactly once")
+      "the eleventh fixture calls the native force bridge exactly once")
 forces_input = last_args[1]
 check(forces_input.body == "block" and forces_input.support == "table" and
       forces_input.mass == "2 kg" and forces_input.gravity == "10 m/s^2" and
