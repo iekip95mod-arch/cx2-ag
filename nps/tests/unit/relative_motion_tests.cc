@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -151,13 +152,35 @@ RelativeMotionIdentity identity(RelativeMotionUnknown unknown) {
 }
 
 struct IdentityRun {
-    explicit IdentityRun(const RelativeMotionIdentity &problem, const Budget &budget = Budget())
-        : arena(), result(solve_relative_motion_identity(arena, derivation, problem, budget)) {}
+    explicit IdentityRun(const RelativeMotionIdentity &problem, const Budget &budget = Budget(),
+                         Backend *backend = nullptr)
+        : arena(),
+          result(solve_relative_motion_identity(arena, derivation, problem, budget, backend)) {}
 
     Arena arena;
     Derivation derivation;
     RelativeMotionResult result;
 };
+
+// Every command the scripted backend was asked, so a test can read the formula the family built
+// rather than the number the script happened to reply with.
+std::string joined_commands(const std::vector<std::string> &commands) {
+    std::string joined;
+    for (size_t index = 0; index < commands.size(); ++index)
+        joined += commands[index] + " ;; ";
+    return joined;
+}
+
+// The answer key evaluated from the components the solver produced, so the reported bearing is
+// checked against the physics rather than against the scripted reply.
+double component_value(const Rational &value) {
+    return static_cast<double>(value.num) / static_cast<double>(value.den);
+}
+
+bool near_value(double got, double want, double tolerance) {
+    const double difference = got - want;
+    return (difference < 0 ? -difference : difference) <= tolerance;
+}
 
 bool exact_components(const Vector &value, int64_t xn, int64_t xd, int64_t yn, int64_t yd) {
     return value.x.num == xn && value.x.den == xd && value.y.num == yn && value.y.den == yd;
@@ -227,6 +250,126 @@ void run_relative_motion_tests(TestSink &t) {
         IdentityRun collided(repeated);
         t.equal(relative_motion_outcome_name(collided.result.outcome), "invalid problem",
                 "two frames sharing a name is refused rather than cancelled away");
+    }
+    {
+        // The worked problem end to end, with the backend scripted to echo the formulas it is
+        // handed so the checks read what the family built rather than what a reply invented.
+        SequenceBackend backend({"-95/2", "-349/18", "51.3047", "0", "51.3047",
+                                 "atan2(349/18,95/2)", "0", "atan2(349/18,95/2)*180/pi", "0",
+                                 "22.2"});
+        IdentityRun wind(identity(RelativeMotionUnknown::MediumRelativeToReference), Budget(),
+                         &backend);
+        t.equal(relative_motion_outcome_name(wind.result.outcome), "solved",
+                "the worked problem solves with a backend attached");
+        t.check(wind.result.bearing.has_bearing,
+                "and reports a bearing rather than an octant alone");
+        t.equal(relative_direction_name(wind.result.bearing.reference), "west",
+                "the nearest cardinal is the axis carrying the larger component");
+        t.equal(relative_direction_name(wind.result.bearing.sense), "south",
+                "and the angle turns from it toward the smaller component's cardinal");
+        t.check(wind.result.bearing.text.find("m/s at 22.2 degrees south of west") !=
+                    std::string::npos,
+                "the reported direction reads as a magnitude and an angle from that cardinal");
+        t.check(wind.result.bearing.convention.find(
+                    "measured from west turning toward south") != std::string::npos,
+                "the convention is written down rather than inferred from the number");
+        t.check(has_rule(wind.derivation, "physics.relative-motion.bearing-convention"),
+                "and the derivation carries the convention as its own check");
+        t.check(wind.result.interpretation.find("south of west") != std::string::npos,
+                "the interpretation quotes the bearing it reported");
+        {
+            const std::string asked = joined_commands(backend.commands);
+            t.check(asked.find("sqrt((((95*(2)^(-1)))^(2)+((349*(18)^(-1)))^(2)))") !=
+                        std::string::npos,
+                    "the magnitude comes from components_to_magnitude_angle over the components "
+                    "folded onto the nearest cardinal");
+            t.check(asked.find("atan2((349*(18)^(-1)),(95*(2)^(-1)))") != std::string::npos,
+                    "and the angle is that converter's atan2 of the across component over the "
+                    "along component, not a second arctangent computed here");
+        }
+        {
+            // 185 km/h at 22.2 degrees south of west, evaluated from the components the solver
+            // produced rather than from the scripted reply.
+            const double east = component_value(wind.result.velocity.x);
+            const double north = component_value(wind.result.velocity.y);
+            const double magnitude = std::sqrt(east * east + north * north) * 3.6;
+            const double bearing = std::atan2(-north, -east) * 180.0 / 3.14159265358979323846;
+            t.check(near_value(magnitude, 185.0, 0.5) && near_value(bearing, 22.2, 0.05),
+                    "the solved wind velocity is the answer key's 185 km/h at 22.2 degrees south "
+                    "of west");
+        }
+        t.check(wind.result.cost.backend_calls >= 8,
+                "the bearing's backend traffic is counted into the family's cost");
+    }
+    {
+        // Either side of the diagonal where the nearest cardinal flips, and the tie on it. The two
+        // vectors describe the same pair of components read from different axes, so the angle is
+        // the same conversion and only the wording moves.
+        SequenceBackend westerly({"0", "atan2(3,4)", "0", "atan2(3,4)*180/pi", "0"});
+        Arena west_arena;
+        Derivation west_derivation;
+        const RelativeBearing west = relative_motion_bearing(
+            west_arena, west_derivation, parsed_vector("(-4, -3) km/h", "ground"),
+            AngleUnit::Degrees, westerly);
+        t.check(west.has_bearing && relative_direction_name(west.reference) == std::string("west") &&
+                    relative_direction_name(west.sense) == std::string("south"),
+                "a vector nearer the east-west axis is quoted from west, turning south");
+        t.check(west.text.find("5 km/h at ") == 0 && west.text.find("south of west") !=
+                                                          std::string::npos,
+                "and reads as a magnitude and an angle south of west");
+
+        SequenceBackend southerly({"0", "atan2(3,4)", "0", "atan2(3,4)*180/pi", "0"});
+        Arena south_arena;
+        Derivation south_derivation;
+        const RelativeBearing south = relative_motion_bearing(
+            south_arena, south_derivation, parsed_vector("(-3, -4) km/h", "ground"),
+            AngleUnit::Degrees, southerly);
+        t.check(south.has_bearing &&
+                    relative_direction_name(south.reference) == std::string("south") &&
+                    relative_direction_name(south.sense) == std::string("west"),
+                "the same components read the other way past the diagonal flip to south, turning "
+                "west");
+        t.check(south.text.find("west of south") != std::string::npos,
+                "and the wording follows the cardinal that was chosen");
+        t.equal(joined_commands(southerly.commands), joined_commands(westerly.commands),
+                "both sides of the flip fold onto the same conversion, so only the naming differs");
+
+        SequenceBackend diagonal({"0", "atan2(3,3)", "0", "atan2(3,3)*180/pi", "0"});
+        Arena diagonal_arena;
+        Derivation diagonal_derivation;
+        const RelativeBearing tie = relative_motion_bearing(
+            diagonal_arena, diagonal_derivation, parsed_vector("(-3, -3) km/h", "ground"),
+            AngleUnit::Degrees, diagonal);
+        t.check(relative_direction_name(tie.reference) == std::string("west") &&
+                    relative_direction_name(tie.sense) == std::string("south"),
+                "a vector exactly on the diagonal keeps the east-west axis rather than rounding");
+    }
+    {
+        // Exactly on a cardinal, where there is no angle to quote and no sense to turn in.
+        SequenceBackend backend({"0", "0", "0", "0", "0", "0"});
+        Arena arena;
+        Derivation derivation;
+        const RelativeBearing due_west = relative_motion_bearing(
+            arena, derivation, parsed_vector("(-5, 0) km/h", "ground"), AngleUnit::Degrees, backend);
+        t.check(due_west.has_bearing &&
+                    relative_direction_name(due_west.reference) == std::string("west"),
+                "a velocity along a cardinal is quoted from that cardinal");
+        t.equal(relative_direction_name(due_west.sense), "stationary",
+                "with no perpendicular cardinal to turn toward");
+        t.equal(due_west.text, "5 km/h due west",
+                "and reads as a magnitude due that cardinal rather than at zero degrees from it");
+        t.check(due_west.convention.find("lies on west") != std::string::npos,
+                "the convention says the angle from that cardinal is zero");
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        SequenceBackend backend({"0", "0", "0", "0"});
+        const RelativeBearing none = relative_motion_bearing(
+            arena, derivation, parsed_vector("(0, 0) km/h", "ground"), AngleUnit::Degrees, backend);
+        t.check(!none.has_bearing && backend.commands.empty() &&
+                    relative_direction_name(none.reference) == std::string("stationary"),
+                "a zero relative velocity has no nearest cardinal and asks the backend nothing");
     }
     {
         Run solved(problem(parsed_vector("(10, -2) m/s"), parsed_vector("(4, 3) m/s")));

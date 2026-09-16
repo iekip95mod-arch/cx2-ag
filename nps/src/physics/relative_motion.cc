@@ -5,6 +5,7 @@
 
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
+#include "nps/core/print.h"
 #include "nps/core/rational.h"
 
 namespace nps {
@@ -812,6 +813,46 @@ bool reversed_subscripts(const Vector &source, Vector *out) {
     return true;
 }
 
+bool absolute_value(const Rational &source, Rational *value) {
+    *value = source;
+    if (source.num >= 0)
+        return true;
+    return negate_fraction(source.num, source.den, &value->num, &value->den);
+}
+
+// The cardinal nearest a velocity is the axis carrying the larger component, and the angle a
+// bearing quotes is the one turned from that axis toward the other. A vector exactly on a diagonal
+// is the same distance from two cardinals, so the east-west axis is kept and the choice stays
+// defined rather than following whichever comparison rounded first.
+bool cardinal_reference(const Vector &velocity, RelativeDirection *reference,
+                        RelativeDirection *sense, Rational *along, Rational *across) {
+    if (velocity.x.num == 0 && velocity.y.num == 0)
+        return false;
+    Rational east_west, north_south;
+    if (!absolute_value(velocity.x, &east_west) || !absolute_value(velocity.y, &north_south))
+        return false;
+    Rational difference;
+    if (!sub_fraction(east_west.num, east_west.den, north_south.num, north_south.den,
+                      &difference.num, &difference.den))
+        return false;
+    if (difference.num >= 0) {
+        *reference = velocity.x.num > 0 ? RelativeDirection::East : RelativeDirection::West;
+        *sense = velocity.y.num > 0   ? RelativeDirection::North
+                 : velocity.y.num < 0 ? RelativeDirection::South
+                                      : RelativeDirection::Stationary;
+        *along = east_west;
+        *across = north_south;
+        return true;
+    }
+    *reference = velocity.y.num > 0 ? RelativeDirection::North : RelativeDirection::South;
+    *sense = velocity.x.num > 0   ? RelativeDirection::East
+             : velocity.x.num < 0 ? RelativeDirection::West
+                                  : RelativeDirection::Stationary;
+    *along = north_south;
+    *across = east_west;
+    return true;
+}
+
 NodeId relative_symbol(Arena &arena, const std::string &subject, const std::string &reference) {
     return arena.call("relative_velocity", {arena.symbol(subject), arena.symbol(reference)});
 }
@@ -831,6 +872,77 @@ const char *relative_motion_unknown_name(RelativeMotionUnknown unknown) {
             return "medium relative to reference";
     }
     return "unknown";
+}
+
+RelativeBearing relative_motion_bearing(Arena &arena, Derivation &derivation,
+                                        const Vector &velocity, AngleUnit angle_unit, Backend &giac,
+                                        RelativeMotionAxes axes, const Budget &budget) {
+    RelativeBearing bearing;
+    bearing.angle_unit = angle_unit;
+    if (!valid_axes(axes))
+        return bearing;
+    Rational along, across;
+    if (!cardinal_reference(velocity, &bearing.reference, &bearing.sense, &along, &across))
+        return bearing;
+
+    const std::string turning =
+        bearing.sense == RelativeDirection::Stationary
+            ? std::string("the velocity lies on ") + relative_direction_name(bearing.reference) +
+                  ", so the angle from that cardinal is zero"
+            : std::string("the angle is measured from ") +
+                  relative_direction_name(bearing.reference) + " turning toward " +
+                  relative_direction_name(bearing.sense);
+    bearing.convention = turning + ", in the declared " + relative_motion_axes_name(axes) + " axes";
+
+    Meter meter(budget);
+    if (!add_check(derivation, meter, kNoStep, "physics.relative-motion.bearing-convention",
+                   "Bearing convention", "Name the cardinal the reported angle is measured from",
+                   "The nearest cardinal is the axis with the larger component, and the angle turns "
+                   "from it toward the other axis",
+                   "obl.relative-motion.bearing-convention-stated",
+                   "the reported angle names both the cardinal it starts from and the one it turns "
+                   "toward",
+                   "nearest cardinal by component magnitude", bearing.convention,
+                   EvidenceStrength::StructurallyValid, VerificationOutcome::Passed,
+                   "the bearing is quoted from a named cardinal",
+                   "an angle of at most forty five degrees from the nearest cardinal",
+                   bearing.convention)) {
+        return bearing;
+    }
+
+    // Measuring from the cardinal rather than from the positive x axis is a reflection of the
+    // components onto the first octant, so the existing converter returns the offset angle itself
+    // and no second way to compute a magnitude or an angle appears here.
+    Vector folded = velocity;
+    folded.rank = 2;
+    folded.x = along;
+    folded.y = across;
+    folded.z = Rational();
+    const VectorComponentsResult polar =
+        components_to_magnitude_angle(arena, derivation, folded, angle_unit, giac, budget);
+    bearing.cost = polar.cost;
+    bearing.cost.steps += meter.cost().steps;
+    bearing.cost.rewrites += meter.cost().rewrites;
+    if (polar.outcome != VectorComponentsOutcome::Solved || !polar.has_polar)
+        return bearing;
+
+    bearing.has_bearing = true;
+    bearing.magnitude = polar.polar.magnitude;
+    bearing.angle = polar.polar.angle;
+    bearing.angle_unit = polar.polar.angle_unit;
+    const std::string unit_text =
+        velocity.unit.text.empty() ? std::string() : " " + velocity.unit.text;
+    if (bearing.sense == RelativeDirection::Stationary) {
+        bearing.text = print(arena, bearing.magnitude) + unit_text + " due " +
+                       relative_direction_name(bearing.reference);
+        return bearing;
+    }
+    bearing.text = print(arena, bearing.magnitude) + unit_text + " at " +
+                   print(arena, bearing.angle) +
+                   (bearing.angle_unit == AngleUnit::Degrees ? " degrees " : " radians ") +
+                   relative_direction_name(bearing.sense) + " of " +
+                   relative_direction_name(bearing.reference);
+    return bearing;
 }
 
 RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &derivation,
@@ -953,6 +1065,18 @@ RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &de
     if (result.outcome == RelativeMotionOutcome::Solved) {
         result.interpretation += ", solving the identity " + identity_text + " for its " +
                                  relative_motion_unknown_name(problem.unknown) + " term";
+        if (giac != nullptr) {
+            result.bearing = relative_motion_bearing(arena, derivation, result.velocity,
+                                                     AngleUnit::Degrees, *giac, problem.axes,
+                                                     budget);
+            result.cost.steps += result.bearing.cost.steps;
+            result.cost.rewrites += result.bearing.cost.rewrites;
+            result.cost.backend_calls += result.bearing.cost.backend_calls;
+            if (result.bearing.has_bearing) {
+                result.interpretation +=
+                    ", reported as " + result.bearing.text + ", where " + result.bearing.convention;
+            }
+        }
         result.status = derivation.outcome_from(mark);
     }
     result.cost.steps += meter.cost().steps;

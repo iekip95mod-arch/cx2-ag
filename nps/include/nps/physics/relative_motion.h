@@ -6,6 +6,7 @@
 
 #include "nps/cas/giac_adapter.h"
 #include "nps/core/budgets.h"
+#include "nps/physics/vector_components.h"
 #include "nps/steps/derivation.h"
 #include "nps/units/units.h"
 
@@ -64,11 +65,28 @@ enum class RelativeDirection : uint8_t {
 
 const char *relative_direction_name(RelativeDirection direction);
 
+// A direction written the way a marker writes it, as a magnitude and an angle turned from the
+// nearest cardinal. Twenty two point two degrees south of west and sixty seven point eight degrees
+// west of south are the same vector, so the reference cardinal and the cardinal the angle turns
+// toward are both recorded rather than left to be read out of the number.
+struct RelativeBearing {
+    bool has_bearing = false;
+    RelativeDirection reference = RelativeDirection::Stationary;
+    RelativeDirection sense = RelativeDirection::Stationary;
+    NodeId magnitude = kNoNode;
+    NodeId angle = kNoNode;
+    AngleUnit angle_unit = AngleUnit::Degrees;
+    std::string convention;
+    std::string text;
+    Cost cost;
+};
+
 struct RelativeMotionResult {
     RelativeMotionOutcome outcome = RelativeMotionOutcome::InvalidProblem;
     Vector velocity;
     bool has_value = false;
     RelativeDirection direction = RelativeDirection::Stationary;
+    RelativeBearing bearing;
     std::string value_text;
     std::string interpretation;
     std::string detail;
@@ -90,6 +108,16 @@ struct RelativeMotionIdentity {
     RelativeMotionUnknown unknown = RelativeMotionUnknown::SubjectRelativeToReference;
     RelativeMotionAxes axes = RelativeMotionAxes::EastNorth;
 };
+
+// The magnitude and the bearing for a solved relative velocity. The reference cardinal is the axis
+// carrying the larger component and the trigonometry is components_to_magnitude_angle's, so what
+// this adds is the choice of cardinal and the wording. The identity solver calls it for its answer
+// whenever a backend is supplied; the two-frame entry point leaves the bearing unset so its
+// existing backend traffic does not change.
+RelativeBearing relative_motion_bearing(Arena &arena, Derivation &derivation, const Vector &velocity,
+                                        AngleUnit angle_unit, Backend &giac,
+                                        RelativeMotionAxes axes = RelativeMotionAxes::EastNorth,
+                                        const Budget &budget = Budget());
 
 RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &derivation,
                                                     const RelativeMotionIdentity &problem,
