@@ -1874,7 +1874,7 @@
       "pr": 366,
       "branch": "ti-info-app",
       "slug": "cx2-ag-claude-review-arch",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-367",
@@ -1946,7 +1946,7 @@
       "pr": null,
       "branch": "claude/issue-345",
       "slug": "cx2-ag-claude-lyra",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-343",
@@ -1976,7 +1976,7 @@
       "pr": 383,
       "branch": "claude/issue-345",
       "slug": "cx2-ag-claude-review-grove",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-387",
@@ -2026,6 +2026,16 @@
       "pr": 394,
       "branch": "ci/no-review-on-red-fast",
       "slug": "cx2-ag-claude-review-anchor",
+      "released": true
+    },
+    {
+      "key": "claude/executor/issue-376",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 376,
+      "pr": null,
+      "branch": "claude/issue-376",
+      "slug": "cx2-ag-claude-atlas",
       "released": false
     }
   ]
