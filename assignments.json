@@ -2287,6 +2287,16 @@
       "branch": "claude/issue-382",
       "slug": "cx2-ag-claude-review-anchor",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-361",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 361,
+      "pr": 411,
+      "branch": "claude/issue-361",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
