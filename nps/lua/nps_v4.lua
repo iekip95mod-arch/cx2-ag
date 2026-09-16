@@ -62,6 +62,7 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2717,6 +2718,22 @@ PHYSICS_FIXTURES = {
 		run = function()
 			return nps_nspire.optics("thin lens", "image distance", "focal length", "10 cm",
 			                         "object distance", "15 cm")
+		end,
+	},
+	{
+		label = "Find where a thrown ball lands",
+		problem = "A ball is thrown sideways off a ledge while gravity pulls it down. Find how " ..
+		          "far sideways it travels and how fast it is moving when it lands.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "ball",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+			})
 		end,
 	},
 }

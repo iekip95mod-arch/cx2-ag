@@ -132,11 +132,12 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-15, nps/lua/nps_v4.lua names `catch_up`, `density`, `forces`, `kinematics`,
-`optics`, `relative_motion`, `unit_conversion` and `vector_addition`, and nothing else.
+`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
+`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition` and `work`.
 
-So `planar_kinematics` is bound and not reachable, and `position_motion` and `ranking` are neither bound
-nor reachable, despite all three having working engines on main. That gap is #382. When it closes, this
+`planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
+engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
 paragraph is wrong and has to change with it.
 
 ## What renders on screen
