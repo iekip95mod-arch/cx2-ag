@@ -199,9 +199,7 @@ void test_event_teaching_order(TestSink &t) {
                 rule_position(derivation, order, "physics.catch-up.shared-domain"),
             "a rejected candidate is derived before its active-domain rejection");
 
-    // Two budgets that run out after the shared-domain check has been recorded. The engine writes
-    // the symbolic law and its substitution before any of that, so both are one higher than the
-    // step counts this row was first calibrated against.
+    // Two budgets that run out just after the shared-domain check is recorded.
     for (size_t max_steps : {9u, 10u}) {
         Arena limited_arena;
         Derivation prefix;

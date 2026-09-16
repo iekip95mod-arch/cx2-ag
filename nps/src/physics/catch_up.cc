@@ -258,8 +258,7 @@ NodeId position_expression(Arena &arena, NodeId time, const BodySI &body) {
                                rational_node(arena, body.start));
 }
 
-// The subscript is which body rather than which name, because the two laws are the same law and a
-// reader who has met one has met the other.
+// The subscript is which body rather than which name, because the two laws are one law written twice.
 NodeId symbolic_position_expression(Arena &arena, NodeId time, const char *subscript) {
     return position_expression(arena, time, arena.symbol(std::string("x") + subscript),
                                arena.symbol(std::string("v") + subscript),
