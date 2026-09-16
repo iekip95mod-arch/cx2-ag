@@ -93,7 +93,7 @@ local FORMULAS = {
 	["Constant acceleration"] = { "v = v₀ + a t", "v² = v₀² + 2 a Δx", "Δx = v t − a t²/2" },
 	["Density"] = { "ρ = m / V" },
 	["Projectile motion"] = { "y = (v₀ sinθ₀) t − g t²/2" },
-	["Free-fall acceleration"] = { "a = −g,  g = 9.8 m/s²" },
+	["Free-fall acceleration"] = { "a = −g,  g = 9.80 m/s²" },
 	-- The bars are the whole point of these two rows. Without them both sides read as the same
 	-- product, which is how the scalar product came to be written as a circular statement.
 	["Magnitude"] = { "|a| = √(ax² + ay²)" },
