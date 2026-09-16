@@ -482,7 +482,7 @@ const ObligationSchema kDensityCandidate[] = {
      kSubstituteOriginalRelation, 1},
 };
 const EvidenceAlternative kUnitTableScale[] = {
-    {"recompute each stored value as the given times its table scale",
+    {"divide each stored value by its table scale and compare with the given",
      EvidenceStrength::CandidateChecked},
 };
 const ObligationSchema kScalePreservesSolutions[] = {
