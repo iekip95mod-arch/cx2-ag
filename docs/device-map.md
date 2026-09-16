@@ -191,6 +191,16 @@ green under that same mutation, because its below-the-fold case searches a plain
 every row is the uniform height and the backward fill and the division agree. That test guards the
 search landing scroll instead, which is a different fix.
 
+A third regression, `ti_info_numbers.lua`, holds the arithmetic rather than the layout. It recomputes
+each worked example from the inputs that example prints and requires the printed intermediates to
+agree, so a transcription slip in a number cannot pass while the boxed answer still looks right. It
+also holds the sign convention, that g is a magnitude and the sign lives on a.
+
+`measured` on 2026-09-16 with `luajit nps/tests/target/ti_info_numbers.lua`, run from `nps`: against
+the content before this branch it fails with `the cliff example prints vf = 27.3 but its own vfx = 21.0
+and vfy = -12.5 give 24.44`, which is the defect it was written for. Adding a row to a card also
+changes that card's height, so the backward fill above is what keeps the new row reachable.
+
 ## Where files live on the device
 
 <!-- covers: tools/nsptool -->
