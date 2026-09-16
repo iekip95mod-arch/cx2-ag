@@ -1114,6 +1114,27 @@ void run_units_tests(TestSink &t) {
                     zero_magnitude.precision.last_significant_decimal_place == 2,
                 "an exact-zero magnitude retains the vector's converted measured place");
 
+        Vector crossed_length;
+        Vector crossed_force;
+        Vector aligned_force;
+        Quantity crossed_dot;
+        Quantity offset_dot;
+        const bool crossed = parse_vector("200.0 i + 0.0 j cm", &crossed_length, &why) &&
+                             parse_vector("0.0 i + 15.0 j N", &crossed_force, &why) &&
+                             parse_vector("15.0 i + 30.0 j N", &aligned_force, &why);
+        t.check(crossed && vector_dot(crossed_length, crossed_force, &crossed_dot, &why) &&
+                    crossed_dot.value.num == 0 &&
+                    crossed_dot.precision.kind == NumberKind::Measured &&
+                    crossed_dot.precision.significant_digits == 1 &&
+                    crossed_dot.precision.last_significant_decimal_place == -1,
+                "a dot product that cancels to zero takes its place from the terms that canceled");
+        t.check(crossed && vector_dot(crossed_length, aligned_force, &offset_dot, &why) &&
+                    offset_dot.value.num == 30 && offset_dot.value.den == 1 &&
+                    offset_dot.precision.kind == NumberKind::Measured &&
+                    offset_dot.precision.significant_digits == 3 &&
+                    offset_dot.precision.last_significant_decimal_place == -1,
+                "the same zero component leaves a nonzero fold claiming its three figures");
+
         Vector parallel;
         Vector zero_cross;
         t.check(parse_vector("(2.0, 4.0, 6.0) m", &parallel, &why) &&
