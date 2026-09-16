@@ -1794,7 +1794,7 @@
       "pr": 355,
       "branch": "progress-comment-lockout",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-279",
@@ -1936,7 +1936,7 @@
       "pr": null,
       "branch": "claude/issue-343",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-345",
@@ -1956,7 +1956,7 @@
       "pr": 375,
       "branch": "claude/issue-343",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-384",
@@ -1966,7 +1966,7 @@
       "pr": 384,
       "branch": "docs/device-map",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-345",
@@ -1996,7 +1996,7 @@
       "pr": 388,
       "branch": "fix/emu-lfs-pointer",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-389",
@@ -2006,6 +2006,16 @@
       "pr": 389,
       "branch": "ci/emulator-gate",
       "slug": "cx2-ag-claude-review-summit",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-392",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 392,
+      "branch": "images/ti-boot-flash",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
