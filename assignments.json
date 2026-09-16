@@ -2126,7 +2126,7 @@
       "pr": null,
       "branch": "claude/issue-380",
       "slug": "cx2-ag-claude-comet",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-401",
@@ -2146,7 +2146,7 @@
       "pr": 402,
       "branch": "claude/issue-380",
       "slug": "cx2-ag-claude-review-delta",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-382",
@@ -2166,7 +2166,7 @@
       "pr": null,
       "branch": "claude/issue-377",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-376",
@@ -2176,7 +2176,7 @@
       "pr": null,
       "branch": "claude/issue-376",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-381",
@@ -2196,7 +2196,7 @@
       "pr": null,
       "branch": "claude/issue-341",
       "slug": "cx2-ag-claude-sirius",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-361",
@@ -2236,7 +2236,7 @@
       "pr": 408,
       "branch": "claude/issue-376",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-413",
@@ -2256,7 +2256,7 @@
       "pr": 409,
       "branch": "claude/issue-377",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-400",
@@ -2266,7 +2266,7 @@
       "pr": 415,
       "branch": "fix/position-motion-presentation",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/pr-417",
@@ -2276,6 +2276,16 @@
       "pr": 417,
       "branch": "fix/lease-lockout",
       "slug": "cx2-ag-claude-review-grove",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-382",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 382,
+      "pr": 405,
+      "branch": "claude/issue-382",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
