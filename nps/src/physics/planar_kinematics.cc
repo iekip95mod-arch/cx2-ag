@@ -142,18 +142,27 @@ NodeId problem_model(Arena &arena, const PlanarKinematicsProblem &problem) {
          arena.symbol(problem.projectile ? "projectile" : "general")});
 }
 
-NodeId displacement_equation(Arena &arena, const Vector &velocity, const Vector &acceleration,
-                             const Quantity &time) {
+NodeId displacement_equation(Arena &arena, NodeId velocity, NodeId acceleration, NodeId time) {
     const NodeId half = arena.binary(Kind::Mul, arena.integer("1"),
                                      arena.binary(Kind::Pow, arena.integer("2"),
                                                   arena.integer("-1")));
-    const NodeId time_node = rational_node(arena, time.value);
-    const NodeId drift = arena.binary(Kind::Mul, vector_node(arena, velocity), time_node);
+    const NodeId drift = arena.binary(Kind::Mul, velocity, time);
     const NodeId curve = arena.binary(
-        Kind::Mul, arena.binary(Kind::Mul, half, vector_node(arena, acceleration)),
-        arena.binary(Kind::Pow, time_node, arena.integer("2")));
+        Kind::Mul, arena.binary(Kind::Mul, half, acceleration),
+        arena.binary(Kind::Pow, time, arena.integer("2")));
     return arena.binary(Kind::Equals, arena.symbol("displacement"),
                         arena.binary(Kind::Add, drift, curve));
+}
+
+NodeId displacement_equation(Arena &arena, const Vector &velocity, const Vector &acceleration,
+                             const Quantity &time) {
+    return displacement_equation(arena, vector_node(arena, velocity),
+                                 vector_node(arena, acceleration),
+                                 rational_node(arena, time.value));
+}
+
+NodeId symbolic_displacement_equation(Arena &arena) {
+    return displacement_equation(arena, arena.symbol("v0"), arena.symbol("a"), arena.symbol("t"));
 }
 
 VerificationRecord verification(const char *method, const std::string &detail,
@@ -539,6 +548,7 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
         }
     }
 
+    const NodeId symbolic = symbolic_displacement_equation(arena);
     const NodeId equation = displacement_equation(arena, problem.initial_velocity,
                                                   problem.acceleration, problem.elapsed_time);
     if (arena.failed()) {
@@ -562,8 +572,31 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
         {"obl.planar-kinematics.definition-after-checks",
          "the constant-acceleration relations are applied only after their conditions pass"});
     if (!add_transformation(derivation, meter, plan_id, std::move(law), *model,
-                            "Apply s = v0 t + a t^2 / 2 and v = v0 + a t on both axes", equation,
+                            "Apply s = v0 t + a t^2 / 2 and v = v0 + a t on both axes", symbolic,
                             false)) {
+        return PlanarKinematicsResult();
+    }
+
+    const std::string substitution = "v0 = " + vector_text(problem.initial_velocity) + ", a = " +
+                                     vector_text(problem.acceleration) + ", t = " +
+                                     rational_text(problem.elapsed_time.value) + " " +
+                                     problem.elapsed_time.unit.text;
+    Step substitute = transformation_step(
+        "physics.planar-kinematics.substitute", "Substitution",
+        "Put the declared velocity, acceleration and time into the law",
+        "Replace each symbol by the quantity the problem gave for it",
+        "Reach for this once the law is on the page and its conditions have passed. Writing the law "
+        "first and the numbers second is what makes the walkthrough readable: the relation is the "
+        "part that is true of every problem of this shape, and the numbers are the part that is "
+        "true of this one. The units come off the numbers on the next line, not this one.",
+        ClaimType::SolutionSetPreserved,
+        verification("typed known-quantity lookup", substitution, EvidenceStrength::StructurallyValid,
+                     VerificationOutcome::Passed));
+    substitute.proof_obligations.push_back(
+        {"obl.physics.lookup-preserves-solutions",
+         "the value put in place of a symbol is the one the problem declared for it"});
+    if (!add_transformation(derivation, meter, plan_id, std::move(substitute), symbolic,
+                            "Substitute " + substitution, equation, true)) {
         return PlanarKinematicsResult();
     }
 

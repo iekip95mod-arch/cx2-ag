@@ -114,7 +114,7 @@ supported_methods build both active-interval position laws, equate positions, us
 unsupported_near_neighbors nonzero acceleration, nonlinear motion in time, more than two bodies, two-dimensional pursuit, implicit frame conversion, and collision dynamics
 strategy_ids physics.catch-up.constant-velocity
 test_group_ids catch up
-proof_obligation_ids obl.catch-up.position-law-dimensions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+proof_obligation_ids obl.catch-up.position-law-dimensions, obl.physics.lookup-preserves-solutions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
 solution_soundness_status verified by typed dimensions, exact linear candidate substitution, exact shared-domain comparison, and substitution into both original position laws
 solution_completeness_status complete for two constant-velocity active-interval laws within exact rational and resource limits, partial for broader catch-up motion
 corpus_case_ids catch_up_delayed_start, catch_up_measured_report, catch_up_before_shared_domain, catch_up_nonlinear_refused
@@ -128,6 +128,7 @@ release_status in development, unreleased
 rule physics.catch-up.constant-velocity fixture
 rule physics.catch-up.check-dimensions fixture
 rule physics.catch-up.equal-position fixture
+rule physics.catch-up.substitute fixture
 rule eq.linear.inverse-operations fixture
 rule eq.linear.check-by-substitution fixture
 rule eq.collect-like-terms fixture
@@ -151,7 +152,7 @@ word_language_profile_ids none, typed entry only
 parser_module_ids src/units/units.cc, src/physics/relative_motion.cc
 required_assumptions both velocities are expressed in the declared Cartesian frame, which for the compass frame is carried as "positive i is east and positive j is north"
 test_group_ids relative motion
-proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
+proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
 strategy_ids physics.relative-motion.plan
 supported_methods validate ranks, frames and dimensions, convert both velocities exactly to SI, subtract matching components with Giac checking each one, then interpret the component signs in the declared axes
 unsupported_near_neighbors implicit frame transformation, rank-three relative motion, mismatched-rank inputs, rotating frames, relativistic addition, and unequal dimensions
@@ -171,6 +172,7 @@ rule physics.relative-motion.check-frame-declared fixture
 rule physics.relative-motion.check-frame-match fixture
 rule physics.relative-motion.check-input-dimensions fixture
 rule physics.relative-motion.definition fixture
+rule physics.relative-motion.substitute fixture
 rule physics.relative-motion.convert-si fixture
 rule physics.relative-motion.check-result-dimension fixture
 rule physics.relative-motion.component-i fixture
@@ -212,6 +214,7 @@ rule physics.relative-motion.check-frame-declared device
 rule physics.relative-motion.check-frame-match device
 rule physics.relative-motion.check-input-dimensions device
 rule physics.relative-motion.definition device
+rule physics.relative-motion.substitute device
 rule physics.relative-motion.convert-si device
 rule physics.relative-motion.check-result-dimension device
 rule physics.relative-motion.component-i device
@@ -700,7 +703,7 @@ exact_special_function_and_numerical_result_policy exact rational SI conversion 
 parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
 required_assumptions the frame and the axis convention are declared rather than inferred, and the specialization is stated, carried as "positive i is right and positive j is up", "the acceleration is constant over the whole interval", "one shared time links both axes" and "the projectile specialization leaves the horizontal axis unaccelerated"
 test_group_ids planar kinematics
-proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.projectile, obl.planar-kinematics.definition-after-checks, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
+proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.projectile, obl.planar-kinematics.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
 supported_methods validate rank, frame, stage identity and dimensions, check the projectile acceleration, then solve each axis independently with the existing one-dimensional kinematics engine and cross-check the apex height by a second route
 unsupported_near_neighbors general two-dimensional motion with a nonzero horizontal acceleration, oblique launch from a moving platform, air resistance, and more than two dimensions
 solution_soundness_status verified by rank, frame, stage and dimension checks, the projectile acceleration precondition, and a second independent route to the apex height that must agree with the first
@@ -718,6 +721,7 @@ rule physics.planar-kinematics.check-stages fixture
 rule physics.planar-kinematics.check-input-dimensions fixture
 rule physics.planar-kinematics.check-projectile fixture
 rule physics.planar-kinematics.definition fixture
+rule physics.planar-kinematics.substitute fixture
 rule physics.planar-kinematics.convert-si fixture
 rule physics.planar-kinematics.check-result-dimension fixture
 rule physics.planar-kinematics.component-i fixture
