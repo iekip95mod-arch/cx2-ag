@@ -326,7 +326,8 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     }
 
     PlanPayload plan;
-    plan.strategy_id = "physics.planar-kinematics.plan";
+    plan.strategy_id = problem.projectile ? "physics.planar-kinematics.projectile-plan"
+                                          : "physics.planar-kinematics.plan";
     plan.selected_strategy = "Per-axis constant acceleration under one shared time";
     plan.matched_problem_facts.push_back("body: " + problem.body_name);
     plan.matched_problem_facts.push_back(problem.projectile ? "projectile specialization"
@@ -343,8 +344,13 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     Step plan_step;
     plan_step.phase = "plan";
     plan_step.goal = "Find the displacement and final velocity over the interval";
-    plan_step.rule_id = "physics.planar-kinematics.plan";
-    plan_step.rule_name = "Planar constant-acceleration plan";
+    // The projectile specialization registers a precondition the general plan has no shape for, and
+    // a rule schema is one fixed obligation set, so the two plans are two rules. apex-plan below is
+    // the same distinction already drawn once in this file.
+    plan_step.rule_id = problem.projectile ? "physics.planar-kinematics.projectile-plan"
+                                           : "physics.planar-kinematics.plan";
+    plan_step.rule_name = problem.projectile ? "Projectile constant-acceleration plan"
+                                             : "Planar constant-acceleration plan";
     plan_step.explanation_short =
         "Check axes, stages, frames and dimensions before decomposing the motion axis by axis";
     plan_step.claim = ClaimType::NoClaim;

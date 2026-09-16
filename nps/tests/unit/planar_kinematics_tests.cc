@@ -140,6 +140,18 @@ void run_planar_kinematics_tests(TestSink &t) {
                 "the projectile specialization reports its own family");
         t.check(has_rule(solved.derivation, "physics.planar-kinematics.check-projectile"),
                 "the projectile precondition is checked before the reading is offered");
+        t.check(has_rule(solved.derivation, "physics.planar-kinematics.projectile-plan"),
+                "the projectile plan is its own rule, because it registers a precondition the "
+                "general plan does not");
+        t.evidence("PHYS-025",
+                   has_rule(solved.derivation, "physics.planar-kinematics.projectile-plan") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.check-projectile") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.definition") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.check-shared-time") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.component-i") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.component-j"),
+                   "the projectile family exposes its model preconditions, the constant-acceleration "
+                   "law, the declared axes and the shared-time check alongside the per-axis algebra");
     }
     {
         PlanarKinematicsProblem input =

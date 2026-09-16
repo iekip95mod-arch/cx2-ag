@@ -1,0 +1,238 @@
+problem: ball; v0 (36.0, 0.0) km/h; a (0.0, -9.80) m/s^2; t 4.00 s; frame = lab
+variable: displacement and final velocity
+outcome: solved
+result: (40 i - 80 j) m; (10 i - 40 j) m/s
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.kinematics.constant-acceleration.projectile.two-dimension
+  envelope version: <not recorded>
+  normalized problem: planar_kinematics_problem(ball, staged_vector(vector(36, 0), (5 * (18^-1)), lab, dimension(1, 0, -1, 0), 2, state), staged_vector(vector(0, (-49 * (5^-1))), 1, lab, dimension(1, 0, -2, 0), 2, interval), staged_scalar(4, 1, dimension(0, 0, 1, 0), interval), right-up, projectile)
+  requested method: validate the declared axes, stages, frames and dimensions, convert to SI, decompose each axis under the shared time, verify against the average-velocity identity, and interpret
+  active assumption: velocity and acceleration use frame lab
+  active assumption: positive i is right and positive j is up
+  active assumption: the acceleration is constant over the whole interval
+  active assumption: one shared time links both axes
+  active assumption: the projectile specialization leaves the horizontal axis unaccelerated
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact SI conversion and per-axis exact arithmetic, final-only precision
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find the displacement and final velocity over the interval
+    rule: physics.planar-kinematics.projectile-plan, Projectile constant-acceleration plan
+    claim: no claim
+    explanation: Check axes, stages, frames and dimensions before decomposing the motion axis by axis
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Per-axis constant acceleration under one shared time
+    applicability: velocity and acceleration are two-dimensional
+    applicability: both vectors declare named frames
+    applicability: both vectors use the same frame
+    applicability: positive i is right and positive j is up
+    applicability: each quantity is used at the stage it belongs to
+    applicability: velocity, acceleration and time carry their own dimensions
+    applicability: the horizontal axis is unaccelerated and gravity acts down
+    fact: body: ball
+    fact: projectile specialization
+    alternative: the one-dimensional family, which cannot carry a second axis
+    alternative: relative motion components, which subtract velocities rather than integrating one
+    rationale: the existing exact vector operations decompose each axis and check the shared-time identity locally
+    verification: rank comparison, passed, ranks 2 and 2
+    verification: frame declaration, passed, frames 'lab' and 'lab'
+    verification: frame identity, passed, frames 'lab' and 'lab'
+    verification: coordinate convention validation, passed, the supplied coordinate convention is registered and valid
+    verification: stage identity, passed, velocity state, acceleration interval, time interval
+    verification: dimensional analysis, passed, velocity L T^-1, acceleration L T^-2, time T
+    verification: projectile specialization, passed, acceleration -9.8 j m/s^2
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the velocity and acceleration ranks
+      rule: physics.planar-kinematics.check-rank, Planar vector rank
+      claim: definition
+      explanation: This family resolves motion in one Cartesian plane
+      proof obligation: obl.planar-kinematics.rank-two, both vectors have rank two
+      target claim: velocity and acceleration are two-dimensional
+      check method: rank comparison
+      expected: rank 2 and rank 2
+      observed: ranks 2 and 2
+      verification: rank comparison, passed, ranks 2 and 2
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check that both vectors declare a frame
+      rule: physics.planar-kinematics.check-frame-declared, Declared frames
+      claim: definition
+      explanation: A component vector needs a named Cartesian frame
+      proof obligation: obl.planar-kinematics.frames-declared, both vectors declare a nonempty frame
+      target claim: velocity and acceleration name their frame
+      check method: frame declaration
+      expected: two nonempty frame names
+      observed: frames 'lab' and 'lab'
+      verification: frame declaration, passed, frames 'lab' and 'lab'
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check that both frames match
+      rule: physics.planar-kinematics.check-frame-match, Matching frames
+      claim: definition
+      explanation: Combining components across frames needs an explicit basis transformation
+      proof obligation: obl.planar-kinematics.frames-match, both vectors use the same frame
+      target claim: velocity and acceleration share one frame
+      check method: frame identity
+      expected: identical frame names
+      observed: frames 'lab' and 'lab'
+      verification: frame identity, passed, frames 'lab' and 'lab'
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check each quantity's stage
+      rule: physics.planar-kinematics.check-stages, Event, state and interval identity
+      claim: definition
+      explanation: A state at one event cannot stand in for a quantity spanning the interval
+      proof obligation: obl.planar-kinematics.stage-identity, the velocity is a state and the acceleration and time span the interval
+      target claim: no quantity is substituted across stages
+      check method: stage identity
+      expected: velocity state, acceleration interval, time interval
+      observed: velocity state, acceleration interval, time interval
+      verification: stage identity, passed, velocity state, acceleration interval, time interval
+      verified: yes
+    1.5 check
+      phase: check
+      goal: Check the three physical quantity roles
+      rule: physics.planar-kinematics.check-input-dimensions, Input dimensions
+      claim: definition
+      explanation: Integrating a constant acceleration needs L T^-1, L T^-2 and T
+      proof obligation: obl.planar-kinematics.input-dimensions, the inputs are a velocity, an acceleration and a time
+      target claim: each input carries its own dimension
+      check method: dimensional analysis
+      expected: L T^-1, L T^-2 and T
+      observed: velocity L T^-1, acceleration L T^-2, time T
+      verification: dimensional analysis, passed, velocity L T^-1, acceleration L T^-2, time T
+      verified: yes
+    1.6 check
+      phase: check
+      goal: Check the projectile acceleration
+      rule: physics.planar-kinematics.check-projectile, Projectile specialization
+      claim: definition
+      explanation: A projectile has no horizontal acceleration and falls under gravity
+      proof obligation: obl.planar-kinematics.projectile, the horizontal component is zero and the vertical one points down
+      target claim: the acceleration matches free fall in the declared axes
+      check method: projectile specialization
+      expected: zero i component and a negative j component
+      observed: acceleration -9.8 j m/s^2
+      verification: projectile specialization, passed, acceleration -9.8 j m/s^2
+      verified: yes
+    1.7 transformation
+      phase: solve
+      goal: Apply the constant-acceleration relations
+      rule: physics.planar-kinematics.definition, Constant-acceleration displacement
+      claim: definition
+      explanation: Use s = v0 t + a t^2 / 2 and v = v0 + a t on each axis under one shared time
+      detail: Reach for this whenever something moves in a plane with an acceleration that does not change: a thrown ball, a puck pushed across a table, a boat under a steady current. The two axes do not interact, so each one is the ordinary one-dimensional motion you already know. What ties them together is the clock: the same elapsed time appears in both, which is why a horizontal distance can tell you how long the fall lasted.
+      proof obligation: obl.planar-kinematics.definition-after-checks, the constant-acceleration relations are applied only after their conditions pass
+      action: Apply s = v0 t + a t^2 / 2 and v = v0 + a t on both axes
+      before: planar_kinematics_problem(ball, staged_vector(vector(36, 0), (5 * (18^-1)), lab, dimension(1, 0, -1, 0), 2, state), staged_vector(vector(0, (-49 * (5^-1))), 1, lab, dimension(1, 0, -2, 0), 2, interval), staged_scalar(4, 1, dimension(0, 0, 1, 0), interval), right-up, projectile)
+      after: (displacement = ((vector(36, 0) * 4) + (((1 * (2^-1)) * vector(0, (-49 * (5^-1)))) * (4^2))))
+      reversible: no
+      verification: checked physical-law applicability, passed, the axes, stages, ranks, frames and dimensions passed
+      verified: yes
+    1.8 transformation
+      phase: solve
+      goal: Convert the velocity, acceleration and time to SI
+      rule: physics.planar-kinematics.convert-si, Exact SI conversion
+      claim: equivalent expression
+      explanation: Apply each declared unit's exact scale before any axis is integrated
+      detail: Reach for this whenever the inputs are written in different units, or in any unit that is not the SI one. Multiplying a speed in km/h by a time in minutes would produce a number belonging to neither, so everything goes onto the same scale first. The scale factors are exact, so this loses nothing and nothing is rounded yet.
+      proof obligation: obl.physics.converts-by-table, the SI form comes from the unit table's exact factor for the entered unit
+      action: Convert every input to its SI unit
+      before: (displacement = ((vector(36, 0) * 4) + (((1 * (2^-1)) * vector(0, (-49 * (5^-1)))) * (4^2))))
+      after: (displacement = ((vector(10, 0) * 4) + (((1 * (2^-1)) * vector(0, (-49 * (5^-1)))) * (4^2))))
+      reversible: yes
+      verification: unit table, passed, every declared scale was applied exactly
+      verified: yes
+    1.9 check
+      phase: check
+      goal: Check the produced dimensions
+      rule: physics.planar-kinematics.check-result-dimension, Result dimensions
+      claim: definition
+      explanation: Integrating an acceleration once gives a velocity and twice gives a length
+      proof obligation: obl.planar-kinematics.result-dimensions, the displacement is a length and the final velocity is a velocity
+      target claim: the produced quantities keep their own dimensions
+      check method: dimensional analysis
+      expected: L and L T^-1
+      observed: displacement L, final velocity L T^-1
+      verification: dimensional analysis, passed, displacement L, final velocity L T^-1
+      verified: yes
+    1.10 transformation
+      phase: solve
+      goal: Integrate the i axis over the shared time
+      rule: physics.planar-kinematics.component-i, Planar displacement component
+      claim: equivalent expression
+      explanation: Combine the initial velocity term and the acceleration term on this axis
+      detail: Reach for this once the units agree and the clock is fixed. Each axis is integrated on its own, because a component of the acceleration only ever changes the matching component of the velocity. The shared elapsed time is the single thing both axes have in common, and it is what lets one axis answer a question asked about the other.
+      proof obligation: obl.planar-kinematics.component-i, the i displacement equals v0 t + a t^2 / 2
+      action: 10 * 4 + 0 * 8 = 40
+      before: ((10 * 4) + (0 * 8))
+      after: 40
+      reversible: yes
+      verification: nps vector_scale and vector_add, passed, 40
+      verified: yes
+    1.11 transformation
+      phase: solve
+      goal: Integrate the j axis over the shared time
+      rule: physics.planar-kinematics.component-j, Planar displacement component
+      claim: equivalent expression
+      explanation: Combine the initial velocity term and the acceleration term on this axis
+      detail: Reach for this once the units agree and the clock is fixed. Each axis is integrated on its own, because a component of the acceleration only ever changes the matching component of the velocity. The shared elapsed time is the single thing both axes have in common, and it is what lets one axis answer a question asked about the other.
+      proof obligation: obl.planar-kinematics.component-j, the j displacement equals v0 t + a t^2 / 2
+      action: 0 * 4 + -9.8 * 8 = -78.4
+      before: ((0 * 4) + ((-49 * (5^-1)) * 8))
+      after: (-392 * (5^-1))
+      reversible: yes
+      verification: nps vector_scale and vector_add, passed, -78.4
+      verified: yes
+    1.12 check
+      phase: check
+      goal: Check the displacement against the average velocity
+      rule: physics.planar-kinematics.check-shared-time, Shared-time consistency
+      claim: definition
+      explanation: Both axes advance under one clock, so the average velocity over the interval reproduces the same displacement
+      proof obligation: obl.planar-kinematics.shared-time, each axis satisfies s = (v0 + v) t / 2 with the same elapsed time
+      target claim: the two axes agree on one shared time
+      check method: average-velocity identity
+      expected: s = (v0 + v) t / 2 on both axes
+      observed: i: 40 against 40, j: -78.4 against -78.4
+      verification: average-velocity identity, passed, i: 40 against 40, j: -78.4 against -78.4
+      verified: yes
+    1.13 transformation
+      phase: solve
+      goal: Report the displacement to the measured precision
+      rule: physics.planar-kinematics.significant-figures, Significant figures
+      claim: no claim
+      explanation: Round only after exact conversion, decomposition and verification
+      detail: Reach for this once, at the very end. A measured value is only as good as the figures it was written with, so the answer is reported to the fewest among the measurements it came from. Rounding an axis before combining the terms would throw away figures the final rounding cannot get back.
+      action: Report (40 i - 78.4 j) m as (40 i - 80 j) m
+      before: vector(40, (-392 * (5^-1)))
+      after: vector(40, (-392 * (5^-1)))
+      reversible: no
+      verification: exact comparison against the unrounded value, passed, (40 i - 80 j) m is within half a unit in the last place of (40 i - 78.4 j) m
+      verified: nothing claimed
+    1.14 transformation
+      phase: solve
+      goal: Report the final velocity to the measured precision
+      rule: physics.planar-kinematics.significant-figures, Significant figures
+      claim: no claim
+      explanation: Round only after exact conversion, decomposition and verification
+      detail: Reach for this once, at the very end. A measured value is only as good as the figures it was written with, so the answer is reported to the fewest among the measurements it came from. Rounding an axis before combining the terms would throw away figures the final rounding cannot get back.
+      action: Report (10 i - 39.2 j) m/s as (10 i - 40 j) m/s
+      before: vector(10, (-196 * (5^-1)))
+      after: vector(10, (-196 * (5^-1)))
+      reversible: no
+      verification: exact comparison against the unrounded value, passed, (10 i - 40 j) m/s is within half a unit in the last place of (10 i - 39.2 j) m/s
+      verified: nothing claimed
