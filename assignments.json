@@ -2217,6 +2217,16 @@
       "branch": "claude/issue-161",
       "slug": "cx2-ag-claude-nova",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-397",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 397,
+      "pr": 406,
+      "branch": "fix/reclaim-landed-leases",
+      "slug": "cx2-ag-claude-review-echo",
+      "released": false
     }
   ]
 }
