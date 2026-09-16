@@ -234,3 +234,14 @@ lua_module.cc appears in the build graph only as a phony source node rather than
 
 So on a machine or runner without luajit, **a change to the Lua bridge is never compiled**. Check
 `ninja -t targets all | grep nps_luax` before believing a green build.
+
+What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
+`fast` alone. They used to wait on `review-ready` as well, which was right while an approving review
+was required to merge and became a deadlock when the maintainer removed that requirement for a
+delivery window, because `review-ready` waits for a verdict that no longer has to arrive.
+
+`source`: .github/workflows/check.yml gives both jobs `needs: [fast]`, and
+.github/scripts/test-ci-scheduling.rb asserts exactly that pair rather than trusting it. Whoever
+restores the approving review to the merge gate has to put `review-ready` back into both lists and
+into that assertion, or the suites will start again without waiting for the verdict that gate exists
+to collect.
