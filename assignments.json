@@ -2087,6 +2087,16 @@
       "branch": "claude/issue-378",
       "slug": "cx2-ag-claude-review-anchor",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-379",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 379,
+      "pr": null,
+      "branch": "claude/issue-379",
+      "slug": "cx2-ag-claude-meteor",
+      "released": false
     }
   ]
 }
