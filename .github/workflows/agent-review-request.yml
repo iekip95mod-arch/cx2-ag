@@ -11,8 +11,49 @@ concurrency:
   queue: max
 
 jobs:
-  assign:
+  # full, review-ready and emulator all need fast, so a branch whose fast gate is red cannot merge
+  # whatever a reviewer concludes about it. Spending a subscription run to produce a verdict nobody
+  # can act on is the waste this stops, and #366 is what it cost: fast failed on every push there
+  # while reviewers kept being assigned to it.
+  #
+  # Only a concluded failure stops the assignment. A fast that is queued or still running is allowed
+  # through, because it finishes in about a minute and a review takes far longer than that, so
+  # waiting for it would cost more turnaround than it saves.
+  fast-gate:
     if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review", "gemini-review"]'), github.event.label.name))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: read
+    outputs:
+      stop: ${{ steps.fast.outputs.stop }}
+    steps:
+      - name: Read the fast gate on this head
+        id: fast
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The newest completed run wins, because a rerun leaves the earlier attempt in this list.
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=fast" \
+            --jq '[.check_runs[] | select(.status == "completed")] | sort_by(.completed_at) | last | .conclusion // ""')
+          echo "fast on $HEAD_SHA: ${conclusion:-not finished}"
+          stop=false
+          case "$conclusion" in
+            failure|timed_out|cancelled|action_required) stop=true ;;
+          esac
+          echo "stop=$stop" >> "$GITHUB_OUTPUT"
+          if [ "$stop" = true ]; then
+            echo "No reviewer was assigned: the fast gate is $conclusion on $HEAD_SHA, so the branch cannot merge on any verdict. Fix fast, then re-add the review label." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  assign:
+    needs: fast-gate
+    if: >-
+      needs.fast-gate.outputs.stop != 'true' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (github.event.action != 'labeled' || contains(fromJSON('["claude-review", "codex-review", "gemini-review"]'), github.event.label.name))
