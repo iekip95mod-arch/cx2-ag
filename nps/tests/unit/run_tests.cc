@@ -922,6 +922,8 @@ int main_body() {
     run_planar_kinematics_tests(sink);
     sink.begin_group("position motion");
     run_position_motion_tests(sink);
+    sink.begin_group("graph integration");
+    run_graph_integration_tests(sink);
     sink.begin_group("optics");
     run_optics_tests(sink);
     sink.begin_group("relative motion");

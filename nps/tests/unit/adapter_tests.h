@@ -119,6 +119,7 @@ void run_circular_motion_tests(TestSink &sink);
 void run_kinematics_tests(TestSink &sink);
 void run_planar_kinematics_tests(TestSink &sink);
 void run_position_motion_tests(TestSink &sink);
+void run_graph_integration_tests(TestSink &sink);
 void run_optics_tests(TestSink &sink);
 void run_relative_motion_tests(TestSink &sink);
 void run_unit_conversion_tests(TestSink &sink);
