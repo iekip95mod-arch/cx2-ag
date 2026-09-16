@@ -61,7 +61,7 @@ steps
       before: (m = (rho * V))
       after: (m = (rho * V))
       reversible: yes
-      verification: recompute each stored value as the given times its table scale, passed, 2 stored values equal the given times its table scale
+      verification: divide each stored value by its table scale and compare with the given, passed, 2 stored values divide back to the given by their table scale
       verified: yes
     1.3 transformation
       phase: solve

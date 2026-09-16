@@ -65,7 +65,7 @@ steps
       before: ((a * sin(t)) = (m * lambda))
       after: ((a * sin(t)) = (m * lambda))
       reversible: yes
-      verification: recompute each stored value as the given times its table scale, passed, 3 stored values equal the given times its table scale
+      verification: divide each stored value by its table scale and compare with the given, passed, 3 stored values divide back to the given by their table scale
       verified: yes
     1.3 check
       phase: check

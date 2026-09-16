@@ -256,25 +256,27 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         if (static_cast<int>(index) == unknown_index)
             continue;
         const DensityKnown &known = *knowns[index];
-        // to_si is this one multiplication and it already succeeded above, so there is no
-        // arithmetic outcome left to fail here and no Inconclusive arm to record.
-        Rational expected;
-        static_cast<void>(rational_mul(known.quantity.value, known.quantity.unit.scale, &expected));
+        // Dividing back is the check. Multiplying again repeats the call to_si made, so it agrees
+        // with itself whatever either operand is and the failed arm cannot be reached.
+        Rational recovered;
+        const bool inverted =
+            rational_div(si_quantities[index].value, known.quantity.unit.scale, &recovered);
         ++conversions_checked;
-        if (rational_equal(si_quantities[index].value, expected))
+        if (inverted && rational_equal(recovered, known.quantity.value))
             continue;
         conversions_agree = false;
         if (!conversion_observed.empty())
             conversion_observed += ", ";
         conversion_observed += std::string(variable_symbol(known.variable)) + " was stored as " +
-                               rational_text(si_quantities[index].value) + " rather than " +
-                               rational_text(expected);
+                               rational_text(si_quantities[index].value) +
+                               ", which does not divide back to " +
+                               rational_text(known.quantity.value);
     }
     const VerificationOutcome conversion_outcome =
         conversions_agree ? VerificationOutcome::Passed : VerificationOutcome::Failed;
     if (conversion_observed.empty()) {
         conversion_observed = std::to_string(conversions_checked) +
-                              " stored values equal the given times its table scale";
+                              " stored values divide back to the given by their table scale";
     }
 
     if (converted_units) {
@@ -287,7 +289,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                                         "so m = rho*V uses consistent units. Convert each known "
                                         "quantity with its exact unit scale before substitution.");
         step.verifications.push_back(
-            verification("recompute each stored value as the given times its table scale",
+            verification("divide each stored value by its table scale and compare with the given",
                          conversion_observed, EvidenceStrength::CandidateChecked,
                          conversion_outcome));
         step.proof_obligations.push_back(
@@ -302,7 +304,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     }
     if (!conversions_agree)
         return failed(DensityOutcome::VerificationFailed, DerivationStatus::VerificationFailed,
-                      "a converted quantity does not equal the given times its table scale");
+                      "a converted quantity does not divide back to the given by its table scale");
 
     NodeId expressions[kVariableCount] = {mass_symbol, volume_symbol, density_symbol};
     for (size_t index = 0; index < kVariableCount; ++index) {

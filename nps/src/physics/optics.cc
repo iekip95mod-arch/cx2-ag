@@ -513,21 +513,25 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             converted_known.quantity = converted;
             conversions += known_text(known) + " becomes " + known_text(converted_known);
         }
-        Rational expected;
-        static_cast<void>(rational_mul(known.quantity.value, known.quantity.unit.scale, &expected));
+        // Dividing back is the check. Multiplying again repeats the call to_si made, so it agrees
+        // with itself whatever either operand is and the failed arm cannot be reached.
+        Rational recovered;
+        const bool inverted =
+            rational_div(si_quantities[index].value, known.quantity.unit.scale, &recovered);
         ++conversions_checked;
-        if (rational_equal(si_quantities[index].value, expected))
+        if (inverted && rational_equal(recovered, known.quantity.value))
             continue;
         conversions_agree = false;
         if (!conversion_observed.empty())
             conversion_observed += ", ";
         conversion_observed += std::string(variable_symbol(problem.relation, known.variable)) +
                                " was stored as " + rational_text(si_quantities[index].value) +
-                               " rather than " + rational_text(expected);
+                               ", which does not divide back to " +
+                               rational_text(known.quantity.value);
     }
     if (conversion_observed.empty()) {
         conversion_observed = std::to_string(conversions_checked) +
-                              " stored values equal the given times its table scale";
+                              " stored values divide back to the given by their table scale";
     }
     if (converted_units) {
         if (!meter.step())
@@ -539,7 +543,7 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 " so the two sides use consistent units. A wavelength in nanometres and a slit "
                 "spacing in millimetres cancel only after both reach metres.");
         step.verifications.push_back(
-            verification("recompute each stored value as the given times its table scale",
+            verification("divide each stored value by its table scale and compare with the given",
                          conversion_observed, EvidenceStrength::CandidateChecked,
                          conversions_agree ? VerificationOutcome::Passed
                                            : VerificationOutcome::Failed));
@@ -555,7 +559,7 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     }
     if (!conversions_agree)
         return failed(OpticsOutcome::VerificationFailed, DerivationStatus::VerificationFailed,
-                      "a converted quantity does not equal the given times its table scale");
+                      "a converted quantity does not divide back to the given by its table scale");
 
     bool givens_physical = true;
     std::string domain_observed;
