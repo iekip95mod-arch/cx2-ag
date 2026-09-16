@@ -700,7 +700,7 @@ exact_special_function_and_numerical_result_policy exact rational SI conversion 
 parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
 required_assumptions the frame and the axis convention are declared rather than inferred, and the specialization is stated, carried as "positive i is right and positive j is up", "the acceleration is constant over the whole interval", "one shared time links both axes" and "the projectile specialization leaves the horizontal axis unaccelerated"
 test_group_ids planar kinematics
-proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.projectile, obl.planar-kinematics.definition-after-checks, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
+proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.projectile, obl.planar-kinematics.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
 supported_methods validate rank, frame, stage identity and dimensions, check the projectile acceleration, then solve each axis independently with the existing one-dimensional kinematics engine and cross-check the apex height by a second route
 unsupported_near_neighbors general two-dimensional motion with a nonzero horizontal acceleration, oblique launch from a moving platform, air resistance, and more than two dimensions
 solution_soundness_status verified by rank, frame, stage and dimension checks, the projectile acceleration precondition, and a second independent route to the apex height that must agree with the first
@@ -718,6 +718,7 @@ rule physics.planar-kinematics.check-stages fixture
 rule physics.planar-kinematics.check-input-dimensions fixture
 rule physics.planar-kinematics.check-projectile fixture
 rule physics.planar-kinematics.definition fixture
+rule physics.planar-kinematics.substitute fixture
 rule physics.planar-kinematics.convert-si fixture
 rule physics.planar-kinematics.check-result-dimension fixture
 rule physics.planar-kinematics.component-i fixture

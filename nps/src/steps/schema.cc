@@ -1504,6 +1504,8 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.planar-kinematics.definition", ClaimType::Definition, kPlanarDefinitionAfterChecks, 1,
      FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
     {"physics.planar-kinematics.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
      FailureBehavior::WithholdResult},
     {"physics.planar-kinematics.component-i", ClaimType::EquivalentExpression, kPlanarComponentI, 1,
