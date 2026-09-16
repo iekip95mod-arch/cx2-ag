@@ -764,6 +764,40 @@ rule physics.planar-kinematics.component-j fixture
 rule physics.planar-kinematics.check-shared-time fixture
 rule physics.planar-kinematics.significant-figures fixture
 
+family id physics.kinematics.motion-graphs.piecewise-area
+topic_and_level Reading signed area under a piecewise a(t) or v(t) curve, chapter 2 motion graphs
+accepted_expression_grammar existing algebraic expression grammar for each segment's curve, evaluated in the time variable t
+accepted_input_forms one typed GraphIntegrationProblem naming the reading direction, the curve's dimension, a query interval and an ordered list of per-segment curve expressions with their own sub-intervals
+domains_and_parameter_assumptions each segment's curve is defined and continuous on its own sub-interval, and the segments together cover the requested query interval with no gap
+supported_branches_and_degenerate_cases a reversed query interval, a single segment, multiple segments whose own sub-intervals only partially overlap the query interval, and a signed area where part of the curve lies below the axis
+exact_special_function_and_numerical_result_policy exact rational SI conversion of interval bounds and exact rational evaluation of each segment's antiderivative at its bounds, summed as exact rationals
+parser_module_ids src/units/units.cc, src/physics/graph_integration.cc, src/core/parser.cc, src/steps/integrate.cc
+required_assumptions none, no golden fixture yet exercises this family so no engine string is joined against one
+test_group_ids graph integration
+proof_obligation_ids none, no golden fixture yet exercises this family so no obligation is joined against one
+supported_methods stitch each segment's overlap with the query interval, integrate it with the existing indefinite-integral engine, evaluate the antiderivative at both ends and sum the signed differences
+unsupported_near_neighbors a discontinuity inside one segment, more than one independent variable, and word-language input
+solution_soundness_status each segment's antiderivative is differentiated by rule and checked, by the composed indefinite-integral family this one owns no rule of; its own interval and dimension checks are refused as InvalidInput, DimensionMismatch or IncompleteCoverage outcomes rather than recorded derivation steps
+solution_completeness_status partial, limited to curves the composed indefinite-integral engine supports on each segment and to piecewise coverage with no gap
+corpus_case_ids not yet filed
+device_performance_status not measured
+direct_keypad_entry_status not yet implemented
+isolated_runtime_status host core validated, ARM packaging and calculator runtime not yet measured
+release_status in development, unreleased
+rule calculus.integrate.rules device
+rule calculus.integrate.check-by-differentiation device
+rule i.power device
+rule i.reciprocal device
+rule i.sum device
+rule i.constant-multiple device
+rule i.linear-substitution device
+rule i.constant-of-integration device
+rule i.logarithm-parts device
+rule i.constant device
+rule i.function device
+# This family composes with the existing indefinite-integral engine for each segment's closed
+# form rather than carrying a second integrator, so every rule id above is that family's own.
+
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
 accepted_input_forms an equation in the project's own grammar, and the symbol to isolate
