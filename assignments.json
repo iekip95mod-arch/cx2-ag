@@ -2127,6 +2127,16 @@
       "branch": "claude/issue-380",
       "slug": "cx2-ag-claude-comet",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-401",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 401,
+      "branch": "fix/ti-info-content",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
