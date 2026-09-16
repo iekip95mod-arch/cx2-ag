@@ -1514,7 +1514,7 @@
       "pr": null,
       "branch": "claude/issue-163",
       "slug": "cx2-ag-claude-nebula",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-165",
