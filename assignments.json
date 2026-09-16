@@ -2097,6 +2097,16 @@
       "branch": "claude/issue-379",
       "slug": "cx2-ag-claude-meteor",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-396",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 396,
+      "branch": "fix/bot-pool-release",
+      "slug": "cx2-ag-claude-review-cairn",
+      "released": false
     }
   ]
 }
