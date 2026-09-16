@@ -2376,6 +2376,16 @@
       "pr": 435,
       "branch": "claude/issue-322",
       "slug": "cx2-ag-claude-review-anchor",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-352",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 352,
+      "pr": 436,
+      "branch": "claude/issue-352",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
