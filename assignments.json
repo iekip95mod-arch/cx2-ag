@@ -2247,6 +2247,16 @@
       "branch": "ci/run-suites-without-review",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-377",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 377,
+      "pr": 409,
+      "branch": "claude/issue-377",
+      "slug": "cx2-ag-claude-review-echo",
+      "released": false
     }
   ]
 }
