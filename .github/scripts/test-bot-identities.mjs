@@ -79,6 +79,7 @@ function fixture() {
   let assignments = [];
   let revision = 0;
   let conflicts = 0;
+  let hardFailures = 0;
   let collisionCount = 0;
   let userOverride;
   let links = [];
@@ -120,6 +121,7 @@ function fixture() {
       ? { data: { repository: { issue: { closedByPullRequestsReferences: { totalCount: linkedOpenPrs, nodes: Array.from({ length: linkedOpenPrs }, () => ({ state: 'OPEN' })), pageInfo: { hasNextPage: false } } } } } }
       : { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: links, pageInfo: { hasNextPage: false } } } } } };
     if (method === 'PUT' && path === 'contents/assignments.json') {
+      if (hardFailures-- > 0) throw Object.assign(Error('assignments.json write failed'), { status: 500 });
       if (conflicts-- > 0 || body.sha !== (revision ? String(revision) : undefined)) {
         collisionCount++;
         throw Object.assign(Error('conflict'), { status: 409 });
@@ -130,7 +132,7 @@ function fixture() {
     }
     throw Error(`Unexpected ${method} ${endpoint}`);
   };
-  return { api, calls, ticket, pull, branches, get assignments() { return assignments; }, set assignments(value) { assignments = value; revision++; }, get revision() { return revision; }, get collisionCount() { return collisionCount; }, set conflicts(value) { conflicts = value; }, set user(value) { userOverride = value; }, set links(value) { links = value; }, set linkedOpenPrs(value) { linkedOpenPrs = value; } };
+  return { api, calls, ticket, pull, branches, get assignments() { return assignments; }, set assignments(value) { assignments = value; revision++; }, get revision() { return revision; }, get collisionCount() { return collisionCount; }, set conflicts(value) { conflicts = value; }, set hardFailures(value) { hardFailures = value; }, set user(value) { userOverride = value; }, set links(value) { links = value; }, set linkedOpenPrs(value) { linkedOpenPrs = value; } };
 }
 
 // A lease is held for the whole life of an open issue, so an issue that stalls without ever opening a
@@ -246,6 +248,44 @@ test('a refused allocation records the dead leases it verified', async () => {
   await assert.rejects(allocateIdentity(options(13, 'claude', 'reviewer'), github.api, roster), { code: 'BOT_POOL_OCCUPIED' });
   assert.equal(github.assignments.find(assignment => assignment.slug === dead.slug).released, true);
   assert.equal(github.assignments.filter(assignment => !assignment.released).length, 12);
+  assert.equal(github.revision, revision + 1);
+});
+
+// The pool being full is one refusal out of several, and every one of them walks the whole document
+// and asks GitHub about each live lease first. These three are the other exits.
+test('an executor refused to a rival provider still records the sweep', async () => {
+  const github = fixture();
+  await allocateIdentity(options(5, 'codex'), github.api, roster);
+  const dead = await allocateIdentity(options(20, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(20).state = 'closed';
+  const revision = github.revision;
+  await assert.rejects(allocateIdentity(options(5, 'claude'), github.api, roster), /Another provider already has this issue/);
+  assert.equal(github.assignments.find(assignment => assignment.slug === dead.slug).released, true);
+  assert.equal(github.revision, revision + 1);
+});
+
+test('an ownership refusal still records the sweep', async () => {
+  const github = fixture();
+  const dead = await allocateIdentity(options(21, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(21).state = 'closed';
+  github.branches.add('claude/issue-8');
+  const revision = github.revision;
+  await assert.rejects(allocateIdentity(options(8, 'claude'), github.api, roster), /An unclaimed branch already exists/);
+  assert.equal(github.assignments.find(assignment => assignment.slug === dead.slug).released, true);
+  assert.equal(github.revision, revision + 1);
+});
+
+// The sweep is kept, and the reservation that write was carrying is not, because the caller is about
+// to be told it failed and a lease nobody holds is worse than the walk being paid for twice.
+test('a reservation write that fails outright records the sweep and nothing else', async () => {
+  const github = fixture();
+  const dead = await allocateIdentity(options(22, 'claude', 'reviewer'), github.api, roster);
+  github.ticket(22).state = 'closed';
+  const revision = github.revision;
+  github.hardFailures = 1;
+  await assert.rejects(allocateIdentity(options(9, 'claude'), github.api, roster), { status: 500 });
+  assert.equal(github.assignments.find(assignment => assignment.slug === dead.slug).released, true);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 0);
   assert.equal(github.revision, revision + 1);
 });
 
