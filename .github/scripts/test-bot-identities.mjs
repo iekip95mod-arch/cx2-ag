@@ -291,16 +291,25 @@ test('a merged reviewer PR frees its identity while its issue stays open', async
   await assert.rejects(allocateIdentity(target(201), github.api, roster), /already closed/);
 });
 
-test('an executor lease allocated from its PR survives that PR closing while the issue stays open', async () => {
+// This lease used to be held for the whole life of an open issue. It is now given up once the branch's
+// pull requests have all closed, because a landed branch has no writer left for the lease to keep out,
+// and an issue that stays open for follow-up work was pinning an identity nothing was using.
+//
+// Identity continuity across that issue survives without anything extra. An issue that comes back while
+// its lease is still active takes the existing-lease path above and keeps its own bot, so the only case
+// that changes identity is one where another issue had already claimed the freed slot.
+test('an executor lease allocated from its PR is given up once that PR closes', async () => {
   const github = fixture();
   github.pull(87, 20, 'claude');
   const worker = await allocateIdentity({ repository, provider: 'claude', role: 'executor', pr: 87 }, github.api, roster);
   assert.equal(github.assignments[0].pr, 87);
   github.pull(87, 20, 'claude').state = 'closed';
   assert.equal(github.ticket(20).state, 'open');
-  await allocateIdentity(options(42, 'claude'), github.api, roster);
-  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, false);
-  assert.equal((await readAssignment(options(20, 'claude'), github.api, roster)).login, worker.login);
+  const other = await allocateIdentity(options(42, 'claude'), github.api, roster);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, true);
+  // The freed name is the one the next issue gets, which is what freeing it was for.
+  assert.equal(other.login, worker.login);
+  await assert.rejects(readAssignment(options(20, 'claude'), github.api, roster), /No active/);
 });
 
 test('twelve reviewer slots retain assignments and reject overflow per provider', async () => {
@@ -331,13 +340,45 @@ test('a closed issue keeps its identity until every branch PR closes, including 
   await assert.rejects(readAssignment(options(20), github.api, roster), /No active/);
 });
 
-test('closed PRs alone do not release an open issue', async () => {
+test('closed PRs release an open issue, but an unopened one keeps its lease', async () => {
   const github = fixture();
   const first = await allocateIdentity(options(20), github.api, roster);
-  github.pull(87, 20).state = 'closed';
   const second = await allocateIdentity(options(42), github.api, roster);
   assert.notEqual(first.login, second.login);
-  assert.equal(github.assignments[0].released, false);
+  // Issue 42 has no pull request at all, which is the state a lane sits in between claiming its branch
+  // and publishing its draft. That one keeps its lease, or the sweep would take a slot out from under a
+  // worker that is still running.
+  assert.equal(github.assignments.find(assignment => assignment.issue === 42).released, false);
+  github.pull(87, 20).state = 'closed';
+  await allocateIdentity(options(51), github.api, roster);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 20).released, true);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 42).released, false);
+});
+
+// The shape that filled the pool in practice: a pull request merges, its issue stays open because the
+// acceptance criteria are not all met, and the branch survives the merge. The lease was held for every
+// one of those and nothing was using it. All twelve slots went this way.
+test('a landed branch frees its slot even with the issue open and the branch still there', async () => {
+  const github = fixture();
+  const workers = [];
+  for (let issue = 1; issue <= 12; issue++) workers.push(await allocateIdentity(options(issue, 'claude'), github.api, roster));
+  await assert.rejects(allocateIdentity(options(99, 'claude'), github.api, roster), { code: 'BOT_POOL_OCCUPIED' });
+  // Issue 5's work landed. Its branch is still on the remote and its issue is still open.
+  github.pull(500, 5, 'claude').state = 'closed';
+  github.branches.add('claude/issue-5');
+  assert.equal(github.ticket(5).state, 'open');
+  const taken = await allocateIdentity(options(99, 'claude'), github.api, roster);
+  assert.equal(taken.login, workers[4].login);
+  assert.equal(github.assignments.find(assignment => assignment.issue === 5).released, true);
+  // And issue 5 is not locked out of coming back. Its old branch and its merged PR belong to a bot that
+  // no longer holds it, and neither may refuse the next lane, or freeing the slot would strand the issue.
+  // Issue 6 lands too, so there is a slot for issue 5 to return into rather than the twelfth one it
+  // just gave up, which issue 99 is now using.
+  github.pull(600, 6, 'claude').state = 'closed';
+  const successor = await allocateIdentity(options(5, 'claude'), github.api, roster);
+  assert.notEqual(successor.login, taken.login);
+  assert.equal(successor.login, workers[5].login);
+  assert.equal(github.assignments.filter(assignment => assignment.issue === 5 && !assignment.released).length, 1);
 });
 
 test('a merged linked PR releases the identity after its issue closes', async () => {
