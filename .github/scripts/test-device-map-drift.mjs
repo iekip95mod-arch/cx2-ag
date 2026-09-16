@@ -61,6 +61,8 @@ test("the marker is folded, and a line that only mentions the map clears nothing
   assert.equal(declares(declaredMapLines("DEVICE MAP: The Bridge is fine"), "The bridge"), true);
   assert.equal(declares(declaredMapLines("I read the device map and it is fine"), "The bridge"), false);
   assert.equal(declares(declaredMapLines("Device map:\nThe bridge"), "The bridge"), false);
+  assert.equal(declares(declaredMapLines("Device map: I did not read The bridge"), "The bridge"), false,
+    "the heading has to open the line, or any sentence mentioning it would clear the section");
 });
 
 test("no body is the same answer the check gave before it read one", () => {
