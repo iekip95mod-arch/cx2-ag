@@ -114,11 +114,12 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-15, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:3994), `vector_addition` (lua_module.cc:3997),
-`components_to_magnitude_angle`, `magnitude_angle_to_components`, `math_display`, `giac`, and a set of
-platform entry points for memory, tracing, integrity and the OS dialogs.
+`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
+`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
+dialogs.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 

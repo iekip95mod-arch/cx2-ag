@@ -412,12 +412,12 @@ required_assumptions each vector is expressed in the named Cartesian frame, carr
 test_group_ids vector cross product, units
 proof_obligation_ids obl.vector-cross.rank-three, obl.vector-cross.frames-match, obl.vector-cross.dimension-product, obl.vector-cross.rounding-final, obl.vector-cross.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-cross.component-cross, obl.vector-cross.orthogonal-first, obl.vector-cross.orthogonal-second, obl.vector-cross.anticommutative, obl.plan.preconditions-hold
 supported_methods exact SI conversion followed by determinant expansion into three components, with exact orthogonality and anticommutativity checks against the inputs
-unsupported_near_neighbors cross product of vectors whose rank is not three, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
+unsupported_near_neighbors cross product of vectors whose rank is not three, implicit frame transformation, direct keypad entry, Ki V4 menu exposure
 solution_soundness_status verified by rank, frame, dimension-product, exact conversion, exact rational determinant expansion, exact orthogonality and exact anticommutativity records
-solution_completeness_status complete for three-dimensional Cartesian cross products within exact int64 rational bounds; the typed C++ engine only, with no Lua bridge or menu entry yet
+solution_completeness_status complete for three-dimensional Cartesian cross products within exact int64 rational bounds; the typed Lua bridge is nps.vector_cross, source with src/platform/nspire/lua_module.cc and test/target/luax_host.lua, no Ki V4 menu entry yet
 corpus_case_ids vector_cross_torque_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
+direct_keypad_entry_status not implemented, typed Lua bridge only
 isolated_runtime_status not yet built for the device target
 release_status unreleased
 rule vec.cross.plan fixture

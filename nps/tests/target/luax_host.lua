@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 30,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -267,6 +267,7 @@ local expected_modules = {
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
     "physics.vectors.cartesian-addition.two-dimension",
+    "physics.vectors.cartesian-cross-product.three-dimension",
     "physics.vectors.magnitude-components.two-dimension",
     "physics.forces.newton-second-law",
     "physics.work.constant-force-dot-product",
@@ -1258,6 +1259,26 @@ check(r.outcome == "dimension mismatch" and r.solved == false and r.result == ni
 r = nps.vector_addition("not a vector", "(3, 4) m")
 check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
       "the vector bridge returns a structured parse refusal")
+
+r = nps.vector_cross("20.0 i + 0.0 j + 0.0 k cm", "0.0 i + 15.0 j + 0.0 k N")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the vector cross product bridge returns a verified solution")
+check(r.result == "3.00 k kg m^2/s^2" and r.value == r.result,
+      "the cross product bridge returns the determinant expansion with its product dimension")
+local cross_rules = {}
+for _, s in ipairs(r.steps) do cross_rules[s.rule] = true end
+check(cross_rules["vec.cross.plan"] and cross_rules["vec.cross.component-i"] and
+      cross_rules["vec.cross.component-j"] and cross_rules["vec.cross.component-k"] and
+      cross_rules["vec.cross.check-orthogonal-first"] and
+      cross_rules["vec.cross.check-orthogonal-second"] and
+      cross_rules["vec.cross.check-anticommutative"],
+      "the cross product bridge retains the determinant and orthogonality steps")
+r = nps.vector_cross("(1, 2) m", "(3, 4, 5) m")
+check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
+      "the cross product bridge refuses an operand that is not rank three")
+r = nps.vector_cross("not a vector", "(1, 2, 3) m")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
+      "the cross product bridge returns a structured parse refusal")
 
 local exact_precision = { kind = "exact", significant_digits = 0 }
 local measured_two = { kind = "measured", significant_digits = 2 }
