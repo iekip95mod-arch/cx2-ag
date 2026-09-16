@@ -2066,7 +2066,7 @@
       "pr": null,
       "branch": "claude/issue-381",
       "slug": "cx2-ag-claude-aurora",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-382",
