@@ -1844,7 +1844,7 @@
       "pr": null,
       "branch": "claude/issue-226",
       "slug": "cx2-ag-claude-meteor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-364",
