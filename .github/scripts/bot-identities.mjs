@@ -101,11 +101,26 @@ async function writeAssignments(repository, state, message, api) {
   });
 }
 
+// A lease keeps a second writer off one branch. A branch whose pull requests have all closed has no
+// writer left to collide with, so the lease is spent whatever the issue still says. An empty list is
+// not settled, because a lane that has not opened its PR yet is the case the lease exists for.
+function settled(pulls) {
+  return pulls.length > 0 && pulls.every(pull => pull.state === 'closed');
+}
+
+// Finished is not the same question as reclaimable. An issue whose PR merged can still be open for the
+// work that follows, and allocate has to keep refusing a finished target while sweep frees its slot.
+async function reclaimable(repository, assignment, api) {
+  if (await closed(repository, assignment, api)) return true;
+  if (assignment.role !== 'executor') return false;
+  return settled(await branchPulls(repository, assignment.branch, api));
+}
+
 async function sweep(repository, state, api, roster) {
   let released = 0;
   for (const assignment of state.assignments.filter(assignment => !assignment.released)) {
     findIdentity(roster, `${assignment.slug}[bot]`, assignment.provider, assignment.role);
-    if (await closed(repository, assignment, api)) {
+    if (await reclaimable(repository, assignment, api)) {
       assignment.released = true;
       released++;
     }
@@ -168,8 +183,12 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   if (ticket.labels.some(label => ['codex', 'claude', 'gemini'].includes(label.name) && label.name !== target.provider)) throw Error('Another provider owns the issue');
   const branch = await api('GET', `repos/${repository}/git/ref/heads/${target.branch}`, undefined, true);
   const pulls = await branchPulls(repository, target.branch, api);
-  if (pulls.some(pull => !allowed.has(pull.user.login))) throw Error('Another identity owns a branch PR');
-  if (branch && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
+  // Both guards below protect work in progress. Once every pull request on the branch has closed there
+  // is none, so the previous identity's landed PR and its leftover branch are history rather than a
+  // claim, and the next lane on the same issue is not locked out by them.
+  const landed = settled(pulls);
+  if (!landed && pulls.some(pull => !allowed.has(pull.user.login))) throw Error('Another identity owns a branch PR');
+  if (branch && !landed && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
 }
 
 function reviewerMatches(state, pr, branch) {

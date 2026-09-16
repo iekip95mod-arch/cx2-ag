@@ -134,7 +134,7 @@ jobs:
         run: ccache --show-stats
 
   full:
-    needs: [fast, review-ready]
+    needs: [fast]
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
@@ -192,7 +192,7 @@ jobs:
   # actions/checkout leaves pointers by default, which emurun now refuses by name rather than
   # handing 130 bytes to the emulator.
   emulator:
-    needs: [fast, review-ready]
+    needs: [fast]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
