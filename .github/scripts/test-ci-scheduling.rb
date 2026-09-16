@@ -12,6 +12,16 @@ reviews = YAML.load_file(File.join(root, '.github/workflows/agent-review.yml')).
 ['review', 'codex-review'].each do |name|
   failures << "#{name} must use Ubuntu ARM" unless reviews.fetch(name)['runs-on'] == 'ubuntu-24.04-arm'
 end
+# A reviewer assigned to a branch whose fast gate is red cannot merge it whatever it concludes, because
+# full, review-ready and emulator all need fast. Without this the subscription run is spent on a verdict
+# nobody can act on, which is what #366 cost.
+request = YAML.load_file(File.join(root, '.github/workflows/agent-review-request.yml')).fetch('jobs')
+gate = request['fast-gate']
+failures << 'agent-review-request must read the fast gate before assigning a reviewer' unless gate && gate.dig('outputs', 'stop').to_s.include?('steps.fast.outputs.stop')
+failures << 'The fast gate reader must only need permission to read checks' unless gate && gate['permissions'] == { 'checks' => 'read' }
+assign = request.fetch('assign')
+failures << 'assign must wait for the fast gate' unless Array(assign['needs']).include?('fast-gate')
+failures << 'assign must skip when the fast gate reports a failed fast' unless assign['if'].to_s.include?("needs.fast-gate.outputs.stop != 'true'")
 full = jobs.fetch('full')
 failures << 'Full must prepare the complete SDK without allowing prerequisite failure' unless full.fetch('steps').any? { |step| step['run'] == 'bash .github/scripts/prepare-review.sh' && !step['continue-on-error'] }
 failures << 'Full must require the bridge suite unconditionally' unless full.fetch('steps').any? { |step| step['name'] == 'Check the bridge suite registered' && !step.key?('if') }
