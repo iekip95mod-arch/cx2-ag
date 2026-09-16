@@ -229,6 +229,25 @@ export async function releaseDeadLeases(repository, api, roster = loadRoster()) 
   throw Error('Bot assignment contention exceeded eight attempts');
 }
 
+export async function releaseIdentity(options, api, roster = loadRoster()) {
+  const target = await resolveTarget(options, api);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const state = await readState(options.repository, api);
+    const assignment = state.assignments.find(candidate => candidate.key === target.key && !candidate.released);
+    if (!assignment || assignment.branch !== target.branch) throw Error('No active bot assignment for this target');
+    const identity = findIdentity(roster, `${assignment.slug}[bot]`, target.provider, target.role);
+    const open = (await branchPulls(options.repository, assignment.branch, api)).filter(pull => pull.state === 'open');
+    if (open.length) throw Error(`Pull request ${open[0].number} is still open on ${assignment.branch}, so its lease is still in use`);
+    const branch = await api('GET', `repos/${options.repository}/git/ref/heads/${assignment.branch}`, undefined, true);
+    assignment.released = true;
+    try {
+      await writeAssignments(options.repository, state, 'Release a stalled worker identity', api);
+      return { ...identity, ...target, stranded: Boolean(branch) };
+    } catch (error) { if (![409, 422].includes(error.status)) throw error; }
+  }
+  throw Error('Bot assignment contention exceeded eight attempts');
+}
+
 export async function reviewerCapacity(repository, api, roster = loadRoster()) {
   const state = await readState(repository, api);
   const free = Object.fromEntries(['codex', 'claude', 'gemini'].map(provider => [provider, roster.filter(identity => identity.provider === provider && identity.role === 'reviewer').length]));
@@ -285,7 +304,7 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
 async function main() {
   if (!process.env.GH_TOKEN) throw Error('The trusted routing token is required');
   const [command, ...args] = process.argv.slice(2);
-  if (!['allocate', 'resolve', 'lookup'].includes(command) || args.length % 2) throw Error('Use allocate, resolve or lookup with --provider, --role and --issue or --pr');
+  if (!['allocate', 'release', 'resolve', 'lookup'].includes(command) || args.length % 2) throw Error('Use allocate, release, resolve or lookup with --provider, --role and --issue or --pr');
   const options = { repository: process.env.GITHUB_REPOSITORY, legacyOwner: process.env.LEGACY_OWNER };
   for (let index = 0; index < args.length; index += 2) {
     if (!['--provider', '--role', '--issue', '--pr'].includes(args[index]) || Object.hasOwn(options, args[index].slice(2))) throw Error('Invalid bot identity option');
@@ -303,14 +322,18 @@ async function main() {
     }
   };
   let identity;
-  try { identity = await (command === 'allocate' ? allocateIdentity(options, api) : command === 'lookup' ? readAssignment(options, api) : resolveTarget(options, api)); }
+  try { identity = await (command === 'allocate' ? allocateIdentity(options, api) : command === 'release' ? releaseIdentity(options, api) : command === 'lookup' ? readAssignment(options, api) : resolveTarget(options, api)); }
   catch (error) {
     if (command !== 'allocate' || options.role !== 'reviewer' || process.env.REVIEW_CAPACITY_WAIT !== 'true' || error.code !== 'BOT_POOL_OCCUPIED') throw error;
     appendFileSync(process.env.GITHUB_OUTPUT, 'waiting=true\n');
     return;
   }
   const outputs = { branch: identity.branch, issue: identity.issue ?? '' };
-  if (command !== 'resolve') Object.assign(outputs, { app_id: identity.appId, client_id: identity.clientId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId });
+  if (command === 'release') {
+    console.log(`Released ${identity.login} from ${identity.branch}`);
+    if (identity.stranded) console.log(`::warning::${identity.branch} still exists, so this issue cannot be reassigned to a different identity until that branch and its PRs are gone`);
+  }
+  if (!['resolve', 'release'].includes(command)) Object.assign(outputs, { app_id: identity.appId, client_id: identity.clientId, secret_name: identity.secretName, login: identity.login, user_id: identity.userId });
   appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(''));
 }
 
