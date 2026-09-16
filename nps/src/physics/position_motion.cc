@@ -20,14 +20,116 @@ bool time_seconds(const Quantity &q, Rational *out) {
     return to_si(q, out);
 }
 
-Quantity made_quantity(const Rational &value, Dimension dimension) {
-    Quantity q;
-    q.value = value;
-    q.unit.dimension = dimension;
-    q.unit.text = si_unit_text(dimension);
-    q.unit.scale = Rational{1, 1};
-    q.precision.kind = NumberKind::Exact;
-    return q;
+Vector made_vector(const Rational values[3], uint8_t rank, Dimension dimension) {
+    Vector v;
+    v.x = values[0];
+    v.y = values[1];
+    v.z = rank == 3 ? values[2] : Rational{0, 1};
+    v.rank = rank;
+    v.frame.name = default_frame_name();
+    v.unit.dimension = dimension;
+    v.unit.text = si_unit_text(dimension);
+    v.unit.scale = Rational{1, 1};
+    v.precision.kind = NumberKind::Exact;
+    return v;
+}
+
+// One axis's slice through the whole computation: parse, secant, differentiate twice, evaluate
+// twice. Shared by every active component so the family does not carry three near-identical copies
+// of the same steps.
+struct AxisResult {
+    PositionMotionOutcome outcome = PositionMotionOutcome::Solved;
+    std::string detail;
+    DerivationStatus status = DerivationStatus::NotRecorded;
+    NodeId position = kNoNode;
+    NodeId velocity = kNoNode;
+    NodeId acceleration = kNoNode;
+    Rational average_velocity;
+    Rational instantaneous_velocity;
+    Rational instantaneous_acceleration;
+};
+
+AxisResult solve_axis(Arena &arena, Derivation &derivation, const std::string &expression,
+                      const char *axis_name, const Rational &start_seconds,
+                      const Rational &end_seconds, const Rational &event_seconds,
+                      NodeId time_variable, Meter &meter, Backend *giac) {
+    AxisResult axis;
+
+    ParseResult position = parse(arena, expression);
+    if (!position.ok()) {
+        axis.outcome = PositionMotionOutcome::InvalidInput;
+        axis.detail =
+            std::string("could not parse the ") + axis_name + " position function: " + position.message;
+        return axis;
+    }
+    axis.position = position.root;
+
+    Rational start_position;
+    Rational end_position;
+    if (!evaluate_rational(arena, position.root, {{"t", start_seconds}}, &start_position) ||
+        !evaluate_rational(arena, position.root, {{"t", end_seconds}}, &end_position)) {
+        axis.outcome = PositionMotionOutcome::UnsupportedForm;
+        axis.detail = std::string("the ") + axis_name +
+                      " position function could not be evaluated at the interval bounds";
+        return axis;
+    }
+
+    Rational displacement;
+    Rational elapsed;
+    if (!rational_sub(end_position, start_position, &displacement) ||
+        !rational_sub(end_seconds, start_seconds, &elapsed) ||
+        !rational_div(displacement, elapsed, &axis.average_velocity)) {
+        axis.outcome = PositionMotionOutcome::UnsupportedForm;
+        axis.detail =
+            std::string("the ") + axis_name + " average velocity could not be formed as an exact rational";
+        return axis;
+    }
+
+    DiffResult velocity = differentiate(arena, derivation, position.root, time_variable, meter, giac);
+    if (velocity.outcome != DiffOutcome::Differentiated) {
+        axis.outcome = velocity.outcome == DiffOutcome::Cancelled
+                           ? PositionMotionOutcome::Cancelled
+                       : velocity.outcome == DiffOutcome::ResourceExceeded
+                           ? PositionMotionOutcome::ResourceExceeded
+                           : PositionMotionOutcome::UnsupportedForm;
+        axis.detail = std::string(axis_name) + " velocity: " + velocity.detail;
+        axis.status = velocity.status;
+        return axis;
+    }
+    axis.velocity = velocity.derivative;
+
+    if (!evaluate_rational(arena, velocity.derivative, {{"t", event_seconds}},
+                           &axis.instantaneous_velocity)) {
+        axis.outcome = PositionMotionOutcome::UnsupportedForm;
+        axis.detail =
+            std::string("the ") + axis_name + " velocity expression could not be evaluated at the event";
+        return axis;
+    }
+
+    DiffResult acceleration =
+        differentiate(arena, derivation, velocity.derivative, time_variable, meter, giac);
+    if (acceleration.outcome != DiffOutcome::Differentiated) {
+        axis.outcome = acceleration.outcome == DiffOutcome::Cancelled
+                           ? PositionMotionOutcome::Cancelled
+                       : acceleration.outcome == DiffOutcome::ResourceExceeded
+                           ? PositionMotionOutcome::ResourceExceeded
+                           : PositionMotionOutcome::UnsupportedForm;
+        axis.detail = std::string(axis_name) + " acceleration: " + acceleration.detail;
+        axis.status = acceleration.status;
+        return axis;
+    }
+    axis.acceleration = acceleration.derivative;
+
+    if (!evaluate_rational(arena, acceleration.derivative, {{"t", event_seconds}},
+                           &axis.instantaneous_acceleration)) {
+        axis.outcome = PositionMotionOutcome::UnsupportedForm;
+        axis.detail = std::string("the ") + axis_name +
+                      " acceleration expression could not be evaluated at the event";
+        return axis;
+    }
+
+    axis.status = acceleration.status;
+    return axis;
 }
 
 }  // namespace
@@ -50,13 +152,12 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
     PositionMotionResult result;
     Meter meter(budget);
 
-    ParseResult position = parse(arena, problem.position_expression);
-    if (!position.ok()) {
+    if (problem.rank != 2 && problem.rank != 3) {
         result.outcome = PositionMotionOutcome::InvalidInput;
-        result.detail = "could not parse the position function: " + position.message;
+        result.detail = "the family supports rank two or rank three motion only";
         return result;
     }
-    result.position_expression = position.root;
+    result.rank = problem.rank;
 
     ParseResult time_variable = parse(arena, "t");
     if (!time_variable.ok()) {
@@ -81,79 +182,55 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
         return result;
     }
 
-    Rational start_position;
-    Rational end_position;
-    if (!evaluate_rational(arena, position.root, {{"t", start_seconds}}, &start_position) ||
-        !evaluate_rational(arena, position.root, {{"t", end_seconds}}, &end_position)) {
-        result.outcome = PositionMotionOutcome::UnsupportedForm;
-        result.detail = "the position function could not be evaluated at the interval bounds";
-        return result;
+    static const char *kAxisNames[3] = {"x", "y", "z"};
+    const std::string expressions[3] = {problem.position_x, problem.position_y, problem.position_z};
+    const uint8_t active = problem.rank;
+
+    Rational average_velocity[3] = {};
+    Rational instantaneous_velocity[3] = {};
+    Rational instantaneous_acceleration[3] = {};
+    NodeId position_nodes[3] = {kNoNode, kNoNode, kNoNode};
+    NodeId velocity_nodes[3] = {kNoNode, kNoNode, kNoNode};
+    NodeId acceleration_nodes[3] = {kNoNode, kNoNode, kNoNode};
+    DerivationStatus last_status = DerivationStatus::NotRecorded;
+
+    for (uint8_t axis_index = 0; axis_index < active; ++axis_index) {
+        AxisResult axis = solve_axis(arena, derivation, expressions[axis_index], kAxisNames[axis_index],
+                                     start_seconds, end_seconds, event_seconds, time_variable.root,
+                                     meter, giac);
+        if (axis.outcome != PositionMotionOutcome::Solved) {
+            result.outcome = axis.outcome;
+            result.detail = axis.detail;
+            result.status = axis.status;
+            result.cost = meter.cost();
+            return result;
+        }
+        average_velocity[axis_index] = axis.average_velocity;
+        instantaneous_velocity[axis_index] = axis.instantaneous_velocity;
+        instantaneous_acceleration[axis_index] = axis.instantaneous_acceleration;
+        position_nodes[axis_index] = axis.position;
+        velocity_nodes[axis_index] = axis.velocity;
+        acceleration_nodes[axis_index] = axis.acceleration;
+        last_status = axis.status;
     }
 
-    Rational displacement;
-    Rational elapsed;
-    Rational average_velocity;
-    if (!rational_sub(end_position, start_position, &displacement) ||
-        !rational_sub(end_seconds, start_seconds, &elapsed) ||
-        !rational_div(displacement, elapsed, &average_velocity)) {
-        result.outcome = PositionMotionOutcome::UnsupportedForm;
-        result.detail = "the average velocity could not be formed as an exact rational";
-        return result;
-    }
-    result.average_velocity = made_quantity(average_velocity, dim(1, -1));
+    result.position_x = position_nodes[0];
+    result.position_y = position_nodes[1];
+    result.position_z = position_nodes[2];
+    result.velocity_x = velocity_nodes[0];
+    result.velocity_y = velocity_nodes[1];
+    result.velocity_z = velocity_nodes[2];
+    result.acceleration_x = acceleration_nodes[0];
+    result.acceleration_y = acceleration_nodes[1];
+    result.acceleration_z = acceleration_nodes[2];
 
-    DiffResult velocity =
-        differentiate(arena, derivation, position.root, time_variable.root, meter, giac);
-    if (velocity.outcome != DiffOutcome::Differentiated) {
-        result.outcome = velocity.outcome == DiffOutcome::Cancelled
-                             ? PositionMotionOutcome::Cancelled
-                         : velocity.outcome == DiffOutcome::ResourceExceeded
-                             ? PositionMotionOutcome::ResourceExceeded
-                             : PositionMotionOutcome::UnsupportedForm;
-        result.detail = "velocity: " + velocity.detail;
-        result.status = velocity.status;
-        result.cost = meter.cost();
-        return result;
-    }
-    result.velocity_expression = velocity.derivative;
-
-    Rational instantaneous_velocity;
-    if (!evaluate_rational(arena, velocity.derivative, {{"t", event_seconds}},
-                           &instantaneous_velocity)) {
-        result.outcome = PositionMotionOutcome::UnsupportedForm;
-        result.detail = "the velocity expression could not be evaluated at the event";
-        result.cost = meter.cost();
-        return result;
-    }
-    result.instantaneous_velocity = made_quantity(instantaneous_velocity, dim(1, -1));
-
-    DiffResult acceleration =
-        differentiate(arena, derivation, velocity.derivative, time_variable.root, meter, giac);
-    if (acceleration.outcome != DiffOutcome::Differentiated) {
-        result.outcome = acceleration.outcome == DiffOutcome::Cancelled
-                             ? PositionMotionOutcome::Cancelled
-                         : acceleration.outcome == DiffOutcome::ResourceExceeded
-                             ? PositionMotionOutcome::ResourceExceeded
-                             : PositionMotionOutcome::UnsupportedForm;
-        result.detail = "acceleration: " + acceleration.detail;
-        result.status = acceleration.status;
-        result.cost = meter.cost();
-        return result;
-    }
-    result.acceleration_expression = acceleration.derivative;
-
-    Rational instantaneous_acceleration;
-    if (!evaluate_rational(arena, acceleration.derivative, {{"t", event_seconds}},
-                           &instantaneous_acceleration)) {
-        result.outcome = PositionMotionOutcome::UnsupportedForm;
-        result.detail = "the acceleration expression could not be evaluated at the event";
-        result.cost = meter.cost();
-        return result;
-    }
-    result.instantaneous_acceleration = made_quantity(instantaneous_acceleration, dim(1, -2));
+    result.average_velocity = made_vector(average_velocity, problem.rank, dim(1, -1));
+    result.instantaneous_velocity = made_vector(instantaneous_velocity, problem.rank, dim(1, -1));
+    result.instantaneous_acceleration =
+        made_vector(instantaneous_acceleration, problem.rank, dim(1, -2));
 
     result.outcome = PositionMotionOutcome::Solved;
-    result.status = acceleration.status;
+    result.status = last_status;
     result.cost = meter.cost();
     return result;
 }
