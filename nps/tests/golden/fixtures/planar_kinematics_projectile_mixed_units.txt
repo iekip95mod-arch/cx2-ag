@@ -1,7 +1,7 @@
 problem: ball; v0 (36.0, 0.0) km/h; a (0.0, -9.80) m/s^2; t 4.00 s; frame = lab
 variable: displacement and final velocity
 outcome: solved
-result: (40 i - 80 j) m; (10 i - 40 j) m/s
+result: (40.0 i - 78.4 j) m; (10.0 i - 39.2 j) m/s
 context
   application version: nps 0.2
   capability manifest: <current>
@@ -231,11 +231,11 @@ steps
       claim: no claim
       explanation: Round only after exact conversion, decomposition and verification
       detail: Reach for this once, at the very end. A measured value is only as good as the figures it was written with, so the answer is reported to the fewest among the measurements it came from. Rounding an axis before combining the terms would throw away figures the final rounding cannot get back.
-      action: Report (40 i - 78.4 j) m as (40 i - 80 j) m
+      action: Report (40 i - 78.4 j) m as (40.0 i - 78.4 j) m
       before: vector(40, (-392 * (5^-1)))
       after: vector(40, (-392 * (5^-1)))
       reversible: no
-      verification: exact comparison against the unrounded value, passed, (40 i - 80 j) m is within half a unit in the last place of (40 i - 78.4 j) m
+      verification: exact comparison against the unrounded value, passed, (40.0 i - 78.4 j) m is within half a unit in the last place of (40 i - 78.4 j) m
       verified: nothing claimed
     1.15 transformation
       phase: solve
@@ -244,9 +244,9 @@ steps
       claim: no claim
       explanation: Round only after exact conversion, decomposition and verification
       detail: Reach for this once, at the very end. A measured value is only as good as the figures it was written with, so the answer is reported to the fewest among the measurements it came from. Rounding an axis before combining the terms would throw away figures the final rounding cannot get back.
-      action: Report (10 i - 39.2 j) m/s as (10 i - 40 j) m/s
+      action: Report (10 i - 39.2 j) m/s as (10.0 i - 39.2 j) m/s
       before: vector(10, (-196 * (5^-1)))
       after: vector(10, (-196 * (5^-1)))
       reversible: no
-      verification: exact comparison against the unrounded value, passed, (10 i - 40 j) m/s is within half a unit in the last place of (10 i - 39.2 j) m/s
+      verification: exact comparison against the unrounded value, passed, (10.0 i - 39.2 j) m/s is within half a unit in the last place of (10 i - 39.2 j) m/s
       verified: nothing claimed
