@@ -5,6 +5,7 @@
 
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
+#include "nps/core/print.h"
 #include "nps/core/rational.h"
 
 namespace nps {
@@ -793,6 +794,293 @@ RelativeMotionResult solve_relative_motion(Arena &arena, Derivation &derivation,
     }
     result.cost = meter.cost();
     record_context(derivation, budget, model, result.status, problem);
+    return result;
+}
+
+namespace {
+
+// v(X/Y) read backwards. Reversing a pair of subscripts negates the vector, which is the move that
+// turns the sum in the identity into the subtraction the component solver already performs.
+bool reversed_subscripts(const Vector &source, Vector *out) {
+    *out = source;
+    const Rational components[3] = {source.x, source.y, source.z};
+    Rational *targets[3] = {&out->x, &out->y, &out->z};
+    for (size_t axis = 0; axis < 3; ++axis) {
+        if (!negate_fraction(components[axis].num, components[axis].den, &targets[axis]->num,
+                             &targets[axis]->den))
+            return false;
+    }
+    return true;
+}
+
+bool absolute_value(const Rational &source, Rational *value) {
+    *value = source;
+    if (source.num >= 0)
+        return true;
+    return negate_fraction(source.num, source.den, &value->num, &value->den);
+}
+
+// The cardinal nearest a velocity is the axis carrying the larger component, and the angle a
+// bearing quotes is the one turned from that axis toward the other. A vector exactly on a diagonal
+// is the same distance from two cardinals, so the east-west axis is kept and the choice stays
+// defined rather than following whichever comparison rounded first.
+bool cardinal_reference(const Vector &velocity, RelativeDirection *reference,
+                        RelativeDirection *sense, Rational *along, Rational *across) {
+    if (velocity.x.num == 0 && velocity.y.num == 0)
+        return false;
+    Rational east_west, north_south;
+    if (!absolute_value(velocity.x, &east_west) || !absolute_value(velocity.y, &north_south))
+        return false;
+    Rational difference;
+    if (!sub_fraction(east_west.num, east_west.den, north_south.num, north_south.den,
+                      &difference.num, &difference.den))
+        return false;
+    if (difference.num >= 0) {
+        *reference = velocity.x.num > 0 ? RelativeDirection::East : RelativeDirection::West;
+        *sense = velocity.y.num > 0   ? RelativeDirection::North
+                 : velocity.y.num < 0 ? RelativeDirection::South
+                                      : RelativeDirection::Stationary;
+        *along = east_west;
+        *across = north_south;
+        return true;
+    }
+    *reference = velocity.y.num > 0 ? RelativeDirection::North : RelativeDirection::South;
+    *sense = velocity.x.num > 0   ? RelativeDirection::East
+             : velocity.x.num < 0 ? RelativeDirection::West
+                                  : RelativeDirection::Stationary;
+    *along = north_south;
+    *across = east_west;
+    return true;
+}
+
+NodeId relative_symbol(Arena &arena, const std::string &subject, const std::string &reference) {
+    return arena.call("relative_velocity", {arena.symbol(subject), arena.symbol(reference)});
+}
+
+std::string pair_text(const std::string &subject, const std::string &reference) {
+    return "v(" + subject + "/" + reference + ")";
+}
+
+}  // namespace
+
+const char *relative_motion_unknown_name(RelativeMotionUnknown unknown) {
+    switch (unknown) {
+        case RelativeMotionUnknown::SubjectRelativeToReference:
+            return "subject relative to reference";
+        case RelativeMotionUnknown::SubjectRelativeToMedium: return "subject relative to medium";
+        case RelativeMotionUnknown::MediumRelativeToReference:
+            return "medium relative to reference";
+    }
+    return "unknown";
+}
+
+RelativeBearing relative_motion_bearing(Arena &arena, Derivation &derivation,
+                                        const Vector &velocity, AngleUnit angle_unit, Backend &giac,
+                                        RelativeMotionAxes axes, const Budget &budget) {
+    RelativeBearing bearing;
+    bearing.angle_unit = angle_unit;
+    if (!valid_axes(axes))
+        return bearing;
+    Rational along, across;
+    if (!cardinal_reference(velocity, &bearing.reference, &bearing.sense, &along, &across))
+        return bearing;
+
+    const std::string turning =
+        bearing.sense == RelativeDirection::Stationary
+            ? std::string("the velocity lies on ") + relative_direction_name(bearing.reference) +
+                  ", so the angle from that cardinal is zero"
+            : std::string("the angle is measured from ") +
+                  relative_direction_name(bearing.reference) + " turning toward " +
+                  relative_direction_name(bearing.sense);
+    bearing.convention = turning + ", in the declared " + relative_motion_axes_name(axes) + " axes";
+
+    Meter meter(budget);
+    if (!add_check(derivation, meter, kNoStep, "physics.relative-motion.bearing-convention",
+                   "Bearing convention", "Name the cardinal the reported angle is measured from",
+                   "The nearest cardinal is the axis with the larger component, and the angle turns "
+                   "from it toward the other axis",
+                   "obl.relative-motion.bearing-convention-stated",
+                   "the reported angle names both the cardinal it starts from and the one it turns "
+                   "toward",
+                   "nearest cardinal by component magnitude", bearing.convention,
+                   EvidenceStrength::StructurallyValid, VerificationOutcome::Passed,
+                   "the bearing is quoted from a named cardinal",
+                   "an angle of at most forty five degrees from the nearest cardinal",
+                   bearing.convention)) {
+        return bearing;
+    }
+
+    // Measuring from the cardinal rather than from the positive x axis is a reflection of the
+    // components onto the first octant, so the existing converter returns the offset angle itself
+    // and no second way to compute a magnitude or an angle appears here.
+    Vector folded = velocity;
+    folded.rank = 2;
+    folded.x = along;
+    folded.y = across;
+    folded.z = Rational();
+    const VectorComponentsResult polar =
+        components_to_magnitude_angle(arena, derivation, folded, angle_unit, giac, budget);
+    bearing.cost = polar.cost;
+    bearing.cost.steps += meter.cost().steps;
+    bearing.cost.rewrites += meter.cost().rewrites;
+    if (polar.outcome != VectorComponentsOutcome::Solved || !polar.has_polar)
+        return bearing;
+
+    bearing.has_bearing = true;
+    bearing.magnitude = polar.polar.magnitude;
+    bearing.angle = polar.polar.angle;
+    bearing.angle_unit = polar.polar.angle_unit;
+    const std::string unit_text =
+        velocity.unit.text.empty() ? std::string() : " " + velocity.unit.text;
+    if (bearing.sense == RelativeDirection::Stationary) {
+        bearing.text = print(arena, bearing.magnitude) + unit_text + " due " +
+                       relative_direction_name(bearing.reference);
+        return bearing;
+    }
+    bearing.text = print(arena, bearing.magnitude) + unit_text + " at " +
+                   print(arena, bearing.angle) +
+                   (bearing.angle_unit == AngleUnit::Degrees ? " degrees " : " radians ") +
+                   relative_direction_name(bearing.sense) + " of " +
+                   relative_direction_name(bearing.reference);
+    return bearing;
+}
+
+RelativeMotionResult solve_relative_motion_identity(Arena &arena, Derivation &derivation,
+                                                    const RelativeMotionIdentity &problem,
+                                                    const Budget &budget, Backend *giac) {
+    if (problem.subject_name.empty() || problem.medium_name.empty() ||
+        problem.reference_name.empty() || problem.subject_name == problem.medium_name ||
+        problem.medium_name == problem.reference_name ||
+        problem.subject_name == problem.reference_name) {
+        return failed(RelativeMotionOutcome::InvalidProblem, DerivationStatus::InvalidInput,
+                      "the three frames must have distinct nonempty names");
+    }
+
+    const std::string &a = problem.subject_name;
+    const std::string &b = problem.medium_name;
+    const std::string &c = problem.reference_name;
+
+    RelativeMotionProblem inner;
+    inner.axes = problem.axes;
+    std::string rearrangement;
+    // The RHS of the isolated identity, named explicitly per branch rather than derived from
+    // inner.subject_name/reference_name, because the frame that plays "subject" in the inner
+    // two-frame problem is not always the frame ("a") that anchors both RHS terms in the outer
+    // three-frame identity.
+    std::string add_subject, add_reference, sub_subject, sub_reference;
+    switch (problem.unknown) {
+        case RelativeMotionUnknown::SubjectRelativeToReference:
+            inner.subject_name = a;
+            inner.reference_name = c;
+            inner.subject_velocity = problem.subject_relative_to_medium;
+            if (!reversed_subscripts(problem.medium_relative_to_reference,
+                                     &inner.reference_velocity)) {
+                return failed(RelativeMotionOutcome::ArithmeticOverflow,
+                              DerivationStatus::ResourceLimitReached,
+                              "reversing the subscripts overflows exact integer arithmetic");
+            }
+            add_subject = a;
+            add_reference = b;
+            sub_subject = c;
+            sub_reference = b;
+            rearrangement = pair_text(a, c) + " = " + pair_text(a, b) + " - " + pair_text(c, b);
+            break;
+        case RelativeMotionUnknown::SubjectRelativeToMedium:
+            inner.subject_name = a;
+            inner.reference_name = b;
+            inner.subject_velocity = problem.subject_relative_to_reference;
+            inner.reference_velocity = problem.medium_relative_to_reference;
+            add_subject = a;
+            add_reference = c;
+            sub_subject = b;
+            sub_reference = c;
+            rearrangement = pair_text(a, b) + " = " + pair_text(a, c) + " - " + pair_text(b, c);
+            break;
+        case RelativeMotionUnknown::MediumRelativeToReference:
+            inner.subject_name = b;
+            inner.reference_name = c;
+            inner.subject_velocity = problem.subject_relative_to_reference;
+            inner.reference_velocity = problem.subject_relative_to_medium;
+            add_subject = a;
+            add_reference = c;
+            sub_subject = a;
+            sub_reference = b;
+            rearrangement = pair_text(b, c) + " = " + pair_text(a, c) + " - " + pair_text(a, b);
+            break;
+    }
+
+    Meter meter(budget);
+    const size_t mark = derivation.mark();
+
+    const std::string identity_text =
+        pair_text(a, c) + " = " + pair_text(a, b) + " + " + pair_text(b, c);
+    if (!add_check(derivation, meter, kNoStep, "physics.relative-motion.subscript-cancellation",
+                   "Subscript cancellation", "Check that the inner frames cancel",
+                   "The medium appears as the second subscript of one velocity and the first of "
+                   "the next, so the chain closes on the outer pair",
+                   "obl.relative-motion.subscript-cancellation",
+                   "the inner subscript " + b + " cancels between the two added velocities",
+                   "subscript chain", identity_text, EvidenceStrength::StructurallyValid,
+                   VerificationOutcome::Passed, "the three frames chain into one identity",
+                   "the inner frame appears once on each side of the addition", identity_text)) {
+        return RelativeMotionResult();
+    }
+
+    const NodeId identity =
+        arena.binary(Kind::Equals, relative_symbol(arena, a, c),
+                     arena.binary(Kind::Add, relative_symbol(arena, a, b),
+                                  relative_symbol(arena, b, c)));
+    const NodeId isolated = arena.binary(
+        Kind::Equals, relative_symbol(arena, inner.subject_name, inner.reference_name),
+        arena.binary(Kind::Add, relative_symbol(arena, add_subject, add_reference),
+                     arena.unary(Kind::Neg,
+                                 relative_symbol(arena, sub_subject, sub_reference))));
+    if (arena.failed()) {
+        return failed(RelativeMotionOutcome::ResourceExceeded,
+                      DerivationStatus::ResourceLimitReached, status_name(arena.status()));
+    }
+
+    Step isolate = transformation_step(
+        "physics.relative-motion.isolate-unknown", "Isolate the unknown velocity",
+        "Rearrange the identity for " + pair_text(inner.subject_name, inner.reference_name),
+        "Move the known velocities to one side before any number is substituted",
+        "Reach for this whenever the velocity you want is not the one the identity already has on "
+        "its left. Which of the three is unknown is a property of the problem rather than of the "
+        "relation, so the relation is rearranged symbolically first and the numbers go in "
+        "afterwards. Reversing a pair of subscripts negates that velocity, which is how an "
+        "addition on one side becomes a subtraction on the other.",
+        ClaimType::EquivalentExpression,
+        verification("symbolic rearrangement of the subscript identity",
+                     identity_text + " rearranged to " + rearrangement,
+                     EvidenceStrength::StructurallyValid, VerificationOutcome::Passed));
+    isolate.proof_obligations.push_back(
+        {"obl.relative-motion.isolate-before-substitute",
+         "the unknown is isolated symbolically before a number is substituted"});
+    if (!add_transformation(derivation, meter, kNoStep, std::move(isolate), identity,
+                            "Rearrange to " + rearrangement, isolated, true)) {
+        return RelativeMotionResult();
+    }
+
+    RelativeMotionResult result = solve_relative_motion(arena, derivation, inner, budget, giac);
+    if (result.outcome == RelativeMotionOutcome::Solved) {
+        result.interpretation += ", solving the identity " + identity_text + " for its " +
+                                 relative_motion_unknown_name(problem.unknown) + " term";
+        if (giac != nullptr) {
+            result.bearing = relative_motion_bearing(arena, derivation, result.velocity,
+                                                     AngleUnit::Degrees, *giac, problem.axes,
+                                                     budget);
+            result.cost.steps += result.bearing.cost.steps;
+            result.cost.rewrites += result.bearing.cost.rewrites;
+            result.cost.backend_calls += result.bearing.cost.backend_calls;
+            if (result.bearing.has_bearing) {
+                result.interpretation +=
+                    ", reported as " + result.bearing.text + ", where " + result.bearing.convention;
+            }
+        }
+        result.status = derivation.outcome_from(mark);
+    }
+    result.cost.steps += meter.cost().steps;
+    result.cost.rewrites += meter.cost().rewrites;
     return result;
 }
 
