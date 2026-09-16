@@ -1134,6 +1134,15 @@ void run_units_tests(TestSink &t) {
                     offset_dot.precision.significant_digits == 3 &&
                     offset_dot.precision.last_significant_decimal_place == -1,
                 "the same zero component leaves a nonzero fold claiming its three figures");
+        Vector nearer_length;
+        Quantity nearer_dot;
+        t.check(parse_vector("20.0 i + 0.0 j cm", &nearer_length, &why) && crossed &&
+                    vector_dot(nearer_length, crossed_force, &nearer_dot, &why) &&
+                    nearer_dot.value.num == 0 &&
+                    nearer_dot.precision.kind == NumberKind::Measured &&
+                    nearer_dot.precision.significant_digits == 2 &&
+                    nearer_dot.precision.last_significant_decimal_place == -2,
+                "a zero fold whose terms agree still takes its place from how large the other factors are");
 
         Vector parallel;
         Vector zero_cross;
