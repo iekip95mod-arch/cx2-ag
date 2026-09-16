@@ -1926,7 +1926,7 @@
       "pr": null,
       "branch": "claude/issue-341",
       "slug": "cx2-ag-claude-sirius",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-343",
