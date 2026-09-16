@@ -2226,7 +2226,7 @@
       "pr": 406,
       "branch": "fix/reclaim-landed-leases",
       "slug": "cx2-ag-claude-review-echo",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-376",
@@ -2236,6 +2236,16 @@
       "pr": 408,
       "branch": "claude/issue-376",
       "slug": "cx2-ag-claude-review-anchor",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-413",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 413,
+      "branch": "ci/run-suites-without-review",
+      "slug": "cx2-ag-claude-review-cairn",
       "released": false
     }
   ]
