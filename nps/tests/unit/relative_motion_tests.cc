@@ -382,6 +382,43 @@ void run_relative_motion_tests(TestSink &t) {
                 "the convention says the angle from that cardinal is zero");
     }
     {
+        // The three-frame identity reaches the bearing fold with whatever rank its inner solve
+        // produced, and the fold reads velocity.x and velocity.y without asking what the rank was.
+        // A rank-one pair became reachable here when the two-frame solver was widened, and nothing
+        // drove it through the identity until this row.
+        RelativeMotionIdentity line = identity(RelativeMotionUnknown::SubjectRelativeToReference);
+        line.subject_relative_to_medium = one_dimensional_vector("30 m/s");
+        line.medium_relative_to_reference = one_dimensional_vector("-12 m/s");
+        line.subject_relative_to_reference = one_dimensional_vector("18 m/s");
+        SequenceBackend along_axis({"18", "0", "0", "0", "0", "0", "0"});
+        IdentityRun straight(line, Budget(), &along_axis);
+        t.equal(relative_motion_outcome_name(straight.result.outcome), "solved",
+                "a one-dimensional three-frame identity solves through the shared two-frame solver");
+        t.check(joined_commands(along_axis.commands).find("simplify((30+(-(12))))") !=
+                    std::string::npos,
+                "asking the backend for one component rather than a second one that is not there");
+        t.check(straight.result.has_value && straight.result.velocity.rank == 1 &&
+                    straight.result.velocity.x.num == 18 && straight.result.velocity.x.den == 1,
+                "and keeps its rank rather than being widened by the identity");
+        t.check(straight.result.bearing.has_bearing,
+                "the bearing fold reaches a verdict on a rank-one velocity");
+        t.equal(relative_direction_name(straight.result.bearing.reference), "east",
+                "which is the cardinal the single axis points along");
+        t.equal(relative_direction_name(straight.result.bearing.sense), "stationary",
+                "with no second component to turn toward, the way a rank-two vector with a zero "
+                "second component already degenerates");
+        t.equal(straight.result.bearing.text, "18 m/s due east",
+                "and it reads as a magnitude due that cardinal");
+
+        RelativeMotionIdentity reversed = line;
+        reversed.subject_relative_to_medium = one_dimensional_vector("-30 m/s");
+        reversed.subject_relative_to_reference = one_dimensional_vector("-42 m/s");
+        SequenceBackend other_way({"-42", "0", "0", "0", "0", "0", "0"});
+        IdentityRun backward(reversed, Budget(), &other_way);
+        t.equal(relative_direction_name(backward.result.bearing.reference), "west",
+                "and the opposite sign picks the opposite cardinal rather than the same one");
+    }
+    {
         Arena arena;
         Derivation derivation;
         SequenceBackend backend({"0", "0", "0", "0"});
