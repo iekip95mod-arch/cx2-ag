@@ -171,6 +171,8 @@ unmeasured formula needs a provisional height and a plain-text spelling until th
 
 ## Scrolling a page that contains typeset rows
 
+<!-- covers: nps/lua/ti_info.lua -->
+
 A page of uniform text rows can compute its scroll limit by counting rows. A page containing D2Editor
 boxes cannot, because a typeset formula is about three text rows tall.
 
@@ -178,8 +180,11 @@ boxes cannot, because a typeset formula is about three text rows tall.
 card carrying a formula unreachable. The fix is to fill the viewport backwards from the last row,
 accumulating real heights, rather than dividing a total by a row height.
 
-That document is not on main yet, which is why this section covers no file. Give it a covers line when
-#366 merges.
+`measured` on 2026-09-15 with `luajit nps/tests/target/ti_info_search.lua`: a search hit nineteen lines
+down a page showing about a dozen rows lands on screen only because the jump sets the scroll from the
+matched line. With that one assignment removed the reader is left at the top of the right page, and
+the row they searched for is below the fold. The regression that holds it is the below-the-fold case
+in that file, watched failing with the assignment reverted.
 
 ## Where files live on the device
 
