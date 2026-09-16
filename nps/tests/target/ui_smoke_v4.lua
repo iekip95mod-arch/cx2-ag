@@ -765,8 +765,8 @@ nps_split = {
         return {
             outcome = "solved", detail = "", solved = true, answer_only = false,
             status = "solved and verified",
-            result = "(0.0 i + 0.0 j + 3.0 k) N m", value = "(0.0 i + 0.0 j + 3.0 k) N m",
-            precision = { kind = "measured", significant_digits = 2 },
+            result = "3.00 k kg m^2/s^2", value = "3.00 k kg m^2/s^2",
+            precision = { kind = "measured", significant_digits = 3 },
             nodes = 22, step_count = 5, rewrites = 4, giac_calls = 0,
             steps = {
                 { kind = "plan", name = "Vector cross product", goal = "Cross two Cartesian vectors",
@@ -1257,13 +1257,16 @@ on.arrowDown()
 on.enterKey()
 check(calls.vector_cross == 1 and steps.result.mode == "vector_cross",
       "the fifth fixture runs the vector cross product through its native bridge")
-check(type(last_args[1]) == "string" and last_args[1]:find("k cm", 1, true) ~= nil and
-      type(last_args[2]) == "string" and last_args[2]:find("k N", 1, true) ~= nil,
-      "and hands it both rank-three operands, which is the rank the family needs")
+check(type(last_args[1]) == "string" and type(last_args[2]) == "string" and
+      last_args[1]:find(" i + ", 1, true) ~= nil and last_args[1]:find(" j + ", 1, true) ~= nil and
+      last_args[1]:find(" k cm", 1, true) ~= nil and
+      last_args[2]:find(" i + ", 1, true) ~= nil and last_args[2]:find(" j + ", 1, true) ~= nil and
+      last_args[2]:find(" k N", 1, true) ~= nil,
+      "and hands it two operands that each carry all three components")
 text = painted()
-answer_box = mathBoxShowing("3.0 ")
-check(answer_box ~= nil and answer_box.expr:find(") N m", 1, true) ~= nil,
-      "the turning effect renders as a vector carrying its own product unit")
+answer_box = mathBoxShowing("3.00 k")
+check(answer_box ~= nil and answer_box.expr:find("kg m^2/s^2", 1, true) ~= nil,
+      "the turning effect renders as a bare single-component vector with its product unit")
 on.escapeKey()
 
 openPhysicsFixtures()
