@@ -1284,7 +1284,7 @@
       "pr": null,
       "branch": "claude/issue-137",
       "slug": "cx2-ag-claude-nova",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-263",
