@@ -114,7 +114,7 @@ supported_methods build both active-interval position laws, equate positions, us
 unsupported_near_neighbors nonzero acceleration, nonlinear motion in time, more than two bodies, two-dimensional pursuit, implicit frame conversion, and collision dynamics
 strategy_ids physics.catch-up.constant-velocity
 test_group_ids catch up
-proof_obligation_ids obl.catch-up.position-law-dimensions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+proof_obligation_ids obl.catch-up.position-law-dimensions, obl.physics.lookup-preserves-solutions, obl.linear.candidate-satisfies, obl.catch-up.candidate-in-domain, obl.catch-up.first-position, obl.catch-up.second-position, obl.eq.same-solutions, obl.catch-up.equal-position-is-the-event, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
 solution_soundness_status verified by typed dimensions, exact linear candidate substitution, exact shared-domain comparison, and substitution into both original position laws
 solution_completeness_status complete for two constant-velocity active-interval laws within exact rational and resource limits, partial for broader catch-up motion
 corpus_case_ids catch_up_delayed_start, catch_up_measured_report, catch_up_before_shared_domain, catch_up_nonlinear_refused
@@ -128,6 +128,7 @@ release_status in development, unreleased
 rule physics.catch-up.constant-velocity fixture
 rule physics.catch-up.check-dimensions fixture
 rule physics.catch-up.equal-position fixture
+rule physics.catch-up.substitute fixture
 rule eq.linear.inverse-operations fixture
 rule eq.linear.check-by-substitution fixture
 rule eq.collect-like-terms fixture

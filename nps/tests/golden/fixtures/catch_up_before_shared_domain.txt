@@ -66,12 +66,26 @@ steps
       assumption before: the equation is valid only in the shared active-time domain
       proof obligation: obl.catch-up.equal-position-is-the-event, the event the two bodies share is one position at one time on one axis
       action: Set First position equal to Second position
-      before: (0 + (1 * (t_event + (-0))))
-      after: ((0 + (1 * (t_event + (-0)))) = (10 + (2 * (t_event + (-5)))))
+      before: (x1 + (v1 * (t_event + (-t1))))
+      after: ((x1 + (v1 * (t_event + (-t1)))) = (x2 + (v2 * (t_event + (-t2)))))
       reversible: no
       verification: typed body and interval identity, passed, the equation uses one original position expression from each named body
       verified: yes
-    1.3 plan
+    1.3 transformation
+      phase: solve
+      goal: Put each body's stated numbers into its position law
+      rule: physics.catch-up.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each symbol by the SI value the problem declared for it
+      detail: The two laws are one law written twice, so they are worth reading before either body's numbers are in them. Putting the numbers in afterwards leaves an equation in the event time alone, which is the form the linear solver takes from here.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute First: x1 = 0 m, v1 = 1 m/s, t1 = 0 s; Second: x2 = 10 m, v2 = 2 m/s, t2 = 5 s
+      before: ((x1 + (v1 * (t_event + (-t1)))) = (x2 + (v2 * (t_event + (-t2)))))
+      after: ((0 + (1 * (t_event + (-0)))) = (10 + (2 * (t_event + (-5)))))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, First: x1 = 0 m, v1 = 1 m/s, t1 = 0 s; Second: x2 = 10 m, v2 = 2 m/s, t2 = 5 s
+      verified: yes
+    1.4 plan
       phase: plan
       goal: Isolate t_event
       rule: eq.linear.inverse-operations, Inverse operations on a linear equation
@@ -87,7 +101,7 @@ steps
       verification: exact linear analysis, passed, all coefficients and constants are exact rationals
       verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
       verified: nothing claimed
-      1.3.1 transformation
+      1.4.1 transformation
         phase: solve
         goal: Collect the terms in t_event
         rule: eq.collect-like-terms, Collect like terms
@@ -101,7 +115,7 @@ steps
         reversible: yes
         verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
         verified: yes
-      1.3.2 transformation
+      1.4.2 transformation
         phase: solve
         goal: Isolate t_event
         rule: eq.divide-both-sides, Isolate the unknown
@@ -115,7 +129,7 @@ steps
         reversible: yes
         verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient -1 was checked to be non-zero
         verified: yes
-      1.3.3 check
+      1.4.3 check
         phase: check
         goal: Check the answer
         rule: eq.linear.check-by-substitution, Check by substitution
@@ -129,7 +143,7 @@ steps
         observed: both sides are equal
         verification: substitution, passed, both sides came out equal
         verified: yes
-    1.4 check
+    1.5 check
       phase: check
       goal: Check the shared active-time domain
       rule: physics.catch-up.shared-domain, Shared active interval

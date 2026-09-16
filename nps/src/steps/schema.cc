@@ -1365,6 +1365,8 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.catch-up.equal-position", ClaimType::Definition, kEqualPositionIsTheEvent, 1,
      FailureBehavior::WithholdResult},
+    {"physics.catch-up.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
     {"physics.catch-up.check-dimensions", ClaimType::Definition, kCatchUpDimensions, 1,
      FailureBehavior::WithholdResult},
     {"physics.catch-up.shared-domain", ClaimType::Implication, kCatchUpInDomain, 1,
