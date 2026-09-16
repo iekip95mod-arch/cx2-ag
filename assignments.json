@@ -2246,7 +2246,7 @@
       "pr": 413,
       "branch": "ci/run-suites-without-review",
       "slug": "cx2-ag-claude-review-cairn",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-377",
@@ -2256,6 +2256,16 @@
       "pr": 409,
       "branch": "claude/issue-377",
       "slug": "cx2-ag-claude-review-echo",
+      "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-400",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 400,
+      "pr": 415,
+      "branch": "fix/position-motion-presentation",
+      "slug": "cx2-ag-claude-review-cairn",
       "released": false
     }
   ]
