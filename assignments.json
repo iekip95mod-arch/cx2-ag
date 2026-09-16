@@ -2056,7 +2056,7 @@
       "pr": null,
       "branch": "claude/issue-377",
       "slug": "cx2-ag-claude-orion",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-381",
