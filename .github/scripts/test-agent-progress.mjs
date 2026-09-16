@@ -71,11 +71,16 @@ test('a status update only edits a comment owned by the exact bot ID', async () 
   await assert.rejects(publishProgress({ ...base, phase: 'running', detail: '@codex wake up' }, f.api), /controlled text/);
 });
 
-test('an owned progress comment with invalid workflow metadata fails closed', async () => {
-  const marker = '<!-- cx2-agent-progress:executor:cx2-ag-codex-amber[bot] -->';
-  const f = fixture([{ id: 5, body: marker, user: { login: base.login, id: base.userId, type: 'Bot' } }]);
-  await assert.rejects(publishProgress({ ...base, phase: 'running' }, f.api), /Invalid existing progress workflow/);
-  assert.equal(f.writes.length, 0);
+// The agent writes comments carrying this marker itself, by reading its progress comment and
+// rewriting the body by hand, which keeps the marker and loses the workflow trailer. Refusing to
+// scan past one locked cx2-ag-claude-ember[bot] out of PR 273 and so out of issue 157 permanently.
+test('a hand-written comment carrying the marker does not lock the identity out', async () => {
+  const handWritten = '<!-- cx2-agent-progress:executor:cx2-ag-codex-amber[bot] -->\n### Executor progress\n\nStatus: **Finished**\n\nIdentity: cx2-ag-codex-amber[bot]';
+  const f = fixture([{ id: 5, body: handWritten, user: { login: base.login, id: base.userId, type: 'Bot' } }]);
+  await publishProgress({ ...base, phase: 'running' }, f.api);
+  assert.equal(f.writes[0].method, 'POST');
+  assert.match(f.writes[0].body.body, /actions\/runs\/123\/attempts\/1/);
+  assert.equal(f.comments[0].body, handWritten);
 });
 
 test('terminal recovery never creates a status that did not start', async () => {
