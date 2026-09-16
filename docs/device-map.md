@@ -222,13 +222,14 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1322 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 715 and `nps_nspire_module` at line 921,
+`source`: nps/CMakeLists.txt:1324 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 717 and `nps_nspire_module` at line 923,
 are in the device branch behind the ARM toolchain.
 
-Search for the quoted text rather than trusting the number. These three were already four lines stale
-when this file was first reviewed, which is what a line citation does as soon as anything above it
-moves. The quoted symbol is the durable half of the reference and the number is the convenience.
+Search for the quoted text rather than trusting the number. These three drift by a couple of lines
+every time a family adds a source or test entry above them, which is what a line citation does as
+soon as anything above it moves. The quoted symbol is the durable half of the reference and the
+number is the convenience.
 
 `measured`: a host configure without luajit produces 1281 targets, none of them `nps_luax`, and
 lua_module.cc appears in the build graph only as a phony source node rather than a compile rule.

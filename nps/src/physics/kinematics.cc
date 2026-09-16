@@ -1414,4 +1414,122 @@ KinematicsResult solve_kinematics(Arena &arena, Derivation &derivation,
     return result;
 }
 
+const char *coupled_kinematics_outcome_name(CoupledKinematicsOutcome outcome) {
+    switch (outcome) {
+        case CoupledKinematicsOutcome::Solved: return "solved";
+        case CoupledKinematicsOutcome::FirstUnsolved: return "first body unsolved";
+        case CoupledKinematicsOutcome::SecondUnsolved: return "second body unsolved";
+        case CoupledKinematicsOutcome::InvalidInput: return "invalid input";
+        case CoupledKinematicsOutcome::Cancelled: return "cancelled";
+        case CoupledKinematicsOutcome::ResourceExceeded: return "resource exceeded";
+    }
+    return "unknown";
+}
+
+// Two solves of the same engine, one Derivation, joined by a handover step in between: the first
+// body's answer is declared a known of the second body's problem rather than reimplementing the
+// join as a third kind of solve.
+CoupledKinematicsResult solve_coupled_kinematics(Arena &arena, Derivation &derivation,
+                                                 const CoupledKinematicsProblem &problem,
+                                                 const Budget &budget, Backend *giac) {
+    CoupledKinematicsResult result;
+    const SymbolInfo *handover_symbol = find_symbol(problem.coupled_known);
+    if (problem.first.name.empty() || problem.second.name.empty() ||
+        problem.coupled_known.empty() || handover_symbol == nullptr) {
+        result.outcome = CoupledKinematicsOutcome::InvalidInput;
+        result.detail =
+            "a coupled problem needs both bodies named and a known kinematics symbol to hand over";
+        return result;
+    }
+
+    Meter meter(budget);
+    result.first = solve_kinematics(arena, derivation, problem.first.problem,
+                                    remaining_budget(budget, meter), giac);
+    const bool first_afforded = charge(meter, result.first.cost);
+    if (!first_afforded || meter.stopped()) {
+        result.outcome = meter.halt() == Halt::Cancelled ? CoupledKinematicsOutcome::Cancelled
+                                                          : CoupledKinematicsOutcome::ResourceExceeded;
+        result.detail = "the budget ran out solving " + problem.first.name;
+        result.cost = meter.cost();
+        return result;
+    }
+    if (result.first.outcome != KinematicsOutcome::Solved) {
+        result.outcome = CoupledKinematicsOutcome::FirstUnsolved;
+        result.detail = problem.first.name + "'s derivation did not solve: " + result.first.detail;
+        result.cost = meter.cost();
+        return result;
+    }
+
+    Rational handover_value;
+    if (!rational_of_node(arena, result.first.value, &handover_value)) {
+        result.outcome = CoupledKinematicsOutcome::FirstUnsolved;
+        result.detail = problem.first.name + "'s answer has no exact rational value to hand over";
+        result.cost = meter.cost();
+        return result;
+    }
+
+    if (!meter.step()) {
+        result.outcome = CoupledKinematicsOutcome::ResourceExceeded;
+        result.detail = "the budget ran out recording the handover";
+        result.cost = meter.cost();
+        return result;
+    }
+    {
+        Step s;
+        s.phase = "solve";
+        s.goal = "Carry " + problem.coupled_known + " from " + problem.first.name + " into " +
+                problem.second.name;
+        s.rule_id = "kin.coupled.handover";
+        s.rule_name = "Handover between bodies";
+        s.claim = ClaimType::NoClaim;
+        s.explanation_short = problem.first.name + "'s solved " + problem.coupled_known +
+                              " becomes a known of " + problem.second.name + "'s problem";
+        s.explanation_detailed =
+            "The two bodies share this quantity over the same interval. " + problem.first.name +
+            "'s derivation computed it above; " + problem.second.name +
+            "'s derivation below takes it as given rather than solving for it again.";
+        s.verifications.push_back(verified(
+            "rule-local invariant",
+            problem.coupled_known + " = " + result.first.value_text + " " + result.first.unit_text +
+                ", computed in " + problem.first.name + "'s derivation",
+            EvidenceStrength::StructurallyValid, true));
+        TransformationPayload p;
+        p.before = result.first.value;
+        p.after = result.first.value;
+        p.concrete_action = "Declare " + problem.coupled_known + " = " + result.first.value_text +
+                            " " + result.first.unit_text + " from " + problem.first.name;
+        p.reversible = false;
+        derivation.add_transformation(kNoStep, std::move(s), std::move(p));
+    }
+
+    KinematicsProblem second = problem.second.problem;
+    Known handover;
+    handover.symbol = problem.coupled_known;
+    handover.quantity.value = handover_value;
+    handover.quantity.precision = result.first.precision;
+    handover.quantity.unit.text = result.first.unit_text;
+    handover.quantity.unit.dimension = handover_symbol->dimension;
+    handover.quantity.unit.scale.num = 1;
+    handover.quantity.unit.scale.den = 1;
+    second.knowns.push_back(handover);
+
+    result.second = solve_kinematics(arena, derivation, second, remaining_budget(budget, meter), giac);
+    const bool second_afforded = charge(meter, result.second.cost);
+    result.cost = meter.cost();
+    if (!second_afforded || meter.stopped()) {
+        result.outcome = meter.halt() == Halt::Cancelled ? CoupledKinematicsOutcome::Cancelled
+                                                          : CoupledKinematicsOutcome::ResourceExceeded;
+        result.detail = "the budget ran out solving " + problem.second.name;
+        return result;
+    }
+    if (result.second.outcome != KinematicsOutcome::Solved) {
+        result.outcome = CoupledKinematicsOutcome::SecondUnsolved;
+        result.detail = problem.second.name + "'s derivation did not solve: " + result.second.detail;
+        return result;
+    }
+
+    result.outcome = CoupledKinematicsOutcome::Solved;
+    return result;
+}
+
 }  // namespace nps

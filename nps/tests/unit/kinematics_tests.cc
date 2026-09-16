@@ -890,6 +890,86 @@ void run_kinematics_tests(TestSink &t) {
                 "equation applying");
         t.check(has(s.detail, "exact integer arithmetic"), "and the refusal says why");
     }
+
+    // Issue 341: a quantity solved in one body's derivation becomes a known of a second body's
+    // problem, with the handover recorded as its own step. The key-and-boat problem's numbers need
+    // isolating t from a quadratic displacement equation, which nothing in this engine does yet, so
+    // this proves the join itself on a pair the existing linear solver can reach both halves of.
+    {
+        auto known_of = [](const std::string &symbol, const std::string &text) {
+            Known k;
+            k.symbol = symbol;
+            std::string err;
+            const bool ok = parse_quantity(text, &k.quantity, &err);
+            (void)ok;
+            return k;
+        };
+        CoupledKinematicsProblem problem;
+        problem.first.name = "key";
+        problem.first.problem.unknown = "t";
+        problem.first.problem.knowns = {known_of("v0", "5 m/s"), known_of("v", "17 m/s"),
+                                        known_of("a", "3 m/s^2")};
+        problem.second.name = "boat";
+        problem.second.problem.unknown = "v0";
+        problem.second.problem.knowns = {known_of("x", "48 m"), known_of("a", "0 m/s^2")};
+        problem.coupled_known = "t";
+
+        Arena arena;
+        Derivation d;
+        const CoupledKinematicsResult r = solve_coupled_kinematics(arena, d, problem);
+        t.equal(std::string(coupled_kinematics_outcome_name(r.outcome)), "solved",
+                "the key's time and the boat's speed both solve");
+        t.equal(r.first.value_text + " " + r.first.unit_text, "4 s", "key: t = 4 s");
+        t.equal(r.second.value_text + " " + r.second.unit_text, "12 m/s", "boat: v0 = 12 m/s");
+
+        int key_plan_index = -1;
+        int handover_index = -1;
+        int boat_plan_index = -1;
+        for (size_t i = 0; i < d.size(); ++i) {
+            const StepId id = static_cast<StepId>(i);
+            const Step &step = d.at(id);
+            if (step.rule_id == "kin.coupled.handover") {
+                handover_index = static_cast<int>(i);
+                const TransformationPayload *p = d.transformation(id);
+                t.check(has(step.explanation_short, "key") && has(step.explanation_short, "boat"),
+                        "the handover step names both bodies");
+                t.check(p != nullptr && has(p->concrete_action, "4 s"),
+                        "and the value it carries over");
+            } else if (step.rule_id == "physics.kinematics.constant-acceleration") {
+                if (key_plan_index < 0)
+                    key_plan_index = static_cast<int>(i);
+                else if (boat_plan_index < 0)
+                    boat_plan_index = static_cast<int>(i);
+            }
+        }
+        t.check(handover_index >= 0, "the derivation records a handover step between the two bodies");
+        t.check(key_plan_index >= 0 && handover_index > key_plan_index,
+                "it comes after the key's own derivation, not before it");
+        t.check(boat_plan_index >= 0 && boat_plan_index > handover_index,
+                "and before the boat's derivation uses the carried value");
+
+        {
+            // The first body's own refusal propagates: a coupled solve cannot succeed on half a
+            // derivation.
+            CoupledKinematicsProblem broken = problem;
+            broken.first.problem.knowns = {known_of("v0", "5 m/s")};
+            Arena a2;
+            Derivation d2;
+            const CoupledKinematicsResult failed = solve_coupled_kinematics(a2, d2, broken);
+            t.equal(std::string(coupled_kinematics_outcome_name(failed.outcome)), "first body unsolved",
+                    "an unsolved first body refuses rather than guessing a handover");
+            t.check(has(failed.detail, "key"), "and names which body did not solve");
+        }
+        {
+            CoupledKinematicsProblem invalid = problem;
+            invalid.coupled_known.clear();
+            Arena a3;
+            Derivation d3;
+            const CoupledKinematicsResult refused = solve_coupled_kinematics(a3, d3, invalid);
+            t.equal(std::string(coupled_kinematics_outcome_name(refused.outcome)), "invalid input",
+                    "a coupled problem with nothing to hand over is refused rather than solved");
+        }
+    }
 }
 
 }  // namespace nps
