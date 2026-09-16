@@ -2156,7 +2156,7 @@
       "pr": null,
       "branch": "claude/issue-382",
       "slug": "cx2-ag-claude-atlas",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-377",
@@ -2206,7 +2206,7 @@
       "pr": null,
       "branch": "claude/issue-361",
       "slug": "cx2-ag-claude-ember",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-161",
@@ -2286,7 +2286,7 @@
       "pr": 405,
       "branch": "claude/issue-382",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-361",
@@ -2296,6 +2296,16 @@
       "pr": 411,
       "branch": "claude/issue-361",
       "slug": "cx2-ag-claude-review-cairn",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-374",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 374,
+      "pr": 424,
+      "branch": "claude/issue-374",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
