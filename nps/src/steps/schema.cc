@@ -896,6 +896,65 @@ const ObligationSchema kComponentSum[] = {
      kExactRationalAddition, 1},
 };
 
+// vector cross product
+const ObligationSchema kVectorCrossStrategy[] = {
+    {"pre.vector-cross.rank-three", "both vectors have exactly rank three", kRankComparison, 1},
+    {"pre.vector-cross.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+    {"pre.vector-cross.dimension-product",
+     "the product of the two vectors' dimensions fits the dimension table",
+     kDimensionalMultiplication, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kVectorCrossRank[] = {
+    {"obl.vector-cross.rank-three", "both input vectors have exactly rank three", kRankComparison,
+     1},
+};
+const ObligationSchema kVectorCrossFrames[] = {
+    {"obl.vector-cross.frames-match", "both input vectors use the same frame", kFrameIdentity, 1},
+};
+const ObligationSchema kVectorCrossDimensions[] = {
+    {"obl.vector-cross.dimension-product",
+     "the product of the two operand dimensions fits the dimension table",
+     kDimensionalMultiplication, 1},
+};
+const ObligationSchema kComponentCross[] = {
+    {"obl.vector-cross.component-cross",
+     "the component written down is the exact determinant expansion of the two input components",
+     kExactRationalArithmetic, 1},
+};
+// Its own method rather than kVectorDot, which asserts where a value came from at
+// StructurallyValid. This one is a candidate checked against zero after the fact, which is a
+// different claim and a different strength.
+const EvidenceAlternative kExactDotProduct[] = {
+    {"exact dot product", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kVectorCrossOrthogonalFirst[] = {
+    {"obl.vector-cross.orthogonal-first", "the result vector is orthogonal to the first operand",
+     kExactDotProduct, 1},
+};
+const ObligationSchema kVectorCrossOrthogonalSecond[] = {
+    {"obl.vector-cross.orthogonal-second", "the result vector is orthogonal to the second operand",
+     kExactDotProduct, 1},
+};
+const EvidenceAlternative kReversedCrossProduct[] = {
+    {"exact reversed cross product", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kVectorCrossAnticommutative[] = {
+    {"obl.vector-cross.anticommutative",
+     "crossing the operands in the opposite order negates the result exactly",
+     kReversedCrossProduct, 1},
+};
+const ObligationSchema kVectorCrossRounding[] = {
+    {"obl.vector-cross.rounding-final", "precision is applied once after exact component cross",
+     kSignificantFigures, 1},
+    // Separate from the obligation above for the reason given at kUnitRoundingFinal: when the
+    // report was rounded and whether it was rounded correctly are different claims.
+    {"obl.vector-cross.rounding-within-half-place",
+     "the reported vector is within half a unit in the last place of the exact one",
+     kHalfPlaceComparison, 1},
+};
+
 // vector components and polar form
 const ObligationSchema kVectorSphericalStrategy[] = {
     {"pre.vector-components.rank-three", "the conversion is three-dimensional", kRankComparison, 1},
@@ -1512,6 +1571,32 @@ const RuleSchema kRules[] = {
     {"vec.add.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
      FailureBehavior::WithholdResult},
     {"vec.add.report-precision", ClaimType::Definition, kVectorAddRounding, 2,
+     FailureBehavior::WithholdResult},
+
+    // vectors.cross-product
+    {"vec.cross.plan", ClaimType::NoClaim, kVectorCrossStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-rank", ClaimType::Definition, kVectorCrossRank, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-frame", ClaimType::Definition, kVectorCrossFrames, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-dimension", ClaimType::Definition, kVectorCrossDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.component-i", ClaimType::EquivalentExpression, kComponentCross, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.component-j", ClaimType::EquivalentExpression, kComponentCross, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.component-k", ClaimType::EquivalentExpression, kComponentCross, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-orthogonal-first", ClaimType::Definition, kVectorCrossOrthogonalFirst, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-orthogonal-second", ClaimType::Definition, kVectorCrossOrthogonalSecond, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.check-anticommutative", ClaimType::Definition, kVectorCrossAnticommutative, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.cross.report-precision", ClaimType::Definition, kVectorCrossRounding, 2,
      FailureBehavior::WithholdResult},
 
     // vectors.components and vectors.polar

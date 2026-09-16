@@ -47,6 +47,11 @@ file about what renders was measured against this one.
 Six stages, and each one is a separate fact. Most wrong claims in this repository come from reporting a
 lower stage as if it were a higher one.
 
+Adding a translation unit to the physics source list, such as `src/physics/vector_cross.cc`, changes
+which rules compile into the Compiled stage but does not change what any of the six stages proves. The
+new family still needs its own Packaged, Transferred, Loaded and Visible effect evidence before a
+device-visible claim can be made about it.
+
 | Stage | What it proves | What it does not |
 | --- | --- | --- |
 | Compiled | The translation unit is well formed | Nothing about linking |
@@ -132,11 +137,12 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-15, nps/lua/nps_v4.lua names `catch_up`, `density`, `forces`, `kinematics`,
-`optics`, `relative_motion`, `unit_conversion` and `vector_addition`, and nothing else.
+`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
+`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition` and `work`.
 
-So `planar_kinematics` is bound and not reachable, and `position_motion` and `ranking` are neither bound
-nor reachable, despite all three having working engines on main. That gap is #382. When it closes, this
+`planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
+engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
 paragraph is wrong and has to change with it.
 
 ## What renders on screen

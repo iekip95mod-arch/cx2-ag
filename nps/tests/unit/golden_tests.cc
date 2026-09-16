@@ -16,6 +16,7 @@
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
+#include "nps/physics/vector_cross.h"
 #include "nps/physics/work.h"
 #include "nps/steps/linear.h"
 #include "nps/steps/quadratic.h"
@@ -262,6 +263,22 @@ std::string planar_kinematics_record(const char *velocity_text, const char *acce
         answer += "; " + result.final_velocity_text;
     return header(problem_text, "displacement and final velocity",
                   planar_kinematics_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string vector_cross_record(const char *first_text, const char *second_text,
+                                const Budget &budget) {
+    VectorCrossProblem problem;
+    std::string why;
+    if (!parse_vector(first_text, &problem.first, &why) ||
+        !parse_vector(second_text, &problem.second, &why))
+        return std::string("the fixture's own input did not parse: ") + why;
+    Arena arena;
+    Derivation derivation;
+    VectorCrossResult result = solve_vector_cross(arena, derivation, problem, budget);
+    const std::string problem_text = std::string(first_text) + " cross " + second_text;
+    return header(problem_text, "cross product", vector_cross_outcome_name(result.outcome),
+                  result.value_text, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -886,6 +903,12 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "planar_kinematics_projectile_mixed_units",
                  planar_kinematics_record("(36.0, 0.0) km/h", "(0.0, -9.80) m/s^2", "4.00 s", true,
                                           Budget()));
+    // A torque, because it is the cross product a first course actually meets, and because a
+    // centimetre lever arm against a newton force reaches the two rules the unit tests cannot:
+    // the SI conversion only runs on a non-SI operand and the final rounding only on a measured one.
+    check_golden(t, "vector_cross_torque_mixed_units",
+                 vector_cross_record("20.0 i + 0.0 j + 0.0 k cm", "0.0 i + 15.0 j + 0.0 k N",
+                                     Budget()));
     check_golden(t, "relative_motion_mixed_units", relative_motion_record(Budget()));
     check_golden(t, "unit_conversion_powered_chain",
                  unit_conversion_record("2.50 cm^3", "m^3", Budget()));
