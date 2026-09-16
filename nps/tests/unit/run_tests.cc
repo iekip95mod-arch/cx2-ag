@@ -934,6 +934,8 @@ int main_body() {
     run_vector_addition_tests(sink);
     sink.begin_group("vector components");
     run_vector_components_tests(sink);
+    sink.begin_group("vector cross product");
+    run_vector_cross_tests(sink);
     sink.begin_group("forces");
     run_forces_tests(sink);
     sink.begin_group("ranking");

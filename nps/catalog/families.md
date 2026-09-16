@@ -397,6 +397,39 @@ rule vec.add.component-j fixture
 rule vec.add.component-k fixture
 rule vec.add.report-precision fixture
 
+family id physics.vectors.cartesian-cross-product.three-dimension
+topic_and_level Three-dimensional Cartesian vector cross product, PRD section 9 ALG-011 and chapter 3 of the PHYS 2410 scope
+accepted_expression_grammar existing vector grammar for each operand, either unit-vector form such as 1 i + 2 j + 3 k m or an ordered tuple such as (1, 2, 3) m
+accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form, rank three only
+domains_and_parameter_assumptions both vectors have rank three, matching named frames, dimensions that may differ and whose product fits the dimension table
+supported_branches_and_degenerate_cases exact zero and negative components, compatible dimensions that differ between the two operands, compatible units with different SI scales
+exact_special_function_and_numerical_result_policy exact rational SI conversion and determinant expansion, rounded only for final reporting
+parser_module_ids src/units/units.cc, src/physics/vector_cross.cc
+required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab"
+test_group_ids vector cross product, units
+proof_obligation_ids obl.vector-cross.rank-three, obl.vector-cross.frames-match, obl.vector-cross.dimension-product, obl.vector-cross.rounding-final, obl.vector-cross.rounding-within-half-place, obl.physics.converts-by-table, obl.vector-cross.component-cross, obl.vector-cross.orthogonal-first, obl.vector-cross.orthogonal-second, obl.vector-cross.anticommutative, obl.plan.preconditions-hold
+supported_methods exact SI conversion followed by determinant expansion into three components, with exact orthogonality and anticommutativity checks against the inputs
+unsupported_near_neighbors cross product of vectors whose rank is not three, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
+solution_soundness_status verified by rank, frame, dimension-product, exact conversion, exact rational determinant expansion, exact orthogonality and exact anticommutativity records
+solution_completeness_status complete for three-dimensional Cartesian cross products within exact int64 rational bounds; the typed C++ engine only, with no Lua bridge or menu entry yet
+corpus_case_ids vector_cross_torque_mixed_units
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet built for the device target
+release_status unreleased
+rule vec.cross.plan fixture
+rule vec.cross.check-rank fixture
+rule vec.cross.check-frame fixture
+rule vec.cross.check-dimension fixture
+rule vec.cross.convert-si fixture
+rule vec.cross.component-i fixture
+rule vec.cross.component-j fixture
+rule vec.cross.component-k fixture
+rule vec.cross.check-orthogonal-first fixture
+rule vec.cross.check-orthogonal-second fixture
+rule vec.cross.check-anticommutative fixture
+rule vec.cross.report-precision fixture
+
 family id physics.vectors.magnitude-components.two-dimension
 reference_curriculum_set_ids StepCAS product requirements PHYS-016, M1 archetype 7
 curriculum_source_locations StepCAS_Product_Requirements_Document.md PHYS-016 and section 11, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 7
