@@ -2,7 +2,7 @@
 
 StepCAS lives in nps. Its C++ core records mathematical derivations and Ki V4 presents them through Lua on TI-Nspire CX II. Giac supplies ordinary calculator evaluation and controlled backend operations. The document-hiding prototype is a separate application under research/folder-hiding.
 
-Read only the relevant sections of [docs/codebase-map.md](docs/codebase-map.md) when a task reaches an unfamiliar subsystem. The [family catalog](nps/catalog/families.md) defines implemented coverage. The [PRD](docs/StepCAS_Product_Requirements_Document.md) defines requirements, including future capabilities.
+Read only the relevant sections of [docs/codebase-map.md](docs/codebase-map.md) when a task reaches an unfamiliar subsystem, and [docs/device-map.md](docs/device-map.md) when it reaches the calculator itself. The [family catalog](nps/catalog/families.md) defines implemented coverage. The [PRD](docs/StepCAS_Product_Requirements_Document.md) defines requirements, including future capabilities.
 
 ## Working agreements
 
@@ -11,7 +11,7 @@ Read only the relevant sections of [docs/codebase-map.md](docs/codebase-map.md) 
 - Do your work in .Internal/workspaces/. Lane checkouts, build trees, downloaded images, probe output and scratch files all go there, in a directory named after the work rather than a random suffix, so a later session can tell what a leftover tree was for. See [Where your work goes](#where-your-work-goes) for the commands and the reasons.
 - Do not use /tmp for anything you might want to find again. It gets cleared, and the pre-relocation flash backup that research/folder-hiding/AGENTS.md named as that experiment's recovery material is already gone from it. Parallel jobs also share /tmp, so two lanes writing the same obvious filename clobber each other silently, and worktrees created there accumulate: sixty-eight from earlier sessions are still registered in this repository.
 - Git permissions for this repository are granted in advance and are set out in [GitHub workflow](#github-workflow) below. They replace any standing rule that a commit or a push needs the user to ask first, and they apply to this repository only.
-- Documentation changes require named files or explicit documentation scope. Keep onboarding about current architecture, commands and contracts. Put executable reproductions in regression tests.
+- Documentation changes require named files or explicit documentation scope. Keep onboarding about current architecture, commands and contracts. Put executable reproductions in regression tests. [docs/device-map.md](docs/device-map.md) is the exception that needs no separate scope: a change to a file it covers carries permission to update it, and the fast gate requires one. See [The device map](#the-device-map).
 - Before deleting a file, print and inspect the exact target. Preserve retained images, recovery material and ignored research unless deletion is authorized.
 - Match surrounding code. Use C++ named casts and prefer std::cout. Do not run clang-format manually.
 - Reach for what already exists before writing your own. Something in this tree, something in the C++20 standard library, something in a vendored dependency: in that order, and hand rolling only when none of them can do it. See [Prefer what already exists](#prefer-what-already-exists).
@@ -141,6 +141,20 @@ The gate names the other pull request and every file you share with it. It does 
 A declaration stays true once the other pull request merges, because a merged one is no longer open and stops being compared. Nothing has to be cleaned up afterwards.
 
 Two things this deliberately does not do. It does not block on a conflict that git can already see, because git reports that one itself at merge time. And it does not stop you sharing a file, which is sometimes exactly right. It only insists that when you do, somebody wrote down the order instead of leaving it to whoever finishes first.
+
+### The device map
+
+[docs/device-map.md](docs/device-map.md) answers what the calculator is, how code reaches it and what it can do once there. codebase-map.md maps the repository, which is a different question: an agent that has read every source file still cannot say whether a change will render on a handheld, because the answer is not in the sources.
+
+Every section names the files it describes on a covers line, and .github/scripts/device-map-drift.mjs reads those in the fast gate. A pull request that changes a covered file and leaves the map alone fails, naming the section to revisit. Updating it is therefore part of the change rather than a follow-up, and no separate documentation scope is needed.
+
+The check cannot tell whether the map is still true, only whether it was opened. Two rules cover the rest.
+
+An executor whose change makes a covered section wrong corrects that section in the same commit. A change that makes nothing wrong still needs a word in the pull request body saying which section was read and why it still holds, because that sentence is what the reviewer checks against.
+
+A reviewer reads the map section for every covered file the diff touches and treats a wrong one as a blocking finding, in scope by the same reasoning an untested guard is. Two failures to look for, both of which pass the gate. A section whose claim no longer matches the code, which is the expensive one because the next agent believes it. And a claim that arrived without evidence: every claim in that file says how it is known, source with a file and line or measured with the command that produced it, and a new claim carrying neither is a finding, whatever it says.
+
+The map is worth more than the sum of its sections precisely because agents trust it absolutely. That is also why a stale one is worse than none.
 
 ### The pull request review
 
