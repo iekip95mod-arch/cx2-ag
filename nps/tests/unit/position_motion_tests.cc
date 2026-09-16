@@ -1,4 +1,6 @@
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "nps/physics/position_motion.h"
 #include "nps/core/print.h"
@@ -31,9 +33,34 @@ PositionMotionProblem problem(const char *position_x, const char *position_y, co
 
 bool cancel_now(void *) { return true; }
 
+// The scripted backend relative_motion_tests.cc drives its own polar cross-check through. Copied
+// rather than shared because that file keeps it in its anonymous namespace, as
+// planar_kinematics_tests.cc already does for the same reason.
+class SequenceBackend : public Backend {
+  public:
+    explicit SequenceBackend(std::vector<std::string> replies) : replies_(std::move(replies)) {}
+
+    bool eval(const std::string &command, std::string *out, std::string *error) override {
+        commands.push_back(command);
+        if (next_ >= replies_.size()) {
+            *error = "no scripted reply";
+            return false;
+        }
+        *out = replies_[next_++];
+        return true;
+    }
+
+    std::vector<std::string> commands;
+
+  private:
+    std::vector<std::string> replies_;
+    size_t next_ = 0;
+};
+
 struct Run {
-    explicit Run(const PositionMotionProblem &problem, const Budget &budget = Budget())
-        : result(solve_position_motion(arena, derivation, problem, budget)) {}
+    explicit Run(const PositionMotionProblem &problem, const Budget &budget = Budget(),
+                 Backend *backend = nullptr)
+        : result(solve_position_motion(arena, derivation, problem, budget, backend)) {}
 
     Arena arena;
     Derivation derivation;
@@ -84,6 +111,11 @@ void run_position_motion_tests(TestSink &t) {
         t.check(solved.derivation.size() > 0,
                 "the differentiation engine's own steps appear in the derivation rather than "
                 "being reimplemented here");
+        t.check(!solved.result.has_average_velocity_polar &&
+                    !solved.result.has_instantaneous_velocity_polar &&
+                    !solved.result.has_instantaneous_acceleration_polar,
+                "with no backend there is nothing to compute a magnitude or an angle with, so "
+                "none is reported");
     }
     {
         // A genuine rank-three vector: three different functions of t on three different axes, so
@@ -177,6 +209,128 @@ void run_position_motion_tests(TestSink &t) {
                "an answer");
         t.check(exhausted.result.detail.find("velocity") != std::string::npos,
                 "the resource exhaustion is reported from the velocity differentiation phase");
+    }
+    {
+        // Issue 400: r(t) = 3t i + 2t^2 j, so the three answers are (3, 4), (3, 8) and (0, 4) m/s
+        // and m/s^2. The first four replies are the differentiation engine's own Giac check, and
+        // the ten after them are the three magnitude and direction conversions in order.
+        SequenceBackend backend({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0", "sqrt(73)", "0",
+                                 "atan2(8,3)", "0", "0", "atan2(4,0)", "0"});
+        Run solved(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), Budget(), &backend);
+        t.check(solved.result.outcome == PositionMotionOutcome::Solved,
+                "a supplied backend leaves the component answers solved");
+        t.check(solved.result.has_average_velocity_polar &&
+                    solved.result.has_instantaneous_velocity_polar &&
+                    solved.result.has_instantaneous_acceleration_polar,
+                "all three answers carry a magnitude and a direction when a backend is supplied");
+        t.equal(print(solved.arena, solved.result.average_velocity_polar.magnitude), "5",
+                "the average velocity magnitude is the exact 5 m/s the components imply");
+        const std::string average_angle =
+            print(solved.arena, solved.result.average_velocity_polar.angle);
+        t.check(average_angle.find("atan2") != std::string::npos &&
+                    average_angle.find("4") != std::string::npos &&
+                    average_angle.find("3") != std::string::npos,
+                "the average velocity direction is the quadrant-aware atan2 of its own "
+                "components rather than a second angle computed here");
+        t.check(solved.result.average_velocity_polar.angle_unit == AngleUnit::Radians,
+                "the reported angle names the measure the problem declared");
+        t.equal(solved.result.average_velocity_polar.unit.text, "m/s",
+                "the magnitude keeps the vector's own unit");
+        t.check(solved.result.average_velocity_polar.rank == 2 &&
+                    solved.result.average_velocity_polar.polar_angle == kNoNode,
+                "a rank-two direction is one angle, with no polar angle to report");
+        t.equal(print(solved.arena, solved.result.instantaneous_velocity_polar.magnitude),
+                "sqrt(73)",
+                "the instantaneous velocity magnitude stays exact rather than being approximated");
+        t.equal(print(solved.arena, solved.result.instantaneous_acceleration_polar.magnitude), "4",
+                "the instantaneous acceleration carries its own magnitude, not the velocity's");
+        t.check(backend.commands.size() == 14,
+                "the three conversions reach the backend through the existing converter rather "
+                "than a second path");
+    }
+    {
+        // r(t) = 3t i + 4t j accelerates nowhere, and a zero vector has no direction. The one
+        // answer that cannot have an angle withholds its own, and the two that can still report.
+        SequenceBackend backend(
+            {"3", "0", "4", "0", "0", "atan2(4,3)", "0", "0", "atan2(4,3)", "0", "0"});
+        Run solved(problem("3*t", "4*t", "0 s", "2 s", "2 s"), Budget(), &backend);
+        t.check(solved.result.outcome == PositionMotionOutcome::Solved,
+                "a zero acceleration does not sink the answers that did convert");
+        t.check(solved.result.has_average_velocity_polar &&
+                    solved.result.has_instantaneous_velocity_polar,
+                "the two moving answers still report a magnitude and a direction");
+        t.check(!solved.result.has_instantaneous_acceleration_polar,
+                "the zero acceleration reports no direction rather than inventing one");
+        t.equal(rational_text(solved.result.instantaneous_acceleration.x), "0",
+                "the acceleration components are still exposed with the direction withheld");
+    }
+    {
+        // The same problem in degrees, which costs each conversion the two extra calls that turn
+        // the radian atan2 into the declared measure.
+        PositionMotionProblem degrees = problem("3*t", "2*t^2", "0 s", "2 s", "2 s");
+        degrees.angle_unit = AngleUnit::Degrees;
+        SequenceBackend backend({"3",
+                                 "0",
+                                 "4*t",
+                                 "4",
+                                 "0",
+                                 "atan2(4,3)",
+                                 "0",
+                                 "atan2(4,3)*180/pi",
+                                 "0",
+                                 "sqrt(73)",
+                                 "0",
+                                 "atan2(8,3)",
+                                 "0",
+                                 "atan2(8,3)*180/pi",
+                                 "0",
+                                 "0",
+                                 "atan2(4,0)",
+                                 "0",
+                                 "atan2(4,0)*180/pi",
+                                 "0"});
+        Run solved(degrees, Budget(), &backend);
+        t.check(solved.result.has_average_velocity_polar &&
+                    solved.result.average_velocity_polar.angle_unit == AngleUnit::Degrees,
+                "a problem that declares degrees gets its direction in degrees");
+        const std::string angle = print(solved.arena, solved.result.average_velocity_polar.angle);
+        t.check(angle.find("180") != std::string::npos,
+                "the degree angle is the converted one rather than the radian value relabelled");
+    }
+    {
+        // A rank-three answer needs two angles before it names a direction, and the polar angle is
+        // the one a rank-two conversion has no slot for.
+        SequenceBackend backend({"2",         "0",          "6*t",        "6",
+                                 "3*t^2",     "6*t",        "sqrt(56)",   "0",
+                                 "atan2(6,2)", "0",         "atan2(sqrt(40),4)", "0",
+                                 "sqrt(292)", "0",          "atan2(12,2)", "0",
+                                 "atan2(sqrt(148),12)", "0", "sqrt(180)", "0",
+                                 "atan2(6,0)", "0",         "atan2(6,12)", "0"});
+        Run solved(problem("2*t", "3*t^2", "0 s", "2 s", "2 s", 3, "t^3"), Budget(), &backend);
+        t.check(solved.result.has_instantaneous_velocity_polar &&
+                    solved.result.instantaneous_velocity_polar.rank == 3,
+                "a rank-three answer reports a rank-three direction");
+        t.check(solved.result.instantaneous_velocity_polar.polar_angle != kNoNode,
+                "the spherical polar angle is exposed alongside the azimuth");
+    }
+    {
+        // A backend budget that runs out inside the first conversion is terminal for the solve:
+        // the contract forbids another Giac call after exhaustion, so the second and third
+        // conversions are never attempted and the command count stops where the budget did.
+        Budget budget;
+        budget.max_backend_calls = 5;
+        SequenceBackend backend({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0"});
+        Run exhausted(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), budget, &backend);
+        t.equal(position_motion_outcome_name(exhausted.result.outcome), "resource exceeded",
+                "a conversion that exhausts the backend budget reports exhaustion rather than a "
+                "partial answer");
+        t.check(backend.commands.size() == 5,
+                "no further backend call is made after the terminal status");
+        t.check(exhausted.result.detail.find("average velocity direction") != std::string::npos,
+                "the refusal names the conversion that ran out");
+        t.check(!exhausted.result.has_average_velocity_polar &&
+                    exhausted.result.average_velocity.unit.text.empty(),
+                "an exhausted solve exposes no answer at all");
     }
 }
 

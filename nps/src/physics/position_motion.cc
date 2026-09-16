@@ -214,6 +214,43 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
         last_status = axis.status;
     }
 
+    const Vector vectors[3] = {made_vector(average_velocity, problem.rank, dim(1, -1)),
+                               made_vector(instantaneous_velocity, problem.rank, dim(1, -1)),
+                               made_vector(instantaneous_acceleration, problem.rank, dim(1, -2))};
+    static const char *kVectorNames[3] = {"average velocity", "instantaneous velocity",
+                                          "instantaneous acceleration"};
+    MagnitudeAngleExpr polars[3];
+    bool has_polar[3] = {false, false, false};
+
+    if (giac != nullptr) {
+        for (int index = 0; index < 3; ++index) {
+            const VectorComponentsResult polar =
+                components_to_magnitude_angle(arena, derivation, vectors[index], problem.angle_unit,
+                                              *giac, remaining_budget(budget, meter));
+            // Nothing may reach Giac after a terminal status, so a halted conversion ends the solve
+            // rather than leaving the next two to ask anyway.
+            const bool afforded = charge(meter, polar.cost);
+            if (!afforded || polar.outcome == VectorComponentsOutcome::Cancelled ||
+                polar.outcome == VectorComponentsOutcome::ResourceExceeded) {
+                PositionMotionResult halted;
+                halted.rank = problem.rank;
+                halted.outcome = polar.outcome == VectorComponentsOutcome::Cancelled ||
+                                         meter.halt() == Halt::Cancelled
+                                     ? PositionMotionOutcome::Cancelled
+                                     : PositionMotionOutcome::ResourceExceeded;
+                halted.detail =
+                    std::string(kVectorNames[index]) + " direction: " + polar.detail;
+                halted.status = polar.status;
+                halted.cost = meter.cost();
+                return halted;
+            }
+            if (polar.outcome == VectorComponentsOutcome::Solved && polar.has_polar) {
+                polars[index] = polar.polar;
+                has_polar[index] = true;
+            }
+        }
+    }
+
     result.position_x = position_nodes[0];
     result.position_y = position_nodes[1];
     result.position_z = position_nodes[2];
@@ -224,10 +261,15 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
     result.acceleration_y = acceleration_nodes[1];
     result.acceleration_z = acceleration_nodes[2];
 
-    result.average_velocity = made_vector(average_velocity, problem.rank, dim(1, -1));
-    result.instantaneous_velocity = made_vector(instantaneous_velocity, problem.rank, dim(1, -1));
-    result.instantaneous_acceleration =
-        made_vector(instantaneous_acceleration, problem.rank, dim(1, -2));
+    result.average_velocity = vectors[0];
+    result.instantaneous_velocity = vectors[1];
+    result.instantaneous_acceleration = vectors[2];
+    result.average_velocity_polar = polars[0];
+    result.instantaneous_velocity_polar = polars[1];
+    result.instantaneous_acceleration_polar = polars[2];
+    result.has_average_velocity_polar = has_polar[0];
+    result.has_instantaneous_velocity_polar = has_polar[1];
+    result.has_instantaneous_acceleration_polar = has_polar[2];
 
     result.outcome = PositionMotionOutcome::Solved;
     result.status = last_status;
