@@ -98,6 +98,21 @@ for _, case in ipairs(folded) do
 		string.find(page, case.expect, 1, true) ~= nil, true)
 end
 
+-- Every case above matches near the top of its page, so it lands on screen whether or not the scroll
+-- moved. This one does not. "box the answer" is the nineteenth line of a page that shows about a
+-- dozen at a time, so at scroll zero the row the reader searched for is below the fold and the page
+-- renders without it. That makes this the case that tells landing on the line apart from merely
+-- opening the page holding it.
+reset()
+type_in("box the answer")
+on.enterKey()
+local deep = rendered()
+check("a match below the fold is on screen after landing",
+	string.find(deep, "box the answer", 1, true) ~= nil, true)
+-- Paired with the page identity, so a scroll that overshoots onto some other page cannot pass.
+check("a match below the fold lands on its own page",
+	string.find(deep, "six steps that earn marks", 1, true) ~= nil, true)
+
 -- The negative control: a query matching nothing must say so and must not navigate anywhere.
 reset()
 type_in("qqzzxx")
