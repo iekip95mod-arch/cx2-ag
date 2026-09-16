@@ -2147,6 +2147,16 @@
       "branch": "claude/issue-380",
       "slug": "cx2-ag-claude-review-delta",
       "released": false
+    },
+    {
+      "key": "claude/executor/issue-382",
+      "provider": "claude",
+      "role": "executor",
+      "issue": 382,
+      "pr": null,
+      "branch": "claude/issue-382",
+      "slug": "cx2-ag-claude-atlas",
+      "released": false
     }
   ]
 }
