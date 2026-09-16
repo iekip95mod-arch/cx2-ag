@@ -992,7 +992,7 @@
       "pr": null,
       "branch": "claude/issue-154",
       "slug": "cx2-ag-claude-vega",
-      "released": false
+      "released": true
     },
     {
       "key": "codex/executor/issue-246",
