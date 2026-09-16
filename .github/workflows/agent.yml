@@ -146,11 +146,14 @@ jobs:
             echo "No CLAUDE_CODE_OAUTH_TOKEN is set, so the agent did not run." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # lfs so the executor gets the boot ROM and the flash image rather than the pointers a default
+      # checkout leaves, which is what lets it boot the calculator instead of only reading about it.
       - uses: actions/checkout@v7
         if: steps.key.outputs.have == 'true'
         with:
           fetch-depth: 0
           persist-credentials: false
+          lfs: true
 
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
         if: steps.key.outputs.have == 'true'

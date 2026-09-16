@@ -19,6 +19,16 @@ failures << 'Full must require the bridge suite unconditionally' unless full.fet
   source = File.read(File.join(root, '.github/workflows', file))
   failures << "#{file} must not schedule macOS or install with Homebrew" if source.match?(/runs-on: macos|brew install/)
 end
+# The images an agent is handed, in the two jobs that do the work. This fails quietly: without lfs the
+# checkout leaves 130 byte pointers, which look like files and are not images, so an agent that meant
+# to boot the calculator reports on it by reading instead. The emulator binary is the agent's own to
+# build when it wants one.
+{ 'agent.yml' => 'respond', 'agent-review.yml' => 'review' }.each do |file, job_name|
+  job = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch(job_name)
+  working = job.fetch('steps').select { |step| step['uses'].to_s.start_with?('actions/checkout') }.last
+  failures << "#{file} #{job_name} must check out LFS or the images arrive as pointers" unless working && working.dig('with', 'lfs') == true
+end
+
 ['agent-codex.yml', 'agent.yml', 'agent-gemini.yml'].each do |file|
   executor = YAML.load_file(File.join(root, '.github/workflows', file)).fetch('jobs').fetch('respond')
   failures << "#{file} executor must use Ubuntu" unless executor['runs-on'] == 'ubuntu-24.04'
@@ -32,13 +42,22 @@ failures << 'CI cancellation must be isolated by ref and event' unless workflow[
 failures << 'Pushes to main must run CI' unless events.fetch('push', {})['branches'] == ['main']
 failures << 'Pull requests must run CI when opened, updated, reopened or ready for review' unless events.dig('pull_request', 'types') == ['opened', 'synchronize', 'reopened', 'ready_for_review']
 failures << 'Manual runs must remain available' unless events.key?('workflow_dispatch')
-failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device', 'emulator', 'codeql']).empty?
+failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device', 'codeql']).empty?
 failures << 'Draft PRs must skip approval waiting while ready PRs and main keep their gates' unless jobs.fetch('review-ready')['if'] == "github.event_name != 'pull_request' || github.event.pull_request.draft == false"
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
-['full'].each do |name|
+['full', 'emulator'].each do |name|
   job = jobs.fetch(name)
   failures << "#{name} must wait for fast and current-head approval" unless Array(job['needs']).sort == ['fast', 'review-ready'] && job['if'].nil?
 end
+
+# The images are LFS tracked, so a checkout without lfs hands emurun a 130 byte pointer. That is the
+# one setting that decides whether this job can boot anything at all.
+emulator = jobs.fetch('emulator')
+checkout = emulator.fetch('steps').find { |step| step['uses'].to_s.start_with?('actions/checkout') }
+failures << 'Emulator must check out LFS content or the images arrive as pointers' unless checkout && checkout.dig('with', 'lfs') == true
+emulator_scripts = emulator.fetch('steps').filter_map { |step| step['run'] }.join("\n")
+failures << 'Emulator must build firebird headless' unless emulator_scripts.include?('vendor/firebird-src/headless')
+failures << 'Emulator must boot the calculator through tools/emu' unless emulator_scripts.include?('tools/emu/emurun.py')
 review = jobs.fetch('review-ready')
 failures << 'Review readiness must follow fast without waiting on the suites it gates' unless Array(review['needs']) == ['fast'] && !review['continue-on-error']
 failures << 'Review readiness must use a read-only token' unless review['permissions'] == { 'contents' => 'read', 'actions' => 'read', 'pull-requests' => 'read' }
