@@ -150,7 +150,13 @@ Every section names the files it describes on a covers line, and .github/scripts
 
 The check cannot tell whether the map is still true, only whether it was opened. Two rules cover the rest.
 
-An executor whose change makes a covered section wrong corrects that section in the same commit. A change that makes nothing wrong still needs a word in the pull request body saying which section was read and why it still holds, because that sentence is what the reviewer checks against.
+An executor whose change makes a covered section wrong corrects that section in the same commit. A change that makes nothing wrong says so in the pull request body instead, on a line that names the section, because that sentence is what the reviewer checks against:
+
+~~~text
+Device map: The verification ladder, still true because adding a physics source changes what compiles rather than what a stage proves.
+~~~
+
+The heading comes first on the line and the reason follows it, so a line that merely mentions the map clears nothing. The gate reads the description from the API rather than from the event that started the job, so adding the line and rerunning the failed job is enough and no push is needed.
 
 A reviewer reads the map section for every covered file the diff touches and treats a wrong one as a blocking finding, in scope by the same reasoning an untested guard is. Two failures to look for, both of which pass the gate. A section whose claim no longer matches the code, which is the expensive one because the next agent believes it. And a claim that arrived without evidence: every claim in that file says how it is known, source with a file and line or measured with the command that produced it, and a new claim carrying neither is a finding, whatever it says.
 

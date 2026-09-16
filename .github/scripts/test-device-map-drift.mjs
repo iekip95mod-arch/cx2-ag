@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MAP, coverage, covers, drifted, pullNumber } from "./device-map-drift.mjs";
+import { MAP, coverage, covers, declaredMapLines, declares, drifted, pullNumber } from "./device-map-drift.mjs";
 
 const SAMPLE = [
   "# Device map",
@@ -45,6 +45,32 @@ test("changing a file nothing covers is not drift", () => {
 
 // A directory entry has to cover what is under it without swallowing a sibling whose name merely
 // starts the same way, which is the difference between a path boundary and a string prefix.
+// The error names a body sentence as the alternative to editing the map. It said so for a while
+// without reading the body at all, which cost #366 a CI cycle per push and could only be escaped by
+// touching the file the message called optional.
+test("a body line naming the section clears that section and nothing else", () => {
+  const body = "Some prose.\n\nDevice map: What renders, unchanged because the menu is untouched.\n";
+  assert.deepEqual(drifted(["nps/lua/ti_info.lua"], coverage(SAMPLE), body), []);
+  const other = drifted(["nps/src/platform/nspire/lua_module.cc"], coverage(SAMPLE), body);
+  assert.equal(other.length, 1);
+  assert.equal(other[0].heading, "The bridge");
+});
+
+test("the marker is folded, and a line that only mentions the map clears nothing", () => {
+  assert.deepEqual(declaredMapLines("DEVICE MAP: The Bridge is fine"), ["the bridge is fine"]);
+  assert.equal(declares(declaredMapLines("DEVICE MAP: The Bridge is fine"), "The bridge"), true);
+  assert.equal(declares(declaredMapLines("I read the device map and it is fine"), "The bridge"), false);
+  assert.equal(declares(declaredMapLines("Device map:\nThe bridge"), "The bridge"), false);
+  assert.equal(declares(declaredMapLines("Device map: I did not read The bridge"), "The bridge"), false,
+    "the heading has to open the line, or any sentence mentioning it would clear the section");
+});
+
+test("no body is the same answer the check gave before it read one", () => {
+  assert.equal(drifted(["nps/lua/ti_info.lua"], coverage(SAMPLE)).length, 1);
+  assert.equal(drifted(["nps/lua/ti_info.lua"], coverage(SAMPLE), null).length, 1);
+  assert.equal(drifted(["nps/lua/ti_info.lua"], coverage(SAMPLE), "").length, 1);
+});
+
 test("a directory entry covers its contents and not a lookalike sibling", () => {
   assert.equal(covers("tools/nsptool", "tools/nsptool/nsptool.c"), true);
   assert.equal(covers("tools/nsptool", "tools/nsptool"), true);
