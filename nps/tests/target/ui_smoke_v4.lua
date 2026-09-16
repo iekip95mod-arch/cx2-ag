@@ -1477,6 +1477,9 @@ do
     check(planar_kinematics_index ~= nil,
           "the guided browser carries a planar-kinematics fixture")
     local planar_history_before = #steps.histText
+    -- The browser keeps its focus between blocks, so a block that moves it and does not put it back
+    -- silently re-aims every later openPhysicsFixtures at this fixture instead of its own.
+    local planar_focus_before = physicsBrowser.focus
     openPhysicsFixtures()
     physicsBrowser.focus = planar_kinematics_index
     on.enterKey()
@@ -1503,6 +1506,7 @@ do
           steps.histText[#steps.histText][2]:find("6 i %- 12 j", 1) ~= nil,
           "the planar-kinematics fixture joins document history")
     on.escapeKey()
+    physicsBrowser.focus = planar_focus_before
 end
 
 -- The label says what the entry finds and the command lands in the input editor, so a beginner
@@ -2743,12 +2747,18 @@ do
     on.escapeKey()
 end
 
--- The last guided entry is the optics one, and it has to reach the native bridge with the typed
--- relation rather than a spelling the engine would refuse.
+-- The optics entry has to reach the native bridge with the typed relation rather than a spelling the
+-- engine would refuse. It is found by mode rather than by position, because it was the last entry
+-- until a fixture was appended after it and an index is not what this check is about.
 do
     openPhysicsFixtures()
     local optics_before = calls.optics
-    physicsBrowser.focus = #PHYSICS_FIXTURES
+    local optics_index = nil
+    for index, fixture in ipairs(PHYSICS_FIXTURES) do
+        if fixture.mode == "optics" then optics_index = index end
+    end
+    check(optics_index ~= nil, "the guided browser carries an optics fixture")
+    physicsBrowser.focus = optics_index
     painted()
     on.enterKey()
     check(calls.optics == optics_before + 1 and steps.result.mode == "optics",

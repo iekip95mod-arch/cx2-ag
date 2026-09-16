@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 29,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 30,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -262,6 +262,7 @@ local expected_modules = {
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
     "physics.kinematics.constant-acceleration.one-dimension",
+    "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
