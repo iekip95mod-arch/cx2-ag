@@ -367,6 +367,26 @@ Precision precision_of_literal(const std::string &number) {
     return p;
 }
 
+// The fewest-figures rule is over claims, and a zero declares a place without making one.
+struct ComponentPrecision {
+    Precision claimed;
+    Precision every;
+};
+
+void add_component_precision(ComponentPrecision *across, const Rational &value,
+                             const Precision &precision) {
+    across->every = precision_combine(across->every, precision);
+    if (value.num != 0)
+        across->claimed = precision_combine(across->claimed, precision);
+}
+
+Precision combined_component_precision(const ComponentPrecision &across) {
+    // Nothing but zeros leaves only derived counts to choose among, so it keeps the fewest.
+    if (across.claimed.kind == NumberKind::Exact)
+        return across.every;
+    return across.claimed;
+}
+
 }  // namespace
 
 bool operator==(const Dimension &a, const Dimension &b) {
@@ -578,7 +598,7 @@ struct Components {
     Rational value[3];
     bool given[3] = {false, false, false};
     uint8_t highest = 0;
-    Precision precision;
+    ComponentPrecision precision;
 };
 
 bool place(Components *c, uint8_t axis, const Rational &value, std::string *error) {
@@ -619,7 +639,7 @@ bool read_terms(const std::string &text, size_t *at, Components *c, std::string 
                 *error = "not a number this reads exactly: " + number;
                 return false;
             }
-            c->precision = precision_combine(c->precision, precision_of_literal(number));
+            add_component_precision(&c->precision, value, precision_of_literal(number));
         }
         if (sign < 0 && !negate_fraction(value.num, value.den, &value.num, &value.den)) {
             *error = "a component does not fit an exact fraction";
@@ -656,7 +676,7 @@ bool read_tuple(const std::string &text, size_t *at, Components *c, std::string 
             *error = "a tuple component is a number";
             return false;
         }
-        c->precision = precision_combine(c->precision, precision_of_literal(number));
+        add_component_precision(&c->precision, value, precision_of_literal(number));
         if (sign < 0 && !negate_fraction(value.num, value.den, &value.num, &value.den)) {
             *error = "a component does not fit an exact fraction";
             return false;
@@ -724,7 +744,7 @@ bool parse_vector(const std::string &text, Vector *out, std::string *error) {
     v.z = c.value[2];
     v.rank = c.highest > 1 ? 3 : 2;
     v.frame.name = default_frame_name();
-    v.precision = c.precision;
+    v.precision = combined_component_precision(c.precision);
     v.unit.scale.num = 1;
     v.unit.scale.den = 1;
     skip_spaces(text, &at);
@@ -846,22 +866,20 @@ Precision precision_product(const Rational &value, const Rational &a_value, cons
     if (precision.kind == NumberKind::Measured && value.num != 0) {
         precision = precision_at_digits(value, precision);
     } else if (precision.kind == NumberKind::Measured) {
-        const Rational *exact_factor = nullptr;
-        if (a.kind == NumberKind::Measured && a_value.num == 0 && b.kind == NumberKind::Exact &&
-            b_value.num != 0) {
-            exact_factor = &b_value;
-        } else if (b.kind == NumberKind::Measured && b_value.num == 0 &&
-                   a.kind == NumberKind::Exact && a_value.num != 0) {
-            exact_factor = &a_value;
-        }
-        if (exact_factor) {
-            const int64_t shifted =
-                static_cast<int64_t>(precision.last_significant_decimal_place) +
-                static_cast<int64_t>(leading_decimal_place(*exact_factor));
-            precision.last_significant_decimal_place = static_cast<int32_t>(std::max<int64_t>(
-                std::numeric_limits<int32_t>::min(),
-                std::min<int64_t>(std::numeric_limits<int32_t>::max(), shifted)));
-        }
+        // A zero product has no leading digit, so its place is the zero factor's shifted by how
+        // large the other factor is, or by that one's place when it is zero too.
+        const bool a_is_zero = a_value.num == 0;
+        const Precision &zero = a_is_zero ? a : b;
+        const Precision &other = a_is_zero ? b : a;
+        const Rational &other_value = a_is_zero ? b_value : a_value;
+        const int64_t shifted =
+            static_cast<int64_t>(zero.last_significant_decimal_place) +
+            static_cast<int64_t>(other_value.num != 0
+                                     ? leading_decimal_place(other_value)
+                                     : other.last_significant_decimal_place);
+        precision.last_significant_decimal_place = static_cast<int32_t>(std::max<int64_t>(
+            std::numeric_limits<int32_t>::min(),
+            std::min<int64_t>(std::numeric_limits<int32_t>::max(), shifted)));
     }
     return precision;
 }
@@ -896,13 +914,13 @@ bool to_si(const Vector &v, Vector *out) {
     converted.unit.text = si_unit_text(v.unit.dimension);
     converted.unit.scale = Rational{1, 1};
     if (!rational_equal(v.unit.scale, Rational{1, 1})) {
-        converted.precision = Precision();
+        ComponentPrecision across;
         for (uint8_t axis = 0; axis < v.rank; ++axis) {
-            const Precision component_precision =
-                precision_product(converted_components[axis], components[axis], v.precision,
-                                  v.unit.scale, Precision());
-            converted.precision = precision_combine(converted.precision, component_precision);
+            add_component_precision(&across, converted_components[axis],
+                                    precision_product(converted_components[axis], components[axis],
+                                                      v.precision, v.unit.scale, Precision()));
         }
+        converted.precision = combined_component_precision(across);
     }
     *out = std::move(converted);
     return true;
@@ -1112,11 +1130,12 @@ bool vector_add(const Vector &a, const Vector &b, Vector *out, std::string *erro
         return false;
     }
     const Rational components[3] = {sum.x, sum.y, sum.z};
-    sum.precision = Precision();
+    ComponentPrecision across;
     for (uint8_t axis = 0; axis < sum.rank; ++axis) {
-        sum.precision = precision_combine(
-            sum.precision, precision_sum(components[axis], a_si.precision, b_si.precision));
+        add_component_precision(&across, components[axis],
+                                precision_sum(components[axis], a_si.precision, b_si.precision));
     }
+    sum.precision = combined_component_precision(across);
     *out = std::move(sum);
     return true;
 }
@@ -1141,12 +1160,12 @@ bool vector_sub(const Vector &a, const Vector &b, Vector *out, std::string *erro
         return false;
     }
     const Rational components[3] = {difference.x, difference.y, difference.z};
-    difference.precision = Precision();
+    ComponentPrecision across;
     for (uint8_t axis = 0; axis < difference.rank; ++axis) {
-        difference.precision = precision_combine(
-            difference.precision,
-            precision_sum(components[axis], a_si.precision, b_si.precision));
+        add_component_precision(&across, components[axis],
+                                precision_sum(components[axis], a_si.precision, b_si.precision));
     }
+    difference.precision = combined_component_precision(across);
     *out = std::move(difference);
     return true;
 }
@@ -1168,17 +1187,17 @@ bool vector_scale(const Vector &v, const Quantity &s, Vector *out, std::string *
     const Rational components[3] = {vector_si.x, vector_si.y, vector_si.z};
     Rational scaled_components[3];
     Vector scaled = si_result(vector_si, vector_si, product_dimension);
-    scaled.precision = Precision();
+    ComponentPrecision across;
     for (uint8_t axis = 0; axis < vector_si.rank; ++axis) {
         if (!rational_mul(components[axis], scalar, &scaled_components[axis])) {
             *error = "a scaled component does not fit an exact fraction";
             return false;
         }
-        scaled.precision = precision_combine(
-            scaled.precision,
-            precision_product(scaled_components[axis], components[axis], vector_si.precision,
-                              scalar, scalar_precision));
+        add_component_precision(&across, scaled_components[axis],
+                                precision_product(scaled_components[axis], components[axis],
+                                                  vector_si.precision, scalar, scalar_precision));
     }
+    scaled.precision = combined_component_precision(across);
     scaled.x = scaled_components[0];
     scaled.y = scaled_components[1];
     scaled.z = vector_si.rank == 3 ? scaled_components[2] : Rational();
@@ -1258,7 +1277,7 @@ bool vector_cross(const Vector &a, const Vector &b, Vector *out, std::string *er
     const Rational second_right[3] = {b_si.y, b_si.z, b_si.x};
     Rational components[3];
     Vector cross = si_result(a_si, b_si, product_dimension);
-    cross.precision = Precision();
+    ComponentPrecision across;
     for (uint8_t axis = 0; axis < 3; ++axis) {
         Rational first;
         Rational second;
@@ -1272,10 +1291,11 @@ bool vector_cross(const Vector &a, const Vector &b, Vector *out, std::string *er
             first, first_left[axis], a_si.precision, first_right[axis], b_si.precision);
         const Precision second_precision = precision_product(
             second, second_left[axis], a_si.precision, second_right[axis], b_si.precision);
-        cross.precision = precision_combine(
-            cross.precision,
+        add_component_precision(
+            &across, components[axis],
             precision_sum(components[axis], first_precision, second_precision));
     }
+    cross.precision = combined_component_precision(across);
     cross.x = components[0];
     cross.y = components[1];
     cross.z = components[2];
@@ -1315,6 +1335,9 @@ bool vector_magnitude(const Vector &v, Quantity *out, std::string *error) {
     magnitude.unit.scale.den = 1;
     magnitude.precision = precision_product(magnitude.value, magnitude.value, sum_precision,
                                             Rational{1, 1}, Precision());
+    // The squared sum's place is twice the components' until the root is taken back out of it.
+    if (magnitude.value.num == 0 && magnitude.precision.kind == NumberKind::Measured)
+        magnitude.precision = precision_at_value(magnitude.value, vector_si.precision);
     *out = std::move(magnitude);
     return true;
 }

@@ -1125,6 +1125,49 @@ void run_units_tests(TestSink &t) {
                     zero_cross.precision.last_significant_decimal_place == 3,
                 "cross-product cancellation retains the coarsest measured zero component");
     }
+    {
+        Vector with_zero;
+        Vector without_zero;
+        std::string why;
+        t.check(parse_vector("36.0 i + 0.0 j m", &with_zero, &why) &&
+                    with_zero.precision.kind == NumberKind::Measured &&
+                    with_zero.precision.significant_digits == 3 &&
+                    with_zero.precision.last_significant_decimal_place == -1,
+                "a written zero component declares its place and claims no significant figures");
+        t.check(parse_vector("36.0 i + 1.0 j m", &without_zero, &why) &&
+                    without_zero.precision.significant_digits == 2,
+                "a component that does claim two figures still wins the fewest-figures rule");
+
+        Vector converted;
+        Quantity elapsed;
+        Vector drift;
+        std::string reported;
+        HalfPlace checked = HalfPlace::Within;
+        t.check(parse_vector("36.0 i + 0.0 j km/h", &with_zero, &why) &&
+                    to_si(with_zero, &converted) && parse_quantity("4.00 s", &elapsed, &why) &&
+                    vector_scale(converted, elapsed, &drift, &why) &&
+                    reported_vector_text(drift, &reported, checked) && reported == "40.0 i m",
+                "and the figures it did not throw away survive conversion into the reported text");
+
+        Vector left;
+        Vector right;
+        Vector difference;
+        t.check(parse_vector("1.50 i + 2.50 j m", &left, &why) &&
+                    parse_vector("1.50 i + 1.25 j m", &right, &why) &&
+                    vector_sub(left, right, &difference, &why) && difference.x.num == 0 &&
+                    difference.precision.significant_digits == 3 &&
+                    difference.precision.last_significant_decimal_place == -2,
+                "a component that cancels to zero claims no figures either, so the other axis keeps "
+                "all three");
+
+        Vector along_one_axis;
+        Quantity reach;
+        t.check(parse_vector("6.0 i + 0.0 j km", &along_one_axis, &why) &&
+                    vector_magnitude(along_one_axis, &reach, &why) && reach.value.num == 6000 &&
+                    reach.precision.significant_digits == 2 &&
+                    reach.precision.last_significant_decimal_place == 2,
+                "a magnitude reached through a squared zero keeps the figures the other axis wrote");
+    }
 
     Vector rotated = vector_of("m", 1, 0);
     rotated.frame.name = "ramp";
