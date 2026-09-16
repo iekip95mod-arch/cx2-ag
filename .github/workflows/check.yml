@@ -184,6 +184,67 @@ jobs:
       - name: Full suite
         run: ctest --test-dir nps/build/host --output-on-failure --parallel "$(nproc)"
 
+  # Boots TI OS and photographs the screen. The old job of this name built Firebird and ran
+  # Firebird's own unit tests, which tested the emulator rather than testing with it, and said so in
+  # its own summary. This one produces a frame.
+  #
+  # lfs: true on the checkout is what makes it possible at all. The images are LFS tracked and
+  # actions/checkout leaves pointers by default, which emurun now refuses by name rather than
+  # handing 130 bytes to the emulator.
+  emulator:
+    needs: [fast, review-ready]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Install emulator prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential zlib1g-dev python3
+
+      - name: Build the headless emulator
+        run: make -C vendor/firebird-src/headless -j"$(nproc)"
+
+      # Its own copy, because a run that writes flash must not touch what the next job checks out.
+      #
+      # The images are not on main yet, so this has to say so rather than die on a missing file. It
+      # reports the skip to the job summary, which is the difference between a stage that did not run
+      # and a stage nobody noticed did not run. emurun refuses an LFS pointer for the same reason:
+      # a checkout without lfs leaves a file that exists and is 130 bytes.
+      - name: Boot the calculator and photograph the screen
+        run: |
+          mkdir -p .Internal/workspaces/ci-emulator
+          if [ ! -f images/nspire-os.img ]; then
+            echo "No flash image in this checkout, so the calculator was not booted." >> "$GITHUB_STEP_SUMMARY"
+            echo "images/nspire-os.img is absent" >&2
+            exit 0
+          fi
+          cp images/nspire-os.img .Internal/workspaces/ci-emulator/flash.img
+          python3 tools/emu/emurun.py \
+            --skip-when-absent \
+            --flash .Internal/workspaces/ci-emulator/flash.img \
+            --out .Internal/workspaces/ci-emulator/screen.ppm \
+            --png .Internal/workspaces/ci-emulator/screen.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-screen
+          path: .Internal/workspaces/ci-emulator/screen.png
+          if-no-files-found: warn
+
+      - name: Record what this proved
+        run: |
+          if [ -f .Internal/workspaces/ci-emulator/screen.png ]; then
+            echo "TI OS booted under Firebird headless and the screen was captured. Keys are not exercised, see issue 386." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No screen was captured, so nothing here establishes that the calculator boots." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   review-ready:
     needs: fast
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false

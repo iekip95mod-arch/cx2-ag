@@ -251,7 +251,7 @@ Executors, reviewers and CI use Ubuntu. Codex and Claude model jobs and full bri
 
 The account now supports 40 concurrent Actions jobs. Executor and reviewer identities are separate capacity limits, with twelve of each role per provider. Preserve the per-branch and per-PR queues so increased runner capacity cannot create simultaneous writers on one branch.
 
-- check.yml runs fast first, then full after fast succeeds and the current PR review is approved. Main pushes and manual runs do not wait for a PR review. The linux-parity, device, emulator and codeql jobs have all been removed. The emulator is now something you drive yourself rather than a gate somebody else ran for you, so read [Drive the emulator yourself](#drive-the-emulator-yourself).
+- check.yml runs fast first, then full and emulator in parallel after fast succeeds and the current PR review is approved. Main pushes and manual runs do not wait for a PR review. The linux-parity, device and codeql jobs have all been removed. The emulator job boots TI OS and uploads the frame, and you can drive the same harness yourself, so read [Drive the emulator yourself](#drive-the-emulator-yourself).
 - agent.yml, agent-codex.yml and agent-gemini.yml are the agents. Write @claude, @codex or @gemini in an issue or a comment and that one picks it up. Each answers to its own word, so one comment wakes one agent. Putting the claude, codex or gemini label on an issue selects that provider. Implementation runs claim the issue and prepare its branch before the model starts. See [CODEX.md](CODEX.md) for dispatch, credentials and resume instructions.
 - agent-review-request.yml selects and reserves a Claude, Codex or Gemini reviewer when a pull request is opened, taken out of draft or given the corresponding review label. It applies the assigned bot's reviewer label. That event starts agent-review.yml, which verifies the assignment before using subscription credentials. Re-requesting review retains that bot. The review-approved check requires its fresh approval on the exact current commit. A missing credential, skipped review, stale review or changes-requested verdict cannot satisfy it.
 - agent-review-feedback.yml resumes the assigned executor after its reviewer approves or requests changes on the current commit. Codex resumes Codex, Claude resumes Claude and Gemini resumes Gemini. All keep the existing issue, identity, branch and PR. Verify live state before acting on a continuation because delivery may repeat.
@@ -474,14 +474,20 @@ Run calculator validation through the emulator. Do not upload to a physical hand
 
 ### Drive the emulator yourself
 
-No CI job boots the calculator for you. tools/emu is how you do it, and it runs anywhere the emulator binary and two images are present.
+Both the executor and the reviewer job check out with lfs true, asserted by test-ci-scheduling.rb, because a default checkout leaves 130 byte pointers that look like files and are not images.
+
+That is the transport rather than the images. images/nspire-os.img reaches main with #366 and not before, so until that merges a hosted job has the harness and nothing to boot, and both the emulator job and emurun say so rather than failing on a missing file. Check for the image before promising a screenshot.
+
+Build the emulator yourself when you want one, which takes a couple of seconds:
 
 ~~~sh
-make -C vendor/firebird-src/headless -j3
+make -C vendor/firebird-src/headless -j"$(nproc)"
 python3 tools/emu/emurun.py --png screen.png --out screen.ppm
 ~~~
 
 That boots TI OS, waits for the OS banner rather than sleeping a fixed span, captures the screen and refuses a frame too flat to be one. It takes about 30 seconds on an idle machine. Point it somewhere else with --boot1 and --flash, or NPS_EMU_BOOT1 and NPS_EMU_FLASH, and copy the flash image into your own workspace first so another lane's run is not sharing it. Pass --skip-when-absent where a missing image should report as a skip rather than a failure.
+
+The emulator job in check.yml runs that same harness on every pull request and uploads the frame as the emulator-screen artifact, so a change that stops the calculator booting fails there rather than later, and a reviewer can boot the branch and photograph the screen rather than taking the author's word for it.
 
 Import tools/emu/emurun.py for anything longer than a screenshot. Emulator.boot, shot, svc and resume are the whole surface, and tools/emu/screen.py compares two frames when the question is whether something changed.
 
