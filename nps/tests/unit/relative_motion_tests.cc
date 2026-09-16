@@ -438,6 +438,22 @@ void run_relative_motion_tests(TestSink &t) {
                 "local exact subtraction verifies every recorded claim");
         t.check(solved.result.equation != kNoNode && solved.result.substituted != kNoNode,
                 "the answer retains the governing and SI-substituted equations");
+        const size_t stated = step_with_rule(solved.derivation, "physics.relative-motion.definition");
+        const size_t numbers =
+            step_with_rule(solved.derivation, "physics.relative-motion.substitute");
+        const TransformationPayload *law =
+            stated < solved.derivation.size()
+                ? solved.derivation.transformation(static_cast<StepId>(stated))
+                : nullptr;
+        const TransformationPayload *substituted =
+            numbers < solved.derivation.size()
+                ? solved.derivation.transformation(static_cast<StepId>(numbers))
+                : nullptr;
+        t.check(law != nullptr && substituted != nullptr && stated < numbers &&
+                    print(solved.arena, law->after) ==
+                        "(relative_velocity(drone, wind) = (velocity(drone) + (-velocity(wind))))" &&
+                    substituted->before == law->after,
+                "the relation names both velocities before either vector is put into it");
         t.check(solved.result.cost.steps == solved.derivation.size(),
                 "every charged relative-motion step has provenance");
     }

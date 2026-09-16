@@ -152,7 +152,7 @@ word_language_profile_ids none, typed entry only
 parser_module_ids src/units/units.cc, src/physics/relative_motion.cc
 required_assumptions both velocities are expressed in the declared Cartesian frame, which for the compass frame is carried as "positive i is east and positive j is north"
 test_group_ids relative motion
-proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
+proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
 strategy_ids physics.relative-motion.plan
 supported_methods validate ranks, frames and dimensions, convert both velocities exactly to SI, subtract matching components with Giac checking each one, then interpret the component signs in the declared axes
 unsupported_near_neighbors implicit frame transformation, rank-three relative motion, mismatched-rank inputs, rotating frames, relativistic addition, and unequal dimensions
@@ -172,6 +172,7 @@ rule physics.relative-motion.check-frame-declared fixture
 rule physics.relative-motion.check-frame-match fixture
 rule physics.relative-motion.check-input-dimensions fixture
 rule physics.relative-motion.definition fixture
+rule physics.relative-motion.substitute fixture
 rule physics.relative-motion.convert-si fixture
 rule physics.relative-motion.check-result-dimension fixture
 rule physics.relative-motion.component-i fixture
@@ -213,6 +214,7 @@ rule physics.relative-motion.check-frame-declared device
 rule physics.relative-motion.check-frame-match device
 rule physics.relative-motion.check-input-dimensions device
 rule physics.relative-motion.definition device
+rule physics.relative-motion.substitute device
 rule physics.relative-motion.convert-si device
 rule physics.relative-motion.check-result-dimension device
 rule physics.relative-motion.component-i device

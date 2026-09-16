@@ -1448,6 +1448,8 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.relative-motion.definition", ClaimType::Definition, kRelativeDefinitionAfterChecks, 1,
      FailureBehavior::WithholdResult},
+    {"physics.relative-motion.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
     {"physics.relative-motion.interpret-direction", ClaimType::Definition, kRelativeDirection, 1,
      FailureBehavior::WithholdResult},
 

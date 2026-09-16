@@ -118,15 +118,25 @@ NodeId problem_model(Arena &arena, const RelativeMotionProblem &problem) {
                        arena.symbol(relative_motion_axes_name(problem.axes))});
 }
 
-NodeId relative_equation(Arena &arena, const RelativeMotionProblem &problem, const Vector &subject,
-                         const Vector &reference) {
+NodeId relative_equation(Arena &arena, const RelativeMotionProblem &problem, NodeId subject,
+                         NodeId reference) {
     const NodeId relative = arena.call(
         "relative_velocity",
         {arena.symbol(problem.subject_name), arena.symbol(problem.reference_name)});
-    const NodeId difference =
-        arena.binary(Kind::Add, vector_model_node(arena, subject),
-                     arena.unary(Kind::Neg, vector_model_node(arena, reference)));
+    const NodeId difference = arena.binary(Kind::Add, subject, arena.unary(Kind::Neg, reference));
     return arena.binary(Kind::Equals, relative, difference);
+}
+
+NodeId relative_equation(Arena &arena, const RelativeMotionProblem &problem, const Vector &subject,
+                         const Vector &reference) {
+    return relative_equation(arena, problem, vector_model_node(arena, subject),
+                             vector_model_node(arena, reference));
+}
+
+NodeId symbolic_relative_equation(Arena &arena, const RelativeMotionProblem &problem) {
+    return relative_equation(arena, problem,
+                             arena.call("velocity", {arena.symbol(problem.subject_name)}),
+                             arena.call("velocity", {arena.symbol(problem.reference_name)}));
 }
 
 bool needs_conversion(const Vector &vector) {
@@ -488,6 +498,7 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
                           dimensions);
     }
 
+    const NodeId symbolic = symbolic_relative_equation(arena, problem);
     const NodeId equation = relative_equation(arena, problem, problem.subject_velocity,
                                                problem.reference_velocity);
     if (arena.failed()) {
@@ -511,8 +522,30 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
         {"obl.relative-motion.definition-after-checks",
          "the relative velocity definition is applied only after its conditions pass"});
     if (!add_transformation(derivation, meter, plan_id, std::move(law), *model,
-                            "Apply v(subject/reference) = v(subject) - v(reference)", equation,
+                            "Apply v(subject/reference) = v(subject) - v(reference)", symbolic,
                             false)) {
+        return RelativeMotionResult();
+    }
+
+    const std::string substitution = "v(" + problem.subject_name + ") = " +
+                                     vector_text(problem.subject_velocity) + ", v(" +
+                                     problem.reference_name + ") = " +
+                                     vector_text(problem.reference_velocity);
+    Step values = transformation_step(
+        "physics.relative-motion.substitute", "Substitution",
+        "Put both declared velocities into the relation",
+        "Replace each velocity symbol by the vector the problem gave for it",
+        "Reach for this once the relation is on the page and its conditions have passed. Which "
+        "velocity is subtracted from which is a fact about the relation, and it is easier to get "
+        "right while the two are still named rather than once they are two columns of numbers.",
+        ClaimType::SolutionSetPreserved,
+        verification("typed known-quantity lookup", substitution, EvidenceStrength::StructurallyValid,
+                     VerificationOutcome::Passed));
+    values.proof_obligations.push_back(
+        {"obl.physics.lookup-preserves-solutions",
+         "the value put in place of a symbol is the one the problem declared for it"});
+    if (!add_transformation(derivation, meter, plan_id, std::move(values), symbolic,
+                            "Substitute " + substitution, equation, true)) {
         return RelativeMotionResult();
     }
 
