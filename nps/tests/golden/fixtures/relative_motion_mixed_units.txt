@@ -104,11 +104,25 @@ steps
       proof obligation: obl.relative-motion.definition-after-checks, the relative velocity definition is applied only after its conditions pass
       action: Apply v(subject/reference) = v(subject) - v(reference)
       before: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2), east-north)
-      after: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2))))
+      after: (relative_velocity(drone, wind) = (velocity(drone) + (-velocity(wind))))
       reversible: no
       verification: checked physical-law applicability, passed, the roles, ranks, frames and velocity dimensions passed
       verified: yes
     1.6 transformation
+      phase: solve
+      goal: Put both declared velocities into the relation
+      rule: physics.relative-motion.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each velocity symbol by the vector the problem gave for it
+      detail: Reach for this once the relation is on the page and its conditions have passed. Which velocity is subtracted from which is a fact about the relation, and it is easier to get right while the two are still named rather than once they are two columns of numbers.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute v(drone) = (36 i - 18 j) km/h, v(wind) = (3 i + 1 j) m/s
+      before: (relative_velocity(drone, wind) = (velocity(drone) + (-velocity(wind))))
+      after: (relative_velocity(drone, wind) = (framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2) + (-framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2))))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, v(drone) = (36 i - 18 j) km/h, v(wind) = (3 i + 1 j) m/s
+      verified: yes
+    1.7 transformation
       phase: solve
       goal: Convert both velocity vectors to SI
       rule: physics.relative-motion.convert-si, Exact SI conversion
@@ -122,7 +136,7 @@ steps
       reversible: yes
       verification: unit table, passed, both velocity scales were applied exactly
       verified: yes
-    1.7 check
+    1.8 check
       phase: check
       goal: Check the result dimension
       rule: physics.relative-motion.check-result-dimension, Relative velocity dimension
@@ -135,7 +149,7 @@ steps
       observed: L T^-1
       verification: dimensional analysis, passed, L T^-1
       verified: yes
-    1.8 transformation
+    1.9 transformation
       phase: solve
       goal: Subtract the i velocity components
       rule: physics.relative-motion.component-i, Relative velocity component
@@ -151,7 +165,7 @@ steps
       verification: Giac Simplify and local canonical comparison, passed, Giac's exact component matches vector_sub
       verified: yes
       backend requests: 1
-    1.9 transformation
+    1.10 transformation
       phase: solve
       goal: Subtract the j velocity components
       rule: physics.relative-motion.component-j, Relative velocity component
@@ -167,7 +181,7 @@ steps
       verification: Giac Simplify and local canonical comparison, passed, Giac's exact component matches vector_sub
       verified: yes
       backend requests: 1
-    1.10 check
+    1.11 check
       phase: check
       goal: Interpret the component signs
       rule: physics.relative-motion.interpret-direction, Relative direction

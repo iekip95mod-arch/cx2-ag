@@ -2,6 +2,7 @@
 #include <utility>
 #include <vector>
 
+#include "nps/core/print.h"
 #include "nps/physics/planar_kinematics.h"
 #include "unit/adapter_tests.h"
 
@@ -101,6 +102,15 @@ bool has_rule(const Derivation &derivation, const char *rule) {
     return false;
 }
 
+const TransformationPayload *moved_by(const Derivation &derivation, const char *rule) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const StepId id = static_cast<StepId>(index);
+        if (derivation.at(id).rule_id == rule)
+            return derivation.transformation(id);
+    }
+    return nullptr;
+}
+
 bool cancel_now(void *) { return true; }
 
 }  // namespace
@@ -125,6 +135,23 @@ void run_planar_kinematics_tests(TestSink &t) {
                 "both axes are decomposed in their own recorded step");
         t.check(has_rule(solved.derivation, "physics.planar-kinematics.check-shared-time"),
                 "the shared-time identity is the family's final check");
+        const TransformationPayload *law =
+            moved_by(solved.derivation, "physics.planar-kinematics.definition");
+        const TransformationPayload *numbers =
+            moved_by(solved.derivation, "physics.planar-kinematics.substitute");
+        t.check(law != nullptr && numbers != nullptr,
+                "the law and the substitution are each recorded as their own move");
+        if (law != nullptr && numbers != nullptr) {
+            t.equal(print(solved.arena, law->after),
+                    "(displacement = ((v0 * t) + (((1 * (2^-1)) * a) * (t^2))))",
+                    "the law is written in symbols before any quantity is put into it");
+            t.check(numbers->before == law->after,
+                    "the substitution starts from the law the definition step left on the page");
+            t.equal(print(solved.arena, numbers->after),
+                    "(displacement = ((vector(3, 4) * 2) + (((1 * (2^-1)) * vector(0, -10)) * "
+                    "(2^2))))",
+                    "the substitution is what puts the declared quantities in");
+        }
     }
     {
         PlanarKinematicsProblem input =
@@ -147,6 +174,7 @@ void run_planar_kinematics_tests(TestSink &t) {
                    has_rule(solved.derivation, "physics.planar-kinematics.projectile-plan") &&
                        has_rule(solved.derivation, "physics.planar-kinematics.check-projectile") &&
                        has_rule(solved.derivation, "physics.planar-kinematics.definition") &&
+                       has_rule(solved.derivation, "physics.planar-kinematics.substitute") &&
                        has_rule(solved.derivation, "physics.planar-kinematics.check-shared-time") &&
                        has_rule(solved.derivation, "physics.planar-kinematics.component-i") &&
                        has_rule(solved.derivation, "physics.planar-kinematics.component-j"),

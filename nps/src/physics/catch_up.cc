@@ -1,5 +1,6 @@
 #include "nps/physics/catch_up.h"
 
+#include <string>
 #include <utility>
 
 #include "nps/core/context.h"
@@ -244,12 +245,24 @@ bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
     return normalise(&value->num, &value->den);
 }
 
+NodeId position_expression(Arena &arena, NodeId time, NodeId position, NodeId velocity,
+                           NodeId start) {
+    const NodeId elapsed = arena.binary(Kind::Add, time, arena.unary(Kind::Neg, start));
+    const NodeId displacement = arena.binary(Kind::Mul, velocity, elapsed);
+    return arena.binary(Kind::Add, position, displacement);
+}
+
 NodeId position_expression(Arena &arena, NodeId time, const BodySI &body) {
-    const NodeId elapsed = arena.binary(
-        Kind::Add, time, arena.unary(Kind::Neg, rational_node(arena, body.start)));
-    const NodeId displacement =
-        arena.binary(Kind::Mul, rational_node(arena, body.velocity), elapsed);
-    return arena.binary(Kind::Add, rational_node(arena, body.position), displacement);
+    return position_expression(arena, time, rational_node(arena, body.position),
+                               rational_node(arena, body.velocity),
+                               rational_node(arena, body.start));
+}
+
+// The subscript is which body rather than which name, because the two laws are one law written twice.
+NodeId symbolic_position_expression(Arena &arena, NodeId time, const char *subscript) {
+    return position_expression(arena, time, arena.symbol(std::string("x") + subscript),
+                               arena.symbol(std::string("v") + subscript),
+                               arena.symbol(std::string("t") + subscript));
 }
 
 bool position_at(const BodySI &body, const Rational &time, const Precision &time_precision,
@@ -521,6 +534,9 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         problem.first.start_time.precision, problem.second.start_time.precision);
 
     const NodeId time = arena.symbol("t_event");
+    const NodeId first_law = symbolic_position_expression(arena, time, "1");
+    const NodeId second_law = symbolic_position_expression(arena, time, "2");
+    const NodeId law = arena.binary(Kind::Equals, first_law, second_law);
     const NodeId first_position = position_expression(arena, time, first);
     const NodeId second_position = position_expression(arena, time, second);
     const NodeId equation = arena.binary(Kind::Equals, first_position, second_position);
@@ -662,11 +678,44 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             {"obl.catch-up.equal-position-is-the-event",
              "the event the two bodies share is one position at one time on one axis"});
         TransformationPayload payload;
-        payload.before = first_position;
-        payload.after = equation;
+        payload.before = first_law;
+        payload.after = law;
         payload.concrete_action = "Set " + problem.first.name + " position equal to " +
                                   problem.second.name + " position";
         payload.reversible = false;
+        derivation.add_transformation(plan_id, std::move(step), std::move(payload));
+    }
+
+    if (!meter.step())
+        return CatchUpResult();
+    {
+        const std::string substitution =
+            problem.first.name + ": x1 = " + rational_text(first.position) + " m, v1 = " +
+            rational_text(first.velocity) + " m/s, t1 = " + rational_text(first.start) + " s; " +
+            problem.second.name + ": x2 = " + rational_text(second.position) + " m, v2 = " +
+            rational_text(second.velocity) + " m/s, t2 = " + rational_text(second.start) + " s";
+        Step step;
+        step.phase = "solve";
+        step.goal = "Put each body's stated numbers into its position law";
+        step.rule_id = "physics.catch-up.substitute";
+        step.rule_name = "Substitution";
+        step.explanation_short = "Replace each symbol by the SI value the problem declared for it";
+        step.explanation_detailed =
+            "The two laws are one law written twice, so they are worth reading before either body's "
+            "numbers are in them. Putting the numbers in afterwards leaves an equation in the event "
+            "time alone, which is the form the linear solver takes from here.";
+        step.claim = ClaimType::SolutionSetPreserved;
+        step.verifications.push_back(verification(
+            "typed known-quantity lookup", substitution, EvidenceStrength::StructurallyValid,
+            VerificationOutcome::Passed));
+        step.proof_obligations.push_back(
+            {"obl.physics.lookup-preserves-solutions",
+             "the value put in place of a symbol is the one the problem declared for it"});
+        TransformationPayload payload;
+        payload.before = law;
+        payload.after = equation;
+        payload.concrete_action = "Substitute " + substitution;
+        payload.reversible = true;
         derivation.add_transformation(plan_id, std::move(step), std::move(payload));
     }
 

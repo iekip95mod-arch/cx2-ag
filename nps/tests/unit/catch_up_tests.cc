@@ -168,6 +168,20 @@ void test_event_teaching_order(TestSink &t) {
             produced < order.size() ? derivation.transformation(order[produced]) : nullptr;
         t.check(isolation && print(arena, isolation->after) == "(t_event = 10)",
                 "the written candidate remains the exact meeting time");
+        const size_t stated = rule_position(derivation, order, "physics.catch-up.equal-position");
+        const size_t numbers = rule_position(derivation, order, "physics.catch-up.substitute");
+        t.check(stated < numbers && numbers < algebra,
+                "the law is stated, then the numbers go in, and only then does the algebra start");
+        const TransformationPayload *law =
+            stated < order.size() ? derivation.transformation(order[stated]) : nullptr;
+        const TransformationPayload *substituted =
+            numbers < order.size() ? derivation.transformation(order[numbers]) : nullptr;
+        t.check(law != nullptr && substituted != nullptr &&
+                    print(arena, law->after) ==
+                        "((x1 + (v1 * (t_event + (-t1)))) = (x2 + (v2 * (t_event + (-t2)))))" &&
+                    substituted->before == law->after,
+                "both position laws are written in symbols before either body's numbers are in "
+                "them");
     }
 
     Arena arena;
@@ -185,7 +199,8 @@ void test_event_teaching_order(TestSink &t) {
                 rule_position(derivation, order, "physics.catch-up.shared-domain"),
             "a rejected candidate is derived before its active-domain rejection");
 
-    for (size_t max_steps : {8u, 9u}) {
+    // Two budgets that run out just after the shared-domain check is recorded.
+    for (size_t max_steps : {9u, 10u}) {
         Arena limited_arena;
         Derivation prefix;
         Budget budget;

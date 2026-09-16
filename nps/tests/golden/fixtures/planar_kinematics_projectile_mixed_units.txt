@@ -138,11 +138,25 @@ steps
       proof obligation: obl.planar-kinematics.definition-after-checks, the constant-acceleration relations are applied only after their conditions pass
       action: Apply s = v0 t + a t^2 / 2 and v = v0 + a t on both axes
       before: planar_kinematics_problem(ball, staged_vector(vector(36, 0), (5 * (18^-1)), lab, dimension(1, 0, -1, 0), 2, state), staged_vector(vector(0, (-49 * (5^-1))), 1, lab, dimension(1, 0, -2, 0), 2, interval), staged_scalar(4, 1, dimension(0, 0, 1, 0), interval), right-up, projectile)
-      after: (displacement = ((vector(36, 0) * 4) + (((1 * (2^-1)) * vector(0, (-49 * (5^-1)))) * (4^2))))
+      after: (displacement = ((v0 * t) + (((1 * (2^-1)) * a) * (t^2))))
       reversible: no
       verification: checked physical-law applicability, passed, the axes, stages, ranks, frames and dimensions passed
       verified: yes
     1.8 transformation
+      phase: solve
+      goal: Put the declared velocity, acceleration and time into the law
+      rule: physics.planar-kinematics.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each symbol by the quantity the problem gave for it
+      detail: Reach for this once the law is on the page and its conditions have passed. Writing the law first and the numbers second is what makes the walkthrough readable: the relation is the part that is true of every problem of this shape, and the numbers are the part that is true of this one. The units come off the numbers on the next line, not this one.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute v0 = 36 i km/h, a = -9.8 j m/s^2, t = 4 s
+      before: (displacement = ((v0 * t) + (((1 * (2^-1)) * a) * (t^2))))
+      after: (displacement = ((vector(36, 0) * 4) + (((1 * (2^-1)) * vector(0, (-49 * (5^-1)))) * (4^2))))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, v0 = 36 i km/h, a = -9.8 j m/s^2, t = 4 s
+      verified: yes
+    1.9 transformation
       phase: solve
       goal: Convert the velocity, acceleration and time to SI
       rule: physics.planar-kinematics.convert-si, Exact SI conversion
@@ -156,7 +170,7 @@ steps
       reversible: yes
       verification: unit table, passed, every declared scale was applied exactly
       verified: yes
-    1.9 check
+    1.10 check
       phase: check
       goal: Check the produced dimensions
       rule: physics.planar-kinematics.check-result-dimension, Result dimensions
@@ -169,7 +183,7 @@ steps
       observed: displacement L, final velocity L T^-1
       verification: dimensional analysis, passed, displacement L, final velocity L T^-1
       verified: yes
-    1.10 transformation
+    1.11 transformation
       phase: solve
       goal: Integrate the i axis over the shared time
       rule: physics.planar-kinematics.component-i, Planar displacement component
@@ -183,7 +197,7 @@ steps
       reversible: yes
       verification: nps vector_scale and vector_add, passed, 40
       verified: yes
-    1.11 transformation
+    1.12 transformation
       phase: solve
       goal: Integrate the j axis over the shared time
       rule: physics.planar-kinematics.component-j, Planar displacement component
@@ -197,7 +211,7 @@ steps
       reversible: yes
       verification: nps vector_scale and vector_add, passed, -78.4
       verified: yes
-    1.12 check
+    1.13 check
       phase: check
       goal: Check the displacement against the average velocity
       rule: physics.planar-kinematics.check-shared-time, Shared-time consistency
@@ -210,7 +224,7 @@ steps
       observed: i: 40 against 40, j: -78.4 against -78.4
       verification: average-velocity identity, passed, i: 40 against 40, j: -78.4 against -78.4
       verified: yes
-    1.13 transformation
+    1.14 transformation
       phase: solve
       goal: Report the displacement to the measured precision
       rule: physics.planar-kinematics.significant-figures, Significant figures
@@ -223,7 +237,7 @@ steps
       reversible: no
       verification: exact comparison against the unrounded value, passed, (40 i - 80 j) m is within half a unit in the last place of (40 i - 78.4 j) m
       verified: nothing claimed
-    1.14 transformation
+    1.15 transformation
       phase: solve
       goal: Report the final velocity to the measured precision
       rule: physics.planar-kinematics.significant-figures, Significant figures
