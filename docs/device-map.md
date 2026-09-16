@@ -171,6 +171,8 @@ unmeasured formula needs a provisional height and a plain-text spelling until th
 
 ## Scrolling a page that contains typeset rows
 
+<!-- covers: nps/lua/ti_info.lua -->
+
 A page of uniform text rows can compute its scroll limit by counting rows. A page containing D2Editor
 boxes cannot, because a typeset formula is about three text rows tall.
 
@@ -178,8 +180,16 @@ boxes cannot, because a typeset formula is about three text rows tall.
 card carrying a formula unreachable. The fix is to fill the viewport backwards from the last row,
 accumulating real heights, rather than dividing a total by a row height.
 
-That document is not on main yet, which is why this section covers no file. Give it a covers line when
-#366 merges.
+`measured` on 2026-09-15 with `luajit nps/tests/target/ti_info_cards.lua`, run from `nps`: replacing
+`clamp()`'s backward fill at nps/lua/ti_info.lua:1924 with the uniform-row division it replaced,
+`limit = #list - math.floor(viewport / L)`, fails the card walk with `card 'Magnitude and angle, or
+back again' has no STEPS`. The last section of a card carrying a formula becomes unreachable, which is
+the defect this section describes. Restoring the backward fill passes it again.
+
+`ti_info_cards.lua` is the regression that holds this claim. `ti_info_search.lua` does not: it stays
+green under that same mutation, because its below-the-fold case searches a plain-text topic where
+every row is the uniform height and the backward fill and the division agree. That test guards the
+search landing scroll instead, which is a different fix.
 
 ## Where files live on the device
 
