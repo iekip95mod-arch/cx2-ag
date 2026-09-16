@@ -2046,7 +2046,7 @@
       "pr": null,
       "branch": "claude/issue-378",
       "slug": "cx2-ag-claude-comet",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-377",
@@ -2086,7 +2086,7 @@
       "pr": 395,
       "branch": "claude/issue-378",
       "slug": "cx2-ag-claude-review-anchor",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/executor/issue-379",
@@ -2106,6 +2106,16 @@
       "pr": 396,
       "branch": "fix/bot-pool-release",
       "slug": "cx2-ag-claude-review-cairn",
+      "released": true
+    },
+    {
+      "key": "claude/reviewer/issue-379",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 379,
+      "pr": 399,
+      "branch": "claude/issue-379",
+      "slug": "cx2-ag-claude-review-anchor",
       "released": false
     }
   ]
