@@ -46,15 +46,27 @@ export async function cancelObsoleteReviews(number, api) {
   return cancelled;
 }
 
+// A pull request nobody can classify is a labeling mistake on that one pull request, so the sweep
+// names it and carries on rather than stopping before it reaches anybody else.
+function classify(pr, skipped) {
+  try {
+    return reviewProvider({ ...pr, labels: pr.labels ?? [] });
+  } catch {
+    if (!skipped.includes(pr.number)) skipped.push(pr.number);
+    return undefined;
+  }
+}
+
 export async function retryWaitingReviews(api, capacity = reviewerCapacity, reap = releaseDeadLeases) {
   await reap(repository, api).catch(() => {});
   const available = await capacity(repository, api);
   const pulls = await pages(api, `${root}/pulls?state=open&base=main`);
   const retried = [];
+  const skipped = [];
   for (const pr of pulls.sort((a, b) => a.number - b.number)) {
     if (!/^(codex|claude|gemini)\/issue-[1-9][0-9]*$/.test(pr.head.ref) || pr.draft || pr.head.repo?.full_name !== repository) continue;
-    const provider = reviewProvider({ ...pr, labels: pr.labels ?? [] });
-    if (!available[provider]) continue;
+    const provider = classify(pr, skipped);
+    if (!provider || !available[provider]) continue;
     const runs = (await pages(api, `${root}/actions/workflows/agent-review-request.yml/runs?event=pull_request&head_sha=${pr.head.sha}`, 'workflow_runs'))
       .filter(run => matches(run, pr, 'agent-review-request.yml') && run.head_sha === pr.head.sha && run.display_title === `Assign reviewer for PR #${pr.number} (requested)`)
       .sort((a, b) => Date.parse(b.run_started_at) - Date.parse(a.run_started_at) || b.id - a.id);
@@ -65,12 +77,12 @@ export async function retryWaitingReviews(api, capacity = reviewerCapacity, reap
     if (!waiting) continue;
     const current = await api('GET', `${root}/pulls/${pr.number}`);
     const run = await api('GET', `${root}/actions/runs/${latest.id}`);
-    if (reviewProvider({ ...current, labels: current.labels ?? [] }) !== provider || current.state !== 'open' || current.draft || current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.head.repo?.full_name !== repository || run.run_attempt !== latest.run_attempt || run.status !== 'completed') continue;
+    if (classify(current, skipped) !== provider || current.state !== 'open' || current.draft || current.head.sha !== pr.head.sha || current.head.ref !== pr.head.ref || current.head.repo?.full_name !== repository || run.run_attempt !== latest.run_attempt || run.status !== 'completed') continue;
     await api('POST', `${root}/actions/runs/${latest.id}/rerun`);
     available[provider]--;
     retried.push(pr.number);
   }
-  return retried;
+  return { retried, skipped };
 }
 
 async function main() {
@@ -79,8 +91,8 @@ async function main() {
   const api = (method, endpoint, body, missing) => requestGitHub(fetch, process.env.GH_TOKEN, method, endpoint, body, missing);
   const cancelled = event.pull_request ? await cancelObsoleteReviews(event.pull_request.number, api) : [];
   const retry = ['push', 'issues', 'workflow_dispatch', 'workflow_run'].includes(process.env.GITHUB_EVENT_NAME) || event.action === 'closed';
-  const retried = retry ? await retryWaitingReviews(api) : [];
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Cancelled obsolete review runs: ${cancelled.join(', ') || 'none'}.\nRetried waiting PRs: ${retried.join(', ') || 'none'}.\n`);
+  const { retried, skipped } = retry ? await retryWaitingReviews(api) : { retried: [], skipped: [] };
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Cancelled obsolete review runs: ${cancelled.join(', ') || 'none'}.\nRetried waiting PRs: ${retried.join(', ') || 'none'}.\nSkipped for more than one review label: ${skipped.join(', ') || 'none'}.\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 1; });
