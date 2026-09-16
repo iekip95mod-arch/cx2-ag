@@ -7,13 +7,14 @@ const repository = 'iekip95mod-arch/cx2-ag';
 const root = `repos/${repository}`;
 function fixture() {
   const pr = { number: 42, state: 'open', draft: false, head: { ref: 'codex/issue-17', sha: 'b'.repeat(40), repo: { full_name: repository } } };
+  const extra = [];
   const runs = [];
   const writes = [];
   const jobs = [{ steps: [{ name: 'Wait for reviewer capacity', conclusion: 'success' }] }];
   const api = async (method, endpoint) => {
     if (method === 'POST') { writes.push(endpoint); return {}; }
-    if (endpoint === `${root}/pulls/42`) return structuredClone(pr);
-    if (endpoint.includes('/pulls?')) return [structuredClone(pr)];
+    if (endpoint.startsWith(`${root}/pulls/`)) return structuredClone([pr, ...extra].find(candidate => candidate.number === Number(endpoint.slice(`${root}/pulls/`.length))));
+    if (endpoint.includes('/pulls?')) return structuredClone([pr, ...extra]);
     if (endpoint.includes('/jobs?')) return { jobs };
     if (endpoint.includes('/workflows/')) {
       const workflow = endpoint.includes('agent-review-request.yml') ? 'agent-review-request.yml' : 'agent-review.yml';
@@ -27,7 +28,7 @@ function fixture() {
     runs.push(run);
     return run;
   };
-  return { pr, runs, writes, jobs, api, add };
+  return { pr, extra, runs, writes, jobs, api, add };
 }
 
 test('cancel obsolete assignment and review runs without cancelling current work', async () => {
@@ -67,7 +68,7 @@ test('capacity release retries a waiting assignment only on its current revision
     const order = [];
     const reap = async () => { order.push('reap'); return ['cx2-ag-claude-review-arch']; };
     const capacity = async () => { order.push('capacity'); return { [provider]: 1 }; };
-    assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), [42]);
+    assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), { retried: [42], skipped: [] });
     assert.deepEqual(order, ['reap', 'capacity']);
     assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
   }
@@ -79,7 +80,7 @@ test('a Gemini PR waiting for Claude uses Claude capacity', async () => {
     f.pr.head.ref = 'gemini/issue-17';
     f.pr.labels = [{ name: 'claude-review' }];
     f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
-    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ gemini: 12, claude: slots })), slots ? [42] : []);
+    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ gemini: 12, claude: slots })), { retried: slots ? [42] : [], skipped: [] });
   }
 });
 
@@ -89,7 +90,7 @@ test('a failing reaper still lets the capacity sweep retry a waiting assignment'
   const order = [];
   const reap = async () => { order.push('reap'); throw Error('Bot assignment contention exceeded eight attempts'); };
   const capacity = async () => { order.push('capacity'); return { claude: 1 }; };
-  assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), [42]);
+  assert.deepEqual(await retryWaitingReviews(f.api, capacity, reap), { retried: [42], skipped: [] });
   assert.deepEqual(order, ['reap', 'capacity']);
   assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
 });
@@ -100,14 +101,39 @@ test('no capacity, stale revision, pending work and unrelated failures never ret
     f.add(10, 'agent-review-request.yml', { head_sha: kind === 'stale' ? 'a'.repeat(40) : f.pr.head.sha, status: kind === 'pending' ? 'queued' : 'completed', conclusion: 'failure' });
     if (kind === 'draft') f.pr.draft = true;
     if (kind === 'other') f.jobs[0].steps = [{ name: 'Require a trusted PR author', conclusion: 'failure' }];
-    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: kind === 'full' ? 0 : 1, claude: 0 }), async () => []), []);
+    assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: kind === 'full' ? 0 : 1, claude: 0 }), async () => []), { retried: [], skipped: [] });
   }
+});
+
+// Two review labels on one pull request used to abort the sweep before it reached anybody else, so a
+// labeling mistake on one branch stalled every other waiting pull request in the queue.
+test('a PR nobody can classify is skipped rather than taking the sweep down', async () => {
+  const f = fixture();
+  f.pr.head.ref = 'claude/issue-17';
+  f.extra.push({ number: 41, state: 'open', draft: false, labels: [{ name: 'claude-review' }, { name: 'codex-review' }], head: { ref: 'claude/issue-16', sha: 'c'.repeat(40), repo: { full_name: repository } } });
+  f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ claude: 1 }), async () => []), { retried: [42], skipped: [41] });
+  assert.deepEqual(f.writes, [`${root}/actions/runs/10/rerun`]);
+});
+
+// The second reading is the one that decides the rerun, so a label added while the sweep was walking
+// has to skip that pull request too rather than escape as a throw.
+test('a PR mislabeled after the sweep read it is skipped at the recheck', async () => {
+  const f = fixture();
+  f.pr.head.ref = 'claude/issue-17';
+  f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'success' });
+  const api = async (method, endpoint) => {
+    if (method === 'GET' && endpoint === `${root}/pulls/42`) f.pr.labels = [{ name: 'claude-review' }, { name: 'gemini-review' }];
+    return f.api(method, endpoint);
+  };
+  assert.deepEqual(await retryWaitingReviews(api, async () => ({ claude: 1 }), async () => []), { retried: [], skipped: [42] });
+  assert.deepEqual(f.writes, []);
 });
 
 test('an allocation failure without a capacity marker is not retried', async () => {
   const f = fixture(); f.add(10, 'agent-review-request.yml', { head_sha: f.pr.head.sha, status: 'completed', conclusion: 'failure' });
   f.jobs[0].steps = [{ name: 'Reserve the reviewer identity', conclusion: 'failure' }];
-  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 }), async () => []), []);
+  assert.deepEqual(await retryWaitingReviews(f.api, async () => ({ codex: 1, claude: 0 }), async () => []), { retried: [], skipped: [] });
 });
 
 test('head movement and newer run attempts prevent retry', async () => {
@@ -118,7 +144,7 @@ test('head movement and newer run attempts prevent retry', async () => {
       if (endpoint === `${root}/actions/runs/10` && kind === 'attempt') run.run_attempt++;
       return f.api(method, endpoint);
     };
-    assert.deepEqual(await retryWaitingReviews(api, async () => ({ codex: 1, claude: 0 }), async () => []), []);
+    assert.deepEqual(await retryWaitingReviews(api, async () => ({ codex: 1, claude: 0 }), async () => []), { retried: [], skipped: [] });
   }
 });
 
