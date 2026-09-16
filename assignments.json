@@ -2267,6 +2267,16 @@
       "branch": "fix/position-motion-presentation",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/pr-417",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": null,
+      "pr": 417,
+      "branch": "fix/lease-lockout",
+      "slug": "cx2-ag-claude-review-grove",
+      "released": false
     }
   ]
 }
