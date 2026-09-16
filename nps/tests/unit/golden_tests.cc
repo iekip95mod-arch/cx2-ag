@@ -11,6 +11,7 @@
 #include "nps/physics/kinematics.h"
 #include "nps/physics/modern.h"
 #include "nps/physics/optics.h"
+#include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
@@ -233,6 +234,34 @@ std::string vector_addition_record(const char *first_text, const char *second_te
     const std::string problem_text = std::string(first_text) + " + " + second_text;
     return header(problem_text, "sum", vector_addition_outcome_name(result.outcome),
                   result.value_text, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string planar_kinematics_record(const char *velocity_text, const char *acceleration_text,
+                                     const char *time_text, bool projectile,
+                                     const Budget &budget) {
+    PlanarKinematicsProblem problem;
+    problem.body_name = "ball";
+    std::string why;
+    if (!parse_vector(velocity_text, &problem.initial_velocity, &why) ||
+        !parse_vector(acceleration_text, &problem.acceleration, &why) ||
+        !parse_quantity(time_text, &problem.elapsed_time, &why)) {
+        return std::string("the fixture's own input did not parse: ") + why;
+    }
+    problem.initial_velocity.frame.name = "lab";
+    problem.acceleration.frame.name = "lab";
+    problem.projectile = projectile;
+    Arena arena;
+    Derivation derivation;
+    const PlanarKinematicsResult result =
+        solve_planar_kinematics(arena, derivation, problem, budget);
+    const std::string problem_text = "ball; v0 " + std::string(velocity_text) + "; a " +
+                                     acceleration_text + "; t " + time_text + "; frame = lab";
+    std::string answer = result.displacement_text;
+    if (!result.final_velocity_text.empty())
+        answer += "; " + result.final_velocity_text;
+    return header(problem_text, "displacement and final velocity",
+                  planar_kinematics_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -852,6 +881,11 @@ void run_golden_tests(TestSink &t) {
                  vector_addition_record("(0.00120, 0.0020) km", "(5, 5) m", Budget()));
     check_golden(t, "vector_addition_three_dimension",
                  vector_addition_record("1 i + 2 j + 3 k m", "4 i - 2 j + 5 k m", Budget()));
+    // A horizontal launch in km/h, so the fixture reaches the exact SI conversion and the final
+    // rounding as well as the two axis decompositions, which SI inputs and exact integers do not.
+    check_golden(t, "planar_kinematics_projectile_mixed_units",
+                 planar_kinematics_record("(36.0, 0.0) km/h", "(0.0, -9.80) m/s^2", "4.00 s", true,
+                                          Budget()));
     check_golden(t, "relative_motion_mixed_units", relative_motion_record(Budget()));
     check_golden(t, "unit_conversion_powered_chain",
                  unit_conversion_record("2.50 cm^3", "m^3", Budget()));

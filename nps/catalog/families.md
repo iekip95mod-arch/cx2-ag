@@ -665,18 +665,32 @@ domains_and_parameter_assumptions both vectors are rank two, declare the same na
 supported_branches_and_degenerate_cases the projectile specialization of the general two-dimension constant-acceleration engine, including a second independent route to the apex height that must agree with the first
 exact_special_function_and_numerical_result_policy exact rational SI conversion and per-component solving with the existing one-dimensional linear engine, with measured precision applied only to the final report
 parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
-required_assumptions none, no golden fixture yet exercises this family so no engine string is joined against one
+required_assumptions the frame and the axis convention are declared rather than inferred, and the specialization is stated, carried as "positive i is right and positive j is up", "the acceleration is constant over the whole interval", "one shared time links both axes" and "the projectile specialization leaves the horizontal axis unaccelerated"
 test_group_ids planar kinematics
-proof_obligation_ids none, no golden fixture yet exercises this family so no obligation is joined against one
+proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.projectile, obl.planar-kinematics.definition-after-checks, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
 supported_methods validate rank, frame, stage identity and dimensions, check the projectile acceleration, then solve each axis independently with the existing one-dimensional kinematics engine and cross-check the apex height by a second route
 unsupported_near_neighbors general two-dimensional motion with a nonzero horizontal acceleration, oblique launch from a moving platform, air resistance, and more than two dimensions
 solution_soundness_status verified by rank, frame, stage and dimension checks, the projectile acceleration precondition, and a second independent route to the apex height that must agree with the first
 solution_completeness_status partial, one body under constant acceleration with the horizontal axis unaccelerated
-corpus_case_ids not yet filed
+corpus_case_ids planar_kinematics_projectile_mixed_units
 device_performance_status not measured
 direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics, not reachable from the Ki V4 menu, see #382
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
+rule physics.planar-kinematics.projectile-plan fixture
+rule physics.planar-kinematics.check-rank fixture
+rule physics.planar-kinematics.check-frame-declared fixture
+rule physics.planar-kinematics.check-frame-match fixture
+rule physics.planar-kinematics.check-stages fixture
+rule physics.planar-kinematics.check-input-dimensions fixture
+rule physics.planar-kinematics.check-projectile fixture
+rule physics.planar-kinematics.definition fixture
+rule physics.planar-kinematics.convert-si fixture
+rule physics.planar-kinematics.check-result-dimension fixture
+rule physics.planar-kinematics.component-i fixture
+rule physics.planar-kinematics.component-j fixture
+rule physics.planar-kinematics.check-shared-time fixture
+rule physics.planar-kinematics.significant-figures fixture
 
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007

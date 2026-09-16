@@ -713,6 +713,111 @@ const ObligationSchema kWorkSign[] = {
 const EvidenceAlternative kHalfPlaceComparison[] = {
     {"exact half-place comparison", EvidenceStrength::CandidateChecked},
 };
+
+// physics.planar-kinematics
+const EvidenceAlternative kStageIdentity[] = {
+    {"stage identity", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kProjectileSpecialization[] = {
+    {"projectile specialization", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kVectorScaleAndAdd[] = {
+    {"nps vector_scale and vector_add", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kAverageVelocityIdentity[] = {
+    {"average-velocity identity", EvidenceStrength::CandidateChecked},
+};
+const EvidenceAlternative kIndependentRoutes[] = {
+    {"two independent routes", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kPlanarStrategy[] = {
+    {"pre.planar-kinematics.rank-two", "velocity and acceleration are two-dimensional",
+     kRankComparison, 1},
+    {"pre.planar-kinematics.frames-declared", "both vectors declare named frames", kFrameDeclaration,
+     1},
+    {"pre.planar-kinematics.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+    {"pre.planar-kinematics.axes", "positive i is right and positive j is up", kCoordinateConvention,
+     1},
+    {"pre.planar-kinematics.stages", "each quantity is used at the stage it belongs to",
+     kStageIdentity, 1},
+    {"pre.planar-kinematics.dimensions",
+     "velocity, acceleration and time carry their own dimensions", kDimensionalAnalysis, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+// The projectile plan is its own rule because it registers one precondition more than the general
+// one, and a schema is a fixed obligation set rather than a superset a run may skip part of.
+const ObligationSchema kProjectilePlanStrategy[] = {
+    {"pre.planar-kinematics.rank-two", "velocity and acceleration are two-dimensional",
+     kRankComparison, 1},
+    {"pre.planar-kinematics.frames-declared", "both vectors declare named frames", kFrameDeclaration,
+     1},
+    {"pre.planar-kinematics.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+    {"pre.planar-kinematics.axes", "positive i is right and positive j is up", kCoordinateConvention,
+     1},
+    {"pre.planar-kinematics.stages", "each quantity is used at the stage it belongs to",
+     kStageIdentity, 1},
+    {"pre.planar-kinematics.dimensions",
+     "velocity, acceleration and time carry their own dimensions", kDimensionalAnalysis, 1},
+    {"pre.planar-kinematics.projectile",
+     "the horizontal axis is unaccelerated and gravity acts down", kProjectileSpecialization, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kPlanarApexStrategy[] = {
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kPlanarRankTwo[] = {
+    {"obl.planar-kinematics.rank-two", "both vectors have rank two", kRankComparison, 1},
+};
+const ObligationSchema kPlanarFramesDeclared[] = {
+    {"obl.planar-kinematics.frames-declared", "both vectors declare a nonempty frame",
+     kFrameDeclaration, 1},
+};
+const ObligationSchema kPlanarFramesMatch[] = {
+    {"obl.planar-kinematics.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+};
+const ObligationSchema kPlanarStageIdentity[] = {
+    {"obl.planar-kinematics.stage-identity",
+     "the velocity is a state and the acceleration and time span the interval", kStageIdentity, 1},
+};
+const ObligationSchema kPlanarInputDimensions[] = {
+    {"obl.planar-kinematics.input-dimensions",
+     "the inputs are a velocity, an acceleration and a time", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kPlanarProjectile[] = {
+    {"obl.planar-kinematics.projectile",
+     "the horizontal component is zero and the vertical one points down", kProjectileSpecialization,
+     1},
+};
+const ObligationSchema kPlanarResultDimensions[] = {
+    {"obl.planar-kinematics.result-dimensions",
+     "the displacement is a length and the final velocity is a velocity", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kPlanarDefinitionAfterChecks[] = {
+    {"obl.planar-kinematics.definition-after-checks",
+     "the constant-acceleration relations are applied only after their conditions pass",
+     kLawApplicability, 1},
+};
+const ObligationSchema kPlanarComponentI[] = {
+    {"obl.planar-kinematics.component-i", "the i displacement equals v0 t + a t^2 / 2",
+     kVectorScaleAndAdd, 1},
+};
+const ObligationSchema kPlanarComponentJ[] = {
+    {"obl.planar-kinematics.component-j", "the j displacement equals v0 t + a t^2 / 2",
+     kVectorScaleAndAdd, 1},
+};
+const ObligationSchema kPlanarSharedTime[] = {
+    {"obl.planar-kinematics.shared-time",
+     "each axis satisfies s = (v0 + v) t / 2 with the same elapsed time", kAverageVelocityIdentity,
+     1},
+};
+const ObligationSchema kPlanarApexRoutes[] = {
+    {"obl.planar-kinematics.apex-routes-agree",
+     "the time-to-apex route and the direct v^2 = v0^2 + 2 a x route reach the same height",
+     kIndependentRoutes, 1},
+};
 const ObligationSchema kWorkRounding[] = {
     {"obl.work.rounding-within-half-place",
      "the reported value is within half a unit in the last place of the exact one",
@@ -1311,6 +1416,44 @@ const RuleSchema kRules[] = {
     {"physics.optics.check-candidate", ClaimType::Implication, kOpticsCandidate, 1,
      FailureBehavior::WithholdResult},
     {"physics.optics.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.planar-kinematics
+    {"physics.planar-kinematics.plan", ClaimType::NoClaim, kPlanarStrategy, 7,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.projectile-plan", ClaimType::NoClaim, kProjectilePlanStrategy, 8,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.apex-plan", ClaimType::NoClaim, kPlanarApexStrategy, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-rank", ClaimType::Definition, kPlanarRankTwo, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-frame-declared", ClaimType::Definition, kPlanarFramesDeclared,
+     1, FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-frame-match", ClaimType::Definition, kPlanarFramesMatch, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-stages", ClaimType::Definition, kPlanarStageIdentity, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-input-dimensions", ClaimType::Definition,
+     kPlanarInputDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-projectile", ClaimType::Definition, kPlanarProjectile, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-result-dimension", ClaimType::Definition,
+     kPlanarResultDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-shared-time", ClaimType::Definition, kPlanarSharedTime, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.check-apex-routes", ClaimType::Definition, kPlanarApexRoutes, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.definition", ClaimType::Definition, kPlanarDefinitionAfterChecks, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.component-i", ClaimType::EquivalentExpression, kPlanarComponentI, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.planar-kinematics.component-j", ClaimType::EquivalentExpression, kPlanarComponentJ, 1,
+     FailureBehavior::WithholdResult},
+    // The rounding step raises nothing: it reports a value the steps above already verified, and
+    // its own comparison against the unrounded value is what the record carries instead.
+    {"physics.planar-kinematics.significant-figures", ClaimType::NoClaim, nullptr, 0,
      FailureBehavior::WithholdResult},
 
     // physics.work.constant-force
