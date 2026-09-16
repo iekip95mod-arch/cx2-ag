@@ -192,6 +192,16 @@ green under that same mutation, because its below-the-fold case searches a plain
 every row is the uniform height and the backward fill and the division agree. That test guards the
 search landing scroll instead, which is a different fix.
 
+A third regression, `ti_info_numbers.lua`, holds the arithmetic rather than the layout. It recomputes
+each worked example from the inputs that example prints and requires the printed intermediates to
+agree, so a transcription slip in a number cannot pass while the boxed answer still looks right. It
+also holds the sign convention, that g is a magnitude and the sign lives on a.
+
+`measured` on 2026-09-16 with `luajit nps/tests/target/ti_info_numbers.lua`, run from `nps`: against
+the content before this branch it fails with `the cliff example prints vf = 27.3 but its own vfx = 21.0
+and vfy = -12.5 give 24.44`, which is the defect it was written for. Adding a row to a card also
+changes that card's height, so the backward fill above is what keeps the new row reachable.
+
 ## Where files live on the device
 
 <!-- covers: tools/nsptool -->
@@ -225,3 +235,14 @@ lua_module.cc appears in the build graph only as a phony source node rather than
 
 So on a machine or runner without luajit, **a change to the Lua bridge is never compiled**. Check
 `ninja -t targets all | grep nps_luax` before believing a green build.
+
+What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
+`fast` alone. They used to wait on `review-ready` as well, which was right while an approving review
+was required to merge and became a deadlock when the maintainer removed that requirement for a
+delivery window, because `review-ready` waits for a verdict that no longer has to arrive.
+
+`source`: .github/workflows/check.yml gives both jobs `needs: [fast]`, and
+.github/scripts/test-ci-scheduling.rb asserts exactly that pair rather than trusting it. Whoever
+restores the approving review to the merge gate has to put `review-ready` back into both lists and
+into that assertion, or the suites will start again without waiting for the verdict that gate exists
+to collect.

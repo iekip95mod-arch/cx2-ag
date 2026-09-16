@@ -1500,7 +1500,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     find_program(LUA_HOST NAMES luajit lua)
     foreach(smoke ui_smoke ui_smoke_v3 ui_smoke_v4
                   ti_info_paint ti_info_toc ti_info_search ti_info_cards
-                  ti_info_widths ti_voc_walk ti_voc_defs)
+                  ti_info_widths ti_info_numbers ti_voc_walk ti_voc_defs)
         if(LUA_HOST)
             add_test(NAME ${smoke} COMMAND "${LUA_HOST}" tests/target/${smoke}.lua)
         else()
