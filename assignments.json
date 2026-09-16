@@ -2076,7 +2076,7 @@
       "pr": null,
       "branch": "claude/issue-382",
       "slug": "cx2-ag-claude-lyra",
-      "released": false
+      "released": true
     },
     {
       "key": "claude/reviewer/issue-378",
