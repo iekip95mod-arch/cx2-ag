@@ -2137,6 +2137,16 @@
       "branch": "fix/ti-info-content",
       "slug": "cx2-ag-claude-review-cairn",
       "released": false
+    },
+    {
+      "key": "claude/reviewer/issue-380",
+      "provider": "claude",
+      "role": "reviewer",
+      "issue": 380,
+      "pr": 402,
+      "branch": "claude/issue-380",
+      "slug": "cx2-ag-claude-review-delta",
+      "released": false
     }
   ]
 }
