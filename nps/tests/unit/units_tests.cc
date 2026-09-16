@@ -1138,6 +1138,16 @@ void run_units_tests(TestSink &t) {
                     without_zero.precision.significant_digits == 2,
                 "a component that does claim two figures still wins the fewest-figures rule");
 
+        Vector finer;
+        std::string finer_text;
+        HalfPlace finer_checked = HalfPlace::Within;
+        t.check(parse_vector("36.000 i + 0.0 j m", &finer, &why) &&
+                    finer.precision.significant_digits == 5 &&
+                    finer.precision.last_significant_decimal_place == -3 &&
+                    reported_vector_text(finer, &finer_text, finer_checked) &&
+                    finer_text == "36.000 i m",
+                "the zero's coarser place does not blunt the component that will be printed");
+
         Vector converted;
         Quantity elapsed;
         Vector drift;
