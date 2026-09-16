@@ -6,6 +6,7 @@
 #include "nps/cas/giac_adapter.h"
 #include "nps/core/budgets.h"
 #include "nps/physics/planar_kinematics.h"
+#include "nps/physics/vector_components.h"
 #include "nps/steps/derivation.h"
 #include "nps/units/units.h"
 
@@ -36,6 +37,7 @@ struct PositionMotionProblem {
     // The instant parts (b) and (c) evaluate at. Independent of the interval bounds because a
     // problem can ask for an instantaneous reading anywhere, not only at the interval's far end.
     Quantity event_time;
+    AngleUnit angle_unit = AngleUnit::Radians;
 };
 
 enum class PositionMotionOutcome : uint8_t {
@@ -68,6 +70,14 @@ struct PositionMotionResult {
     NodeId acceleration_x = kNoNode;
     NodeId acceleration_y = kNoNode;
     NodeId acceleration_z = kNoNode;
+    // Issue 400: the same three answers as a magnitude and a direction, from the converter in
+    // vector_components.cc. Absent without a backend, and absent for a vector that has no direction.
+    MagnitudeAngleExpr average_velocity_polar;
+    MagnitudeAngleExpr instantaneous_velocity_polar;
+    MagnitudeAngleExpr instantaneous_acceleration_polar;
+    bool has_average_velocity_polar = false;
+    bool has_instantaneous_velocity_polar = false;
+    bool has_instantaneous_acceleration_polar = false;
     std::string detail;
     DerivationStatus status = DerivationStatus::NotRecorded;
     Cost cost;
