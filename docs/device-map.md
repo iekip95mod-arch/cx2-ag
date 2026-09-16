@@ -47,10 +47,10 @@ file about what renders was measured against this one.
 Six stages, and each one is a separate fact. Most wrong claims in this repository come from reporting a
 lower stage as if it were a higher one.
 
-Adding a translation unit to the physics source list, such as `src/physics/vector_cross.cc`, changes
-which rules compile into the Compiled stage but does not change what any of the six stages proves. The
-new family still needs its own Packaged, Transferred, Loaded and Visible effect evidence before a
-device-visible claim can be made about it.
+Adding a translation unit to the physics source list, such as `src/physics/vector_cross.cc` or
+`src/physics/scalar_product.cc`, changes which rules compile into the Compiled stage but does not
+change what any of the six stages proves. The new family still needs its own Packaged, Transferred,
+Loaded and Visible effect evidence before a device-visible claim can be made about it.
 
 | Stage | What it proves | What it does not |
 | --- | --- | --- |
