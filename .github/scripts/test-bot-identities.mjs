@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, releaseDeadLeases, resolveTarget, reviewerCapacity, selectReviewProvider } from './bot-identities.mjs';
+import { allocateIdentity, assignedReviewProvider, findIdentity, loadRoster, readAssignment, releaseDeadLeases, releaseIdentity, resolveTarget, reviewerCapacity, selectReviewProvider } from './bot-identities.mjs';
 
 const repository = 'iekip95mod-arch/cx2-ag';
 const roster = loadRoster().map((identity, index) => ({ ...identity, appId: index + 1, userId: index + 100, clientId: `Iv1.test${index}` }));
@@ -107,6 +107,34 @@ function fixture() {
   };
   return { api, calls, ticket, pull, branches, get assignments() { return assignments; }, set assignments(value) { assignments = value; revision++; }, get revision() { return revision; }, get collisionCount() { return collisionCount; }, set conflicts(value) { conflicts = value; }, set user(value) { userOverride = value; }, set links(value) { links = value; }, set linkedOpenPrs(value) { linkedOpenPrs = value; } };
 }
+
+// A lease is held for the whole life of an open issue, so an issue that stalls without ever opening a
+// PR keeps one of the twelve until somebody intervenes. These two rows are that intervention and its
+// one refusal: a branch with an open PR still has a writer on it.
+test('releasing a stalled lease returns its identity to the pool', async () => {
+  const github = fixture();
+  for (let issue = 1; issue <= 12; issue++) await allocateIdentity(options(issue, 'claude'), github.api, roster);
+  await assert.rejects(allocateIdentity(options(20, 'claude'), github.api, roster), /All 12 claude executor bots are occupied/);
+  github.branches.add('claude/issue-7');
+  const freed = await releaseIdentity(options(7, 'claude'), github.api, roster);
+  assert.equal(freed.stranded, true);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 11);
+  assert.equal((await allocateIdentity(options(20, 'claude'), github.api, roster)).login, freed.login);
+  await assert.rejects(releaseIdentity(options(7, 'claude'), github.api, roster), /No active bot assignment/);
+});
+
+test('releasing refuses while an open PR still holds the branch', async () => {
+  const github = fixture();
+  await allocateIdentity(options(42, 'claude'), github.api, roster);
+  github.pull(96, 42, 'claude');
+  await assert.rejects(releaseIdentity(options(42, 'claude'), github.api, roster), /Pull request 96 is still open/);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 1);
+  github.pull(96, 42, 'claude').state = 'closed';
+  const freed = await releaseIdentity(options(42, 'claude'), github.api, roster);
+  assert.equal(freed.issue, 42);
+  assert.equal(freed.stranded, false);
+  assert.equal(github.assignments.filter(assignment => !assignment.released).length, 0);
+});
 
 test('the catalogue contains twelve identities per provider and role', () => {
   assert.equal(roster.length, 72);
