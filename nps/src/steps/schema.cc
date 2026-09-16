@@ -955,6 +955,81 @@ const ObligationSchema kVectorCrossRounding[] = {
      kHalfPlaceComparison, 1},
 };
 
+// scalar product
+const EvidenceAlternative kComponentComparison[] = {
+    {"component comparison", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kScalarProductStrategy[] = {
+    {"pre.scalar-product.ranks-match", "both vectors have the same number of components",
+     kRankComparison, 1},
+    {"pre.scalar-product.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+    {"pre.scalar-product.dimension-product",
+     "the product of the two vectors' dimensions fits the dimension table",
+     kDimensionalMultiplication, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+// The angle plan is its own rule because it registers one precondition more than the product plan,
+// and a schema is a fixed obligation set rather than a superset a run may skip part of.
+const ObligationSchema kScalarAngleStrategy[] = {
+    {"pre.scalar-product.ranks-match", "both vectors have the same number of components",
+     kRankComparison, 1},
+    {"pre.scalar-product.frames-match", "both vectors use the same frame", kFrameIdentity, 1},
+    {"pre.scalar-product.dimension-product",
+     "the product of the two vectors' dimensions fits the dimension table",
+     kDimensionalMultiplication, 1},
+    {"pre.scalar-product.nonzero", "neither vector is the zero vector", kComponentComparison, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kScalarProductRanks[] = {
+    {"obl.scalar-product.ranks-match",
+     "both input vectors have the same number of components", kRankComparison, 1},
+};
+const ObligationSchema kScalarProductFrames[] = {
+    {"obl.scalar-product.frames-match", "both input vectors use the same frame", kFrameIdentity, 1},
+};
+const ObligationSchema kScalarProductDimensions[] = {
+    {"obl.scalar-product.dimension-product",
+     "the product of the two operand dimensions fits the dimension table",
+     kDimensionalMultiplication, 1},
+};
+const ObligationSchema kScalarProductNonzero[] = {
+    {"obl.scalar-product.nonzero", "neither operand is the zero vector", kComponentComparison, 1},
+};
+const ObligationSchema kScalarProductDefinition[] = {
+    {"obl.scalar-product.definition-after-checks",
+     "the scalar product definition is applied only after its conditions pass", kLawApplicability,
+     1},
+};
+const ObligationSchema kScalarProductSum[] = {
+    {"obl.scalar-product.sum-is-the-definition",
+     "the value written down is the component sum the definition names", kVectorDot, 1},
+};
+const EvidenceAlternative kReversedDotProduct[] = {
+    {"exact reversed dot product", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kScalarProductCommutative[] = {
+    {"obl.scalar-product.commutative",
+     "dotting the operands in the opposite order gives the same value", kReversedDotProduct, 1},
+};
+// The geometric reading checked without a square root: a b cos(phi) has |cos(phi)| at most one.
+const EvidenceAlternative kCauchySchwarz[] = {
+    {"exact Cauchy-Schwarz comparison", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kScalarProductBound[] = {
+    {"obl.scalar-product.within-magnitude-bound",
+     "the square of the scalar product is at most the product of the two self-products",
+     kCauchySchwarz, 1},
+};
+const EvidenceAlternative kExactSignComparison[] = {
+    {"exact sign comparison", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kScalarProductAngle[] = {
+    {"obl.scalar-product.angle-from-sign",
+     "the sign of the scalar product places the angle against a right angle", kExactSignComparison,
+     1},
+};
 // vector components and polar form
 const ObligationSchema kVectorSphericalStrategy[] = {
     {"pre.vector-components.rank-three", "the conversion is three-dimensional", kRankComparison, 1},
@@ -1603,6 +1678,38 @@ const RuleSchema kRules[] = {
     {"vec.cross.check-anticommutative", ClaimType::Definition, kVectorCrossAnticommutative, 1,
      FailureBehavior::WithholdResult},
     {"vec.cross.report-precision", ClaimType::Definition, kVectorCrossRounding, 2,
+     FailureBehavior::WithholdResult},
+
+    // vectors.scalar-product
+    {"vec.dot.plan", ClaimType::NoClaim, kScalarProductStrategy, 4,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.angle-plan", ClaimType::NoClaim, kScalarAngleStrategy, 5,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-rank", ClaimType::Definition, kScalarProductRanks, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-frame", ClaimType::Definition, kScalarProductFrames, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-dimension", ClaimType::Definition, kScalarProductDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-nonzero", ClaimType::Definition, kScalarProductNonzero, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.definition", ClaimType::Definition, kScalarProductDefinition, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.convert-si", ClaimType::EquivalentExpression, kConvertsByTable, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.component-sum", ClaimType::EquivalentExpression, kScalarProductSum, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-commutative", ClaimType::Definition, kScalarProductCommutative, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.check-magnitude-bound", ClaimType::Definition, kScalarProductBound, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.interpret-angle", ClaimType::Definition, kScalarProductAngle, 1,
+     FailureBehavior::WithholdResult},
+    // The reporting step raises the half-place obligation and nothing else: the value it reports is
+    // one the steps above already verified.
+    {"vec.dot.report-precision", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
     // vectors.components and vectors.polar

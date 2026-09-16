@@ -86,6 +86,7 @@ set(CORE_SOURCES
     src/physics/vector_addition.cc
     src/physics/vector_components.cc
     src/physics/vector_cross.cc
+    src/physics/scalar_product.cc
     src/physics/forces.cc
     src/physics/relation.cc
     src/physics/ranking.cc
@@ -139,6 +140,7 @@ set(TEST_SOURCES
     tests/unit/vector_addition_tests.cc
     tests/unit/vector_components_tests.cc
     tests/unit/vector_cross_tests.cc
+    tests/unit/scalar_product_tests.cc
     tests/unit/forces_tests.cc
     tests/unit/ranking_tests.cc
     tests/unit/work_tests.cc

@@ -433,6 +433,41 @@ rule vec.cross.check-orthogonal-second fixture
 rule vec.cross.check-anticommutative fixture
 rule vec.cross.report-precision fixture
 
+family id physics.vectors.cartesian-scalar-product
+topic_and_level The scalar product of two Cartesian vectors and the angle between them, PRD section 9 ALG-011 and chapter 3 of the PHYS 2410 scope
+accepted_expression_grammar existing vector grammar for each operand, either unit-vector form such as 1 i + 2 j m or an ordered tuple such as (1, 2) m
+accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form, of equal rank, with a flag asking for the angle as well as the product
+domains_and_parameter_assumptions both vectors have the same rank and the same named frame, dimensions that may differ and whose product fits the dimension table, and for the angle, neither vector is the zero vector
+supported_branches_and_degenerate_cases exact zero and negative components, a zero operand whose product is defined and whose angle is not, compatible dimensions that differ between the two operands, and compatible units with different SI scales
+exact_special_function_and_numerical_result_policy exact rational SI conversion and component summation, rounded only for final reporting. The angle is placed against a right angle from the exact sign of the product, since a numeric angle needs an inverse cosine no exact rational route reaches
+parser_module_ids src/units/units.cc, src/physics/scalar_product.cc
+required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab", and the two readings are related by "the two readings of the scalar product name one quantity"
+test_group_ids scalar product, units
+proof_obligation_ids obl.scalar-product.ranks-match, obl.scalar-product.frames-match, obl.scalar-product.dimension-product, obl.scalar-product.nonzero, obl.scalar-product.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.scalar-product.sum-is-the-definition, obl.scalar-product.commutative, obl.scalar-product.within-magnitude-bound, obl.scalar-product.angle-from-sign, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods write both readings of the definition, substitute the declared vectors into the component one, convert exactly to SI, sum the matching component products through the existing nps vector_dot, then check the sum against a reversed dot product and against the bound the geometric reading puts on it
+unsupported_near_neighbors a numeric angle in degrees or radians, operands of unequal rank, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
+solution_soundness_status verified by rank, frame and dimension-product checks, exact conversion, exact rational summation, an exact reversed dot product and an exact Cauchy-Schwarz comparison against the geometric reading
+solution_completeness_status partial. The product is complete for equal-rank Cartesian operands within exact int64 rational bounds, and the angle is placed against a right angle rather than measured, because an inverse cosine is not reachable without the backend
+corpus_case_ids scalar_product_torque_free_mixed_units, scalar_product_obtuse_angle
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet built for the device target
+release_status unreleased
+rule vec.dot.plan fixture
+rule vec.dot.angle-plan fixture
+rule vec.dot.check-rank fixture
+rule vec.dot.check-frame fixture
+rule vec.dot.check-dimension fixture
+rule vec.dot.check-nonzero fixture
+rule vec.dot.definition fixture
+rule vec.dot.substitute fixture
+rule vec.dot.convert-si fixture
+rule vec.dot.component-sum fixture
+rule vec.dot.check-commutative fixture
+rule vec.dot.check-magnitude-bound fixture
+rule vec.dot.interpret-angle fixture
+rule vec.dot.report-precision fixture
+
 family id physics.vectors.magnitude-components.two-dimension
 reference_curriculum_set_ids StepCAS product requirements PHYS-016, M1 archetype 7
 curriculum_source_locations StepCAS_Product_Requirements_Document.md PHYS-016 and section 11, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 7

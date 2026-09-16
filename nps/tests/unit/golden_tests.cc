@@ -13,6 +13,7 @@
 #include "nps/physics/optics.h"
 #include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
+#include "nps/physics/scalar_product.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
@@ -279,6 +280,26 @@ std::string vector_cross_record(const char *first_text, const char *second_text,
     const std::string problem_text = std::string(first_text) + " cross " + second_text;
     return header(problem_text, "cross product", vector_cross_outcome_name(result.outcome),
                   result.value_text, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string scalar_product_record(const char *first_text, const char *second_text, bool angle,
+                                  const Budget &budget) {
+    ScalarProductProblem problem;
+    std::string why;
+    if (!parse_vector(first_text, &problem.first, &why) ||
+        !parse_vector(second_text, &problem.second, &why))
+        return std::string("the fixture's own input did not parse: ") + why;
+    problem.angle = angle;
+    Arena arena;
+    Derivation derivation;
+    const ScalarProductResult result = solve_scalar_product(arena, derivation, problem, budget);
+    const std::string problem_text = std::string(first_text) + " dot " + second_text;
+    std::string answer = result.value_text;
+    if (!result.angle_text.empty())
+        answer += "; " + result.angle_text;
+    return header(problem_text, "scalar product", scalar_product_outcome_name(result.outcome),
+                  answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -909,6 +930,16 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "vector_cross_torque_mixed_units",
                  vector_cross_record("20.0 i + 0.0 j + 0.0 k cm", "0.0 i + 15.0 j + 0.0 k N",
                                      Budget()));
+    // Work done by a force over a displacement, because that is the scalar product a first course
+    // actually meets, and because a centimetre displacement against a newton force reaches the two
+    // rules the unit tests cannot: the SI conversion only runs on a non-SI operand and the final
+    // rounding only on a measured one.
+    check_golden(t, "scalar_product_torque_free_mixed_units",
+                 scalar_product_record("30.0 i + 40.0 j N", "20.0 i + 15.0 j cm", false, Budget()));
+    // The angle branch, on two exact vectors, because the angle is the other question chapter 3
+    // asks and it registers a precondition the product plan has no shape for.
+    check_golden(t, "scalar_product_obtuse_angle",
+                 scalar_product_record("2 i + 0 j m", "-1 i + 1 j m", true, Budget()));
     check_golden(t, "relative_motion_mixed_units", relative_motion_record(Budget()));
     check_golden(t, "unit_conversion_powered_chain",
                  unit_conversion_record("2.50 cm^3", "m^3", Budget()));
