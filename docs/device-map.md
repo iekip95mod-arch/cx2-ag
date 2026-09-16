@@ -140,7 +140,8 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 `source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
-`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition` and `work`.
+`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
+`work`.
 
 `planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
