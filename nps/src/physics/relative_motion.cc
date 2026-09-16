@@ -231,7 +231,11 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status, const RelativeMotionProblem &problem) {
     ContextInputs inputs;
     inputs.application_version = application_version();
-    inputs.problem_family_id = "physics.kinematics.relative-motion.components.two-dimension";
+    const bool one_dimensional =
+        problem.subject_velocity.rank == 1 && problem.reference_velocity.rank == 1;
+    inputs.problem_family_id = one_dimensional
+                                    ? "physics.kinematics.relative-motion.components.one-dimension"
+                                    : "physics.kinematics.relative-motion.components.two-dimension";
     inputs.requested_method =
         "validate two velocity vectors, convert to SI, subtract matching components, verify, and "
         "interpret direction";
@@ -317,7 +321,7 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
     plan_step.claim = ClaimType::NoClaim;
     register_strategy_precondition(
         plan, plan_step, "pre.relative-motion.rank-two",
-        "both inputs are two-dimensional velocities", "rank comparison",
+        "both inputs share a supported rank, one or two", "rank comparison",
         EvidenceStrength::StructurallyValid, VerificationOutcome::NotAttempted,
         "checked before subtracting components");
     register_strategy_precondition(
@@ -344,16 +348,20 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
         return RelativeMotionResult();
     const StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
 
-    const bool rank_ok = problem.subject_velocity.rank == 2 && problem.reference_velocity.rank == 2;
+    const bool rank_supported = (problem.subject_velocity.rank == 1 || problem.subject_velocity.rank == 2) &&
+                                (problem.reference_velocity.rank == 1 || problem.reference_velocity.rank == 2);
+    const bool rank_ok = rank_supported &&
+                         problem.subject_velocity.rank == problem.reference_velocity.rank;
     const std::string ranks = "ranks " + std::to_string(problem.subject_velocity.rank) + " and " +
                               std::to_string(problem.reference_velocity.rank);
     if (!add_check(derivation, meter, plan_id, "physics.relative-motion.check-rank",
                    "Relative-motion vector rank", "Check both velocity ranks",
-                   "This family resolves motion in one Cartesian plane",
-                   "obl.relative-motion.rank-two", "both velocity vectors have rank two",
+                   "This family resolves motion along one axis or in one Cartesian plane",
+                   "obl.relative-motion.rank-two", "both velocity vectors share rank one or rank two",
                    "rank comparison", ranks, EvidenceStrength::StructurallyValid,
                    rank_ok ? VerificationOutcome::Passed : VerificationOutcome::Failed,
-                   "both velocities are two-dimensional", "rank 2 and rank 2", ranks)) {
+                   "both velocities are one-dimensional or both are two-dimensional",
+                   "matching rank of 1 or 2", ranks)) {
         return RelativeMotionResult();
     }
     derivation.complete_plan_precondition(
@@ -361,7 +369,8 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
         rank_ok ? VerificationOutcome::Passed : VerificationOutcome::Failed, ranks);
     if (!rank_ok) {
         return failed(RelativeMotionOutcome::RankMismatch, DerivationStatus::InvalidInput,
-                      "relative motion requires two velocity vectors with two components");
+                      "relative motion requires two velocity vectors of the same rank, one or "
+                      "two components each");
     }
 
     const bool frames_declared = !problem.subject_velocity.frame.name.empty() &&

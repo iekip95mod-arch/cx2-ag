@@ -154,7 +154,7 @@ test_group_ids relative motion
 proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
 strategy_ids physics.relative-motion.plan
 supported_methods validate ranks, frames and dimensions, convert both velocities exactly to SI, subtract matching components with Giac checking each one, then interpret the component signs in the declared axes
-unsupported_near_neighbors implicit frame transformation, rank-three relative motion, rotating frames, relativistic addition, and unequal dimensions
+unsupported_near_neighbors implicit frame transformation, rank-three relative motion, mismatched-rank inputs, rotating frames, relativistic addition, and unequal dimensions
 solution_soundness_status verified by rank, frame declaration, frame identity, input and result dimension, and a Giac comparison on each exact component
 solution_completeness_status partial, two-dimensional Cartesian relative velocity in one shared frame
 corpus_case_ids relative_motion_mixed_units
@@ -178,6 +178,48 @@ rule physics.relative-motion.component-j fixture
 rule physics.relative-motion.interpret-direction fixture
 # src/physics/relative_motion.cc also emits physics.relative-motion.significant-figures. No fixture
 # records it, since the only pinned case is exact, so it is not claimed here.
+
+family id physics.kinematics.relative-motion.components.one-dimension
+reference_curriculum_set_ids StepCAS product requirements PHYS-016, chapter 4 section 4-6
+curriculum_source_locations StepCAS_Product_Requirements_Document.md section 11
+topic_and_level One-dimensional relative velocity along a single declared axis, chapter 4 section 4-6
+family_envelope_version 1
+accepted_expression_grammar existing scalar expression grammar for each velocity component
+accepted_input_forms one typed RelativeMotionProblem naming a subject, a reference, two framed rank-one velocity vectors and a coordinate convention
+domains_and_parameter_assumptions both velocities are rank one, declare the same named frame whose positive sense is the single active axis, and carry dimension L T^-1
+supported_branches_and_degenerate_cases exact and measured components, negative components, and compatible velocity units with different SI scales
+exact_special_function_and_numerical_result_policy exact rational SI conversion and component subtraction, with measured precision applied only to the final report
+word_language_profile_ids none, typed entry only
+parser_module_ids src/units/units.cc, src/physics/relative_motion.cc
+required_assumptions both velocities are expressed along the declared axis, carried as rank-one vectors sharing the same named frame; the same engine that solves the two-dimension family solves this one, widened rather than duplicated, since the component subtraction is identical once the second axis is zero
+test_group_ids relative motion
+proof_obligation_ids obl.relative-motion.rank-two, obl.relative-motion.frames-declared, obl.relative-motion.frames-match, obl.relative-motion.velocity-dimensions, obl.relative-motion.definition-after-checks, obl.relative-motion.result-dimension, obl.relative-motion.component-i, obl.relative-motion.component-j, obl.relative-motion.direction-interpreted, obl.physics.converts-by-table, obl.plan.preconditions-hold
+strategy_ids physics.relative-motion.plan
+supported_methods validate ranks, frames and dimensions, convert both velocities exactly to SI, subtract matching components with Giac checking each one, then interpret the sign along the declared axis
+unsupported_near_neighbors implicit frame transformation, two-dimension or three-dimension relative motion, mismatched-rank inputs, rotating frames, relativistic addition, and unequal dimensions
+solution_soundness_status verified by rank, frame declaration, frame identity, input and result dimension, and a Giac comparison on each exact component
+solution_completeness_status partial, one-dimensional relative velocity in one shared frame
+corpus_case_ids relative_motion_mixed_units
+explanation_review_status core rule sequence covered by a golden fixture, independent explanation review not yet recorded
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native typed Lua bridge implemented, guided keypad entry not yet implemented
+isolated_runtime_status ARM core compiles, calculator runtime not yet measured
+capability_manifest_ids physics.kinematics.relative-motion.components.two-dimension
+release_status in development, unreleased
+rule physics.relative-motion.plan fixture
+rule physics.relative-motion.check-rank fixture
+rule physics.relative-motion.check-frame-declared fixture
+rule physics.relative-motion.check-frame-match fixture
+rule physics.relative-motion.check-input-dimensions fixture
+rule physics.relative-motion.definition fixture
+rule physics.relative-motion.convert-si fixture
+rule physics.relative-motion.check-result-dimension fixture
+rule physics.relative-motion.component-i fixture
+rule physics.relative-motion.component-j fixture
+rule physics.relative-motion.interpret-direction fixture
+# The one-dimension family shares every rule id with the two-dimension family above, because
+# src/physics/relative_motion.cc is one engine widened to accept rank one, not a second engine.
 
 family id units.chain-link-conversion
 topic_and_level Exact multiplicative unit conversion for scalar quantities, M1 chain-link conversion

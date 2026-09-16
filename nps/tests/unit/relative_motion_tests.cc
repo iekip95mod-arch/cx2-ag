@@ -26,6 +26,26 @@ Vector parsed_vector(const char *text, const char *frame = "lab") {
     return vector;
 }
 
+// A one-dimensional velocity along a single declared axis: a signed scalar becomes a rank-one
+// vector with everything else at zero, the same shape the constant-acceleration one-dimension
+// family already uses for a scalar quantity.
+Vector one_dimensional_vector(const char *text, const char *frame = "road") {
+    Vector vector;
+    Quantity scalar;
+    std::string error;
+    if (!parse_quantity(text, &scalar, &error)) {
+        vector.rank = 0;
+        vector.frame.name = "parse failed: " + error;
+        return vector;
+    }
+    vector.x = scalar.value;
+    vector.rank = 1;
+    vector.frame.name = frame;
+    vector.unit = scalar.unit;
+    vector.precision = scalar.precision;
+    return vector;
+}
+
 RelativeMotionProblem problem(const Vector &subject, const Vector &reference) {
     RelativeMotionProblem input;
     input.subject_name = "drone";
@@ -554,6 +574,32 @@ void run_relative_motion_tests(TestSink &t) {
         t.check(!refused.result.has_value &&
                     !has_rule(refused.derivation, "physics.relative-motion.definition"),
                 "rank failure exposes no answer and applies no law");
+    }
+    {
+        // Issue 380: a one-dimensional relative-velocity question, two cars on a straight road,
+        // solves instead of being refused as a rank mismatch. Both velocities are rank-one
+        // vectors sharing the declared "road" frame, so the existing two-dimension engine widens
+        // to this envelope rather than a new engine duplicating its checks.
+        Run solved(problem(one_dimensional_vector("8 m/s"), one_dimensional_vector("3 m/s")));
+        t.equal(relative_motion_outcome_name(solved.result.outcome), "solved",
+                "a one-dimensional relative-velocity problem solves rather than being refused");
+        t.check(solved.result.has_value && solved.result.velocity.rank == 1 &&
+                    solved.result.velocity.x.num == 5 && solved.result.velocity.x.den == 1 &&
+                    solved.result.velocity.y.num == 0,
+                "the one-dimensional answer keeps rank one and a zero second component");
+        t.equal(relative_direction_name(solved.result.direction), "east",
+                "a positive single-axis component reads as the positive declared direction");
+        t.equal(solved.derivation.context.problem_family_id,
+                "physics.kinematics.relative-motion.components.one-dimension",
+                "a rank-one problem is identified as the one-dimension sibling family");
+    }
+    {
+        Run refused(problem(one_dimensional_vector("8 m/s"), parsed_vector("(1, 2) m/s", "road")));
+        t.equal(relative_motion_outcome_name(refused.result.outcome), "rank mismatch",
+                "mismatched rank between the two velocities is refused rather than guessed at");
+        t.check(!refused.result.has_value &&
+                    !has_rule(refused.derivation, "physics.relative-motion.definition"),
+                "a mismatched-rank refusal exposes no answer and applies no law");
     }
     {
         Vector subject = parsed_vector("(1, 2) m/s");
