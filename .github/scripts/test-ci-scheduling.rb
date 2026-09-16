@@ -55,9 +55,13 @@ failures << 'Manual runs must remain available' unless events.key?('workflow_dis
 failures << 'Retired jobs must not run' unless (jobs.keys & ['linux-parity', 'device', 'codeql']).empty?
 failures << 'Draft PRs must skip approval waiting while ready PRs and main keep their gates' unless jobs.fetch('review-ready')['if'] == "github.event_name != 'pull_request' || github.event.pull_request.draft == false"
 failures << 'Fast must be the first gate' unless jobs.fetch('fast')['needs'].nil? && jobs.fetch('fast')['if'].nil?
+# The suites gate on fast and on nothing else. They used to wait for review-ready too, which was right
+# while an approval was required to merge and is a deadlock without one: review-ready waits for a
+# verdict that no longer has to arrive, so full and emulator would never start and the branch could
+# never show that it builds. Compiling is the guarantee worth keeping, so it is the one left running.
 ['full', 'emulator'].each do |name|
   job = jobs.fetch(name)
-  failures << "#{name} must wait for fast and current-head approval" unless Array(job['needs']).sort == ['fast', 'review-ready'] && job['if'].nil?
+  failures << "#{name} must wait for fast and must not wait for a review" unless Array(job['needs']) == ['fast'] && job['if'].nil?
 end
 
 # The images are LFS tracked, so a checkout without lfs hands emurun a 130 byte pointer. That is the
