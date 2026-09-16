@@ -616,6 +616,27 @@ rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
 
+family id physics.kinematics.constant-acceleration.projectile.two-dimension
+topic_and_level Two-dimensional projectile motion under constant vertical acceleration, PRD section 22.1 and PHYS-028's Event/State/Interval distinction
+accepted_expression_grammar existing scalar expression grammar for each vector component
+accepted_input_forms one typed PlanarKinematicsProblem naming a body, a declared frame, rank-two position, velocity and acceleration vectors and the projectile flag
+domains_and_parameter_assumptions both vectors are rank two, declare the same named frame, carry matching stage identity, and the acceleration has a zero horizontal component and a negative vertical component
+supported_branches_and_degenerate_cases the projectile specialization of the general two-dimension constant-acceleration engine, including a second independent route to the apex height that must agree with the first
+exact_special_function_and_numerical_result_policy exact rational SI conversion and per-component solving with the existing one-dimensional linear engine, with measured precision applied only to the final report
+parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
+required_assumptions none, no golden fixture yet exercises this family so no engine string is joined against one
+test_group_ids planar kinematics
+proof_obligation_ids none, no golden fixture yet exercises this family so no obligation is joined against one
+supported_methods validate rank, frame, stage identity and dimensions, check the projectile acceleration, then solve each axis independently with the existing one-dimensional kinematics engine and cross-check the apex height by a second route
+unsupported_near_neighbors general two-dimensional motion with a nonzero horizontal acceleration, oblique launch from a moving platform, air resistance, and more than two dimensions
+solution_soundness_status verified by rank, frame, stage and dimension checks, the projectile acceleration precondition, and a second independent route to the apex height that must agree with the first
+solution_completeness_status partial, one body under constant acceleration with the horizontal axis unaccelerated
+corpus_case_ids not yet filed
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics, not reachable from the Ki V4 menu, see #382
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+release_status in development, unreleased
+
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
 accepted_input_forms an equation in the project's own grammar, and the symbol to isolate
