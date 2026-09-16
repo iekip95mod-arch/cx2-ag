@@ -174,11 +174,17 @@ async function verifyIdentity(identity, api) {
   if (user.type !== 'Bot' || user.id !== identity.userId || user.login !== identity.login) throw Error('GitHub does not match the configured bot identity');
 }
 
-async function verifyOwnership(repository, target, identity, legacyOwner, api, leased = false) {
+async function verifyOwnership(repository, target, identity, legacyOwner, api, leased = false, history = []) {
   if (target.role !== 'executor') return;
   const ticket = await api('GET', `repos/${repository}/issues/${target.issue}`);
   const allowed = new Set([identity.login]);
   if ((target.legacyOwner ?? legacyOwner) === repository.split('/')[0]) allowed.add(repository.split('/')[0]);
+  // A released row for this same issue is this lease's own past rather than a rival's claim. Without
+  // this, giving up a spent lease would hand the issue's leftover branch and pull request the power to
+  // refuse every identity including the one that made them, which is the lock-out a reclaim exists to
+  // avoid. `settled` cannot cover it: a closed pull request reopens, and the lease is already gone.
+  const ours = history.length > 0;
+  for (const past of history) allowed.add(`${past.slug}[bot]`);
   if (ticket.assignees.some(assignee => !allowed.has(assignee.login))) throw Error('Another identity owns the issue');
   if (ticket.labels.some(label => ['codex', 'claude', 'gemini'].includes(label.name) && label.name !== target.provider)) throw Error('Another provider owns the issue');
   const branch = await api('GET', `repos/${repository}/git/ref/heads/${target.branch}`, undefined, true);
@@ -188,7 +194,7 @@ async function verifyOwnership(repository, target, identity, legacyOwner, api, l
   // claim, and the next lane on the same issue is not locked out by them.
   const landed = settled(pulls);
   if (!landed && pulls.some(pull => !allowed.has(pull.user.login))) throw Error('Another identity owns a branch PR');
-  if (branch && !landed && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
+  if (branch && !landed && !ours && !leased && !target.legacyOwner && !ticket.assignees.some(assignee => allowed.has(assignee.login))) throw Error('An unclaimed branch already exists');
 }
 
 function reviewerMatches(state, pr, branch) {
@@ -299,7 +305,8 @@ export async function allocateIdentity(options, api, roster = loadRoster()) {
     }
     const identity = findIdentity(roster, candidate.login, target.provider, target.role);
     await verifyIdentity(identity, api);
-    await verifyOwnership(options.repository, target, identity, options.legacyOwner, api);
+    await verifyOwnership(options.repository, target, identity, options.legacyOwner, api, false,
+      state.assignments.filter(assignment => assignment.key === target.key && assignment.released));
     state.assignments.push({ ...target, slug: identity.slug, released: false });
     const branch = await api('GET', `repos/${options.repository}/git/ref/heads/${assignmentBranch}`, undefined, true);
     if (!branch) {
