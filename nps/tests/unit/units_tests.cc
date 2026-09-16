@@ -1434,6 +1434,15 @@ void run_units_tests(TestSink &t) {
             "as the spelling of a volt does");
     t.equal(unit_dimension(si_unit_text(parse_dimension("m/s^2"))), "L T^-2",
             "while a single denominator factor stays unbracketed and still round-trips");
+    t.equal(si_unit_text(parse_dimension("s^-1")), "1/s",
+            "a dimension with nothing above the line is spelled with a one there");
+    t.equal(unit_dimension("1/s"), "T^-1",
+            "and the parser reads that spelling back rather than refusing what it wrote");
+    t.equal(unit_dimension("1"), "1", "as it does a bare one, which is the dimensionless spelling");
+    t.equal(unit_dimension(si_unit_text(parse_dimension("s^-1 A^-1"))), "T^-1 I^-1",
+            "a bracketed denominator under a one round-trips too");
+    t.equal(unit_dimension("12"), "refused: unexpected character in a unit: 2",
+            "and a number that is not one is still not a unit");
 }
 
 }  // namespace nps
