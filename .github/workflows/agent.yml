@@ -224,7 +224,7 @@ jobs:
           GH_TOKEN: ${{ steps.bot-token.outputs.token }}
           CLAUDE_BRANCH: ${{ steps.worker.outputs.branch }}
           WORKER_DIRECTORY: ${{ steps.worker.outputs.directory }}
-        uses: anthropics/claude-code-action@56cf60fde42f7b19c3abfd5c9c48b69a1288461f
+        uses: anthropics/claude-code-action@7b0b255830a1fab6e602658672acad11c12d841d
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ steps.bot-token.outputs.token }}
