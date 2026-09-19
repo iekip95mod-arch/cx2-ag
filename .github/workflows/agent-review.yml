@@ -47,7 +47,7 @@ jobs:
         with:
           ref: ${{ vars.AGENT_CONTROL_SHA || github.event.pull_request.user.type == 'User' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
       - name: Require a trusted PR author
@@ -495,7 +495,7 @@ jobs:
         run: |
           echo "::error::Codex review requires CODEX_AUTH_JSON. No review was performed."
           exit 1
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
       - name: Install reviewer prerequisites
@@ -707,7 +707,7 @@ jobs:
         run: |
           node .github/scripts/prepare-gemini.mjs
           echo "have=true" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
       - name: Install reviewer prerequisites
@@ -878,7 +878,7 @@ jobs:
         with:
           ref: ${{ vars.AGENT_CONTROL_SHA || github.event.pull_request.user.type == 'User' && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
           persist-credentials: false
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
       - name: Require a fresh approval from the selected reviewer

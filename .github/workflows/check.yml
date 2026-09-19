@@ -44,7 +44,7 @@ jobs:
       - name: Verify SDK filesystem fixtures
         run: python3 vendor/ndl-src/ndl-sdk/libsyscalls/test_open.py
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -258,7 +258,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Wait for the current PR reviewer to approve
