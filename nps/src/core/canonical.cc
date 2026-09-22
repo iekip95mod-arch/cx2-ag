@@ -6,6 +6,7 @@
 #include "nps/core/rational.h"
 
 #include <algorithm>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -362,6 +363,179 @@ bool rational_value(const Arena &arena, NodeId id, Rational *out) {
     return false;
 }
 
+struct LikeTerms {
+    std::vector<NodeId> factors;
+    std::vector<Rational> coefficients;
+    std::vector<NodeId> original;
+};
+
+bool split_like_term(const Arena &arena, NodeId term, Rational *coefficient,
+                     std::vector<NodeId> *factors) {
+    const Node &node = arena.at(term);
+    Rational scalar;
+    if (rational_value(arena, term, &scalar) || node.kind == Kind::Decimal)
+        return false;
+    if (node.kind != Kind::Mul) {
+        *coefficient = Rational{1, 1};
+        factors->push_back(term);
+        return true;
+    }
+
+    Rational value{1, 1};
+    for (NodeId factor : arena.children(term)) {
+        const Node &part = arena.at(factor);
+        int64_t integer = 0;
+        int64_t denominator = 0;
+        Rational next;
+        if (integer_value(arena, factor, &integer)) {
+            if (!rational_mul(value, Rational{integer, 1}, &next))
+                return false;
+            value = next;
+        } else if (reciprocal_value(arena, factor, &denominator) && denominator != 0) {
+            if (!rational_mul(value, Rational{1, denominator}, &next))
+                return false;
+            value = next;
+        } else {
+            if (part.kind == Kind::Integer || part.kind == Kind::Decimal)
+                return false;
+            factors->push_back(factor);
+        }
+    }
+    if (factors->empty())
+        return false;
+    *coefficient = value;
+    return true;
+}
+
+bool coefficient_sum(const std::vector<Rational> &coefficients, Rational *out) {
+    detail::Mpq sum;
+    detail::Mpq part;
+    mpq_set_ui(sum.get(), 0, 1);
+    for (const Rational &coefficient : coefficients) {
+        if (!detail::mpq_set_i64(part.get(), coefficient.num, coefficient.den))
+            return false;
+        mpq_add(sum.get(), sum.get(), part.get());
+    }
+    return detail::mpq_get_rational(sum.get(), out);
+}
+
+NodeId scaled_term(Arena &arena, const Rational &coefficient,
+                   const std::vector<NodeId> &base_factors) {
+    if (coefficient.num == 0)
+        return kNoNode;
+    std::vector<NodeId> factors;
+    if (coefficient.num != 1 || coefficient.den != 1) {
+        const NodeId scalar = rational_node(arena, coefficient);
+        if (scalar == kNoNode)
+            return kNoNode;
+        Flattener flat{arena, Kind::Mul, {}};
+        flat.add(scalar);
+        for (NodeId factor : flat.out) {
+            int64_t integer;
+            if (!integer_value(arena, factor, &integer) || integer != 1)
+                factors.push_back(factor);
+        }
+    }
+    factors.insert(factors.end(), base_factors.begin(), base_factors.end());
+    std::sort(factors.begin(), factors.end(),
+              [&arena](NodeId x, NodeId y) { return compare(arena, x, y) < 0; });
+    return factors.size() == 1 ? factors[0] : arena.nary(Kind::Mul, factors);
+}
+
+bool domain_total(const Arena &arena, const std::vector<NodeId> &factors) {
+    std::vector<NodeId> pending = factors;
+    std::unordered_set<NodeId> visited;
+    while (!pending.empty()) {
+        const NodeId id = pending.back();
+        pending.pop_back();
+        if (!visited.insert(id).second)
+            continue;
+        const Node &node = arena.at(id);
+        const ChildView children = arena.children(node);
+        switch (node.kind) {
+            case Kind::Integer:
+            case Kind::Decimal:
+            case Kind::Symbol: break;
+            case Kind::Neg:
+                if (children.size() != 1)
+                    return false;
+                pending.push_back(children[0]);
+                break;
+            case Kind::Add:
+            case Kind::Mul:
+                if (children.empty())
+                    return false;
+                for (NodeId child : children)
+                    pending.push_back(child);
+                break;
+            case Kind::Pow: {
+                int64_t exponent;
+                if (children.size() != 2 || !integer_value(arena, children[1], &exponent) ||
+                    exponent <= 0)
+                    return false;
+                pending.push_back(children[0]);
+                break;
+            }
+            case Kind::Call: {
+                const std::string &name = arena.text(id);
+                if (children.size() != 1 || (name != "sin" && name != "cos" && name != "exp"))
+                    return false;
+                pending.push_back(children[0]);
+                break;
+            }
+            default: return false;
+        }
+    }
+    return true;
+}
+
+bool collect_like_terms(Arena &arena, std::vector<NodeId> *terms) {
+    std::vector<LikeTerms> groups;
+    std::map<std::vector<NodeId>, size_t> by_factors;
+    std::vector<NodeId> untouched;
+    for (NodeId term : *terms) {
+        Rational coefficient;
+        std::vector<NodeId> factors;
+        if (!split_like_term(arena, term, &coefficient, &factors)) {
+            untouched.push_back(term);
+            continue;
+        }
+        auto found = by_factors.find(factors);
+        if (found == by_factors.end()) {
+            by_factors.emplace(factors, groups.size());
+            groups.push_back(LikeTerms{std::move(factors), {coefficient}, {term}});
+        } else {
+            LikeTerms &group = groups[found->second];
+            group.coefficients.push_back(coefficient);
+            group.original.push_back(term);
+        }
+    }
+
+    for (const LikeTerms &group : groups) {
+        if (group.original.size() == 1) {
+            untouched.push_back(group.original[0]);
+            continue;
+        }
+        Rational total;
+        if (!coefficient_sum(group.coefficients, &total)) {
+            untouched.insert(untouched.end(), group.original.begin(), group.original.end());
+            continue;
+        }
+        if (total.num == 0 && domain_total(arena, group.factors))
+            continue;
+        if (total.num == 0) {
+            untouched.insert(untouched.end(), group.original.begin(), group.original.end());
+            continue;
+        }
+        const NodeId combined = scaled_term(arena, total, group.factors);
+        if (combined == kNoNode)
+            return false;
+        untouched.push_back(combined);
+    }
+    *terms = std::move(untouched);
+    return true;
+}
+
 // The rational coefficient of a product, spelled as the decimal it equals, with the factors that did
 // not go into it handed back untouched. False for every product whose coefficient is a whole number
 // or does not terminate, which is the whole of when there is nothing to write.
@@ -621,6 +795,9 @@ NodeId canonical_node(Arena &arena, NodeId id, const std::vector<NodeId> &normal
                 }
             }
 
+            if (additive && !collect_like_terms(arena, &rest))
+                return kNoNode;
+
             // Everything sorts together, the folded constants included. Giving the fold a reserved
             // place at the front put it out of order with the leftovers, and the next pass moved it.
             std::sort(rest.begin(), rest.end(),
@@ -877,11 +1054,7 @@ Sign sign_of(Arena &arena, NodeId id) {
             return Sign::Zero;
         return Sign::Unknown;
     }
-    // canonicalize folds numbers but never gathers like terms, so y + (-y) arrives here as a sum of
-    // two terms rather than as the zero it is. Deciding it here rather than there keeps the change
-    // off canonicalize, whose output is the corpus signature and every backend agreement check.
-    // Only sums of terms with whole-number coefficients are decided; anything else declines to
-    // Unknown, which allows rather than refuses.
+    // Coefficient shapes the collector leaves untouched still need this exact zero fallback.
     if (n.kind == Kind::Add && sums_to_zero(arena, folded))
         return Sign::Zero;
     return Sign::Unknown;

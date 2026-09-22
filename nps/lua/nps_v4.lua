@@ -4380,14 +4380,16 @@ local function resultLines()
 		out[#out + 1] = { text = text, color = color }
 	end
 	add("Input: " .. (r.input or ""), {90, 90, 90})
-	local answer = finalResultVisible(r) and answerText(r)
-	if answer then
-		out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
-		                  math = answer, color = {0, 0, 140} }
+	if finalResultVisible(r) then
+		local answer = answerText(r)
+		if answer then
+			out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
+			                  math = answer, color = {0, 0, 140} }
+		end
+		add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
+		if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
+		if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	end
-	add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
-	if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
-	if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	return out
 end
 
