@@ -102,7 +102,6 @@ struct AwaitingGroup {
 // the selftest can stage a row of its own against a real table that no longer carries one.
 const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {
     {"circular motion", "src/physics/circular_motion.cc, stamping physics.circular-motion.uniform"},
-    {"forces", "src/physics/forces.cc, stamping physics.forces.newton-second-law"},
     {"gravitation", "src/physics/gravitation.cc, stamping physics.gravitation.point-masses"},
     {"oscillation", "src/physics/oscillation.cc, stamping physics.oscillation.restoring-force and "
                     "physics.wave.speed-frequency-wavelength"},

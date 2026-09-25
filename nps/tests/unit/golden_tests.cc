@@ -8,6 +8,7 @@
 #include "nps/steps/integer.h"
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
+#include "nps/physics/forces.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/modern.h"
 #include "nps/physics/optics.h"
@@ -493,6 +494,35 @@ std::string optics_record(OpticsRelation relation, OpticsVariable unknown,
            render_derivation(arena, derivation);
 }
 
+// Issue 255. The catalog block for the force family claims fixture evidence for its rules, so the
+// fixtures have to exist before the block can say so.
+std::string forces_record(const ForcesProblem &problem, const std::string &problem_text,
+                          const Budget &budget) {
+    Arena arena;
+    Derivation derivation;
+    const ForcesResult result = solve_forces(arena, derivation, problem, budget);
+    std::string answer;
+    if (result.has_value) {
+        answer = result.value_text;
+        if (!result.unit_text.empty())
+            answer += " " + result.unit_text;
+    }
+    return header(problem_text, forces_unknown_name(problem.unknown),
+                  forces_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+ForcesProblem forces_base(ForcesUnknown unknown) {
+    ForcesProblem problem;
+    problem.body = "block";
+    problem.support = "table";
+    std::string why;
+    parse_quantity("2 kg", &problem.mass, &why);
+    parse_quantity("10 m/s^2", &problem.gravity, &why);
+    problem.unknown = unknown;
+    return problem;
+}
+
 bool make_catch_up_body(const char *name, const char *position, const char *velocity,
                         const char *start, CatchUpBody *body, std::string *why) {
     body->name = name;
@@ -965,6 +995,43 @@ void run_golden_tests(TestSink &t) {
                              WorkForceProfile::Constant, Budget()));
     check_golden(t, "work_variable_force_refused",
                  work_record("(3, 4) N", "(2, 1) m", WorkForceProfile::Variable, Budget()));
+    // Issue 255's three: a horizontal push, an incline whose sine and cosine are exact, and a
+    // refusal. The incline is the 3-4-5 triangle because the envelope is exact rational trig, and
+    // the refusal is an angle outside it, which is the boundary the family's near neighbors name.
+    {
+        ForcesProblem push = forces_base(ForcesUnknown::Acceleration);
+        std::string why;
+        parse_quantity("12 N", &push.applied, &why);
+        push.has_applied = true;
+        push.friction = FrictionModel::Kinetic;
+        push.friction_coefficient = Rational{1, 4};
+        push.motion = MotionSense::UpTheAxis;
+        push.assume_equilibrium = false;
+        check_golden(t, "forces_horizontal_kinetic_friction",
+                     forces_record(push, "2 kg block pushed with 12 N across a table, mu_k = 1/4",
+                                   Budget()));
+
+        ForcesProblem ramp = forces_base(ForcesUnknown::FrictionForce);
+        ramp.support = "ramp";
+        ramp.surface = SurfaceKind::Incline;
+        ramp.incline_sin = Rational{3, 5};
+        ramp.incline_cos = Rational{4, 5};
+        ramp.friction = FrictionModel::Static;
+        ramp.friction_coefficient = Rational{1, 1};
+        check_golden(t, "forces_incline_static_friction",
+                     forces_record(ramp, "2 kg block at rest on a 3-4-5 ramp, mu_s = 1",
+                                   Budget()));
+
+        ForcesProblem inexact = forces_base(ForcesUnknown::Acceleration);
+        inexact.surface = SurfaceKind::Incline;
+        inexact.incline_sin = Rational{1, 3};
+        inexact.incline_cos = Rational{1, 3};
+        check_golden(t, "forces_incline_angle_refused",
+                     forces_record(inexact,
+                                   "2 kg block on an incline whose sine and cosine are not an "
+                                   "exact pair",
+                                   Budget()));
+    }
     check_golden(t, "optics_refraction_transmitted_sine",
                  optics_record(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
                                {{OpticsVariable::IndexIncident, "2"},

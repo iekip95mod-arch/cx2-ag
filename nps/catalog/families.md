@@ -798,6 +798,40 @@ rule i.function device
 # This family composes with the existing indefinite-integral engine for each segment's closed
 # form rather than carrying a second integrator, so every rule id above is that family's own.
 
+family id physics.forces.newton-second-law
+topic_and_level One body under Newton's second law on axes along and across its supporting surface, PRD section 9 PHYS-008 and chapter 4 of the PHYS 2410 scope
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities rather than as a typed equation, and the along-axis and across-axis sums are built by the engine
+accepted_input_forms one typed ForcesProblem naming the body and its support, a mass, a gravitational field strength, a surface that is horizontal or an incline declared by the exact sine and cosine of its angle, an optional applied force and tension, a friction model with its coefficient, a declared sense of motion and the unknown to solve for
+domains_and_parameter_assumptions the body is a particle in contact with the surface, the across-axis acceleration is zero, and an incline's sine and cosine are given as exact rationals, an inexact pair being refused rather than approximated
+supported_branches_and_degenerate_cases a horizontal surface and an incline, no friction, kinetic friction opposing a declared sense of motion, and static friction compared against its own maximum, with the four unknowns acceleration, applied force, normal force and friction force
+exact_special_function_and_numerical_result_policy exact rational arithmetic throughout, with the incline entered as an exact sine and cosine so no trigonometric evaluation is needed and no value is approximated
+parser_module_ids src/units/units.cc, src/physics/forces.cc
+required_assumptions the particle model and the axis choice are stated rather than inferred, carried as "the body is a particle, so every force acts at one point", "the axes run along the supporting surface and across it" and "the surface stays in contact, so the across-axis acceleration is zero"
+test_group_ids forces
+proof_obligation_ids obl.plan.preconditions-hold, obl.forces.input-dimensions, obl.forces.exact-angle, obl.forces.weight-components, obl.forces.normal-from-balance, obl.forces.pairs-separate, obl.forces.kinetic-friction, obl.forces.unknown-isolated, obl.forces.residual-zero, obl.forces.result-dimension, obl.forces.static-within-limit
+supported_methods inventory the forces on the one body, resolve each onto the two surface axes, sum each axis under Newton's second law, isolate the unknown and check the along-axis residual and the result's dimension
+unsupported_near_neighbors more than one body sharing an unknown, an incline whose sine and cosine are not exact rationals, drag or any velocity-dependent force, circular motion, and word-language input
+solution_soundness_status verified, the input dimensions and the incline angle are checked before solving, the along-axis residual is rebuilt from the published inventory and checked against zero, and the result's dimension is checked against the unknown
+solution_completeness_status partial, one body on one surface with the four named unknowns
+corpus_case_ids forces_horizontal_kinetic_friction, forces_incline_static_friction, forces_incline_angle_refused
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+# Newton's third law acts between bodies, so the pair step is recorded and its obligation keeps the
+# pairs out of the one body's inventory rather than adding a force to it.
+rule physics.forces.plan fixture
+rule physics.forces.check-input-dimensions fixture
+rule physics.forces.check-angle fixture
+rule physics.forces.weight fixture
+rule physics.forces.normal-force fixture
+rule physics.forces.third-law-pairs fixture
+rule physics.forces.kinetic-friction fixture
+rule physics.forces.static-friction-limit fixture
+rule physics.forces.solve-unknown fixture
+rule physics.forces.check-residual fixture
+rule physics.forces.check-result-dimension fixture
+
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
 accepted_input_forms an equation in the project's own grammar, and the symbol to isolate
