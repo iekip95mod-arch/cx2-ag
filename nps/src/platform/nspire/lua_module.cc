@@ -1867,6 +1867,35 @@ int l_rule_definition(lua_State *L) {
     return 1;
 }
 
+// UI-009 for quantities. The unit table and the quantity names beside it are the whole source.
+int l_unit_definition(lua_State *L) {
+    const char *text = scalar_string_argument(L, 1);
+    if (lua_objlen(L, 1) > Limits{}.max_input_bytes) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "unit exceeds the input limit");
+        return 2;
+    }
+    Unit unit;
+    std::string error;
+    if (!parse_unit(text, &unit, &error)) {
+        lua_pushnil(L);
+        lua_pushlstring(L, error.data(), error.size());
+        return 2;
+    }
+    const char *quantity = quantity_name(unit.dimension);
+    const std::string dimension = dimension_text(unit.dimension);
+    const std::string si = si_unit_text(unit.dimension);
+    const std::string scale = rational_text(unit.scale);
+    lua_newtable(L);
+    set_field(L, "unit", unit.text);
+    set_field(L, "dimension", dimension);
+    set_field(L, "si_unit", si);
+    set_field(L, "scale", scale);
+    if (quantity != nullptr)
+        set_field(L, "quantity", quantity);
+    return 1;
+}
+
 int l_giac(lua_State *L) {
     const char *text = scalar_string_argument(L, 1);
 
@@ -4034,6 +4063,7 @@ const luaL_Reg lib[] = {
     {"math_display", l_math_display},
     {"giac", l_giac},
     {"rule_definition", l_rule_definition},
+    {"unit_definition", l_unit_definition},
     {"walkthrough", l_walkthrough},
     {"ui_panel", l_ui_panel},
     {"ui_icon", l_ui_icon},

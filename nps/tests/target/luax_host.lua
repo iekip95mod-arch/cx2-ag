@@ -66,6 +66,23 @@ do
           "an unregistered rule id is refused rather than invented")
     check(not pcall(nps.rule_definition, "eq\0x") and not pcall(nps.rule_definition, {}),
           "rule_definition rejects invalid Lua arguments")
+
+    local newton = nps.unit_definition("N")
+    evidence("UI-009", type(newton) == "table" and newton.quantity == "force" and
+             newton.dimension == "L M T^-2" and newton.si_unit == "kg m/s^2" and newton.scale == "1",
+             "unit_definition names the quantity a unit measures and its SI spelling")
+    local kmh = nps.unit_definition("km/h")
+    check(kmh.quantity == "velocity" and kmh.scale == "5/18" and kmh.si_unit == "m/s",
+          "unit_definition gives the exact scale to SI")
+    local product = nps.unit_definition("m*s")
+    check(type(product) == "table" and product.quantity == nil and product.si_unit == "m s",
+          "a unit no quantity is named for is still defined, without a name")
+    local unknown, unknown_why = nps.unit_definition("parsec")
+    check(unknown == nil and unknown_why == "unknown unit parsec", "an unknown unit is refused by name")
+    check(not pcall(nps.unit_definition, "m\0s") and not pcall(nps.unit_definition, {}),
+          "unit_definition rejects invalid Lua arguments")
+    local long, long_why = nps.unit_definition(string.rep("m", 4097))
+    check(long == nil and long_why == "unit exceeds the input limit", "unit_definition bounds its input")
 end
 do
     local fills = {}
@@ -2513,7 +2530,7 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close", "rule_definition" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "rule_definition", "unit_definition" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
