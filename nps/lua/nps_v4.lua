@@ -103,7 +103,7 @@ local function manifestCompatibility(manifest)
 	if type(manifest.installed_modules) ~= "table" then
 		return "StepCAS manifest malformed (installed_modules)"
 	end
-	if #manifest.installed_modules > 32 then return "StepCAS manifest malformed (too many modules)" end
+	if #manifest.installed_modules > 128 then return "StepCAS manifest malformed (too many modules)" end
 	local installed = {}
 	for index, entry in ipairs(manifest.installed_modules) do
 		if type(entry) ~= "table" or type(entry.id) ~= "string" then
