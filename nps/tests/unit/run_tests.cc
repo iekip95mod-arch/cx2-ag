@@ -842,6 +842,8 @@ void write_evidence(const TestSink &s) {
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());
+    for (const std::string &row : s.check_kind_rows)
+        fprintf(f, "%s\n", row.c_str());
     fclose(f);
 }
 

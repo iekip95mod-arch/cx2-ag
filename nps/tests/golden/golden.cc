@@ -1,5 +1,6 @@
 #include "golden/golden.h"
 #include "step_invariants.h"
+#include "../../tools/check_kinds.h"
 
 #include <cstdlib>
 #include <fstream>
@@ -445,6 +446,25 @@ void check_golden_invariants(TestSink &sink) {
                       " fixture steps matches its rule's declared schema: the claim it makes, the "
                       "obligations it raises, and a verification of a declared method for each "
                       "obligation at the strength the schema says that method is worth");
+
+    // VER-015's observed side, for coverage.cc to join against what each rule declares.
+    std::set<CheckKind> passed;
+    for (const auto &entry : g_pass.checks_by_kind()) {
+        sink.check_kind_rows.push_back(nps_tools::check_kind_row(
+            std::get<0>(entry.first), std::get<1>(entry.first), std::get<2>(entry.first),
+            entry.second, "golden"));
+        if (std::get<2>(entry.first) == VerificationOutcome::Passed)
+            passed.insert(std::get<1>(entry.first));
+    }
+    std::string unseen;
+    for (size_t k = 0; k < kCheckKindCount; ++k) {
+        if (passed.count(static_cast<CheckKind>(k)) == 0)
+            unseen += std::string(unseen.empty() ? "" : ", ") +
+                      check_kind_name(static_cast<CheckKind>(k));
+    }
+    sink.equal(unseen, "",
+               "golden invariants: every check kind has a fixture verification that passed "
+               "under it");
 }
 
 std::string render_derivation(const Arena &arena, const Derivation &derivation) {
