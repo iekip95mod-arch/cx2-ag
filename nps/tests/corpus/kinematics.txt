@@ -155,25 +155,31 @@ case kinematics.measured.displacement
   expect solved
   result 20 m
 
-case kinematics.refused.quadratic-in-time
+# Degree two in t, whose negative root of -22/3 is before the interval started.
+case kinematics.quadratic-in-time
   family kinematics
   input find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2
+  expect solved
+  result 4 s
+
+# The same shape with a discriminant of 377, inside the family and outside the envelope.
+case kinematics.refused.inexact-root-in-time
+  family kinematics
+  input find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2
   expect no applicable equation
-  detail this equation is not linear in t
+  detail the discriminant is 377
 
 case kinematics.refused.too-few-givens
   family kinematics
   input find v; v0 = 5 m/s; a = 3 m/s^2
   expect no applicable equation
 
-# v^2 = v0^2 + 2*a*x reaches v here and has two roots, so the linear solver refuses it and no other
-# equation gets there. That is the milestone envelope rather than a defect, and the refusal names the
-# equation it turned down.
-case kinematics.refused.quadratic-in-final-velocity
+# A non-negative v0 and a keep v non-negative, which is what rules the other root out.
+case kinematics.quadratic-in-final-velocity
   family kinematics
   input find v; v0 = 5 m/s; a = 3 m/s^2; x = 44 m
-  expect no applicable equation
-  detail this equation is not linear in v
+  expect solved
+  result 17 m/s
 
 case kinematics.final-velocity.negative-initial
   family kinematics
@@ -615,11 +621,12 @@ case kinematics.measured.negative-displacement
   expect solved
   result -16 m
 
-case kinematics.refused.quadratic-in-initial-velocity
+# Both fit every given: v0 = 2 takes 4 s over the 24 m and v0 = -2 takes 6 s, so nothing is chosen.
+case kinematics.refused.two-admissible-initial-velocities
   family kinematics
   input find v0; v = 10 m/s; a = 2 m/s^2; x = 24 m
   expect no applicable equation
-  detail this equation is not linear in v0
+  detail v0 = 2 and v0 = -2 both satisfy this
 
 case kinematics.refused.time-from-two-givens
   family kinematics

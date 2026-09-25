@@ -60,6 +60,7 @@ enum class RankingOutcome : uint8_t {
     // from InvalidProblem: the problem is well formed, the answer is that it cannot be determined.
     IndeterminateOrder,
     ResourceExceeded,
+    Cancelled,
 };
 
 const char *ranking_outcome_name(RankingOutcome outcome);
@@ -79,6 +80,7 @@ struct RankingResult {
     std::vector<RankingTier> order;  // populated only when outcome == Solved
     std::string detail;
     DerivationStatus status = DerivationStatus::NotRecorded;
+    Cost cost;
 };
 
 RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,

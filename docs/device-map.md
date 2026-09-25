@@ -116,14 +116,14 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-25, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4120), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4123 to 4125), `vector_addition` (lua_module.cc:4126), `vector_cross`
-(lua_module.cc:4127), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4116), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4119 to 4121), `vector_addition` (lua_module.cc:4122), `vector_cross`
+(lua_module.cc:4123), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3226, which
-reads the variable names against the model's own term names (lua_module.cc:3212). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3222, which
+reads the variable names against the model's own term names (lua_module.cc:3208). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -153,7 +153,9 @@ relation families took the real manifest to 34, and nothing on the host held the
 that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65.
 
 `planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
-engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
+engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
+nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
+with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
 
 ## What renders on screen
@@ -171,7 +173,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1440.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3188, measureMath
+sets the expression at :3222, and the history editor sets its expression at :1440.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -233,7 +236,7 @@ place is not evidence for the other.
 
 ## What the host build does not cover
 
-<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt -->
+<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt, nps/tools/device_evidence.cc -->
 
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
@@ -252,6 +255,27 @@ lua_module.cc appears in the build graph only as a phony source node rather than
 
 So on a machine or runner without luajit, **a change to the Lua bridge is never compiled**. Check
 `ninja -t targets all | grep nps_luax` before believing a green build.
+
+Two rows need a device build that a host configure never produces. device_evidence sweeps the device
+build tree for offline audit and device run records, and report_size sizes the ARM image. Without one
+they both report Skipped, so the absent device stage stays visible rather than reading as coverage of
+the device requirements.
+
+`source`: nps/CMakeLists.txt sets SKIP_RETURN_CODE 77 on device_evidence, which is what the sweep in
+tools/device_evidence.cc returns when the directory holds no records, and the branch beside report_size
+registers a row whose echoed text is the literal its SKIP_REGULAR_EXPRESSION matches.
+
+The sweep answers 0 when every record was ingested, 1 when the gate refused one, 3 when a record was
+accepted and its rows could not be appended to the evidence file, and 77 when there was nothing to
+sweep. Only 77 is a skip, so an unwritable evidence file reports the row as Failed rather than hiding
+behind the refusal count.
+
+`measured` on 2026-09-25: with no device tree, ctest -R '^(device_evidence|report_size)$' reports two
+Skipped rows and exits 0. Both Pass instead when the ndl SDK is present and NPS_DEVICE_BUILD_DIR names
+a tree holding nps_nspire.elf, nps_nspire.offline-audit.txt and the nps_nspire.luax.tns that record's
+digest is checked against. Stage only the audit record and device_evidence refuses it for a missing
+artifact rather than passing. Sweeping that same tree with NPS_EVIDENCE naming a path under a
+directory that does not exist reports 0 refused, 1 not written and exits 3.
 
 What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
 `fast` alone. They used to wait on `review-ready` as well, which was right while an approving review

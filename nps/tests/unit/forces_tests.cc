@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 
+#include "nps/core/canonical.h"
+#include "nps/core/print.h"
 #include "nps/physics/forces.h"
 #include "unit/adapter_tests.h"
 
@@ -42,6 +44,43 @@ bool has_rule(const Derivation &derivation, const char *rule) {
     return false;
 }
 
+bool has_obligation_contract(const Derivation &derivation, const char *rule,
+                             const char *obligation_id, const char *obligation_text,
+                             const char *method, ClaimType claim) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const Step &step = derivation.at(static_cast<StepId>(index));
+        if (step.rule_id != rule)
+            continue;
+        return step.claim == claim &&
+               step.proof_obligations.size() == 1 &&
+               step.proof_obligations[0].id == obligation_id &&
+               step.proof_obligations[0].text == obligation_text && step.verifications.size() == 1 &&
+               step.verifications[0].evidence_id == obligation_id &&
+               step.verifications[0].method == method &&
+               step.verifications[0].strength == EvidenceStrength::DimensionallyValid &&
+               step.verifications[0].outcome == VerificationOutcome::Passed;
+    }
+    return false;
+}
+
+const Step *step_by(const Derivation &derivation, const char *rule) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const Step &step = derivation.at(static_cast<StepId>(index));
+        if (step.rule_id == rule)
+            return &step;
+    }
+    return nullptr;
+}
+
+const TransformationPayload *moved_by(const Derivation &derivation, const char *rule) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const StepId id = static_cast<StepId>(index);
+        if (derivation.at(id).rule_id == rule)
+            return derivation.transformation(id);
+    }
+    return nullptr;
+}
+
 const ForceEntry *entry_of(const ForcesResult &result, ForceKind kind) {
     for (const ForceEntry &entry : result.inventory) {
         if (entry.kind == kind)
@@ -55,6 +94,28 @@ bool value_is(const ForcesResult &result, int64_t numerator, int64_t denominator
 }
 
 bool cancel_now(void *) { return true; }
+
+Quantity exactly(const char *unit, int64_t numerator, int64_t denominator) {
+    Quantity quantity = parsed((std::string("1 ") + unit).c_str());
+    quantity.value.num = numerator;
+    quantity.value.den = denominator;
+    return quantity;
+}
+
+void overflow_row(TestSink &t, const ForcesProblem &overflowing,
+                  const ForcesProblem &representable, const std::string &detail,
+                  const std::string &what) {
+    Run refused(overflowing);
+    t.check(refused.result.outcome == ForcesOutcome::ArithmeticOverflow,
+            what + " refuses as an arithmetic overflow");
+    t.check(refused.result.status == DerivationStatus::ResourceLimitReached,
+            what + " records a resource limit rather than a failed verification");
+    t.check(!refused.result.has_value, what + " offers no value");
+    t.equal(refused.result.detail, detail, what + " names the arithmetic it could not carry");
+    Run solved(representable);
+    t.check(solved.result.outcome == ForcesOutcome::Solved && solved.result.has_value,
+            what + " solves once the same arrangement fits exact arithmetic");
+}
 
 }
 
@@ -86,6 +147,67 @@ void run_forces_tests(TestSink &t) {
                 "the residual and dimension checks are recorded");
         t.check(solved.derivation.all_verified_from(0),
                 "every claim in a solved force problem has passing evidence");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.weight", "obl.forces.weight-components",
+                    "weight is mass times gravity and its components are its exact incline projections",
+                    "exact rational product", ClaimType::EquivalentExpression),
+                "the weight product discharges its component obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.normal-force",
+                    "obl.forces.normal-from-balance",
+                    "the normal force makes the exact across-axis sum zero",
+                    "exact across-axis sum", ClaimType::SolutionSetPreserved),
+                "the across-axis sum discharges the normal-force obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.kinetic-friction",
+                    "obl.forces.kinetic-friction",
+                    "kinetic friction has magnitude mu_k N and points opposite the declared motion",
+                    "exact rational product", ClaimType::EquivalentExpression),
+                "the friction product discharges the kinetic-friction obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.solve-unknown",
+                    "obl.forces.unknown-isolated",
+                    "exact rearrangement isolates the requested unknown from its force-balance equation",
+                    "exact rearrangement", ClaimType::SolutionSetPreserved),
+                "the rearrangement discharges the unknown-isolation obligation");
+        const TransformationPayload *kinetic =
+            moved_by(solved.derivation, "physics.forces.kinetic-friction");
+        const Step *kinetic_step = step_by(solved.derivation, "physics.forces.kinetic-friction");
+        t.check(kinetic != nullptr && kinetic_step != nullptr &&
+                    kinetic_step->claim == ClaimType::EquivalentExpression && kinetic->reversible,
+                "the kinetic-friction record claims a reversible equivalent expression");
+        if (kinetic != nullptr) {
+            t.check(solved.arena.at(kinetic->before).kind == Kind::Neg &&
+                        literal_sign(solved.arena, kinetic->after) == Sign::Negative,
+                    "the kinetic-friction expression and value both carry the opposing sign");
+            t.check(canonicalize(solved.arena, kinetic->before) ==
+                        canonicalize(solved.arena, kinetic->after),
+                    "the signed kinetic-friction expression is exactly equivalent to its value");
+        }
+        const TransformationPayload *normal_move =
+            moved_by(solved.derivation, "physics.forces.normal-force");
+        const Step *normal_step = step_by(solved.derivation, "physics.forces.normal-force");
+        t.check(normal_move != nullptr && normal_step != nullptr &&
+                    normal_step->claim == ClaimType::SolutionSetPreserved &&
+                    normal_move->reversible &&
+                    solved.arena.at(normal_move->before).kind == Kind::Equals &&
+                    solved.arena.at(normal_move->after).kind == Kind::Equals,
+                "normal-force isolation preserves an equation's solution set reversibly");
+        if (normal_move != nullptr)
+            t.equal(print(solved.arena, normal_move->after), "(N = 20)",
+                    "normal-force isolation records the solved equation rather than a scalar");
+        const TransformationPayload *solve_move =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const Step *solve_step = step_by(solved.derivation, "physics.forces.solve-unknown");
+        t.check(solve_move != nullptr && solve_step != nullptr &&
+                    solve_step->claim == ClaimType::SolutionSetPreserved &&
+                    solve_move->reversible &&
+                    solved.arena.at(solve_move->before).kind == Kind::Equals &&
+                    solved.arena.at(solve_move->after).kind == Kind::Equals,
+                "unknown isolation preserves an equation's solution set reversibly");
+        if (solve_move != nullptr)
+            t.equal(print(solved.arena, solve_move->after), "(a = (7 * (2^-1)))",
+                    "unknown isolation records the solved equation rather than a scalar");
         bool every_entry_known = true;
         for (const ForceEntry &entry : solved.result.inventory)
             every_entry_known = every_entry_known && entry.known;
@@ -121,6 +243,14 @@ void run_forces_tests(TestSink &t) {
         const ForceEntry *given_weight = entry_of(solved.result, ForceKind::Weight);
         t.check(given_weight != nullptr && given_weight->known,
                 "the weight supplied with the problem stays marked known beside it");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId friction_symbol = solved.arena.symbol("f");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, friction_symbol),
+                "friction isolation starts from an equation that contains friction");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(f = 12)",
+                    "friction isolation preserves the solved equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a consistent static equilibrium carries passing evidence throughout");
     }
@@ -149,8 +279,46 @@ void run_forces_tests(TestSink &t) {
                 "the weight supplied beside the kinetic friction stays marked known");
         t.check(has_rule(solved.derivation, "physics.forces.kinetic-friction"),
                 "the kinetic friction rule is recorded for the requested unknown");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(f = -5)",
+                    "a consistent kinetic candidate matches the isolated balance equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a solved kinetic friction request carries passing evidence throughout");
+    }
+    {
+        ForcesProblem problem = base(ForcesUnknown::FrictionForce);
+        problem.applied = parsed("9 N");
+        problem.has_applied = true;
+        problem.friction = FrictionModel::Kinetic;
+        problem.friction_coefficient = Rational{1, 4};
+        problem.motion = MotionSense::UpTheAxis;
+        problem.assume_equilibrium = false;
+        problem.acceleration = parsed("0 m/s^2");
+        problem.has_acceleration = true;
+        Run refused(problem);
+        t.check(refused.result.outcome == ForcesOutcome::VerificationFailed,
+                "a kinetic candidate inconsistent with the declared acceleration is refused");
+        t.check(!refused.result.has_value,
+                "an inconsistent kinetic candidate does not publish a friction value");
+        const TransformationPayload *candidate =
+            moved_by(refused.derivation, "physics.forces.kinetic-friction");
+        const TransformationPayload *isolation =
+            moved_by(refused.derivation, "physics.forces.solve-unknown");
+        if (candidate != nullptr)
+            t.equal(print(refused.arena, candidate->after), "-5",
+                    "the coefficient-derived kinetic candidate stays recorded separately");
+        if (isolation != nullptr) {
+            t.equal(print(refused.arena, isolation->before), "((9 + f) = 0)",
+                    "friction isolation starts from the declared force balance");
+            t.equal(print(refused.arena, isolation->after), "(f = -9)",
+                    "friction isolation derives its value from the same balance equation");
+        }
+        t.check(candidate != nullptr && isolation != nullptr,
+                "the inconsistent kinetic candidate and algebraic isolation are both auditable");
+        t.check(!refused.derivation.all_verified_from(0),
+                "the residual check records the inconsistent kinetic candidate as failing");
     }
     {
         // The same ramp with too little friction: the assumption is tested and fails.
@@ -238,6 +406,14 @@ void run_forces_tests(TestSink &t) {
                 others_known = others_known && entry.known;
         }
         t.check(others_known, "the forces the problem supplied stay marked known");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId applied_symbol = solved.arena.symbol("F");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, applied_symbol),
+                "applied-force isolation starts from an equation that contains the applied force");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(F = 14)",
+                    "applied-force isolation preserves the solved equation");
     }
     {
         // The shape the bridge suite publishes: a frictionless horizontal push solved for.
@@ -378,6 +554,14 @@ void run_forces_tests(TestSink &t) {
         const ForceEntry *support = entry_of(solved.result, ForceKind::Normal);
         t.check(support != nullptr && !support->known,
                 "the normal force the request asked for is inventoried as the unknown one");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId normal_symbol = solved.arena.symbol("N");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, normal_symbol),
+                "normal-force isolation starts from the across-axis equation containing N");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(N = 20)",
+                    "normal-force isolation preserves the solved equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a normal force answer carries passing evidence throughout");
     }
@@ -438,6 +622,141 @@ void run_forces_tests(TestSink &t) {
         const ForceBalance restored = forces_along_balance(solved.result.inventory, target);
         t.check(restored.exact && restored.balanced,
                 "the unperturbed inventory still passes, so the row above is about the entry");
+    }
+    {
+        // Every exact-arithmetic refusal here, one row each, paired with a magnitude that fits.
+        const int64_t wide = int64_t{1} << 61;
+        const int64_t narrow = int64_t{1} << 59;
+
+        ForcesProblem identity = base(ForcesUnknown::Acceleration);
+        identity.assume_equilibrium = false;
+        identity.surface = SurfaceKind::Incline;
+        identity.incline_sin = Rational{1, 4000000000};
+        identity.incline_cos = Rational{1, 1};
+        ForcesProblem identity_fits = identity;
+        identity_fits.incline_sin = Rational{3, 5};
+        identity_fits.incline_cos = Rational{4, 5};
+        overflow_row(t, identity, identity_fits,
+                     "checking the incline trigonometric identity exceeds exact arithmetic",
+                     "an incline sine that squares out of range");
+
+        ForcesProblem weight = base(ForcesUnknown::Acceleration);
+        weight.assume_equilibrium = false;
+        weight.mass = exactly("kg", 4000000000, 1);
+        weight.gravity = exactly("m/s^2", 4000000000, 1);
+        ForcesProblem weight_fits = weight;
+        weight_fits.gravity = exactly("m/s^2", 1, 1);
+        overflow_row(t, weight, weight_fits, "resolving the weight exceeds exact arithmetic",
+                     "a mass and a field strength whose product is out of range");
+
+        // The across component is the most negative int64, so negating it is the step that fails.
+        ForcesProblem across = base(ForcesUnknown::Acceleration);
+        across.assume_equilibrium = false;
+        across.surface = SurfaceKind::Incline;
+        across.incline_sin = Rational{3, 5};
+        across.incline_cos = Rational{4, 5};
+        across.mass = exactly("kg", wide, 1);
+        across.gravity = exactly("m/s^2", 1, 1);
+        ForcesProblem across_fits = across;
+        across_fits.mass = exactly("kg", narrow, 1);
+        overflow_row(t, across, across_fits, "summing the across axis exceeds exact arithmetic",
+                     "an across component whose negation is out of range");
+
+        ForcesProblem along = base(ForcesUnknown::AppliedForce);
+        along.assume_equilibrium = false;
+        along.mass = exactly("kg", 4000000000, 1);
+        along.gravity = exactly("m/s^2", 1, 1);
+        along.acceleration = exactly("m/s^2", 4000000000, 1);
+        along.has_acceleration = true;
+        ForcesProblem along_fits = along;
+        along_fits.acceleration = exactly("m/s^2", 1, 1);
+        overflow_row(t, along, along_fits, "summing the along axis exceeds exact arithmetic",
+                     "a mass and an acceleration whose product is out of range");
+
+        ForcesProblem limit = base(ForcesUnknown::Acceleration);
+        limit.assume_equilibrium = false;
+        limit.mass = exactly("kg", 4000000000, 1);
+        limit.gravity = exactly("m/s^2", 1, 1);
+        limit.friction = FrictionModel::Kinetic;
+        limit.motion = MotionSense::UpTheAxis;
+        limit.friction_coefficient = Rational{4000000000, 1};
+        ForcesProblem limit_fits = limit;
+        limit_fits.friction_coefficient = Rational{1, 1};
+        overflow_row(t, limit, limit_fits,
+                     "evaluating the friction limit exceeds exact arithmetic",
+                     "a coefficient and a normal force whose product is out of range");
+
+        // The along total is the most negative int64, so negating it is the step that fails.
+        ForcesProblem needed = base(ForcesUnknown::NormalForce);
+        needed.surface = SurfaceKind::Incline;
+        needed.incline_sin = Rational{4, 5};
+        needed.incline_cos = Rational{3, 5};
+        needed.mass = exactly("kg", wide, 1);
+        needed.gravity = exactly("m/s^2", 1, 1);
+        needed.friction = FrictionModel::Static;
+        needed.friction_coefficient = Rational{1, 2};
+        ForcesProblem needed_fits = needed;
+        needed_fits.mass = exactly("kg", narrow, 1);
+        needed_fits.friction_coefficient = Rational{2, 1};
+        overflow_row(t, needed, needed_fits,
+                     "evaluating the required friction exceeds exact arithmetic",
+                     "a required static friction whose negation is out of range");
+
+        ForcesProblem against_limit = base(ForcesUnknown::NormalForce);
+        against_limit.surface = SurfaceKind::Incline;
+        against_limit.incline_sin = Rational{3, 5};
+        against_limit.incline_cos = Rational{4, 5};
+        against_limit.mass = exactly("kg", 5, 12000000000);
+        against_limit.gravity = exactly("m/s^2", 1, 1);
+        against_limit.friction = FrictionModel::Static;
+        against_limit.friction_coefficient = Rational{1, 3000000001};
+        ForcesProblem against_limit_fits = against_limit;
+        against_limit_fits.friction_coefficient = Rational{1, 1};
+        overflow_row(t, against_limit, against_limit_fits,
+                     "comparing the required friction against its limit exceeds exact arithmetic",
+                     "a required friction and a limit with no common denominator in range");
+
+        ForcesProblem with_friction = base(ForcesUnknown::Acceleration);
+        with_friction.assume_equilibrium = false;
+        with_friction.surface = SurfaceKind::Incline;
+        with_friction.incline_sin = Rational{3, 5};
+        with_friction.incline_cos = Rational{4, 5};
+        with_friction.mass = exactly("kg", 5, 12000000000);
+        with_friction.gravity = exactly("m/s^2", 1, 1);
+        with_friction.friction = FrictionModel::Kinetic;
+        with_friction.motion = MotionSense::DownTheAxis;
+        with_friction.friction_coefficient = Rational{1, 3000000001};
+        ForcesProblem with_friction_fits = with_friction;
+        with_friction_fits.friction_coefficient = Rational{1, 3};
+        overflow_row(t, with_friction, with_friction_fits,
+                     "summing the along axis exceeds exact arithmetic",
+                     "a friction and an along total with no common denominator in range");
+
+        ForcesProblem isolate = base(ForcesUnknown::Acceleration);
+        isolate.assume_equilibrium = false;
+        isolate.mass = exactly("kg", 3000000001, 1);
+        isolate.gravity = exactly("m/s^2", 1, 1);
+        isolate.applied = exactly("N", 1, 4000000000);
+        isolate.has_applied = true;
+        ForcesProblem isolate_fits = isolate;
+        isolate_fits.mass = exactly("kg", 3, 1);
+        overflow_row(t, isolate, isolate_fits,
+                     "solving for the requested unknown exceeds exact arithmetic",
+                     "an along total divided by a mass with no quotient in range");
+
+        ForcesProblem residual = base(ForcesUnknown::NormalForce);
+        residual.assume_equilibrium = false;
+        residual.mass = exactly("kg", 1, 1);
+        residual.gravity = exactly("m/s^2", 1, 1);
+        residual.applied = exactly("N", 1, 4000000000);
+        residual.has_applied = true;
+        residual.acceleration = exactly("m/s^2", 1, 9000000003000000000);
+        residual.has_acceleration = true;
+        ForcesProblem residual_fits = residual;
+        residual_fits.acceleration = exactly("m/s^2", 1, 4000000000);
+        overflow_row(t, residual, residual_fits,
+                     "evaluating the force-balance residual exceeds exact arithmetic",
+                     "a published inventory and a target with no common denominator in range");
     }
 }
 

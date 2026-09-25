@@ -738,6 +738,21 @@ void selftest_verdicts() {
     expect(manifest_build("stepcas.unified.short") == "short", "and a short one is left alone");
 }
 
+// A sweep with no records proves nothing, so it answers with its own code rather than with success.
+constexpr int kNothingToSweep = 77;
+
+// An accepted record whose rows never reached the file is a broken file rather than a bad record.
+constexpr int kEvidenceNotWritten = 3;
+
+// What became of one record. A refusal is about the record and an unwritten append is about the file.
+enum class Ingested {
+    Written,
+    Refused,
+    NotWritten,
+};
+
+int sweep(const std::string &directory);
+
 // Every refusal is made to fire before the acceptance is believed, because a gate that has only ever
 // accepted is indistinguishable from no gate.
 int selftest() {
@@ -966,6 +981,8 @@ int selftest() {
     } else {
         expect(records_in(swept).empty(),
                "an empty directory sweeps to no records rather than to a failure");
+        expect(sweep(swept) == kNothingToSweep,
+               "and an empty sweep answers nothing to sweep rather than success");
         write_file(swept + "/notes.txt", "not a record");
         write_file(swept + "/device-run.txt", "a name that is only the suffix");
         expect(records_in(swept).empty(),
@@ -981,19 +998,60 @@ int selftest() {
                "audits come before runs and each group is sorted, so the evidence file is stable");
         expect(found[0] != found[2],
                "and one module carrying both kinds is two records rather than a collision");
+        expect(sweep(swept) == 1,
+               "while records the gate refuses come back as refused rather than as nothing to sweep");
+    }
+
+    // The gate and the evidence file fail for different reasons and answer with different codes.
+    const std::string appended = temporary_directory();
+    if (appended.empty()) {
+        expect(false, "a third temporary directory could be made");
+    } else {
+        const std::string packaged = appended + "/nps_nspire.luax.tns";
+        write_file(packaged, "the packaged bytes, whatever they are");
+        std::string packaged_digest;
+        hex_digest_of(packaged, &packaged_digest);
+        write_file(appended + "/nps_nspire.offline-audit.txt",
+                   record_text("nps_nspire.luax.tns", packaged_digest));
+
+        const char *inherited = getenv("NPS_EVIDENCE");
+        const bool had_evidence = inherited != nullptr;
+        const std::string restore = had_evidence ? inherited : "";
+
+        setenv("NPS_EVIDENCE", (appended + "/no-such-directory/evidence.txt").c_str(), 1);
+        expect(sweep(appended) == kEvidenceNotWritten,
+               "a record the gate accepted and the file could not take is not counted as refused");
+
+        const std::string evidence = appended + "/evidence.txt";
+        write_file(evidence, "group\tadapter\n");
+        setenv("NPS_EVIDENCE", evidence.c_str(), 1);
+        expect(sweep(appended) == 0, "and the same record passes once the file can take its rows");
+        std::ifstream reading(evidence.c_str());
+        std::string line;
+        bool carried = false;
+        while (std::getline(reading, line)) {
+            if (line.find("PLAT-001") != std::string::npos)
+                carried = true;
+        }
+        expect(carried, "which is a real append rather than a write that was quietly passed over");
+
+        if (had_evidence)
+            setenv("NPS_EVIDENCE", restore.c_str(), 1);
+        else
+            unsetenv("NPS_EVIDENCE");
     }
 
     std::cout << "device evidence: " << failures << " failed\n";
     return failures == 0 ? 0 : 1;
 }
 
-int ingest_one(const std::string &record_path, const std::string &directory) {
+Ingested ingest_one(const std::string &record_path, const std::string &directory) {
     Record record;
     const Refusal refusal = ingest(record_path, directory, &record);
     if (refusal != Refusal::Accepted) {
         std::cout << "device evidence: refused, " << refusal_name(refusal) << ": " << record_path
                   << "\n";
-        return 1;
+        return Ingested::Refused;
     }
     std::cout << "device evidence: " << record.checks.size() << " checks from " << record.artifact
               << ", digest matches the artifact in the tree\n";
@@ -1003,26 +1061,51 @@ int ingest_one(const std::string &record_path, const std::string &directory) {
         std::string error;
         if (!append_evidence(evidence_path, record, &error)) {
             std::cout << "device evidence: not written, " << error << "\n";
-            return 1;
+            return Ingested::NotWritten;
         }
     }
-    return 0;
+    return Ingested::Written;
+}
+
+int exit_code_for(Ingested outcome) {
+    switch (outcome) {
+        case Ingested::Written:
+            return 0;
+        case Ingested::Refused:
+            return 1;
+        case Ingested::NotWritten:
+            return kEvidenceNotWritten;
+    }
+    return 1;
 }
 
 int sweep(const std::string &directory) {
     const std::vector<std::string> records = records_in(directory);
     if (records.empty()) {
-        // Said out loud, because the alternative is a suite that looks complete and has ingested
-        // nothing. With no record the rows read unmet rather than passing on an absence.
+        // Success here is the one answer indistinguishable from a suite that covers the device rows.
         std::cout << "device evidence: no records under " << directory
                   << ", so the device requirements have no evidence in this tree\n";
-        return 0;
+        return kNothingToSweep;
     }
     int refused = 0;
-    for (const std::string &name : records)
-        refused += ingest_one(directory + "/" + name, directory);
+    int unwritten = 0;
+    for (const std::string &name : records) {
+        switch (ingest_one(directory + "/" + name, directory)) {
+            case Ingested::Refused:
+                ++refused;
+                break;
+            case Ingested::NotWritten:
+                ++unwritten;
+                break;
+            case Ingested::Written:
+                break;
+        }
+    }
     std::cout << "device evidence: " << records.size() << " records swept from " << directory
-              << ", " << refused << " refused\n";
+              << ", " << refused << " refused, " << unwritten << " not written\n";
+    // A file that cannot take rows voids every record it should have carried, so it outranks one.
+    if (unwritten != 0)
+        return kEvidenceNotWritten;
     return refused == 0 ? 0 : 1;
 }
 
@@ -1039,5 +1122,5 @@ int main(int argc, char **argv) {
                      "       nps_device_evidence --selftest\n";
         return 2;
     }
-    return ingest_one(argv[1], argv[2]);
+    return exit_code_for(ingest_one(argv[1], argv[2]));
 }

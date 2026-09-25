@@ -762,6 +762,11 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
                          EvidenceStrength::CandidateChecked,
                          compared ? VerificationOutcome::Passed
                                   : VerificationOutcome::Inconclusive));
+        precision.proof_obligations.push_back(
+            {"obl.relative-motion.rounding-within-half-place",
+             "the reported value is within half a unit in its last place of the exact value"});
+        precision.verifications[0].evidence_id =
+            "obl.relative-motion.rounding-within-half-place";
         const std::string action = compared ? "Report " + exact_text + " as " + reported
                                             : "Report " + exact_text + " unrounded";
         if (!compared)

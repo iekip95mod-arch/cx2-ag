@@ -74,8 +74,8 @@ struct RelativityProblem {
     RelativityRelation relation = RelativityRelation::TimeDilation;
     // The frame the boost is measured against, and the frame that moves at that boost. Both are
     // required, and they cannot be the same frame.
-    std::string rest_frame_name;
-    std::string moving_frame_name;
+    Frame rest_frame;
+    Frame moving_frame;
     // The velocity of the moving frame along the shared positive x axis of the rest frame, as a
     // fraction of c. A negative value points along the negative x axis and is accepted.
     Quantity boost;
@@ -110,7 +110,7 @@ struct RelativityOutput {
     Quantity quantity;
     std::string value_text;
     std::string unit_text;
-    std::string frame;
+    Frame frame;
 };
 
 struct RelativityResult {
