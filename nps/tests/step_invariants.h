@@ -150,10 +150,24 @@ struct EquivalenceReport {
 // so a rewrite that only holds on integers cannot pass by choosing its own points.
 const size_t kEquivalenceSamples = 6;
 
+// A direction argument can follow the approach point, so the child count is a floor.
+inline NodeId bound_limit_variable(const Arena &arena, NodeId id) {
+    if (id == kNoNode || id >= arena.node_count())
+        return kNoNode;
+    const Node &n = arena.at(id);
+    if (n.kind != Kind::Call || arena.text(id) != "limit")
+        return kNoNode;
+    const ChildView kids = arena.children(n);
+    if (kids.size() < 3 || arena.at(kids[1]).kind != Kind::Symbol)
+        return kNoNode;
+    return kids[1];
+}
+
 // The symbols a comparison is about. A unit's name is the first argument of the unit() call that
 // carries it, and that argument is a label rather than a free variable: cm^3 becoming m^3 is the
-// conversion working rather than a symbol appearing from nowhere. Everything else is collected the
-// way collect_symbols collects it.
+// conversion working rather than a symbol appearing from nowhere. A limit's variable is bound, so
+// it is not a free symbol of the side either. Everything else is collected the way collect_symbols
+// collects it.
 inline void collect_value_symbols(const Arena &arena, NodeId id, std::vector<std::string> *out) {
     if (id == kNoNode || id >= arena.node_count())
         return;
@@ -163,13 +177,50 @@ inline void collect_value_symbols(const Arena &arena, NodeId id, std::vector<std
             out->push_back(arena.text(id));
         return;
     }
-    const bool unit_call = n.kind == Kind::Call && arena.text(id) == "unit";
     const ChildView kids = arena.children(id);
+    const NodeId bound = bound_limit_variable(arena, id);
+    if (bound != kNoNode) {
+        std::vector<std::string> body;
+        collect_value_symbols(arena, kids[0], &body);
+        const std::string name = arena.text(bound);
+        for (size_t i = 0; i < body.size(); ++i) {
+            if (body[i] != name && std::find(out->begin(), out->end(), body[i]) == out->end())
+                out->push_back(body[i]);
+        }
+        for (size_t i = 2; i < kids.size(); ++i)
+            collect_value_symbols(arena, kids[i], out);
+        return;
+    }
+    const bool unit_call = n.kind == Kind::Call && arena.text(id) == "unit";
     for (size_t i = 0; i < kids.size(); ++i) {
         if (unit_call && i == 0)
             continue;
         collect_value_symbols(arena, kids[i], out);
     }
+}
+
+// Everything evaluate_rational reduces is continuous wherever it returns a value, so a body with a
+// value at the approach point has that value as its limit.
+inline bool value_at_limit_points(const Arena &arena, NodeId id, std::vector<SymbolValue> bound,
+                                  Rational *out) {
+    const NodeId variable = bound_limit_variable(arena, id);
+    if (variable == kNoNode)
+        return evaluate_rational(arena, id, bound, out);
+    const ChildView kids = arena.children(id);
+    Rational point;
+    if (!value_at_limit_points(arena, kids[2], bound, &point))
+        return false;
+    const std::string name = arena.text(variable);
+    size_t at = bound.size();
+    for (size_t i = 0; i < bound.size(); ++i) {
+        if (bound[i].symbol == name)
+            at = i;
+    }
+    if (at == bound.size())
+        bound.push_back({name, point});
+    else
+        bound[at].value = point;
+    return value_at_limit_points(arena, kids[0], bound, out);
 }
 
 inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, NodeId after) {
@@ -190,8 +241,24 @@ inline EquivalenceReport read_equivalence(const Arena &arena, NodeId before, Nod
     }
 
     const bool closed = left.empty();
+    if (closed) {
+        Rational before_value;
+        Rational after_value;
+        if (arena.failed() || !value_at_limit_points(arena, before, {}, &before_value) ||
+            !value_at_limit_points(arena, after, {}, &after_value))
+            return out;
+        out.evaluated = 1;
+        if (rational_equal(before_value, after_value)) {
+            out.reading = EquivalenceReading::Exact;
+            return out;
+        }
+        out.reading = EquivalenceReading::Disagreed;
+        out.disagreement = rational_text(before_value) + " against " + rational_text(after_value);
+        return out;
+    }
+
     const SampleAgreement agreement =
-        agrees_on_samples(arena, before, after, closed ? 1 : kEquivalenceSamples);
+        agrees_on_samples(arena, before, after, kEquivalenceSamples);
     out.evaluated = agreement.evaluated;
     out.disagreement = agreement.disagreement;
     if (!agreement.disagreement.empty())

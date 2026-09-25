@@ -1420,6 +1420,34 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "is the stronger of the two readings and is counted apart from it");
     }
     {
+        // #254. A limit head made the whole side unevaluable, so the number the rule produced here
+        // was never compared with anything.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "7").root, &broken, &pass);
+        t.evidence("VER-002",
+                   mentions(broken, "claims an equivalent expression and its two sides disagree") &&
+                       pass.equivalence_unevaluated() == 0,
+                   "a limit step whose after state is not the value its approach point gives is "
+                   "caught, where a head the evaluator cannot reduce used to decline the whole "
+                   "comparison");
+    }
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "6").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_exact() == 1 &&
+                    pass.equivalence_unevaluated() == 0,
+                "and the same limit against the value its approach point gives is settled exactly, "
+                "which is the control the caught row needs");
+    }
+    {
         // #244. An after state leaving free a symbol the before state never had is a family rather
         // than one expression, so a step claiming both is reported instead of being counted and
         // left alone. Sampling would give C a value the left side never carried and report a
