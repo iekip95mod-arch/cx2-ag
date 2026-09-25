@@ -87,7 +87,7 @@ export function pullNumber(eventPath) {
 // base to diff against. Asking git was the first version of this and it failed on every pull request
 // while passing locally, because a development checkout has the history that a CI one does not.
 // GitHub already knows which files a pull request touches and answers without any history at all.
-async function fromGitHub(repo, number, token) {
+export async function fromGitHub(repo, number, token) {
   const files = [];
   for (let page = 1; ; page++) {
     const url = `https://api.github.com/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`;

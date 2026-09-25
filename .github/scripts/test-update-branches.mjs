@@ -90,8 +90,7 @@ test('branch updates use trusted main scripts and share the executor branch lock
   const path = fileURLToPath(new URL('../workflows/update-branches.yml', import.meta.url));
   const workflow = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', path], { encoding: 'utf8' }));
   const events = workflow.on ?? workflow.true;
-  assert.deepEqual(events.push.branches, ['main']);
-  assert.ok(events.pull_request_target.types.includes('synchronize'));
+  assert.deepEqual(events, { workflow_dispatch: null });
   for (const job of Object.values(workflow.jobs)) for (const step of job.steps) {
     if (step.uses?.startsWith('actions/checkout')) assert.deepEqual(step.with, { ref: 'main', 'persist-credentials': false });
   }
@@ -251,7 +250,7 @@ test('a completed check re-examines only its own pull request, so a branch that 
   const path = fileURLToPath(new URL('../workflows/update-branches.yml', import.meta.url));
   const workflow = JSON.parse(execFileSync('ruby', ['-ryaml', '-rjson', '-e', 'puts JSON.generate(YAML.load_file(ARGV[0]))', path], { encoding: 'utf8' }));
   const events = workflow.on ?? workflow.true;
-  assert.deepEqual(events.workflow_run, { workflows: ['check'], types: ['completed'] });
+  assert.equal(events.workflow_run, undefined);
   const discover = workflow.jobs.discover;
   assert.ok(discover.if.includes("github.event_name != 'workflow_run' || github.event.workflow_run.pull_requests[0] != null"));
   assert.ok(discover.if.includes("github.event.pull_request.head.repo.full_name == github.repository"));

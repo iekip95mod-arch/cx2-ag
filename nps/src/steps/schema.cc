@@ -118,6 +118,40 @@ const ObligationSchema kCasesAreComplete[] = {
      "every real value satisfying the equation is one of the cases recorded", kSplitIsComplete, 2},
 };
 
+// algebra.quadratic.formula.one-unknown. The degree bound is a precondition, not a detail of how.
+const EvidenceAlternative kDegreeBoundAndInterpolation[] = {
+    {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaStrategy[] = {
+    {"pre.quadratic.degree-two", "the equation is a polynomial of degree two in the unknown over "
+     "the rationals", kDegreeBoundAndInterpolation, 1},
+    {"pre.quadratic.exact-discriminant-root",
+     "the discriminant has an exact rational square root or is negative", kExactSquareRoot, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+
+const EvidenceAlternative kDiscriminantArithmetic[] = {
+    {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kDiscriminantDecides[] = {
+    {"obl.quadratic.discriminant-decides",
+     "the sign of the discriminant decides how many real roots the equation has",
+     kDiscriminantArithmetic, 1},
+};
+
+const EvidenceAlternative kCollectedPolynomialIsZero[] = {
+    {"exact evaluation of the collected polynomial", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaCaseIsARoot[] = {
+    {"obl.quadratic.formula-case-is-a-root",
+     "this case makes a*x^2 + b*x + c zero at the coefficients that were read",
+     kCollectedPolynomialIsZero, 1},
+};
+
 // Every rewriting rule in the two calculus engines carries the same obligation and discharges it
 // the same way, through the rule_invariant helper each file has. It is one schema rather than
 // twenty because it is one obligation: the rule rewrote a subexpression into one with the same
@@ -192,6 +226,15 @@ const ObligationSchema kLimitClassification[] = {
 };
 const EvidenceAlternative kCalculusGiacEvidence[] = {
     {"Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const EvidenceAlternative kDerivativeCrossCheckEvidence[] = {
+    {"Giac Adapter Op::Differentiate compared after canonicalization",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
+};
+const ObligationSchema kDerivativeCrossCheck[] = {
+    {"obl.differentiate.matches-backend",
+     "the derivative the rules produced is the derivative Giac produces",
+     kDerivativeCrossCheckEvidence, 1},
 };
 const EvidenceAlternative kTangentAgreementEvidence[] = {
     {"exact evaluation at the point and one unit away",
@@ -385,7 +428,7 @@ const EvidenceAlternative kModelValidation[] = {
     {"problem-family model validation", EvidenceStrength::StructurallyValid},
 };
 const EvidenceAlternative kRouteSearch[] = {
-    {"exact route search through the linear solver", EvidenceStrength::StructurallyValid},
+    {"exact route search through the solving rules", EvidenceStrength::StructurallyValid},
 };
 const ObligationSchema kKinematicsStrategy[] = {
     {"pre.kinematics.constant-acceleration", "acceleration is constant over the interval",
@@ -429,6 +472,104 @@ const ObligationSchema kRoundingWithinHalfPlace[] = {
     {"obl.kinematics.rounding-within-half-place",
      "the reported value is within half a unit in the last place of the exact one",
      kUnroundedComparison, 1},
+};
+const EvidenceAlternative kStatedConditionComparison[] = {
+    {"exact comparison against the stated condition", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSelectedRootIsAdmissible[] = {
+    {"obl.kinematics.selected-root-is-admissible",
+     "the value reported is the only root the stated condition allows", kStatedConditionComparison,
+     1},
+};
+
+const EvidenceAlternative kForcesArrangement[] = {
+    {"arrangement check", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kForcesAngle[] = {
+    {"trigonometric identity", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kForcesDeclaration[] = {
+    {"declaration check", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kForcesStrategy[] = {
+    {"pre.forces.single-body", "exactly one body carries the force inventory",
+     kForcesArrangement, 1},
+    {"pre.forces.exact-angle", "the incline angle has an exact sine and cosine", kForcesAngle, 1},
+    {"pre.forces.input-dimensions", "every supplied quantity has its required dimension",
+     kDimensionalAnalysis, 1},
+    {"pre.forces.friction-declared",
+     "the friction model and, for kinetic friction, the direction of motion are declared",
+     kForcesDeclaration, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kForcesInputDimensions[] = {
+    {"obl.forces.input-dimensions", "every supplied quantity carries its required dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kForcesExactAngle[] = {
+    {"obl.forces.exact-angle", "the angle's sine and cosine are exact rationals", kForcesAngle, 1},
+};
+const EvidenceAlternative kForcesExactProduct[] = {
+    {"exact rational product", EvidenceStrength::DimensionallyValid},
+};
+const ObligationSchema kForcesWeightComponents[] = {
+    {"obl.forces.weight-components",
+     "weight is mass times gravity and its components are its exact incline projections",
+     kForcesExactProduct, 1},
+};
+const EvidenceAlternative kForcesAcrossAxis[] = {
+    {"exact across-axis sum", EvidenceStrength::DimensionallyValid},
+};
+const ObligationSchema kForcesNormalFromBalance[] = {
+    {"obl.forces.normal-from-balance", "the normal force makes the exact across-axis sum zero",
+     kForcesAcrossAxis, 1},
+};
+const EvidenceAlternative kForcesPairComparison[] = {
+    {"inventory and pair comparison", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kForcesPairsSeparate[] = {
+    {"obl.forces.pairs-separate", "no third-law reaction appears in the inventory of this body",
+     kForcesPairComparison, 1},
+};
+const EvidenceAlternative kForcesStaticLimit[] = {
+    {"exact comparison of required friction against mu_s N", EvidenceStrength::DimensionallyValid},
+};
+const ObligationSchema kForcesStaticWithinLimit[] = {
+    {"obl.forces.static-within-limit",
+     "the friction equilibrium requires does not exceed mu_s N", kForcesStaticLimit, 1},
+};
+const ObligationSchema kForcesKineticFriction[] = {
+    {"obl.forces.kinetic-friction",
+     "kinetic friction has magnitude mu_k N and points opposite the declared motion",
+     kForcesExactProduct, 1},
+};
+const EvidenceAlternative kForcesExactRearrangement[] = {
+    {"exact rearrangement", EvidenceStrength::DimensionallyValid},
+};
+const ObligationSchema kForcesUnknownIsolated[] = {
+    {"obl.forces.unknown-isolated",
+     "exact rearrangement isolates the requested unknown from its force-balance equation",
+     kForcesExactRearrangement, 1},
+};
+const EvidenceAlternative kForcesResidualEvidence[] = {
+    {"exact substitution into the along-axis sum",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kForcesResidualZero[] = {
+    {"obl.forces.residual-zero", "the along-axis force sum minus m a is exactly zero",
+     kForcesResidualEvidence, 1},
+};
+const ObligationSchema kForcesResultDimension[] = {
+    {"obl.forces.result-dimension", "the reported answer has the dimension its unit claims",
+     kDimensionalAnalysis, 1},
+};
+const EvidenceAlternative kZeroFactorInvariant[] = {
+    {"rule-local invariant", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kZeroFactorEliminatesTerm[] = {
+    {"obl.physics.zero-factor-eliminates-term", "a product with a zero factor equals zero",
+     kZeroFactorInvariant, 1},
 };
 
 // catch-up
@@ -522,6 +663,130 @@ const ObligationSchema kLookupPreservesSolutions[] = {
     {"obl.physics.lookup-preserves-solutions",
      "the value put in place of a symbol is the one the problem declared for it",
      kKnownQuantityLookup, 1},
+};
+
+// Relation-driven families, whose obligation ids embed the model's own rule prefix.
+const EvidenceAlternative kRelationPositionModel[] = {
+    {"registered relation-position model", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kCircularPeriodStrategy[] = {
+    {"physics.circular-motion.period.compatible-dimensions",
+     "every quantity in T = 2*pi*r*v^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.period.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularPeriodDimensions[] = {
+    {"physics.circular-motion.period.dimensions-agree",
+     "both sides of T = 2*pi*r*v^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularPeriodCandidate[] = {
+    {"physics.circular-motion.period.candidate-satisfies",
+     "the candidate satisfies T = 2*pi*r*v^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularSpeedStrategy[] = {
+    {"physics.circular-motion.speed.compatible-dimensions",
+     "every quantity in v = 2*pi*r*T^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.speed.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularSpeedDimensions[] = {
+    {"physics.circular-motion.speed.dimensions-agree",
+     "both sides of v = 2*pi*r*T^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularSpeedCandidate[] = {
+    {"physics.circular-motion.speed.candidate-satisfies",
+     "the candidate satisfies v = 2*pi*r*T^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularRadiusStrategy[] = {
+    {"physics.circular-motion.radius.compatible-dimensions",
+     "every quantity in r = (1/(2*pi))*v*T uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.radius.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularRadiusDimensions[] = {
+    {"physics.circular-motion.radius.dimensions-agree",
+     "both sides of r = (1/(2*pi))*v*T have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularRadiusCandidate[] = {
+    {"physics.circular-motion.radius.candidate-satisfies",
+     "the candidate satisfies r = (1/(2*pi))*v*T", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularAccelerationStrategy[] = {
+    {"physics.circular-motion.acceleration.compatible-dimensions",
+     "every quantity in a = v^2*r^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.acceleration.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularAccelerationDimensions[] = {
+    {"physics.circular-motion.acceleration.dimensions-agree",
+     "both sides of a = v^2*r^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularAccelerationCandidate[] = {
+    {"physics.circular-motion.acceleration.candidate-satisfies",
+     "the candidate satisfies a = v^2*r^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kGravitationStrategy[] = {
+    {"physics.gravitation.compatible-dimensions",
+     "every quantity in F = G*m1*m2*r^-2 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.gravitation.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kGravitationDimensions[] = {
+    {"physics.gravitation.dimensions-agree",
+     "both sides of F = G*m1*m2*r^-2 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kGravitationCandidate[] = {
+    {"physics.gravitation.candidate-satisfies", "the candidate satisfies F = G*m1*m2*r^-2",
+     kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kOscillationStrategy[] = {
+    {"physics.oscillation.compatible-dimensions",
+     "every quantity in F = k*x uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.oscillation.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kOscillationDimensions[] = {
+    {"physics.oscillation.dimensions-agree", "both sides of F = k*x have the same dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kOscillationCandidate[] = {
+    {"physics.oscillation.candidate-satisfies", "the candidate satisfies F = k*x",
+     kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kWaveStrategy[] = {
+    {"physics.wave.compatible-dimensions",
+     "every quantity in v = f*lambda uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.wave.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kWaveDimensions[] = {
+    {"physics.wave.dimensions-agree", "both sides of v = f*lambda have the same dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kWaveCandidate[] = {
+    {"physics.wave.candidate-satisfies", "the candidate satisfies v = f*lambda",
+     kSubstituteOriginalRelation, 1},
 };
 
 // modern
@@ -627,6 +892,37 @@ const ObligationSchema kRelativeDefinitionAfterChecks[] = {
 const ObligationSchema kRelativeDirection[] = {
     {"obl.relative-motion.direction-interpreted",
      "the relative velocity direction follows both component signs", kExactRationalSign, 1},
+};
+const EvidenceAlternative kRelativeBearingEvidence[] = {
+    {"nearest cardinal by component magnitude", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kRelativeBearingConvention[] = {
+    {"obl.relative-motion.bearing-convention-stated",
+     "the reported angle names both the cardinal it starts from and the one it turns toward",
+     kRelativeBearingEvidence, 1},
+};
+const EvidenceAlternative kRelativeSubscriptEvidence[] = {
+    {"subscript chain", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kRelativeSubscriptCancellation[] = {
+    {"obl.relative-motion.subscript-cancellation",
+     "the inner subscript cancels between the two added velocities", kRelativeSubscriptEvidence, 1},
+};
+const EvidenceAlternative kRelativeIsolationEvidence[] = {
+    {"symbolic rearrangement of the subscript identity", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kRelativeIsolation[] = {
+    {"obl.relative-motion.isolate-before-substitute",
+     "the unknown is isolated symbolically before a number is substituted",
+     kRelativeIsolationEvidence, 1},
+};
+const EvidenceAlternative kRelativeRoundingEvidence[] = {
+    {"exact comparison against the unrounded value", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kRelativeRounding[] = {
+    {"obl.relative-motion.rounding-within-half-place",
+     "the reported value is within half a unit in its last place of the exact value",
+     kRelativeRoundingEvidence, 1},
 };
 const ObligationSchema kConvertsByTable[] = {
     {"obl.physics.converts-by-table",
@@ -734,6 +1030,14 @@ const ObligationSchema kDotIsTheDefinition[] = {
 const ObligationSchema kWorkSign[] = {
     {"obl.work.sign-interpreted", "the work sign is interpreted from the exact value",
      kExactRationalSign, 1},
+};
+const EvidenceAlternative kWorkBackendEvidence[] = {
+    {"Giac Adapter Op::Dot and local canonical comparison",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kWorkBackendAgreement[] = {
+    {"obl.work.backend-agrees", "Giac's Op::Dot result equals the local result",
+     kWorkBackendEvidence, 1},
 };
 const EvidenceAlternative kHalfPlaceComparison[] = {
     {"exact half-place comparison", EvidenceStrength::CandidateChecked},
@@ -1050,6 +1354,16 @@ const ObligationSchema kScalarProductBound[] = {
 const EvidenceAlternative kExactSignComparison[] = {
     {"exact sign comparison", EvidenceStrength::CandidateChecked},
 };
+// The slack in the comparison above is the square of the cross-product magnitude, so the angle is
+// atan2 of two exact numbers rather than an inverse cosine no exact rational route reaches.
+const EvidenceAlternative kBackendAngleIdentity[] = {
+    {"Giac atan2 against the exact Cauchy-Schwarz slack",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kScalarProductMeasuredAngle[] = {
+    {"obl.scalar-product.angle-satisfies-definition",
+     "the reported angle satisfies a b cos(phi) = a . b", kBackendAngleIdentity, 1},
+};
 const ObligationSchema kScalarProductAngle[] = {
     {"obl.scalar-product.angle-from-sign",
      "the sign of the scalar product places the angle against a right angle", kExactSignComparison,
@@ -1320,10 +1634,24 @@ const RuleSchema kRules[] = {
     {"eq.quadratic.cases-reconstruct-the-original", ClaimType::SolutionSetPreserved,
      kCasesAreComplete, 1, FailureBehavior::WithholdResult},
 
+    // algebra.quadratic.formula.one-unknown. A wrong discriminant misreports how many roots exist.
+    {"eq.quadratic.formula", ClaimType::NoClaim, kFormulaStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.standard-form", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
+     FailureBehavior::CannotFail},
+    {"eq.quadratic.discriminant", ClaimType::NoClaim, kDiscriminantDecides, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.formula-case", ClaimType::SolutionSetNarrowed, kFormulaCaseIsARoot, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.reject-negative-discriminant", ClaimType::SolutionSetPreserved,
+     kRejectedCaseIsInfeasible, 1, FailureBehavior::CannotFail},
+
     // calculus.differentiate. Every rule below records its invariant unconditionally, which is what
     // CannotFail says: the rule matched the form or it was never reached, so there is no run in
     // which it applies and disagrees with itself.
     {"calculus.differentiate.rules", ClaimType::NoClaim, kDifferentiateStrategy, 2,
+     FailureBehavior::WithholdResult},
+    {"calculus.differentiate.giac-cross-check", ClaimType::NoClaim, kDerivativeCrossCheck, 1,
      FailureBehavior::WithholdResult},
     {"d.chain", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
@@ -1360,7 +1688,8 @@ const RuleSchema kRules[] = {
     {"calculus.check-giac", ClaimType::EquivalentExpression, kCalculusGiac, 1, FailureBehavior::WithholdResult},
 
     // calculus.tangent-line, CALC-010
-    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    // The point value outlives a refusal, and no refusal is reachable once the slope is recorded.
+    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
     {"tangent.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
@@ -1476,6 +1805,35 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"kin.significant-figures", ClaimType::NoClaim, kRoundingWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
+    // Dropping the root the problem did not ask about without saying why is what this prevents.
+    {"kin.select-physical-root", ClaimType::SolutionSetNarrowed, kSelectedRootIsAdmissible, 1,
+     FailureBehavior::WithholdResult},
+    {"kin.coupled.handover", ClaimType::NoClaim, nullptr, 0, FailureBehavior::CannotFail},
+
+    {"physics.forces.plan", ClaimType::NoClaim, kForcesStrategy, 5,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.check-input-dimensions", ClaimType::Definition, kForcesInputDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.check-angle", ClaimType::Definition, kForcesExactAngle, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.weight", ClaimType::EquivalentExpression, kForcesWeightComponents, 1,
+     FailureBehavior::CannotFail},
+    {"physics.forces.normal-force", ClaimType::SolutionSetPreserved, kForcesNormalFromBalance, 1,
+     FailureBehavior::CannotFail},
+    {"physics.forces.third-law-pairs", ClaimType::Definition, kForcesPairsSeparate, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.kinetic-friction", ClaimType::EquivalentExpression, kForcesKineticFriction, 1,
+     FailureBehavior::CannotFail},
+    {"physics.forces.static-friction-limit", ClaimType::Definition, kForcesStaticWithinLimit, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.solve-unknown", ClaimType::SolutionSetPreserved, kForcesUnknownIsolated, 1,
+     FailureBehavior::CannotFail},
+    {"physics.forces.check-residual", ClaimType::Definition, kForcesResidualZero, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.forces.check-result-dimension", ClaimType::Definition, kForcesResultDimension, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.term-vanishes", ClaimType::EquivalentExpression, kZeroFactorEliminatesTerm, 1,
+     FailureBehavior::CannotFail},
 
     // physics.kinematics.catch-up.equal-position
     {"physics.catch-up.constant-velocity", ClaimType::NoClaim, kCatchUpStrategy, 4,
@@ -1509,6 +1867,78 @@ const RuleSchema kRules[] = {
     {"physics.density.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
+    // physics.circular-motion.uniform, one rule prefix per unknown plus the acceleration's own.
+    {"physics.circular-motion.period.definition", ClaimType::NoClaim, kCircularPeriodStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.check-dimensions", ClaimType::Definition,
+     kCircularPeriodDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.check-candidate", ClaimType::Implication,
+     kCircularPeriodCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.definition", ClaimType::NoClaim, kCircularSpeedStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.check-dimensions", ClaimType::Definition,
+     kCircularSpeedDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.check-candidate", ClaimType::Implication,
+     kCircularSpeedCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.definition", ClaimType::NoClaim, kCircularRadiusStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.check-dimensions", ClaimType::Definition,
+     kCircularRadiusDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.check-candidate", ClaimType::Implication,
+     kCircularRadiusCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.definition", ClaimType::NoClaim,
+     kCircularAccelerationStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.check-dimensions", ClaimType::Definition,
+     kCircularAccelerationDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.check-candidate", ClaimType::Implication,
+     kCircularAccelerationCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+
+    // physics.gravitation.point-masses
+    {"physics.gravitation.definition", ClaimType::NoClaim, kGravitationStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.gravitation.check-dimensions", ClaimType::Definition, kGravitationDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.gravitation.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions,
+     1, FailureBehavior::WithholdResult},
+    {"physics.gravitation.check-candidate", ClaimType::Implication, kGravitationCandidate, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.oscillation.restoring-force
+    {"physics.oscillation.definition", ClaimType::NoClaim, kOscillationStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.oscillation.check-dimensions", ClaimType::Definition, kOscillationDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.oscillation.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions,
+     1, FailureBehavior::WithholdResult},
+    {"physics.oscillation.check-candidate", ClaimType::Implication, kOscillationCandidate, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.wave.speed-frequency-wavelength
+    {"physics.wave.definition", ClaimType::NoClaim, kWaveStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.check-dimensions", ClaimType::Definition, kWaveDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.check-candidate", ClaimType::Implication, kWaveCandidate, 1,
+     FailureBehavior::WithholdResult},
+
     // physics.modern.photon-wavelength, physics.modern.photoelectric and
     // physics.modern.mass-energy. One plan rule each, and one shared set of steps after it.
     {"physics.modern.planck-relation", ClaimType::NoClaim, kModernStrategy, 3,
@@ -1525,6 +1955,10 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.modern.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
+
+    {"physics.ranking.criterion", ClaimType::NoClaim, nullptr, 0,
+     FailureBehavior::WithholdResult},
+    {"physics.ranking.order", ClaimType::NoClaim, nullptr, 0, FailureBehavior::WithholdResult},
 
     // physics.relativity.time-dilation, physics.relativity.length-contraction,
     // physics.relativity.lorentz-transformation, physics.relativity.velocity-addition and
@@ -1568,6 +2002,14 @@ const RuleSchema kRules[] = {
     {"physics.relative-motion.substitute", ClaimType::SolutionSetPreserved,
      kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
     {"physics.relative-motion.interpret-direction", ClaimType::Definition, kRelativeDirection, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.relative-motion.bearing-convention", ClaimType::Definition,
+     kRelativeBearingConvention, 1, FailureBehavior::WithholdResult},
+    {"physics.relative-motion.subscript-cancellation", ClaimType::Definition,
+     kRelativeSubscriptCancellation, 1, FailureBehavior::WithholdResult},
+    {"physics.relative-motion.isolate-unknown", ClaimType::EquivalentExpression,
+     kRelativeIsolation, 1, FailureBehavior::CannotFail},
+    {"physics.relative-motion.significant-figures", ClaimType::NoClaim, kRelativeRounding, 1,
      FailureBehavior::WithholdResult},
 
     // physics.optics
@@ -1662,6 +2104,8 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.work.interpret-sign", ClaimType::Definition, kWorkSign, 1,
      FailureBehavior::WithholdResult},
+    {"physics.work.giac-cross-check", ClaimType::Definition, kWorkBackendAgreement, 1,
+     FailureBehavior::WithholdResult},
     {"physics.work.significant-figures", ClaimType::NoClaim, kWorkRounding, 1,
      FailureBehavior::WithholdResult},
 
@@ -1748,6 +2192,8 @@ const RuleSchema kRules[] = {
     {"vec.dot.check-magnitude-bound", ClaimType::Definition, kScalarProductBound, 1,
      FailureBehavior::WithholdResult},
     {"vec.dot.interpret-angle", ClaimType::Definition, kScalarProductAngle, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.measure-angle", ClaimType::Definition, kScalarProductMeasuredAngle, 1,
      FailureBehavior::WithholdResult},
     // The reporting step raises the half-place obligation and nothing else: the value it reports is
     // one the steps above already verified.

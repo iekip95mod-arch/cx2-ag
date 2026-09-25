@@ -184,11 +184,24 @@ bool context_known(const std::string &field) {
     return !field.empty() && field != kContextUnknown;
 }
 
+#if NPS_FAMILY_CENSUS
+std::set<std::string> &mutable_family_census() {
+    static std::set<std::string> seen;
+    return seen;
+}
+
+const std::set<std::string> &family_census() { return mutable_family_census(); }
+#endif
+
 SolutionContext make_context(const ContextInputs &inputs) {
     SolutionContext context;
     context.application_version = recorded(inputs.application_version);
     context.capability_manifest_id = capability_manifest_id();
     context.problem_family_id = recorded(inputs.problem_family_id);
+#if NPS_FAMILY_CENSUS
+    if (context_known(context.problem_family_id))
+        mutable_family_census().insert(context.problem_family_id);
+#endif
     // Nothing versions a problem family envelope either.
     context.problem_family_envelope_version = kContextUnknown;
     context.normalized_problem_model = inputs.normalized_problem_model;

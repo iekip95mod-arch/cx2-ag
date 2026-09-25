@@ -1631,17 +1631,13 @@ case derivative.adversarial.denominator-that-folds-to-one
   expect differentiated
   result 1
 
-# The third corner, where the zero is symbolic rather than written out. canonicalize still does not
-# gather like terms, so this one is settled by the condition the reciprocal raises rather than by the
-# divisor fold: a - a can never be non-zero, so the condition cannot be met and there is nothing to
-# differentiate. It reached the guard's other branch, which is why the case is here and not beside
-# the two above.
+# Symbolic cancellation must expose the zero divisor before differentiation.
 case derivative.adversarial.symbolic-denominator-that-cancels
   family derivative
   input x/(a-a)
   variable x
   expect unsupported form
-  detail the expression is undefined here, so there is nothing to differentiate
+  detail the expression divides by zero, which has no value to differentiate
 
 case derivative.sum.variable-less-itself
   family derivative

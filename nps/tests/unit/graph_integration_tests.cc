@@ -47,6 +47,19 @@ struct Run {
 
 bool cancel_now(void *) { return true; }
 
+const char kFamily[] = "physics.kinematics.motion-graphs.piecewise-area";
+
+std::string family(const Run &run) { return run.derivation.context.problem_family_id; }
+
+GraphIntegrationProblem acceleration_problem(const char *start, const char *end) {
+    GraphIntegrationProblem p;
+    p.reading = GraphIntegrationReading::AccelerationToVelocity;
+    p.curve_dimension = acceleration_dim();
+    p.interval_start = parsed_quantity(start);
+    p.interval_end = parsed_quantity(end);
+    return p;
+}
+
 }  // namespace
 
 // Issue 377: chapter 2's six passages on reading area off an a(t) or v(t) curve. Every case
@@ -69,6 +82,8 @@ void run_graph_integration_tests(TestSink &t) {
                "a single constant-acceleration segment solves");
         t.equal(rational_text(solved.result.change.value), "20",
                "the area of a constant 4 m/s^2 held for 5 s is 20 m/s");
+        t.equal(family(solved), kFamily,
+               "a solved area records its own family rather than the nested integral's");
         t.equal(solved.result.change.unit.text, "m/s",
                "an acceleration curve's area is reported in m/s");
     }
@@ -133,6 +148,8 @@ void run_graph_integration_tests(TestSink &t) {
         Run refused(p);
         t.equal(graph_integration_outcome_name(refused.result.outcome), "invalid input",
                "a zero-duration interval is refused rather than dividing by zero");
+        t.equal(family(refused), kFamily,
+               "a zero-duration refusal records the family");
         t.check(refused.result.detail.find("duration") != std::string::npos,
                "the refusal names the zero-duration interval");
     }
@@ -148,6 +165,8 @@ void run_graph_integration_tests(TestSink &t) {
         Run refused(p);
         t.equal(graph_integration_outcome_name(refused.result.outcome), "dimension mismatch",
                "a curve declared in the wrong dimension for the reading is refused");
+        t.equal(family(refused), kFamily,
+               "a curve dimension refusal records the family");
     }
     {
         // The segments leave a gap in the middle of the requested interval.
@@ -161,6 +180,8 @@ void run_graph_integration_tests(TestSink &t) {
         Run refused(p);
         t.equal(graph_integration_outcome_name(refused.result.outcome), "incomplete coverage",
                "a gap between segments is refused rather than skipped over");
+        t.equal(family(refused), kFamily,
+               "a gap refusal after a nested integral records the family");
     }
     {
         // The segments stop short of the interval's own end.
@@ -173,6 +194,8 @@ void run_graph_integration_tests(TestSink &t) {
         Run refused(p);
         t.equal(graph_integration_outcome_name(refused.result.outcome), "incomplete coverage",
                "segments that stop short of the interval's end are refused");
+        t.equal(family(refused), kFamily,
+               "a short coverage refusal records the family");
     }
     {
         // A meter already cancelled on entry halts the first integrate_particular() call.
@@ -187,6 +210,78 @@ void run_graph_integration_tests(TestSink &t) {
         Run cancelled(p, budget);
         t.equal(graph_integration_outcome_name(cancelled.result.outcome), "cancelled",
                "a cancelled meter reports cancellation instead of an answer");
+        t.equal(family(cancelled), kFamily,
+               "a cancelled solve records the family");
+    }
+    {
+        // Control. A fresh derivation names no family, and the nested integral engine names its
+        // own, so the rows above can only pass when this family stamps itself last.
+        Derivation fresh;
+        t.check(fresh.context.problem_family_id != kFamily,
+               "a derivation nobody solved does not already name the family");
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        p.segments.push_back(segment("0 s", "5 s", "4"));
+        Run solved(p);
+        t.check(solved.derivation.size() > 0,
+               "the nested integral engine recorded steps into the same derivation");
+        t.check(family(solved) != "calculus.integral.indefinite.single-variable",
+               "the nested integral engine's family does not survive as the answer's family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 m", "5 s");
+        p.segments.push_back(segment("0 s", "5 s", "4"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "dimension mismatch",
+               "an interval bound that is not a time is refused");
+        t.equal(family(refused), kFamily, "an interval bound refusal records the family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "incomplete coverage",
+               "no segments at all is refused");
+        t.equal(family(refused), kFamily, "an empty segment list refusal records the family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        p.segments.push_back(segment("0 m", "5 s", "4"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "dimension mismatch",
+               "a segment bound that is not a time is refused");
+        t.equal(family(refused), kFamily, "a segment bound refusal records the family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        p.segments.push_back(segment("5 s", "0 s", "4"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "invalid input",
+               "a segment written backwards is refused");
+        t.equal(family(refused), kFamily, "a backwards segment refusal records the family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        p.segments.push_back(segment("0 s", "5 s", "4 +"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "invalid input",
+               "an unparseable curve is refused");
+        t.equal(family(refused), kFamily, "an unparseable curve refusal records the family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("0 s", "5 s");
+        p.segments.push_back(segment("0 s", "5 s", "t^t"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "unsupported form",
+               "a curve the integral engine cannot integrate is refused");
+        t.equal(family(refused), kFamily,
+               "a refusal inside the nested integral engine still records this family");
+    }
+    {
+        GraphIntegrationProblem p = acceleration_problem("1 s", "2 s");
+        p.segments.push_back(segment("1 s", "2 s", "1/t"));
+        Run refused(p);
+        t.equal(graph_integration_outcome_name(refused.result.outcome), "unsupported form",
+               "an antiderivative with no exact rational value at its bounds is refused");
+        t.equal(family(refused), kFamily, "an inexact bound value refusal records the family");
     }
 }
 

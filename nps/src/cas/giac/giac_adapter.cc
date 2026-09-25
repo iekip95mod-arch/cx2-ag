@@ -490,8 +490,9 @@ Response Adapter::interpret(const Request &request, const std::string &raw) {
     // failing. Giac's other interruption message names a stack overflow as an alternative cause and
     // cannot say which happened, so a message wearing both readings is decided by the caller's
     // keypad poll: it says the learner asked, or nothing does and the resource reading stands.
+    // The integer routines spell the same stop as the bare word, wrapped in a bad argument text.
     const bool interruption =
-        mentions(text, "user interruption") || mentions(text, "Interrupted by user");
+        mentions(text, "user interruption") || mentions(text, "Interrupted");
     const bool resource = mentions(text, "Not enough memory") || mentions(text, "stack overflow") ||
                           mentions(text, "Recursion");
     if (resource && !(interruption && backend_.stop_requested())) {

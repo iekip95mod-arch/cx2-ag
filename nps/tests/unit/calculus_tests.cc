@@ -42,6 +42,43 @@ class CalculusBackend : public Backend {
 }
 
 void run_calculus_tests(TestSink &t) {
+    const auto records_verified_rule = [](const Derivation &derivation, const char *rule_id) {
+        for (size_t index = 0; index < derivation.size(); ++index) {
+            const Step &step = derivation.at(static_cast<StepId>(index));
+            if (step.rule_id == rule_id && step.verified())
+                return true;
+        }
+        return false;
+    };
+    const auto records_verified_transformation = [](const Derivation &derivation,
+                                                     const char *rule_id) {
+        for (size_t index = 0; index < derivation.size(); ++index) {
+            const StepId id = static_cast<StepId>(index);
+            const Step &step = derivation.at(id);
+            if (step.rule_id == rule_id && step.verified() && derivation.transformation(id))
+                return true;
+        }
+        return false;
+    };
+    const auto records_restriction = [](const Derivation &derivation, const char *restriction) {
+        for (size_t index = 0; index < derivation.size(); ++index)
+            for (const std::string &recorded :
+                 derivation.at(static_cast<StepId>(index)).domain_restrictions)
+                if (recorded == restriction)
+                    return true;
+        return false;
+    };
+    bool calc005_walkthrough = false;
+    bool calc005_equal_bounds = false;
+    bool calc005_reversed_bounds = false;
+    bool calc005_equal_singularity_refused = false;
+    bool calc005_singular_interval_refused = false;
+    bool calc005_improper_refused = false;
+    bool calc006_substitution = false;
+    bool calc006_parts = false;
+    bool calc010_tangent = false;
+    bool calc010_linearization = false;
+
     for (const auto &fixture : {
              std::pair{"defint_polynomial", "int(x^2,x,0,1)"},
              std::pair{"defint_zero_width", "int(x,x,2,2)"},
@@ -58,6 +95,19 @@ void run_calculus_tests(TestSink &t) {
         derivation.request.original_expression = fixture.second;
         const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, fixture.second, "x"));
         t.check(result.status == DerivationStatus::SolvedAndVerified, "every calculus golden records a completed derivation");
+        if (std::string(fixture.first) == "defint_polynomial")
+            calc005_walkthrough = result.status == DerivationStatus::SolvedAndVerified &&
+                records_verified_rule(derivation, "defint.interval") &&
+                records_verified_rule(derivation, "calculus.integrate.check-by-differentiation") &&
+                records_verified_rule(derivation, "defint.fundamental-theorem") &&
+                records_verified_rule(derivation, "defint.subtract");
+        if (std::string(fixture.first) == "defint_zero_width")
+            calc005_equal_bounds = result.status == DerivationStatus::SolvedAndVerified &&
+                records_verified_rule(derivation, "defint.interval") &&
+                records_verified_rule(derivation, "defint.zero-width");
+        if (std::string(fixture.first) == "defint_elementary")
+            calc006_substitution =
+                records_verified_transformation(derivation, "i.linear-substitution");
         const std::string answer = result.value != kNoNode ? print(arena, result.value)
             : result.does_not_exist ? "does not exist" : result.infinity > 0 ? "+infinity" : "-infinity";
         check_golden(t, fixture.first, "problem: " + std::string(fixture.second) + "\nresult: " + answer + "\n" +
@@ -103,12 +153,24 @@ void run_calculus_tests(TestSink &t) {
                 "elementary integral golden records verified endpoints and a final answer");
         t.check(backend.complete() && result.backend_compared && result.agrees,
                 "elementary integral golden records the primitive identity and independent definite-integral comparison");
+        if (std::string(fixture.name) == "defint_logarithm_affine")
+            calc006_parts =
+                records_verified_transformation(derivation, "i.logarithm-parts");
+        if (std::string(fixture.name) == "defint_logarithm_reversed")
+            calc005_reversed_bounds = result.status == DerivationStatus::SolvedAndVerified &&
+                records_verified_rule(derivation, "defint.interval") &&
+                records_verified_rule(derivation, "defint.fundamental-theorem") &&
+                records_verified_rule(derivation, "defint.subtract") &&
+                records_restriction(derivation, "x > 0");
         const std::string answer = result.value == kNoNode ? "" : print(arena, result.value);
         check_golden(t, fixture.name, "problem: " + std::string(fixture.command) + "\nresult: " + answer + "\n" +
                      render_derivation(arena, derivation));
     }
     const Example examples[] = {
         {"int(x^2,x,0,1)", "1/3"}, {"int(3*x^2+2*x+1,x,-1,2)", "15"},
+        {"int(pi*(x-1)^2,x,0,2)", "2*pi/3"},
+        {"int(x^2,x,0,2)", "8/3"},
+        {"int(pi*(((4-y)/2)^2-(y/2)^2),y,0,2)", "4*pi"},
         {"int(x^2,x,1,0)", "-1/3"}, {"int(x^2,x,2,2)", "0"},
         {"int(2*t,t,1/2,3/2)", "2"}, {"int(5,x,-3,4)", "35"},
         {"int(1/x^2,x,1,2)", "1/2"},
@@ -189,6 +251,19 @@ void run_calculus_tests(TestSink &t) {
                                (broken.empty() ? "" : " " + broken.front()));
         t.check(derivation.context.original_expression == example.command,
                 "nested calculus retains the original requested command");
+    }
+    for (const auto &gathered : {std::pair{"int(pi*(x-1)^2,x,0,2)", "(2 * pi * (3^-1))"},
+                                 std::pair{"int(x^2,x,0,2)", "(8 * (3^-1))"},
+                                 std::pair{"int(pi*(((4-y)/2)^2-(y/2)^2),y,0,2)", "(4 * pi)"}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = gathered.first;
+        const CalculusResult result =
+            calculus_walkthrough(arena, derivation, parse_command(arena, gathered.first, "x"));
+        const std::string answer = result.value == kNoNode ? result.detail : print(arena, result.value);
+        t.check(result.status == DerivationStatus::SolvedAndVerified && answer == gathered.second,
+                std::string("a verified definite integral states its answer gathered: ") +
+                    gathered.first + " got " + answer);
     }
     {
         Arena arena;
@@ -290,8 +365,28 @@ void run_calculus_tests(TestSink &t) {
         Arena arena;
         Derivation derivation;
         const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "x"));
+        const bool explicit_refusal = result.value == kNoNode &&
+                                      result.status != DerivationStatus::SolvedAndVerified &&
+                                      !result.detail.empty();
+        if (std::string(text) == "int(1/x,x,0,0)")
+            calc005_equal_singularity_refused = explicit_refusal;
+        if (std::string(text) == "int(1/x,x,-1,1)")
+            calc005_singular_interval_refused = explicit_refusal;
         t.check(result.value == kNoNode && result.status != DerivationStatus::SolvedAndVerified,
                 std::string("native calculus does not invent an answer: ") + text);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result = calculus_walkthrough(
+            arena, derivation, parse_command(arena, "int(1/x^2,x,1,infinity)", "x"));
+        calc005_improper_refused =
+            result.value == kNoNode &&
+            (result.outcome == CalculusOutcome::UnsupportedForm ||
+             result.outcome == CalculusOutcome::Refused) &&
+            result.detail.find("finite rational bounds") != std::string::npos;
+        t.check(calc005_improper_refused,
+                "an improper integral is refused with the native finite-bound requirement");
     }
     {
         // The status as well as the sentence. The shell prints it verbatim on the note line at
@@ -593,19 +688,24 @@ void run_calculus_tests(TestSink &t) {
                 "only the linearization states its answer as an approximation: " + text);
         Rational at_point;
         Rational away;
-        t.check(evaluate_rational(arena, result.value, {{"x", Rational{3, 1}}}, &at_point) &&
-                at_point.num == 9 && at_point.den == 1 &&
-                evaluate_rational(arena, result.value, {{"x", Rational{4, 1}}}, &away) &&
-                away.num == 15 && away.den == 1,
+        const bool line_matches =
+            evaluate_rational(arena, result.value, {{"x", Rational{3, 1}}}, &at_point) &&
+            at_point.num == 9 && at_point.den == 1 &&
+            evaluate_rational(arena, result.value, {{"x", Rational{4, 1}}}, &away) &&
+            away.num == 15 && away.den == 1;
+        t.check(line_matches,
                 "the assembled line meets the curve at the point and rises by the derivative: " + text);
         // VER-002. Both point substitutions instantiate the function at one point instead of
         // rewriting it, so a claim of equivalence would be false away from the point.
         size_t substitutions = 0;
+        bool substitutions_are_definitions = true;
         for (size_t i = 0; i < derivation.size(); ++i) {
             const Step &recorded = derivation.at(static_cast<StepId>(i));
             if (recorded.rule_id != "tangent.point-value" && recorded.rule_id != "tangent.slope")
                 continue;
             ++substitutions;
+            substitutions_are_definitions = substitutions_are_definitions &&
+                                            recorded.claim == ClaimType::Definition;
             t.check(recorded.claim == ClaimType::Definition,
                     "the tangent family states its point substitutions as definitions rather than "
                     "equivalences: " + recorded.rule_id + " in " + text);
@@ -618,6 +718,19 @@ void run_calculus_tests(TestSink &t) {
                 "the tangent family records its final tangency check: " + text);
         t.check(rendered.find(fixture.second ? "tangent.linearization" : "tangent.line") != std::string::npos,
                 "the assembly step names the family that was asked for: " + text);
+        const bool requirement_holds =
+            result.outcome == CalculusOutcome::Evaluated && result.value != kNoNode &&
+            result.status == DerivationStatus::SolvedAndVerified && result.slope != kNoNode &&
+            print(arena, result.slope) == "6" && result.point_value != kNoNode &&
+            print(arena, result.point_value) == "9" && result.approximate == fixture.second &&
+            line_matches && substitutions == 2 && substitutions_are_definitions &&
+            rendered.find("tangent.check-line") != std::string::npos &&
+            rendered.find(fixture.second ? "tangent.linearization" : "tangent.line") !=
+                std::string::npos;
+        if (fixture.second)
+            calc010_linearization = requirement_holds;
+        else
+            calc010_tangent = requirement_holds;
         check_golden(t, fixture.second ? "tangent_linearization" : "tangent_line",
                      "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" + rendered);
     }
@@ -635,6 +748,68 @@ void run_calculus_tests(TestSink &t) {
                  result.outcome == CalculusOutcome::Refused),
                 "the tangent family refuses outside its envelope: " + std::string(text) + ": " +
                 std::string(calculus_outcome_name(result.outcome)));
+    }
+    // x*tan(x) is exact at zero and its derivative is not, which is the only route that records
+    // verified work and then cannot finish. Every refusal above stops before the function is read.
+    for (const char *text : {"tangent(x*tan(x),x,0)", "linearize(x*tan(x),x,0)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        const std::string where = std::string(text) + ": ";
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                result.status == DerivationStatus::Unsupported,
+                where + "a slope with no exact value is refused rather than approximated");
+        t.equal(result.detail,
+                std::string("the derivative has no exact value at that point, so the slope is "
+                            "undefined there"),
+                where + "the refusal names the slope rather than the function value");
+        size_t kept = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "tangent.point-value" && recorded.verified())
+                ++kept;
+        }
+        t.check(kept == 1, where + "the verified function value survives the refusal");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        const bool has_answer = result.value != kNoNode;
+        audit.walk(arena, derivation, true, true, &broken, &has_answer);
+        t.check(broken.empty(),
+                where + "and the refusal invariants accept a definition the refusal cannot unmake" +
+                    (broken.empty() ? "" : ", got " + broken.front()));
+    }
+    // The same refused shape built from a successful run's own two definitions. Only the point value
+    // declares that it survives a refusal, and the assembled line is what criterion 8 is there for.
+    {
+        Arena arena;
+        Derivation solved;
+        const char *source = "tangent(x^2,x,3)";
+        solved.request.original_expression = source;
+        calculus_walkthrough(arena, solved, parse_command(arena, source, "x"));
+        for (const auto &expected : {std::pair{"tangent.point-value", false},
+                                     std::pair{"tangent.line", true}}) {
+            Derivation refused;
+            for (size_t i = 0; i < solved.size(); ++i) {
+                const StepId id = static_cast<StepId>(i);
+                if (solved.at(id).rule_id != expected.first)
+                    continue;
+                Step kept = solved.at(id);
+                refused.add_transformation(kNoStep, std::move(kept), *solved.transformation(id));
+            }
+            refused.context.derivation_status = DerivationStatus::Unsupported;
+            invariants::Pass audit;
+            std::vector<std::string> broken;
+            const bool has_answer = false;
+            audit.walk(arena, refused, true, true, &broken, &has_answer);
+            bool caught = false;
+            for (size_t i = 0; i < broken.size(); ++i)
+                caught = caught || broken[i].find("kept the transformation") != std::string::npos;
+            t.check(refused.size() == 1 && caught == expected.second,
+                    std::string("a refusal keeping ") + expected.first + " is " +
+                        (expected.second ? "reported" : "accepted"));
+        }
     }
     {
         Arena arena;
@@ -949,6 +1124,39 @@ void run_calculus_tests(TestSink &t) {
         t.check(result.verdict == SeriesVerdict::ConvergesAbsolutely && backend.commands.empty() && !result.backend_attempted,
                 "the convergence family does not send its question to the backend");
     }
+
+    t.evidence("CALC-005",
+               calc005_walkthrough && calc005_equal_bounds && calc005_reversed_bounds &&
+                   calc005_equal_singularity_refused && calc005_singular_interval_refused &&
+                   calc005_improper_refused,
+               "definite integrals verify interval validity and an antiderivative, substitute and "
+               "subtract oriented bounds, preserve equal and reversed domain checks, and refuse "
+               "singular or improper intervals");
+    t.evidence("CALC-006", calc006_substitution && calc006_parts,
+               "integration records verified linear-substitution and integration-by-parts "
+               "transformations");
+    t.evidence("CALC-010", calc010_tangent && calc010_linearization,
+               "tangent-line and linearization requests produce verified point-slope forms with "
+               "distinct equality and approximation claims");
+
+    const auto has_passing_evidence = [&t](const char *requirement) {
+        for (const Evidence &record : t.evidence_records)
+            if (record.requirement == requirement && record.passed)
+                return true;
+        return false;
+    };
+    const auto has_any_evidence = [&t](const char *requirement) {
+        for (const Evidence &record : t.evidence_records)
+            if (record.requirement == requirement)
+                return true;
+        return false;
+    };
+    t.check(has_passing_evidence("CALC-005") && has_passing_evidence("CALC-006") &&
+                has_passing_evidence("CALC-010"),
+            "implemented calculus requirements publish passing traceability evidence");
+    t.check(!has_any_evidence("CALC-007") && !has_any_evidence("CALC-008") &&
+                !has_any_evidence("CALC-009"),
+            "unimplemented calculus requirements remain unevidenced");
 }
 
 

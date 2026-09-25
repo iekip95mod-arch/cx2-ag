@@ -1128,6 +1128,22 @@ void run_adapter_tests(TestSink &t) {
     }
 
     {
+        // gensizeerr wraps giac's Interrupted from the integer routines in a bad argument text.
+        Arena arena;
+        ScriptedBackend backend("GIAC_ERROR: Interrupted Error: Bad Argument Value");
+        Adapter adapter(arena, backend);
+        Request req;
+        req.op = Op::Factor;
+        req.target = must_parse(arena, "x^2 + 2x + 1");
+        Response r = adapter.run(req);
+        t.equal(tag_name(r.tag), "cancelled",
+                "giac's bare interruption spelling is a cancellation, not a backend error");
+        t.check(!r.usable(), "a cancelled reply carries no value");
+        t.check(backend.terminal() && backend.terminal_tag() == ResultTag::Cancelled,
+                "and retires the backend as a cancellation");
+    }
+
+    {
         // Giac's other spelling names two causes and cannot say which, so with nobody to ask it keeps
         // the resource reading it already had rather than claiming the learner asked to stop.
         Arena arena;

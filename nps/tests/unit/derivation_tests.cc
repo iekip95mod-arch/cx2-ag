@@ -5,6 +5,7 @@
 #include "nps/steps/linear.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
+#include "nps/steps/schema.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
@@ -1419,6 +1420,34 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "is the stronger of the two readings and is counted apart from it");
     }
     {
+        // #254. A limit head made the whole side unevaluable, so the number the rule produced here
+        // was never compared with anything.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "7").root, &broken, &pass);
+        t.evidence("VER-002",
+                   mentions(broken, "claims an equivalent expression and its two sides disagree") &&
+                       pass.equivalence_unevaluated() == 0,
+                   "a limit step whose after state is not the value its approach point gives is "
+                   "caught, where a head the evaluator cannot reduce used to decline the whole "
+                   "comparison");
+    }
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "6").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_exact() == 1 &&
+                    pass.equivalence_unevaluated() == 0,
+                "and the same limit against the value its approach point gives is settled exactly, "
+                "which is the control the caught row needs");
+    }
+    {
         // #244. An after state leaving free a symbol the before state never had is a family rather
         // than one expression, so a step claiming both is reported instead of being counted and
         // left alone. Sampling would give C a value the left side never carried and report a
@@ -1478,6 +1507,47 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
         t.check(mentions(multiplied, "is not the before state with a constant added to it"),
                 "and a constant that multiplies rather than adds is not the family this claim "
                 "names");
+    }
+    {
+        // #329. The three read_family faults nothing had put to it, each picking a refusal's sentence.
+        Arena arena;
+
+        invariants::Pass two_symbols;
+        std::vector<std::string> several;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C * D").root, &several, &two_symbols);
+        t.check(mentions(several, "introduces 2 free symbols where a family up to a constant "
+                                  "introduces one") &&
+                    two_symbols.family_judged() == 0,
+                "a family whose after state leaves two symbols free is refused for the count it "
+                "introduced, which is read before the shape carrying them is looked at");
+
+        invariants::Pass carried_twice;
+        std::vector<std::string> still_free;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C + C").root, &still_free, &carried_twice);
+        t.check(mentions(still_free, "what is left under its constant still leaves free a symbol "
+                                     "the before state never had") &&
+                    carried_twice.family_judged() == 0,
+                "and an after state carrying its constant twice is refused for the symbol left "
+                "under it rather than for a disagreement, because taking one C off x^2 + C + C "
+                "leaves a family instead of the expression it was given");
+
+        invariants::Pass unfinished;
+        std::vector<std::string> unrecorded;
+        Derivation d;
+        TransformationPayload payload;
+        payload.before = parse(arena, "x^2").root;
+        payload.concrete_action = "Rewrite it";
+        d.add_transformation(kNoStep, claimed("selftest.rewrite", ClaimType::FamilyUpToConstant),
+                             std::move(payload));
+        unfinished.walk(arena, d, false, false, &unrecorded);
+        t.check(mentions(unrecorded, "claims a family up to a constant and one of its two states "
+                                     "is missing") &&
+                    unfinished.family_steps() == 1 && unfinished.family_judged() == 0,
+                "and a family claim whose transformation never recorded an after state is counted "
+                "into the population and refused for the missing state, which is what keeps the "
+                "readings under it from asking the arena for a node it does not hold");
     }
     {
         // The one symbol the new-symbol arm must not read as a variable. A conversion carries the
@@ -1930,6 +2000,124 @@ void test_remembered_runs(TestSink &t) {
     }
 }
 
+void test_rule_schema_coverage(TestSink &t) {
+    const auto declares = [&t](const char *rule_id, ClaimType claim, FailureBehavior on_failure,
+                               const char *obligation_id, const char *method,
+                               EvidenceStrength strength) {
+        const RuleSchema *schema = rule_schema(rule_id);
+        t.check(schema && schema->claim == claim && schema->on_failure == on_failure &&
+                    schema->obligation_count == 1 &&
+                    std::string(schema->obligations[0].id) == obligation_id &&
+                    schema->obligations[0].evidence_count == 1 &&
+                    std::string(schema->obligations[0].evidence[0].method) == method &&
+                    schema->obligations[0].evidence[0].strength == strength,
+                std::string(rule_id) +
+                    " declares its emitted claim, obligation, evidence and failure behavior");
+    };
+
+    const RuleSchema *cross_check = rule_schema("calculus.differentiate.giac-cross-check");
+    t.check(cross_check && cross_check->claim == ClaimType::NoClaim &&
+                cross_check->on_failure == FailureBehavior::WithholdResult &&
+                cross_check->obligation_count == 1 &&
+                std::string(cross_check->obligations[0].id) == "obl.differentiate.matches-backend",
+            "the derivative cross-check declares its recorded obligation");
+
+    const RuleSchema *handover = rule_schema("kin.coupled.handover");
+    t.check(handover && handover->claim == ClaimType::NoClaim &&
+                handover->on_failure == FailureBehavior::CannotFail &&
+                handover->obligation_count == 0,
+            "the coupled-body handover declares its no-claim record");
+
+    const RuleSchema *forces = rule_schema("physics.forces.plan");
+    t.check(forces && forces->claim == ClaimType::NoClaim &&
+                forces->on_failure == FailureBehavior::WithholdResult &&
+                forces->obligation_count == 5,
+            "the force plan declares its four preconditions and summary");
+
+    const RuleSchema *ranking = rule_schema("physics.ranking.order");
+    t.check(ranking && ranking->claim == ClaimType::NoClaim &&
+                ranking->on_failure == FailureBehavior::WithholdResult &&
+                ranking->obligation_count == 0,
+            "the ranking order declares its no-claim check");
+
+    const RuleSchema *criterion = rule_schema("physics.ranking.criterion");
+    t.check(criterion && criterion->claim == ClaimType::NoClaim &&
+                criterion->on_failure == FailureBehavior::WithholdResult &&
+                criterion->obligation_count == 0,
+            "all ranking criteria share one no-claim schema");
+
+    const RuleSchema *vanishing = rule_schema("physics.term-vanishes");
+    t.check(vanishing && vanishing->claim == ClaimType::EquivalentExpression &&
+                vanishing->on_failure == FailureBehavior::CannotFail &&
+                vanishing->obligation_count == 1 &&
+                std::string(vanishing->obligations[0].id) ==
+                    "obl.physics.zero-factor-eliminates-term",
+            "a vanishing term declares its zero-factor obligation");
+
+    declares("physics.forces.check-input-dimensions", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.input-dimensions", "dimensional analysis",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.check-angle", ClaimType::Definition, FailureBehavior::WithholdResult,
+             "obl.forces.exact-angle",
+             "trigonometric identity", EvidenceStrength::StructurallyValid);
+    declares("physics.forces.weight", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.forces.weight-components", "exact rational product",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.normal-force", ClaimType::SolutionSetPreserved,
+             FailureBehavior::CannotFail,
+             "obl.forces.normal-from-balance", "exact across-axis sum",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.third-law-pairs", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.pairs-separate", "inventory and pair comparison",
+             EvidenceStrength::StructurallyValid);
+    declares("physics.forces.kinetic-friction", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.forces.kinetic-friction", "exact rational product",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.static-friction-limit", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.static-within-limit", "exact comparison of required friction against mu_s N",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.solve-unknown", ClaimType::SolutionSetPreserved,
+             FailureBehavior::CannotFail,
+             "obl.forces.unknown-isolated", "exact rearrangement",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.check-residual", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.residual-zero", "exact substitution into the along-axis sum",
+             EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+    declares("physics.forces.check-result-dimension", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.result-dimension", "dimensional analysis",
+             EvidenceStrength::DimensionallyValid);
+
+    declares("physics.relative-motion.significant-figures", ClaimType::NoClaim,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.rounding-within-half-place",
+             "exact comparison against the unrounded value", EvidenceStrength::CandidateChecked);
+    declares("physics.relative-motion.bearing-convention", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.bearing-convention-stated",
+             "nearest cardinal by component magnitude", EvidenceStrength::StructurallyValid);
+    declares("physics.relative-motion.subscript-cancellation", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.subscript-cancellation", "subscript chain",
+             EvidenceStrength::StructurallyValid);
+    declares("physics.relative-motion.isolate-unknown", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.relative-motion.isolate-before-substitute",
+             "symbolic rearrangement of the subscript identity",
+             EvidenceStrength::StructurallyValid);
+
+    declares("physics.work.giac-cross-check", ClaimType::Definition,
+             FailureBehavior::WithholdResult, "obl.work.backend-agrees",
+             "Giac Adapter Op::Dot and local canonical comparison",
+             EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+}
+
 void run_derivation_tests(TestSink &t) {
     Arena arena;
     Derivation d;
@@ -2088,6 +2276,7 @@ void run_derivation_tests(TestSink &t) {
     test_plan_preconditions(t);
     test_plan_records_its_applicability(t);
     test_remembered_runs(t);
+    test_rule_schema_coverage(t);
 }
 
 }  // namespace nps
