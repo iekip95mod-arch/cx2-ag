@@ -1330,6 +1330,43 @@ rule rat.multiply fixture
 rule rat.cancel-common-factor fixture
 rule rat.check-equivalent fixture
 
+family id algebra.partial-fractions.linear-factors
+reference_curriculum_set_ids none, this family answers PRD ALG-005 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-005
+topic_and_level Partial fractions over distinct linear factors, with any polynomial part divided out first
+family_envelope_version 1
+accepted_expression_grammar the grammar of algebra.rational-expression.single-variable
+accepted_input_forms partfrac menu command in Exact mode with the expression and an optional variable, for example partfrac((3x+5)/(x^2+4x+3))
+domains_and_parameter_assumptions the reduced denominator must be a product of distinct linear factors with rational roots, found by the rational root theorem with integer coefficients up to 1000000. Every value a denominator of the input excludes is kept
+supported_branches_and_degenerate_cases proper fractions, improper fractions divided into a polynomial part and a proper remainder, and fractions that reduce to a polynomial with no fraction left
+exact_special_function_and_numerical_result_policy exact rational coefficients only. Decimal mode, decimal literals and symbolic coefficients are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/rational_expression.cc
+required_assumptions every excluded value, recorded on the step that finds it and published with the result, as in "(x + -1) is not zero" for 1/(x^2-1)
+test_group_ids rational expression, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.rational.excluded-values, obl.rational.same-values, obl.rational.exact-cancellation, obl.rational.exact-division, obl.rational.cover-up
+strategy_ids plan.rational-partial-fractions
+supported_methods the expression is reduced to one fraction as algebra.rational-expression.single-variable does. An improper fraction is divided with an exact check that the quotient times the denominator plus the remainder is the numerator. Each coefficient comes from the cover-up rule and is checked by exact evaluation at its root, and the sum is checked against the expression as typed
+unsupported_near_neighbors a repeated factor and a factor with no rational root, such as an irreducible quadratic, are refused before anything is recorded, and so is a denominator whose coefficients are too large to search
+solution_soundness_status every division, cover-up coefficient and the final sum are checked exactly
+solution_completeness_status the decomposition has one term for every linear factor of the reduced denominator. Cancellation and Meter limits retain the verified prefix without a final result
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch from the existing Partial Fractions menu entry, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.partial-fractions.linear-factors
+release_status in development, unreleased
+rule plan.rational-partial-fractions fixture
+rule rat.excluded-values fixture
+rule rat.single-fraction fixture
+rule rat.cancel-common-factor fixture
+rule pf.divide fixture
+rule pf.cover-up fixture
+rule pf.decompose fixture
+rule rat.check-equivalent fixture
+
 family id number.integer-method.literal
 reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
 curriculum_source_locations docs/menu-walkthrough-plan.md, Number and Probability menu inventory

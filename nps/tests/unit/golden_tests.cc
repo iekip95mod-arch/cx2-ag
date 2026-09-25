@@ -1018,6 +1018,11 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "rational_multiply", rational_record("(x+1)/(x-2) * (x-2)/(x+3)", RationalGoal::Normal, Budget()));
     check_golden(t, "rational_not_rational", rational_record("sqrt(x)/x", RationalGoal::Normal, Budget()));
     check_golden(t, "rational_cancelled", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, cancelling()));
+    check_golden(t, "partial_fractions_linear", rational_record("(3x+5)/(x^2+4x+3)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_improper", rational_record("(x^3+x)/(x^2-1)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_after_cancelling",
+                 rational_record("(x-1)/((x-1)*(x+2)*(x+3))", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_irreducible", rational_record("1/(x^2+1)", RationalGoal::PartialFractions, Budget()));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));

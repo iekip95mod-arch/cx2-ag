@@ -429,6 +429,8 @@ struct Reader {
     }
 };
 
+const char *read_refusal(Read read);
+
 struct Run {
     Arena &arena;
     Derivation &derivation;
@@ -555,6 +557,164 @@ struct Run {
                             " their cross-multiplied difference can have, read from the polynomials";
         }
         return record;
+    }
+
+    NodeId linear_factor(const Rational &root) {
+        if (root.num == 0)
+            return variable;
+        return arena.nary(Kind::Add, {variable, canonical_rational(arena, Rational{-root.num, root.den})});
+    }
+
+    // Long division when the fraction is improper, then one term A over (x - r) for each root, each
+    // A found by the cover-up rule and checked against the numerator at that root.
+    NodeId partial_fractions(NodeId before, const Poly &top, const Poly &bottom, const std::vector<Rational> &roots) {
+        Poly num = top, den = bottom;
+        detail::Mpq lead;
+        mpq_set(lead.get(), den.at(static_cast<size_t>(den.degree())));
+        for (size_t i = 0; i < num.size(); ++i)
+            mpq_div(num.at(i), num.at(i), lead.get());
+        for (size_t i = 0; i < den.size(); ++i)
+            mpq_div(den.at(i), den.at(i), lead.get());
+        Poly quotient, remainder;
+        if (!poly_divide(num, den, &quotient, &remainder)) {
+            refuse(RationalOutcome::ResourceExceeded, read_refusal(Read::TooLarge));
+            return kNoNode;
+        }
+        NodeId current = before;
+        NodeId polynomial_part = kNoNode;
+        if (!quotient.zero()) {
+            Poly product, back;
+            const bool exact = poly_mul(quotient, den, &product) && poly_add(product, remainder, &back) &&
+                               poly_equal(back, num);
+            polynomial_part = poly_node(quotient);
+            const NodeId proper = remainder.zero() ? kNoNode : fraction_node(remainder, den);
+            if (polynomial_part == kNoNode || (!remainder.zero() && proper == kNoNode))
+                return kNoNode;
+            const NodeId after = proper == kNoNode ? polynomial_part : arena.nary(Kind::Add, {polynomial_part, proper});
+            if (!step())
+                return kNoNode;
+            Step s;
+            s.phase = "Divide";
+            s.goal = "Divide out the polynomial part";
+            s.rule_id = "pf.divide";
+            s.rule_name = "Divide the numerator by the denominator";
+            s.claim = ClaimType::EquivalentExpression;
+            s.explanation_short = "The numerator's degree is not below the denominator's, so divide first.";
+            s.explanation_detailed = "The quotient is the polynomial part and the remainder over the same denominator is what gets split.";
+            s.proof_obligations.push_back({"obl.rational.exact-division",
+                "the quotient times the denominator plus the remainder is the numerator"});
+            s.verifications.push_back({"exact polynomial division", exact ? VerificationOutcome::Passed : VerificationOutcome::Failed,
+                exact ? EvidenceStrength::StructurallyValid : EvidenceStrength::Failed,
+                exact ? "the quotient times the denominator plus the remainder gives the numerator exactly"
+                      : "the division does not reproduce the numerator", "obl.rational.exact-division"});
+            TransformationPayload change;
+            change.before = current;
+            change.after = after;
+            change.reversible = true;
+            change.concrete_action = "Divide to get " + print(arena, after) + ".";
+            derivation.add_transformation(plan, std::move(s), std::move(change));
+            if (!running())
+                return kNoNode;
+            if (!exact) {
+                refuse(RationalOutcome::VerificationFailed, "the division does not reproduce the numerator");
+                return kNoNode;
+            }
+            current = after;
+            if (remainder.zero())
+                return after;
+        }
+
+        std::vector<NodeId> terms;
+        if (polynomial_part != kNoNode)
+            terms.push_back(polynomial_part);
+        detail::Mpq at, top_value, coefficient, product, gap;
+        for (size_t i = 0; i < roots.size(); ++i) {
+            detail::mpq_set_rational(at.get(), roots[i]);
+            poly_evaluate(remainder, at.get(), top_value.get());
+            mpq_set_ui(product.get(), 1, 1);
+            for (size_t j = 0; j < roots.size(); ++j) {
+                if (j == i)
+                    continue;
+                detail::mpq_set_rational(gap.get(), roots[j]);
+                mpq_sub(gap.get(), at.get(), gap.get());
+                mpq_mul(product.get(), product.get(), gap.get());
+            }
+            Poly derivative;
+            poly_derivative(den, &derivative);
+            detail::Mpq slope, recomputed;
+            poly_evaluate(derivative, at.get(), slope.get());
+            if (mpq_sgn(slope.get()) == 0) {
+                refuse(RationalOutcome::VerificationFailed, "a root of the denominator is repeated");
+                return kNoNode;
+            }
+            mpq_div(coefficient.get(), top_value.get(), slope.get());
+            mpq_mul(recomputed.get(), coefficient.get(), product.get());
+            const bool covered = mpq_equal(recomputed.get(), top_value.get());
+            const NodeId a_node = number(coefficient.get());
+            const NodeId factor = linear_factor(roots[i]);
+            if (a_node == kNoNode || !step())
+                return kNoNode;
+            const NodeId root_node = canonical_rational(arena, roots[i]);
+            Step s;
+            s.phase = "Split";
+            s.goal = "Find the numerator over " + print(arena, factor);
+            s.rule_id = "pf.cover-up";
+            s.rule_name = "Cover up the factor and evaluate at its root";
+            s.claim = ClaimType::Definition;
+            s.explanation_short = "Cover up " + print(arena, factor) + " and put " + arena.text(variable) + " = " +
+                                  print(arena, root_node) + " into what is left.";
+            s.explanation_detailed = "Every other term vanishes at this root, so the numerator of this term is the "
+                                     "remainder divided by the other factors there.";
+            s.proof_obligations.push_back({"obl.rational.cover-up",
+                "the coefficient times the other factors at the root equals the remainder at the root"});
+            s.verifications.push_back({"exact evaluation at the root", covered ? VerificationOutcome::Passed : VerificationOutcome::Failed,
+                covered ? EvidenceStrength::StructurallyValid : EvidenceStrength::Failed,
+                covered ? "the coefficient times the other factors at the root gives the remainder there exactly"
+                        : "the coefficient does not reproduce the remainder at the root", "obl.rational.cover-up"});
+            CheckPayload check;
+            check.target_claim = "The numerator over " + print(arena, factor) + " is " + print(arena, a_node);
+            check.check_method = "exact evaluation at the root";
+            check.expected_relation = "the coefficient times the other factors equals the remainder at the root";
+            check.observed_result = print(arena, a_node);
+            derivation.add_check(plan, std::move(s), std::move(check));
+            if (!running())
+                return kNoNode;
+            if (!covered) {
+                refuse(RationalOutcome::VerificationFailed, "a cover-up coefficient does not reproduce the remainder");
+                return kNoNode;
+            }
+            if (mpq_sgn(coefficient.get()) != 0)
+                terms.push_back(arena.binary(Kind::Mul, a_node, arena.binary(Kind::Pow, factor, arena.integer("-1"))));
+        }
+        const NodeId split = terms.empty() ? arena.integer("0") : terms.size() == 1 ? terms[0] : arena.nary(Kind::Add, terms);
+        if (!step())
+            return kNoNode;
+        Step s;
+        s.phase = "Split";
+        s.goal = "Write the sum of partial fractions";
+        s.rule_id = "pf.decompose";
+        s.rule_name = "Write one fraction for each linear factor";
+        s.claim = ClaimType::EquivalentExpression;
+        s.explanation_short = "Add the fractions found for each factor.";
+        s.explanation_detailed = "The denominators are the linear factors and the numerators are the numbers the cover-up gave.";
+        s.proof_obligations.push_back({"obl.rational.same-values",
+            "the new form has the value of the old one wherever both are defined"});
+        s.verifications.push_back(identity(current, split, 2 * kPolyMaxDegree, "obl.rational.same-values"));
+        const bool passed = s.verifications.back().outcome == VerificationOutcome::Passed;
+        const std::string why = s.verifications.back().detail;
+        TransformationPayload change;
+        change.before = current;
+        change.after = split;
+        change.reversible = true;
+        change.concrete_action = "Write " + print(arena, split) + ".";
+        derivation.add_transformation(plan, std::move(s), std::move(change));
+        if (!running())
+            return kNoNode;
+        if (!passed) {
+            refuse(RationalOutcome::VerificationFailed, why);
+            return kNoNode;
+        }
+        return split;
     }
 
     RationalResult finish(RationalOutcome outcome, NodeId expression, std::string why) {
@@ -690,14 +850,43 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
         return run.finish(RationalOutcome::InvalidInput, kNoNode, read_refusal(Read::DivideByZero));
     const std::string name = arena.text(variable);
 
+    // Partial fractions over linear factors needs a denominator that splits into distinct rational
+    // roots. Asked before anything is recorded, so a refusal leaves no half-built record.
+    std::vector<Rational> linear_roots;
+    if (goal == RationalGoal::PartialFractions && !whole.num.zero()) {
+        Poly shared, reduced_den, rest, left;
+        if (!poly_gcd(whole.num, whole.den, &shared) || !poly_divide(whole.den, shared, &reduced_den, &rest))
+            return run.finish(RationalOutcome::ResourceExceeded, kNoNode, read_refusal(Read::TooLarge));
+        std::vector<int> multiplicities;
+        const RootSearch search = poly_rational_roots(reduced_den, run.meter, &linear_roots, &multiplicities, &left);
+        if (search == RootSearch::Halted) {
+            run.running();
+            return run.stopped();
+        }
+        if (search == RootSearch::OutOfRange)
+            return run.finish(RationalOutcome::OutsideEnvelope, kNoNode,
+                              "the denominator's coefficients are too large to search for rational roots");
+        if (left.degree() >= 1)
+            return run.finish(RationalOutcome::OutsideEnvelope, kNoNode,
+                              "the denominator has a factor with no rational root, such as an irreducible quadratic, "
+                              "which partial fractions over linear factors cannot split");
+        if (std::any_of(multiplicities.begin(), multiplicities.end(), [](int m) { return m > 1; }))
+            return run.finish(RationalOutcome::OutsideEnvelope, kNoNode,
+                              "the denominator has a repeated factor, which needs a term for each power of it");
+    }
+
     if (!run.step())
         return run.stopped();
     Step plan;
     plan.phase = "Plan";
-    plan.goal = "Write " + print(arena, expression) + " as one reduced fraction";
-    plan.rule_id = "plan.rational-normal";
-    plan.rule_name = "Combine into one fraction and cancel common factors";
-    plan.explanation_short = "Note the excluded values, write one fraction, then cancel what the top and bottom share.";
+    const bool partial = goal == RationalGoal::PartialFractions;
+    plan.goal = "Write " + print(arena, expression) + (partial ? " as partial fractions" : " as one reduced fraction");
+    plan.rule_id = partial ? "plan.rational-partial-fractions" : "plan.rational-normal";
+    plan.rule_name = partial ? "Reduce, divide, then split over the linear factors"
+                             : "Combine into one fraction and cancel common factors";
+    plan.explanation_short = partial
+        ? "Reduce to one fraction, divide out any polynomial part, then give each linear factor its own fraction."
+        : "Note the excluded values, write one fraction, then cancel what the top and bottom share.";
     plan.explanation_detailed = "A value that makes any denominator zero is excluded from the start, and it stays "
         "excluded even when the factor that caused it cancels.";
     PlanPayload payload;
@@ -705,6 +894,11 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
     payload.selected_strategy = plan.rule_name;
     payload.matched_problem_facts.push_back(print(arena, expression));
     payload.selection_rationale = "Every part is a polynomial in " + name + " with exact rational coefficients, or a quotient of such.";
+    if (partial)
+        register_strategy_precondition(payload, plan, "pre.rational.distinct-linear-factors",
+            "the reduced denominator is a product of distinct linear factors with rational roots",
+            "rational root search", EvidenceStrength::StructurallyValid, VerificationOutcome::Passed,
+            std::to_string(linear_roots.size()) + " distinct rational roots and nothing left over");
     register_strategy_precondition(payload, plan, "pre.rational.one-variable",
         "every part is a polynomial in the variable with exact rational coefficients and degree at most 12, or a quotient of such",
         "exact rational function reading", EvidenceStrength::StructurallyValid, VerificationOutcome::Passed, plan.goal);
@@ -877,6 +1071,13 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
             return run.finish(RationalOutcome::VerificationFailed, kNoNode, "the cancelled factor does not divide exactly");
     }
 
+    if (partial && den.degree() >= 1 && !num.zero()) {
+        const NodeId decomposed = run.partial_fractions(result, num, den, linear_roots);
+        if (decomposed == kNoNode)
+            return run.stopped();
+        result = decomposed;
+    }
+
     if (!run.step())
         return run.stopped();
     const int bound = whole_degree + std::max(num.degree(), den.degree());
@@ -907,7 +1108,9 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
         return run.finish(outcome == VerificationOutcome::Failed ? RationalOutcome::VerificationFailed
                                                                  : RationalOutcome::ResourceExceeded,
                           kNoNode, why);
-    return run.finish(RationalOutcome::Rewritten, result, "one reduced fraction with every excluded value kept");
+    return run.finish(RationalOutcome::Rewritten, result,
+                      partial ? "partial fractions over the linear factors with every excluded value kept"
+                              : "one reduced fraction with every excluded value kept");
 }
 
 }  // namespace nps

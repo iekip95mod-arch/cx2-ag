@@ -1609,6 +1609,29 @@ const ObligationSchema kRationalCancellation[] = {
     {"obl.rational.exact-cancellation",
      "the numerator and the denominator are each the reduced one times the cancelled factor", kPolynomialDivision, 1},
 };
+const EvidenceAlternative kRationalRootSearch[] = {
+    {"rational root search", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kPartialFractionStrategy[] = {
+    {"pre.rational.distinct-linear-factors",
+     "the reduced denominator is a product of distinct linear factors with rational roots", kRationalRootSearch, 1},
+    {"pre.rational.one-variable",
+     "every part is a polynomial in the variable with exact rational coefficients and degree at most 12, or a quotient of such",
+     kRationalReading, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kRationalExactDivision[] = {
+    {"obl.rational.exact-division", "the quotient times the denominator plus the remainder is the numerator",
+     kPolynomialDivision, 1},
+};
+const EvidenceAlternative kRootEvaluation[] = {
+    {"exact evaluation at the root", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kCoverUp[] = {
+    {"obl.rational.cover-up", "the coefficient times the other factors at the root equals the remainder at the root",
+     kRootEvaluation, 1},
+};
 
 // One entry per rule and strategy. Ordered by family so a reader can find the block a rule belongs
 // to, and looked up linearly, which costs nothing beside the work a step already did.
@@ -2292,6 +2315,11 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"rat.check-equivalent", ClaimType::EquivalentExpression, kRationalSameValues, 1,
      FailureBehavior::WithholdResult},
+    {"plan.rational-partial-fractions", ClaimType::NoClaim, kPartialFractionStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"pf.divide", ClaimType::EquivalentExpression, kRationalExactDivision, 1, FailureBehavior::WithholdResult},
+    {"pf.cover-up", ClaimType::Definition, kCoverUp, 1, FailureBehavior::WithholdResult},
+    {"pf.decompose", ClaimType::EquivalentExpression, kRationalSameValues, 1, FailureBehavior::WithholdResult},
 };
 
 }  // namespace

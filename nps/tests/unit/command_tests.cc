@@ -110,6 +110,13 @@ void run_command_tests(TestSink &t) {
                     !command.detail.empty(),
                 std::string("determinant signature refusals cannot fall through to CAS: ") + text);
     }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "partfrac(1/(x^2-1))", "x");
+        t.check(command.status == CommandStatus::Ready &&
+                    command_kind_name(command.kind) == std::string("partial fractions"),
+                "partfrac dispatches as partial fractions");
+    }
     for (const char *text : {"normal(x/x)", "normal(1/t+1/(t+1),t)"}) {
         Arena arena;
         const Command command = parse_command(arena, text, "x");

@@ -4883,6 +4883,21 @@ if os.getenv("NPS_COMMAND_MODULE") then
     end
 
     env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Partial Fractions") and env.fctEditor:getExpression() == "partfrac(",
+          "the existing partial fractions menu inserts the native walkthrough command")
+    env.fctEditor:addString("1/(x^2-1))")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
+              record and record.mode == "partial fractions" and record.solved and
+              record.status == "solved and verified",
+              "the partial fractions menu opens the verified cover-up walkthrough without a CAS fallback")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
     check(select_integer_menu("Factorial"), "the large exact result starts from the factorial menu")
     env.fctEditor:addString("100)")
     local before_dispatch, before_evaluation = dispatched, evaluated

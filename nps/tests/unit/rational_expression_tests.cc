@@ -181,6 +181,49 @@ void test_normal(TestSink &t) {
     }
 }
 
+void test_partial_fractions(TestSink &t) {
+    const RationalGoal pf = RationalGoal::PartialFractions;
+    {
+        const Run r = run("1/(x^2-1)", pf);
+        t.equal(outcome(r), "rewritten", "a proper fraction over distinct linear factors splits");
+        t.equal(r.answer, "(((1 * (2^-1)) * ((x + -1)^-1)) + ((-1 * (2^-1)) * ((x + 1)^-1)))",
+                "into one fraction for each factor");
+        t.check(has_rule(r, "pf.cover-up") && has_rule(r, "pf.decompose") && !has_rule(r, "pf.divide"),
+                "by the cover-up rule, with no division for a proper fraction");
+        t.equal(status(r), "solved and verified", "and every coefficient and the final check pass");
+        t.check(r.assumptions.find("1") != std::string::npos, "the excluded values are published: " + r.assumptions);
+        t.check(r.broken.empty(), "the partial fraction record passes the invariant pass" + broken(r));
+        t.evidence("ALG-005", r.result.outcome == RationalOutcome::Rewritten && has_rule(r, "pf.cover-up") &&
+                                  !r.assumptions.empty(),
+                   "partial fractions keep the excluded values of the denominator as published conditions");
+    }
+    {
+        const Run r = run("(3x+5)/(x^2+4x+3)", pf);
+        t.equal(r.answer, "((1 * ((x + 1)^-1)) + (2 * ((x + 3)^-1)))", "the numerators come out as integers when they are");
+    }
+    {
+        const Run r = run("(x^3+x)/(x^2-1)", pf);
+        t.check(has_rule(r, "pf.divide"), "an improper fraction is divided first");
+        t.equal(r.answer, "(x + (1 * ((x + -1)^-1)) + (1 * ((x + 1)^-1)))", "and its polynomial part leads the sum");
+        t.check(r.broken.empty(), "the division record passes the invariant pass" + broken(r));
+    }
+    {
+        const Run r = run("(x^2-1)/(x-1)", pf);
+        t.equal(r.answer, "(x + 1)", "a fraction that reduces to a polynomial has no fractions left");
+    }
+    {
+        const Run r = run("1/(x^2+1)", pf);
+        t.equal(outcome(r), "outside envelope", "an irreducible quadratic factor is refused");
+        t.check(r.result.detail.find("irreducible") != std::string::npos, "and the refusal names it");
+        t.check(r.rules.empty(), "before anything is recorded");
+    }
+    {
+        const Run r = run("1/(x-1)^2", pf);
+        t.equal(outcome(r), "outside envelope", "a repeated factor is refused");
+        t.check(r.result.detail.find("repeated") != std::string::npos, "and the refusal names it");
+    }
+}
+
 bool cancel_now(void *) {
     return true;
 }
@@ -204,6 +247,7 @@ void test_budgets(TestSink &t) {
 void run_rational_expression_tests(TestSink &sink) {
     test_polynomials(sink);
     test_normal(sink);
+    test_partial_fractions(sink);
     test_budgets(sink);
 }
 

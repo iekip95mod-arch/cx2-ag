@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -261,6 +261,7 @@ local expected_modules = {
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
     "algebra.rational-expression.single-variable",
+    "algebra.partial-fractions.linear-factors",
     "number.integer-method.literal",
     "matrix.ref.rational",
     "matrix.rref.rational",
@@ -655,7 +656,18 @@ do
     check(type(refused) == "table" and refused.mode == "normal" and not refused.solved and
           refused.result == nil and refused.outcome == "not rational" and #refused.steps == 0,
           "a form that is not rational is a native refusal with no steps")
-    check(giac_calls == 0, "normal never asks Giac")
+    local split = nps.walkthrough("partfrac((3x+5)/(x^2+4x+3))", "x", "exact")
+    local split_rules = {}
+    for _, step in ipairs(type(split) == "table" and split.steps or {}) do split_rules[step.rule] = true end
+    evidence("ALG-005", type(split) == "table" and split.mode == "partial fractions" and split.solved and
+             split.result == "((1 * ((x + 1)^-1)) + (2 * ((x + 3)^-1)))" and split.status == "solved and verified" and
+             split_rules["pf.cover-up"] and split_rules["pf.decompose"],
+             "partial fractions reach the native cover-up walkthrough through the bridge")
+    local quadratic = nps.walkthrough("partfrac(1/(x^2+1))", "x", "exact")
+    check(type(quadratic) == "table" and quadratic.outcome == "outside envelope" and not quadratic.solved and
+          quadratic.result == nil and #quadratic.steps == 0,
+          "an irreducible quadratic denominator is a native refusal with no steps")
+    check(giac_calls == 0, "normal and partfrac never ask Giac")
 end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")

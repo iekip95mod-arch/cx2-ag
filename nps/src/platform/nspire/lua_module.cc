@@ -2836,6 +2836,8 @@ int l_walkthrough(lua_State *L) {
         count = matrix_into(L, kind);
     else if (kind == CommandKind::Normal)
         count = rational_into(L, RationalGoal::Normal);
+    else if (kind == CommandKind::PartialFractions)
+        count = rational_into(L, RationalGoal::PartialFractions);
     else
         count = rewrite_into(L, kind);
     if (count != 1 || !lua_istable(L, -1)) {
