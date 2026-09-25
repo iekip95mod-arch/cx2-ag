@@ -186,6 +186,35 @@ void run_optics_tests(TestSink &t) {
                 "the refusal says the isolated order is not an integer");
     }
 
+    // A refused fractional order reads the same under a wrong slit isolation, so these solve instead.
+    {
+        const Run integer_order =
+            run(problem(OpticsRelation::DoubleSlit, OpticsVariable::FringeOrder,
+                        {known(OpticsVariable::SlitSpacing, "1 mm"),
+                         known(OpticsVariable::SineFringe, "0.001"),
+                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(integer_order.result.outcome), "solved",
+                "the two-slit relation isolates the fringe order itself");
+        t.equal(integer_order.result.value_text, "2",
+                "a 500 nm source through a 1 mm spacing puts sin(t) = 0.001 on the second maximum");
+        t.equal(integer_order.unverified, "",
+                "every recorded two-slit order claim has passing evidence");
+    }
+
+    {
+        const Run minimum_order =
+            run(problem(OpticsRelation::SingleSlit, OpticsVariable::FringeOrder,
+                        {known(OpticsVariable::SlitSpacing, "1 mm"),
+                         known(OpticsVariable::SineFringe, "0.0015"),
+                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(minimum_order.result.outcome), "solved",
+                "the single-slit relation isolates the diffraction order itself");
+        t.equal(minimum_order.result.value_text, "3",
+                "the same source through a 1 mm width puts sin(t) = 0.0015 on the third minimum");
+        t.equal(minimum_order.unverified, "",
+                "every recorded single-slit order claim has passing evidence");
+    }
+
     {
         const Run lens = run(problem(OpticsRelation::ThinLens, OpticsVariable::ImageDistance,
                                      {known(OpticsVariable::FocalLength, "10 cm"),
