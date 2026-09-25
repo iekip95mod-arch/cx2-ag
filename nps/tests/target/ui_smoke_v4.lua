@@ -3889,23 +3889,21 @@ do
           "a stale module cannot silently omit integer walkthroughs")
 end
 
--- The real bridge publishes more modules than the fake does, so the ceiling is held against a padded copy.
 do
-    for _, case in ipairs({ { count = 64, accepted = true }, { count = 65, accepted = false } }) do
+    for _, count in ipairs({128, 129}) do
         local manifest = copyManifest()
-        for index = #manifest.installed_modules + 1, case.count do
+        for index = #manifest.installed_modules + 1, count do
             manifest.installed_modules[index] = { kind = "solver", id = "padding." .. index }
         end
         local module = copyModule()
         module.capability_manifest = function() return manifest end
         local env, _, _, ok = loadIsolated(module)
-        if case.accepted then
-            check(ok and env.hasSteps == true,
-                  "a manifest of " .. case.count .. " modules is within the shell's ceiling")
+        if count == 128 then
+            check(ok and env.hasSteps == true, "a manifest of 128 modules loads StepCAS")
         else
             check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
                   "StepCAS manifest malformed (too many modules)",
-                  "a manifest of " .. case.count .. " modules is refused as malformed")
+                  "a manifest of 129 modules is refused as malformed")
         end
     end
 end
