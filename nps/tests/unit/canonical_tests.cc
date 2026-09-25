@@ -684,6 +684,20 @@ void run_canonical_tests(TestSink &t) {
             "a symbolic factor over a folded rational sum gathers with its like term");
     t.equal(canon("0.5 + 0.5"), "(0.5 + 0.5)",
             "decimal constants keep their numeric-mode spelling and stay separate");
+    t.equal(canon("99999999999999999999 + 99999999999999999999"),
+            "(2 * 99999999999999999999)",
+            "an integer too large to fold gathers as a like term of its own");
+    t.equal(canon("20000000000000000000 + 20000000000000000000 + 20000000000000000000"),
+            "(3 * 20000000000000000000)",
+            "three copies of an unfoldable integer gather into one coefficient");
+    t.equal(canon("x + 20000000000000000000 + 20000000000000000000"),
+            "(x + (2 * 20000000000000000000))",
+            "an unfoldable integer gathers beside a symbolic term");
+    t.check(same("20000000000000000000 + 20000000000000000000", "2*20000000000000000000"),
+            "a doubled unfoldable integer stays canonically identical to its written double");
+    t.equal(canon("x*20000000000000000000 + x*20000000000000000000"),
+            "((20000000000000000000 * x) + (20000000000000000000 * x))",
+            "an unfoldable integer inside a product keeps that product out of the collection");
     t.equal(canon("0.5*x + 0.5*x"), "((0.5 * x) + (0.5 * x))",
             "decimal coefficients keep their numeric-mode spelling and stay separate");
     t.equal(canon("2*x + 3*y"), "((2 * x) + (3 * y))",

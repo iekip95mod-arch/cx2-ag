@@ -375,8 +375,9 @@ bool split_like_term(const Arena &arena, NodeId term, Rational *coefficient,
     const Node &node = arena.at(term);
     if (node.kind == Kind::Decimal)
         return false;
+    const bool product = node.kind == Kind::Mul;
     std::vector<NodeId> parts;
-    if (node.kind == Kind::Mul) {
+    if (product) {
         for (NodeId factor : arena.children(term))
             parts.push_back(factor);
     } else {
@@ -398,7 +399,8 @@ bool split_like_term(const Arena &arena, NodeId term, Rational *coefficient,
                 return false;
             value = next;
         } else {
-            if (part.kind == Kind::Integer || part.kind == Kind::Decimal)
+            // A constant too large to fold gathers as a term, but leaves a product's coefficient unread.
+            if (product && (part.kind == Kind::Integer || part.kind == Kind::Decimal))
                 return false;
             factors->push_back(factor);
         }
