@@ -164,7 +164,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used by mathBox at nps/lua/nps_v4.lua:3152.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156 and sets the
+expression at :3190, and the history editor sets its expression at :1437.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
