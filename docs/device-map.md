@@ -253,11 +253,17 @@ the device requirements.
 tools/device_evidence.cc returns when the directory holds no records, and the branch beside report_size
 registers a row whose echoed text is the literal its SKIP_REGULAR_EXPRESSION matches.
 
+The sweep answers 0 when every record was ingested, 1 when the gate refused one, 3 when a record was
+accepted and its rows could not be appended to the evidence file, and 77 when there was nothing to
+sweep. Only 77 is a skip, so an unwritable evidence file reports the row as Failed rather than hiding
+behind the refusal count.
+
 `measured` on 2026-09-25: with no device tree, ctest -R '^(device_evidence|report_size)$' reports two
 Skipped rows and exits 0. Both Pass instead when the ndl SDK is present and NPS_DEVICE_BUILD_DIR names
 a tree holding nps_nspire.elf, nps_nspire.offline-audit.txt and the nps_nspire.luax.tns that record's
 digest is checked against. Stage only the audit record and device_evidence refuses it for a missing
-artifact rather than passing.
+artifact rather than passing. Sweeping that same tree with NPS_EVIDENCE naming a path under a
+directory that does not exist reports 0 refused, 1 not written and exits 3.
 
 What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
 `fast` alone. They used to wait on `review-ready` as well, which was right while an approving review
