@@ -100,6 +100,19 @@ void run_implicit_tests(TestSink &t) {
             names_y = names_y || condition.find('y') != std::string::npos;
         t.check(names_y, "the circle's derivative is conditional on its divisor being nonzero");
     }
+    // The final check says Passed only when it read something, and Inconclusive when it read nothing.
+    for (const auto &expected : {std::pair{"implicit(x^2+y^2=25,x,y)", VerificationOutcome::Passed},
+                                 std::pair{"implicit(sin(x+y)=x,x,y)", VerificationOutcome::Inconclusive}}) {
+        Run run;
+        implicit_run(run, expected.first);
+        bool found = false;
+        for (size_t i = 0; i < run.derivation.size(); ++i) {
+            const Step &recorded = run.derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "implicit.check" && !recorded.verifications.empty())
+                found = recorded.verifications.back().outcome == expected.second;
+        }
+        t.check(found, "the implicit check records what it could read: " + std::string(expected.first));
+    }
     struct Refusal {
         const char *text;
         ImplicitOutcome outcome;
