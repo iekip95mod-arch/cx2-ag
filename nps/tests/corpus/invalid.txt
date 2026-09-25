@@ -138,13 +138,6 @@ case invalid.derivative.power-with-a-symbolic-exponent
 # The NotAVariable outcome needs a variable that is not a symbol node, and this format spells a
 # variable as a name, so nothing here can reach it. tests/unit/differentiate_tests.cc covers it.
 
-case invalid.integral.by-parts
-  family invalid
-  mode integral
-  input x*sin(x)
-  variable x
-  expect unsupported form
-
 case invalid.integral.tangent
   family invalid
   mode integral
@@ -184,13 +177,6 @@ case invalid.integral.variable-exponent
   family invalid
   mode integral
   input x^x
-  variable x
-  expect unsupported form
-
-case invalid.integral.product-of-two-varying-factors
-  family invalid
-  mode integral
-  input sin(x)*cos(x)
   variable x
   expect unsupported form
 
@@ -380,13 +366,6 @@ case invalid.integral.exponential-times-cosine
   family invalid
   mode integral
   input exp(x)*cos(x)
-  variable x
-  expect unsupported form
-
-case invalid.integral.square-times-sine
-  family invalid
-  mode integral
-  input x^2*sin(x)
   variable x
   expect unsupported form
 
@@ -849,13 +828,6 @@ case invalid.integral.exponential-over-the-variable
   variable x
   expect unsupported form
 
-case invalid.integral.cotangent-written-out
-  family invalid
-  mode integral
-  input cos(x)/sin(x)
-  variable x
-  expect unsupported form
-
 case invalid.integral.rational-exponent
   family invalid
   mode integral
@@ -874,13 +846,6 @@ case invalid.integral.reciprocal-of-a-quadratic-difference
   family invalid
   mode integral
   input 1/(x^2 - 1)
-  variable x
-  expect unsupported form
-
-case invalid.integral.variable-times-an-exponential-chain
-  family invalid
-  mode integral
-  input x*exp(x^2)
   variable x
   expect unsupported form
 
@@ -1130,13 +1095,6 @@ case invalid.derivative.ceiling
   family invalid
   mode derivative
   input ceil(x)
-  variable x
-  expect unsupported form
-
-case invalid.integral.sine-times-cosine
-  family invalid
-  mode integral
-  input sin(x)*cos(x)
   variable x
   expect unsupported form
 

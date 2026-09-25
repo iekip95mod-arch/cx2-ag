@@ -84,6 +84,7 @@ void run_calculus_tests(TestSink &t) {
              std::pair{"defint_zero_width", "int(x,x,2,2)"},
              std::pair{"defint_reciprocal", "int(1/x,x,1,2)"},
              std::pair{"defint_elementary", "int(sin(2*x),x,0,1)"},
+             std::pair{"defint_substitution", "int(2*x*(x^2+1)^3,x,0,1)"},
              std::pair{"limit_continuous", "limit(x^2,x,2)"},
              std::pair{"limit_root_boundary", "limit(sqrt(x),x,0,1)"},
              std::pair{"limit_removable", "limit((x^2-1)/(x-1),x,1)"},
@@ -349,7 +350,7 @@ void run_calculus_tests(TestSink &t) {
                               "int(1/(2*x+1),x,-1,0)", "int(1/x,x,-1,0)",
                               "int(ln(x),x,0,1)", "int(ln(x),x,-2,-1)", "int(ln(x),x,0,0)",
                               "int(ln(2*x+1),x,-1,1)", "int(ln(x^2),x,1,2)",
-                              "int(sqrt(x),x,-1,1)", "int(x*sin(x),x,0,1)",
+                              "int(sqrt(x),x,-1,1)", "int(exp(x)*sin(x),x,0,1)",
                               "int(sqrt(x),x,-2,-1)", "int(sqrt(1-2*x),x,0,1)",
                               "int(sqrt(x^2+1),x,0,1)", "int(1/sqrt(x),x,0,1)",
                               "limit(1/(x-x),x,0)", "limit(0/(x-x),x,0)",
@@ -374,6 +375,17 @@ void run_calculus_tests(TestSink &t) {
             calc005_singular_interval_refused = explicit_refusal;
         t.check(result.value == kNoNode && result.status != DerivationStatus::SolvedAndVerified,
                 std::string("native calculus does not invent an answer: ") + text);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result =
+            calculus_walkthrough(arena, derivation, parse_command(arena, "int(2x*(x^2+1)^3,x,0,1)", "x"));
+        Rational value;
+        t.check(result.value != kNoNode && evaluate_rational(arena, result.value, {}, &value) &&
+                    rational_equal(value, Rational{15, 4}) &&
+                    result.status == DerivationStatus::SolvedAndVerified,
+                "a definite integral found by substitution evaluates the antiderivative written back in x");
     }
     {
         Arena arena;

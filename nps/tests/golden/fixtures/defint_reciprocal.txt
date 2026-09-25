@@ -37,11 +37,11 @@ steps
     proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
     strategy: Integrate by rule
     applicability: every form in the integrand has an antiderivative rule
-    applicability: every function argument and every power base is the variable or linear in it
+    applicability: every function argument and every power base is the variable, linear in it, or the inner function of a recorded substitution
     fact: integrate with respect to x
     rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
     verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
-    verification: registered inner-form analysis, passed, every matched inner form met its registered linearity requirement
+    verification: registered inner-form analysis, passed, every matched inner form was linear or the inner function of a recorded substitution
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
     verified: nothing claimed
     2.1 transformation

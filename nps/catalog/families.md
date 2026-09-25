@@ -616,16 +616,16 @@ topic_and_level Supported elementary indefinite integrals, PRD section 22.1
 accepted_expression_grammar sums, products, negations, integer powers including the reciprocal, and calls to a named function, over numbers and the one variable, with a typed decimal read as the fraction it names and refused in an exponent
 accepted_input_forms an expression in one variable, within the Milestone 3 envelope
 domains_and_parameter_assumptions the logarithm needs a positive argument, and a symbolic coefficient is assumed non-zero
-supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules
+supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules. A product whose remaining factor is a constant multiple of the derivative of an inner function, as in 2x cos(x^2), 2x/(x^2+1) or sin(x) cos(x), integrates by substitution. A polynomial of degree at most four times exp, sin or cos of a linear argument integrates by parts, repeatedly where the degree needs it
 exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
 parser_module_ids src/core/parser.cc, src/steps/integrate.cc
 required_assumptions whatever the integrand's own form needs, recorded as it is met rather than remembered, as in "x > 0" for the logarithm a reciprocal integrates to
 test_group_ids integrate
-proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold
-supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand
-unsupported_near_neighbors general integration by parts, nonlinear substitution, general rational exponents, tan, reciprocal square roots, powers of logarithms and logarithms with nonlinear arguments
+proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold, obl.integrate.substitution-differential
+supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand. A substitution records the inner function it names, the integral rewritten in the new variable and the antiderivative written back in the original one. Integration by parts records the factor differentiated and the factor integrated, then integrates what remains
+unsupported_near_neighbors a substitution whose remaining factor is not a constant multiple of the inner derivative, integration by parts beyond a polynomial times exp, sin or cos of a linear argument, including a power times a logarithm whose derivative check cannot close without Giac, general rational exponents, tan, reciprocal square roots, powers of logarithms and logarithms with nonlinear arguments outside a substitution
 solution_soundness_status the answer is differentiated by rule. Canonical agreement verifies simple identities. Inconclusive canonical comparisons require an exact zero difference from Giac under recorded domain restrictions, otherwise the answer is withheld
-solution_completeness_status partial, one substitution deep and linear arguments only
+solution_completeness_status partial, substitutions whose remaining factor is a constant multiple of the inner derivative and parts against a polynomial of degree at most four
 corpus_case_ids the golden fixtures naming this family
 device_performance_status measured on the physical calculator, see STATUS.md
 direct_keypad_entry_status entered from the calculator keypad, measured
@@ -642,6 +642,9 @@ rule i.constant-of-integration fixture
 rule i.logarithm-parts fixture
 rule i.constant fixture
 rule i.function fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
+rule i.parts fixture
 
 family id calculus.integral.definite.single-variable
 topic_and_level Elementary definite integrals in one real variable
@@ -654,9 +657,9 @@ exact_special_function_and_numerical_result_policy exact rational or symbolic en
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/integrate.cc
 required_assumptions none carried globally. Interval validity and primitive branch restrictions are checked locally
 test_group_ids calculus, command, adapter
-proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement, obl.integrate.substitution-differential
 supported_methods interval continuity checks, a native antiderivative verified by differentiation with Giac exact identity checks when needed, affine logarithm integration by parts, the fundamental theorem of calculus and exact endpoint subtraction
-unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, general integration by parts, logarithm powers and nonlinear substitution
+unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, the substitutions and parts patterns the indefinite family refuses, and logarithm powers. A substitution is carried out in the indefinite antiderivative and written back in the original variable before the bounds are applied, so the bounds are never transformed
 solution_soundness_status native expected-answer, domain refusal, budget and rule-schema tests pass. Actual Giac bridge comparisons pass under host sanitizers. Physical qualification remains pending
 solution_completeness_status partial, limited by the stated grammar, checked arithmetic and resource budgets. No native result survives failed verification or terminal cancellation
 corpus_case_ids defint_polynomial, defint_zero_width, defint_reciprocal, defint_elementary, defint_logarithm_affine, defint_logarithm_reversed, defint_square_root_endpoint
@@ -680,6 +683,8 @@ rule i.power fixture
 rule i.reciprocal fixture
 rule i.constant-multiple fixture
 rule i.linear-substitution fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
 
 family id calculus.limit.single-variable
 topic_and_level Finite and infinite limits in one real variable

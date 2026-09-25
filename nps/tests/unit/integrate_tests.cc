@@ -7,6 +7,7 @@
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
+#include "../step_invariants.h"
 
 namespace nps {
 namespace {
@@ -102,9 +103,83 @@ bool uses_rule(const std::string &expression, const char *variable, const std::s
     return false;
 }
 
+
+std::string first_broken_invariant(const std::string &expression, const char *variable) {
+    Arena arena;
+    Derivation d;
+    integrate(arena, d, parse(arena, expression).root, arena.symbol(variable));
+    invariants::Pass audit;
+    std::vector<std::string> broken;
+    audit.walk(arena, d, false, true, &broken);
+    return broken.empty() ? std::string() : broken.front();
+}
+
+void test_methods(TestSink &t) {
+    struct Method {
+        const char *input;
+        const char *expected;
+        const char *rule;
+    };
+    for (const Method &example : {
+             Method{"2x*cos(x^2)", "sin(x^2)", "i.substitution"},
+             Method{"2x*(x^2+1)^3", "(x^2+1)^4/4", "i.substitution"},
+             Method{"x*exp(x^2)", "exp(x^2)/2", "i.substitution"},
+             Method{"sin(x)*cos(x)", "sin(x)^2/2", "i.substitution"},
+             Method{"2x/(x^2+1)", "ln(x^2+1)", "i.substitution"},
+             Method{"x*exp(x)", "x*exp(x)-exp(x)", "i.parts"},
+             Method{"x*sin(x)", "-x*cos(x)+sin(x)", "i.parts"},
+             Method{"x*cos(2x)", "x*sin(2x)/2+cos(2x)/4", "i.parts"},
+             Method{"x^2*exp(x)", "x^2*exp(x)-2*(x*exp(x)-exp(x))", "i.parts"},
+         }) {
+        const Integrated s = run(example.input, "x");
+        t.equal(integrate_outcome_name(s.outcome), "integrated",
+                std::string("a named method integrates: ") + example.input);
+        t.equal(s.status, "solved and verified",
+                std::string("and its derivative check passes: ") + example.input);
+        t.check(agrees(example.input, "x", example.expected),
+                std::string("with the expected antiderivative: ") + example.input);
+        t.check(uses_rule(example.input, "x", example.rule),
+                std::string("recorded as the method it used: ") + example.input + " by " + example.rule);
+        const std::string broken = first_broken_invariant(example.input, "x");
+        t.check(broken.empty(), std::string("and the record passes the invariant pass: ") + example.input +
+                                    (broken.empty() ? "" : ", got " + broken));
+    }
+    t.check(uses_rule("2x*cos(x^2)", "x", "i.substitution-rewrite"),
+            "a substitution records the integral rewritten in the new variable");
+    t.evidence("CALC-006",
+               run("2x*cos(x^2)", "x").status == "solved and verified" &&
+                   uses_rule("2x*cos(x^2)", "x", "i.substitution-rewrite") &&
+                   run("x*exp(x)", "x").status == "solved and verified" && uses_rule("x*exp(x)", "x", "i.parts"),
+               "substitution and integration by parts are recorded as named methods and each result is checked");
+    {
+        Arena arena;
+        Derivation d;
+        integrate(arena, d, parse(arena, "2x/(x^2-1)").root, arena.symbol("x"));
+        bool mentions_inner = false;
+        bool mentions_u = false;
+        for (const std::string &assumption : d.context.active_assumptions) {
+            mentions_inner = mentions_inner || assumption.find("x") != std::string::npos;
+            mentions_u = mentions_u || assumption.find("u") != std::string::npos;
+        }
+        t.check(mentions_inner && !mentions_u,
+                "the logarithm's condition is stated in the variable, not in the substitution's u");
+    }
+    {
+        const Integrated s = run("u*cos(u^2)", "u");
+        t.equal(s.status, "solved and verified", "an integrand already written in u substitutes another name");
+    }
+    for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
+        const Integrated s = run(refused, "x");
+        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
+                std::string("a form no substitution or parts pattern fits is still refused: ") + refused);
+        t.check(s.detail.find("not implemented") == std::string::npos && !s.detail.empty(),
+                std::string("and the refusal says why rather than that nothing exists: ") + refused);
+    }
+}
 }  // namespace
 
 void run_integrate_tests(TestSink &t) {
+    test_methods(t);
     {
         Arena arena;
         const NodeId list = arena.list({arena.integer("1"), arena.integer("2")});
@@ -500,7 +575,7 @@ void run_integrate_tests(TestSink &t) {
         // a constant leaves it saying solved and verified.
         t.equal(s.verifications,
                 "passed, every visited form matched a registered antiderivative rule | "
-                "passed, every matched inner form met its registered linearity requirement | "
+                "passed, every matched inner form was linear or the inner function of a recorded substitution | "
                 "passed, every registered strategy precondition has passed evidence | "
                 "passed, the base is the variable and the exponent is a constant integer other "
                 "than minus one | "
@@ -604,9 +679,9 @@ void run_integrate_tests(TestSink &t) {
                 "a symbolic coefficient records that it was assumed non-zero");
     }
     {
-        Integrated s = run("x*sin(x)", "x");
+        Integrated s = run("exp(x)*sin(x)", "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
-                "a product of two varying factors is refused rather than guessed at");
+                "a product of two varying factors no method fits is refused rather than guessed at");
         t.check(s.detail.find("parts") != std::string::npos, "and names integration by parts");
         t.check(s.steps == 0, "leaving nothing in the record");
     }
@@ -645,9 +720,9 @@ void run_integrate_tests(TestSink &t) {
         Integrated s = run("sin(x)*x", "x");
         t.check(!uses_rule("sin(x)*x", "x", "alg.gather-powers"),
                 "reordering a product's factors is not a gathering step");
-        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
-                "and a product with nothing repeated is still refused either way round");
-        t.check(s.steps == 0, "leaving nothing in the record");
+        t.equal(integrate_outcome_name(s.outcome), "integrated",
+                "and the product integrates by parts either way round");
+        t.check(uses_rule("sin(x)*x", "x", "i.parts"), "with the polynomial factor chosen as u");
     }
     {
         Integrated s = run("sin(x)*sin(x)", "x");

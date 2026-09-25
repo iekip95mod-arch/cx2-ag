@@ -1,15 +1,14 @@
-problem: sin(2x) + 1/x
+problem: x*sin(x)
 variable: x
 outcome: integrated
-result: ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C)
+result: (((x * (-cos(x))) + (-(-1 * sin(x)))) + C)
 context
   application version: nps 0.2
   capability manifest: <current>
   problem family: calculus.integral.indefinite.single-variable
   envelope version: <not recorded>
-  normalized problem: (sin((2 * x)) + (1 * (x^(-1))))
+  normalized problem: (x * sin(x))
   requested method: integrate by rule
-  active assumption: x > 0
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion
@@ -19,7 +18,7 @@ context
 steps
   1 plan
     phase: plan
-    goal: Integrate (sin((2 * x)) + (1 * (x^(-1)))) with respect to x
+    goal: Integrate (x * sin(x)) with respect to x
     rule: calculus.integrate.rules, Integrate by rule
     claim: no claim
     explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
@@ -35,60 +34,59 @@ steps
     verified: nothing claimed
     1.1 transformation
       phase: integrate
-      goal: Integrate (sin((2 * x)) + (1 * (x^(-1))))
-      rule: i.sum, Sum rule
+      goal: Integrate (x * sin(x))
+      rule: i.parts, Integration by parts
       claim: equivalent expression
-      explanation: The integral of a sum is the sum of the integrals
-      detail: Each term is integrated on its own and the results are added.
+      explanation: Differentiate one factor, integrate the other, and subtract the integral of their product
+      detail: Let u = x and dv = sin(x) dx. Then du = 1 dx and v is an antiderivative of sin(x). Integration by parts gives u v minus the integral of v du. Differentiating x makes the remaining integral simpler, which is why it is the factor chosen as u.
       proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-      action: Integrate each term separately
-      before: int((sin((2 * x)) + (1 * (x^(-1)))), x)
-      after: (((-cos((2 * x))) * (2^-1)) + (1 * ln(x)))
+      action: Let u = x and dv = sin(x) dx
+      before: int((x * sin(x)), x)
+      after: ((x * (-cos(x))) + (-(-1 * sin(x))))
       reversible: no
-      verification: rule-local invariant, passed, integration is linear, so this holds term by term
+      verification: rule-local invariant, passed, the product rule for u v, integrated, gives the integral of u dv plus the integral of v du
       verified: yes
       1.1.1 transformation
         phase: integrate
-        goal: Integrate sin((2 * x))
-        rule: i.linear-substitution, Trigonometric integral with a linear substitution
+        goal: Integrate sin(x)
+        rule: i.function, Trigonometric integral
         claim: equivalent expression
-        explanation: Substitute for the linear argument, then use the known antiderivative
-        detail: The derivative of (2 * x) with respect to x is 2. Divide the antiderivative by 2 to undo this factor.
+        explanation: Use the known antiderivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these has an antiderivative worth learning, and it is read off by asking what differentiates to the function in front of you. Once the argument is anything but the variable, a substitution is needed first.
         proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-        action: Use (-cos((2 * x))), then divide by 2
-        before: int(sin((2 * x)), x)
-        after: ((-cos((2 * x))) * (2^-1))
+        action: Use (-cos(x))
+        before: int(sin(x), x)
+        after: (-cos(x))
         reversible: no
-        verification: rule-local invariant, passed, the argument is linear in the variable with a non-zero coefficient
+        verification: rule-local invariant, passed, the argument is the variable itself, so no substitution is needed
         verified: yes
       1.1.2 transformation
         phase: integrate
-        goal: Integrate (1 * (x^(-1)))
+        goal: Integrate (-1 * cos(x))
         rule: i.constant-multiple, Constant multiple rule
         claim: equivalent expression
         explanation: A constant factor stays where it is and the rest is integrated
         detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. A fixed multiplier can be lifted out, the rest integrated on its own, and the multiplier put back, because scaling a function scales its area by the same amount. Only a factor free of the variable may move: anything that changes has to stay inside.
         proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-        action: Take 1 outside the integral
-        before: int((1 * (x^(-1))), x)
-        after: (1 * ln(x))
+        action: Take -1 outside the integral
+        before: int((-1 * cos(x)), x)
+        after: (-1 * sin(x))
         reversible: no
         verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
         verified: yes
         1.1.2.1 transformation
           phase: integrate
-          goal: Integrate (x^(-1))
-          rule: i.reciprocal, Logarithmic integral
+          goal: Integrate cos(x)
+          rule: i.function, Trigonometric integral
           claim: equivalent expression
-          explanation: The integral of one over the variable is its natural logarithm
-          detail: The logarithm is only defined for a positive argument; for a negative one the antiderivative is the logarithm of the negated argument, so the restriction is recorded rather than hidden inside an absolute value.
-          domain restriction: x > 0
+          explanation: Use the known antiderivative of this function
+          detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these has an antiderivative worth learning, and it is read off by asking what differentiates to the function in front of you. Once the argument is anything but the variable, a substitution is needed first.
           proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-          action: Use the natural logarithm of x
-          before: int((x^(-1)), x)
-          after: ln(x)
+          action: Use sin(x)
+          before: int(cos(x), x)
+          after: sin(x)
           reversible: no
-          verification: rule-local invariant, passed, the exponent is minus one and the base is the variable
+          verification: rule-local invariant, passed, the argument is the variable itself, so no substitution is needed
           verified: yes
     1.2 transformation
       phase: integrate
@@ -99,8 +97,8 @@ steps
       detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
       proof obligation: obl.calculus.family-adds-a-constant, the after state is the antiderivative found plus one constant free nowhere before it
       action: Add the constant C
-      before: (((-cos((2 * x))) * (2^-1)) + (1 * ln(x)))
-      after: ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C)
+      before: ((x * (-cos(x))) + (-(-1 * sin(x))))
+      after: (((x * (-cos(x))) + (-(-1 * sin(x)))) + C)
       reversible: no
       verification: rule-local invariant, passed, the derivative of a constant is zero
       verified: yes
@@ -112,9 +110,9 @@ steps
       explanation: Differentiate the result and compare it with the integrand
       detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
       proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
-      target claim: the derivative of ((((-cos((2 * x))) * (2^-1)) + (1 * ln(x))) + C) is (sin((2 * x)) + (1 * (x^(-1))))
+      target claim: the derivative of (((x * (-cos(x))) + (-(-1 * sin(x)))) + C) is (x * sin(x))
       check method: differentiate the result by rule and compare canonical forms
-      expected: ((x^-1) + sin((2 * x)))
-      observed: ((x^-1) + sin((2 * x)))
+      expected: (x * sin(x))
+      observed: (x * sin(x))
       verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
       verified: yes

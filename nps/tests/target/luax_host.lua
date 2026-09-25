@@ -877,7 +877,7 @@ end
 
 local before_answer_only = giac_calls
 script("x")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.solved == false and r.answer_only == true,
       "a refused integral can return a Giac answer without claiming a derivation")
 check(r.result == "x" and r.giac_tag == "exact",
@@ -2034,9 +2034,24 @@ check(giac_calls == 0 and r.outcome == "no solution" and r.solved == false and
       r.has_result == true and r.result == nil and r.status == "solved and verified" and
       type(r.steps) == "table" and #r.steps > 0,
       "verified inconsistent kinematics publishes an empty result set")
-r = nps.integrate_local("x*sin(x)", "x")
+r = nps.integrate_local("exp(x)*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only refusal cannot become answer-only")
+do
+    local function rules_of(record)
+        local found = {}
+        for _, step in ipairs(type(record) == "table" and record.steps or {}) do found[step.rule] = true end
+        return found
+    end
+    local substituted = nps.integrate_local("2*x*cos(x^2)", "x")
+    local parts = nps.integrate_local("x*exp(x)", "x")
+    local substituted_rules, parts_rules = rules_of(substituted), rules_of(parts)
+    evidence("CALC-006", giac_calls == 0 and substituted.solved and substituted.answer_only == false and
+             substituted.status == "solved and verified" and substituted_rules["i.substitution"] and
+             substituted_rules["i.substitution-rewrite"] and parts.solved and
+             parts.status == "solved and verified" and parts_rules["i.parts"],
+             "substitution and integration by parts reach the bridge as recorded methods without Giac")
+end
 r = nps.kinematics_local(quadratic_problem)
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only quadratic kinematics refusal cannot become answer-only")
@@ -2218,7 +2233,7 @@ check(r.result ~= nil and r.answer_only == false,
       "and the derivative computed before that stop is still the answer")
 
 script("Error: Bad Argument Value")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
       "a backend error cannot turn a core refusal into answer-only success")
 
