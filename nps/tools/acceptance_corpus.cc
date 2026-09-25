@@ -796,6 +796,11 @@ nps::NodeId sum_of(Arena &arena, const char *left, const char *right) {
     return arena.binary(nps::Kind::Add, arena.integer(left), arena.integer(right));
 }
 
+bool refused_definition_flaw(const std::string &flaw) {
+    return flaw == "definition prefix" || flaw == "unverified definition prefix" ||
+           flaw == "unfinished definition";
+}
+
 // A record a well behaved engine would produce: a plan with a strategy, and one verified
 // transformation under it. The flaw argument names the one thing to leave out.
 void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
@@ -825,9 +830,10 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     // sides are 2 and 3 asserts that two is three, and a fixture standing in for a well behaved
     // engine cannot be built on one.
     payload.before = sum_of(arena, "2", "1");
-    payload.after = flaw == "exact value"          ? arena.decimal("3.0")
-                    : flaw == "false equivalence"  ? arena.integer("4")
-                                                   : arena.integer("3");
+    payload.after = flaw == "exact value"             ? arena.decimal("3.0")
+                    : flaw == "false equivalence"     ? arena.integer("4")
+                    : flaw == "unfinished definition" ? nps::kNoNode
+                                                      : arena.integer("3");
     payload.concrete_action = flaw == "action" ? "" : "Add one";
     payload.reversible = true;
 
@@ -839,8 +845,10 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     move.rule_name = "Selftest addition";
     move.explanation_short = "Adding one to a number";
     move.explanation_detailed = "Reach for this whenever a number needs to be one larger.";
-    move.claim = nps::ClaimType::EquivalentExpression;
-    if (flaw != "verification" && flaw != "halted unchecked step") {
+    move.claim = refused_definition_flaw(flaw) ? nps::ClaimType::Definition
+                                               : nps::ClaimType::EquivalentExpression;
+    if (flaw != "verification" && flaw != "halted unchecked step" &&
+        flaw != "unverified definition prefix") {
         nps::VerificationRecord v;
         v.method = "selftest arithmetic";
         v.outcome = nps::VerificationOutcome::Passed;
@@ -853,6 +861,9 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     // so criterion 8 has to separate the two rather than wave the whole halt through.
     if (flaw == "halted unchecked step")
         d->context.derivation_status = nps::DerivationStatus::ResourceLimitReached;
+
+    if (refused_definition_flaw(flaw))
+        d->context.derivation_status = nps::DerivationStatus::Unsupported;
 
     // A grandchild of the plan rather than a child, so it is not a major step. Criterion 5 asks
     // only about major steps, which is what leaves an arm that breaks STEP-002 and nothing else.
@@ -903,6 +914,9 @@ int selftest() {
         // see: a refusal whose status says it ran out, keeping a transformation nothing stands
         // behind. Criterion 4 fires on the same record, which is why both are named.
         {"4 and 8", "halted unchecked step", true},
+        {"", "definition prefix", true},
+        {"4 and 8", "unverified definition prefix", true},
+        {"8 and STEP-002", "unfinished definition", true},
         {"STEP-002", "nested rule name", false},
         {"STEP-022", "generic rule name", false},
         // Both ways STEP-021 goes wrong. Saying nothing is the obvious one; saying the short

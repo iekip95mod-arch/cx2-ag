@@ -636,6 +636,38 @@ void run_calculus_tests(TestSink &t) {
                 "the tangent family refuses outside its envelope: " + std::string(text) + ": " +
                 std::string(calculus_outcome_name(result.outcome)));
     }
+    // Every refusal above stops before the function is evaluated, so none of them reaches the state
+    // this family is the first to produce: verified work recorded and then no way to finish. x*tan(x)
+    // is exact at zero and its derivative is not, which is the other half of the envelope.
+    for (const char *text : {"tangent(x*tan(x),x,0)", "linearize(x*tan(x),x,0)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        const std::string where = std::string(text) + ": ";
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                result.status == DerivationStatus::Unsupported,
+                where + "a slope with no exact value is refused rather than approximated");
+        t.equal(result.detail,
+                std::string("the derivative has no exact value at that point, so the slope is "
+                            "undefined there"),
+                where + "the refusal names the slope rather than the function value");
+        size_t kept = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "tangent.point-value" && recorded.verified())
+                ++kept;
+        }
+        t.check(kept == 1, where + "the verified function value survives the refusal");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        const bool has_answer = result.value != kNoNode;
+        audit.walk(arena, derivation, true, true, &broken, &has_answer);
+        t.check(broken.empty(),
+                where + "and the refusal invariants accept a definition the refusal cannot unmake" +
+                    (broken.empty() ? "" : ", got " + broken.front()));
+    }
     {
         Arena arena;
         const Command missing = parse_command(arena, "tangent(x^2,x)", "x");
