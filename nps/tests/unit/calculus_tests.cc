@@ -661,6 +661,158 @@ void run_calculus_tests(TestSink &t) {
                     std::string(text) + " failure " + std::to_string(failure) + ": " + result.detail);
         }
     }
+    // CALC-011. Each fixture's polynomial is read back at two points against the value it must have,
+    // so a wrong coefficient fails here as well as in the recorded check.
+    struct TaylorCase {
+        const char *golden;
+        const char *text;
+        bool approximate;
+        Rational at_one;
+        Rational at_two;
+    };
+    for (const TaylorCase &fixture : {
+             TaylorCase{"taylor_maclaurin_exponential", "maclaurin(exp(x),x,3)", true, {8, 3}, {19, 3}},
+             TaylorCase{"taylor_reciprocal_shifted", "taylor(1/x,x,1,3)", true, {1, 1}, {0, 1}},
+             TaylorCase{"taylor_polynomial_exact", "taylor(x^3,x,1,3)", false, {1, 1}, {8, 1}},
+             TaylorCase{"taylor_maclaurin_sine", "maclaurin(sin(x),x,5)", true, {101, 120}, {14, 15}}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = fixture.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, fixture.text, "x"));
+        t.check(result.outcome == CalculusOutcome::Evaluated && result.value != kNoNode &&
+                result.status == DerivationStatus::SolvedAndVerified,
+                "the Taylor family answers inside its envelope: " + std::string(fixture.text) + ": " + result.detail);
+        Rational one, two;
+        t.check(result.value != kNoNode &&
+                evaluate_rational(arena, result.value, {{"x", Rational{1, 1}}}, &one) &&
+                evaluate_rational(arena, result.value, {{"x", Rational{2, 1}}}, &two) &&
+                one.num == fixture.at_one.num && one.den == fixture.at_one.den &&
+                two.num == fixture.at_two.num && two.den == fixture.at_two.den,
+                "the Taylor polynomial has the coefficients the derivatives give: " + std::string(fixture.text) +
+                " is " + (result.value == kNoNode ? std::string("missing") : print(arena, result.value)));
+        t.check(result.approximate == fixture.approximate && result.remainder != kNoNode,
+                "the Taylor family states its remainder and calls the polynomial exact only when it is zero: " +
+                std::string(fixture.text));
+        size_t values = 0, remainders = 0, restrictions = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "taylor.derivative-value") {
+                ++values;
+                t.check(recorded.claim == ClaimType::Definition,
+                        "a derivative value at the center is a definition rather than an equivalence: " +
+                        std::string(fixture.text));
+            }
+            if (recorded.rule_id == "taylor.remainder") {
+                ++remainders;
+                restrictions = derivation.restrictions_at(static_cast<StepId>(i)).size();
+            }
+        }
+        int64_t order = 0;
+        const Command parsed = parse_command(arena, fixture.text, "x");
+        t.check(folded_integer(arena, parsed.order, &order) && values == static_cast<size_t>(order) + 1 &&
+                remainders == 1 && restrictions == (fixture.approximate ? 2u : 0u),
+                "the Taylor family records one value per order, one remainder and its hypotheses: " +
+                std::string(fixture.text) + " has " + std::to_string(values) + " values and " +
+                std::to_string(restrictions) + " restrictions");
+        const std::string rendered = render_derivation(arena, derivation);
+        t.check(rendered.find("taylor.check-polynomial") != std::string::npos,
+                "the Taylor family records its final derivative check: " + std::string(fixture.text));
+        check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nresult: " +
+                     (result.value == kNoNode ? std::string() : print(arena, result.value)) + "\nremainder: " +
+                     (result.remainder == kNoNode ? std::string() : print(arena, result.remainder)) + "\n" + rendered);
+    }
+    // The first-order polynomial is the linearization, which is the one place two families share an answer.
+    for (const char *center : {"0", "2", "-1/2"}) {
+        Arena arena;
+        Derivation first, second;
+        const std::string taylor = std::string("taylor(x^3-2*x,x,") + center + ",1)";
+        const std::string line = std::string("linearize(x^3-2*x,x,") + center + ")";
+        const CalculusResult polynomial = calculus_walkthrough(arena, first, parse_command(arena, taylor, "x"));
+        const CalculusResult linear = calculus_walkthrough(arena, second, parse_command(arena, line, "x"));
+        bool same = polynomial.value != kNoNode && linear.value != kNoNode;
+        for (int64_t at = -2; same && at <= 2; ++at) {
+            Rational a, b;
+            same = evaluate_rational(arena, polynomial.value, {{"x", Rational{at, 1}}}, &a) &&
+                   evaluate_rational(arena, linear.value, {{"x", Rational{at, 1}}}, &b) &&
+                   a.num == b.num && a.den == b.den;
+        }
+        t.check(same, "the order one Taylor polynomial is the linearization at the same center: " + taylor);
+    }
+    // Neighboring refusals, each for the reason the learner can act on.
+    struct TaylorRefusal {
+        const char *text;
+        CalculusOutcome outcome;
+        DerivationStatus status;
+    };
+    for (const TaylorRefusal &refusal : {
+             TaylorRefusal{"taylor(sin(x),x,1,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"taylor(1/x,x,0,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(sqrt(x),x,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"taylor(x^2,x,sqrt(2),2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(asin(x),x,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(exp(x),x,20)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = refusal.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, refusal.text, "x"));
+        t.check(result.value == kNoNode && !result.detail.empty() && result.outcome == refusal.outcome &&
+                result.status == refusal.status,
+                "the Taylor family refuses outside its envelope for the right reason: " + std::string(refusal.text) +
+                ": " + calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult beyond = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(exp(x),x,20)", "x"));
+        t.check(beyond.detail.find("orders up to 19") != std::string::npos && derivation.size() == 0,
+                "an order past the ceiling is refused as this build's limit before any derivative is taken: " +
+                beyond.detail);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult ceiling = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(x,x,19)", "x"));
+        t.check(ceiling.outcome == CalculusOutcome::Evaluated && ceiling.status == DerivationStatus::SolvedAndVerified,
+                "order 19 is inside the factorial ceiling: " + ceiling.detail);
+    }
+    for (const auto &malformed : {std::pair{"taylor(x^2,x,0,-1)", CommandStatus::Invalid},
+                                  std::pair{"taylor(x^2,x,0,1/2)", CommandStatus::Invalid},
+                                  std::pair{"taylor(x^2,x,0)", CommandStatus::Unsupported},
+                                  std::pair{"maclaurin(x^2,x)", CommandStatus::Unsupported},
+                                  std::pair{"maclaurin(x^2,x,0,2)", CommandStatus::Unsupported}}) {
+        Arena arena;
+        const Command command = parse_command(arena, malformed.first, "x");
+        t.check(command.status == malformed.second && !command.detail.empty(),
+                "a malformed Taylor request is refused before any work: " + std::string(malformed.first) + ": " +
+                command.detail);
+    }
+    for (const char *text : {"maclaurin(exp(x),x,3)", "taylor(1/x,x,1,3)"}) {
+        for (unsigned failure = 0; failure < 3; ++failure) {
+            Arena arena;
+            Derivation derivation;
+            Budget budget;
+            if (failure == 0) budget.max_steps = 2;
+            if (failure == 1) budget.max_rewrites = 4;
+            if (failure == 2) budget.poll = [](void *) { return true; };
+            const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "x"), budget);
+            t.check(result.value == kNoNode && result.remainder == kNoNode &&
+                    result.outcome == (failure == 2 ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded) &&
+                    result.status == (failure == 2 ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached),
+                    "the Taylor family stops for cancellation and for its budgets: " + std::string(text) +
+                    " failure " + std::to_string(failure) + ": " + result.detail);
+        }
+    }
+    {
+        // Giac is never asked, because the family's final check is native.
+        Arena arena;
+        Derivation derivation;
+        CalculusBackend backend;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "maclaurin(exp(x),x,2)", "x"), Budget(), &backend);
+        t.check(result.outcome == CalculusOutcome::Evaluated && backend.commands.empty() && !result.backend_attempted,
+                "the Taylor family does not send its question to the backend");
+    }
 }
+
 
 }

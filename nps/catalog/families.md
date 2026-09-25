@@ -1071,6 +1071,41 @@ rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
 
+family id calculus.taylor-polynomial.single-variable
+topic_and_level Finite Taylor and Maclaurin polynomials with the Lagrange remainder, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms taylor(expression,variable,center,order) and maclaurin(expression,variable,order), with the center an exact rational and the order a nonnegative integer no greater than 19
+domains_and_parameter_assumptions the expression and each of its derivatives up to the order have an exact rational value at the center. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases order zero, which is the constant value at the center, and a polynomial of degree at most the order, whose next derivative is identically zero so the remainder is zero and the polynomial equals the function
+exact_special_function_and_numerical_result_policy exact rationals over int64 with the factorial computed exactly, refusing rather than approximating a center or a derivative value that is not exact. The answer is an approximation near the center unless the remainder is zero
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family. The remainder's hypotheses, the intermediate point lying between the center and the variable and the next derivative existing on that interval, are recorded as domain restrictions on the remainder step
+test_group_ids calculus, context
+supported_methods differentiate repeatedly by the registered rules, evaluate each derivative at the center, divide by the factorial of its order, assemble the powers of the distance from the center, and state the Lagrange remainder from the next derivative
+unsupported_near_neighbors infinite Taylor and power series, radius and interval of convergence, a symbolic or irrational center, a center where a derivative is undefined or not exact, orders above 19, error bounds that maximize the remainder, multivariable expansions, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.taylor-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled polynomial is differentiated again by the native engine and every derivative up to the order is read back exactly at the center against the values the coefficients came from, withholding the result on any disagreement. The remainder is stated with its hypotheses rather than bounded
+solution_completeness_status partial, the expressions the differentiation engine covers with exact derivative values at a rational center and no others
+corpus_case_ids taylor_maclaurin_exponential, taylor_maclaurin_sine, taylor_reciprocal_shifted, taylor_polynomial_exact
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.taylor-polynomial.single-variable
+release_status in development, unreleased
+rule taylor.derivative-value fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.variable fixture
+rule taylor.polynomial fixture
+rule taylor.remainder fixture
+rule taylor.check-polynomial fixture
+
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022

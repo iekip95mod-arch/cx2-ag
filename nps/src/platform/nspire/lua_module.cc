@@ -2705,9 +2705,16 @@ int calculus_into(lua_State *L) {
     if (result.slope != kNoNode) set_field(L, "tangent_slope", print(arena, result.slope));
     if (result.point_value != kNoNode)
         set_field(L, "tangent_point_value", print(arena, result.point_value));
-    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) {
+    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize ||
+        command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
         set_field(L, "approximation", result.approximate);
         set_field(L, "relation", result.approximate ? "approximately equal" : "equal");
+    }
+    // The Taylor family names the order it was asked for and what the polynomial leaves out.
+    if (command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
+        set_field(L, "taylor_order", print(arena, command.order));
+        set_field(L, "taylor_center", print(arena, command.point));
+        if (result.remainder != kNoNode) set_field(L, "taylor_remainder", print(arena, result.remainder));
     }
     if (result.infinity != 0) set_field(L, "infinite_limit", true);
     const ResultForm backend_form =
@@ -2764,7 +2771,8 @@ int l_walkthrough(lua_State *L) {
             return 1;
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
-            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
+            kind != CommandKind::Taylor && kind != CommandKind::Maclaurin) {
         lua_settop(L, 3);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2774,7 +2782,8 @@ int l_walkthrough(lua_State *L) {
         }
     }
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
-        kind == CommandKind::Tangent || kind == CommandKind::Linearize)
+        kind == CommandKind::Tangent || kind == CommandKind::Linearize ||
+        kind == CommandKind::Taylor || kind == CommandKind::Maclaurin)
         return calculus_into(L);
     int count;
     if (kind == CommandKind::Solve)

@@ -58,6 +58,10 @@ const char *const degree_ceiling =
     "the native calculus engine handles polynomial degrees up to 32 and this request is higher";
 const char *const coefficient_ceiling =
     "the leading coefficients of this expression overflow the exact arithmetic the native calculus engine uses";
+// The remainder divides by the next order's factorial, and 20 factorial is the last one int64 holds.
+constexpr int64_t kTaylorOrderCeiling = 19;
+const char *const taylor_ceiling =
+    "the native Taylor engine handles orders up to 19 and this request is higher";
 
 struct Calculation {
     Arena &arena;
@@ -76,7 +80,7 @@ struct Calculation {
     // The status as well as the sentence, which is what linear.cc:714 does for the same class. The
     // shell prints the status verbatim on the note line at nps_v4.lua:2758-2759, and keeping the
     // four refusal kinds distinct is asked for whether or not a given renderer branches on it.
-    void refuse(Form form, const char *ceiling, const char *unsupported) {
+    void refuse(Form form, const char *ceiling, const std::string &unsupported) {
         const bool capacity = form == Form::BeyondCapacity;
         result.outcome = capacity ? CalculusOutcome::ResourceExceeded
                                   : CalculusOutcome::UnsupportedForm;
@@ -244,12 +248,20 @@ struct Calculation {
         return command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
     }
 
+    bool taylor_family() const {
+        return command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin;
+    }
+
     NodeId call(NodeId expression) {
         if (linear_family())
             return arena.call(command_kind_name(command.kind),
                               {expression, command.variable, command.point});
         if (command.kind == CommandKind::DefiniteIntegral)
             return arena.call("int", {expression, command.variable, command.lower, command.upper});
+        if (command.kind == CommandKind::Taylor)
+            return arena.call("taylor", {expression, command.variable, command.point, command.order});
+        if (command.kind == CommandKind::Maclaurin)
+            return arena.call("maclaurin", {expression, command.variable, command.order});
         std::vector<NodeId> arguments{expression, command.variable, command.point};
         if (command.direction != 0) arguments.push_back(arena.integer(std::to_string(command.direction)));
         return arena.call("limit", arguments);
@@ -283,6 +295,12 @@ struct Calculation {
             entry.explanation_detailed = "The point-slope form passes through the point with the derivative as its slope. That is an exact description of the line itself and says nothing yet about how far it stays near the curve.";
         else if (id == "tangent.linearization")
             entry.explanation_detailed = "The linearization is the tangent line read as an approximation of the function near the point. It is not an equality. The two agree at the point and drift apart as the variable moves away from it.";
+        else if (id == "taylor.derivative-value")
+            entry.explanation_detailed = "Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.";
+        else if (id == "taylor.polynomial")
+            entry.explanation_detailed = "The coefficient of the power k of the distance from the center is the k-th derivative at the center divided by k factorial. Adding those terms up to the requested order gives the polynomial that matches the function and its first derivatives at the center.";
+        else if (id == "taylor.remainder")
+            entry.explanation_detailed = "Lagrange's form of the remainder says what the polynomial leaves out. The next derivative is evaluated at some point c strictly between the center and x, which the theorem guarantees exists but does not name. It holds wherever the function has that next derivative on the interval between the center and x.";
         else if (id == "limit.continuity")
             entry.explanation_detailed = "Direct substitution determines a limit only when the expression is continuous at the approach point. Check denominators and real function domains before substituting.";
         else if (id == "limit.real-domain")
@@ -885,6 +903,218 @@ struct Calculation {
         return false;
     }
 
+    // CALC-011. The supported envelope is an expression whose derivatives up to the requested order
+    // all fold to exact rationals at the center, which the differentiation engine and the exact
+    // evaluator decide together. A center or a derivative value that is not exact is refused rather
+    // than approximated, and an order past the factorial ceiling is this build's limit.
+    void taylor() {
+        Rational center;
+        if (!evaluate_rational(arena, command.point, {}, &center)) {
+            refuse(Form::Unsupported, taylor_ceiling, "the center of a Taylor polynomial must be an exact number");
+            return;
+        }
+        if (command.degree > kTaylorOrderCeiling) {
+            refuse(taylor_ceiling);
+            return;
+        }
+        const size_t order = static_cast<size_t>(command.degree);
+        std::vector<Rational> values;
+        NodeId derivative = command.expression;
+        for (size_t k = 0; k <= order + 1; ++k) {
+            if (k > 0 && !differentiate_once(&derivative)) return;
+            if (k == order + 1) break;
+            const NodeId at_center = folded(substitute(derivative, command.point));
+            Rational value;
+            if (at_center == kNoNode || !evaluate_rational(arena, at_center, {}, &value)) {
+                if (!work()) return;
+                refuse(Form::Unsupported, taylor_ceiling,
+                       k == 0 ? "the expression has no exact value at the center, so it has no Taylor polynomial there"
+                              : "derivative " + std::to_string(k) + " has no exact value at the center, so the polynomial cannot be formed there");
+                return;
+            }
+            const std::string which = k == 0 ? std::string("the function") : "derivative " + std::to_string(k);
+            if (step("taylor.derivative-value", "Evaluate " + which + " at the center", derivative, at_center,
+                     "Substitute " + print(arena, command.point) + " for " + command.variable_name + " in " + which,
+                     "The value is exact at the center, so it fixes the coefficient of order " + std::to_string(k),
+                     false, ClaimType::Definition) == kNoStep) return;
+            values.push_back(value);
+        }
+        std::vector<Rational> coefficients;
+        Rational factorial{1, 1};
+        for (size_t k = 0; k <= order; ++k) {
+            Rational coefficient;
+            if ((k > 0 && !rational_mul(factorial, {static_cast<int64_t>(k), 1}, &factorial)) ||
+                !rational_div(values[k], factorial, &coefficient)) {
+                refuse(coefficient_ceiling);
+                return;
+            }
+            coefficients.push_back(coefficient);
+        }
+        const NodeId polynomial_node = assemble(coefficients);
+        if (polynomial_node == kNoNode) return;
+        Rational next_value;
+        const bool exact = evaluate_rational(arena, derivative, {}, &next_value) && next_value.num == 0;
+        result.approximate = !exact;
+        if (step("taylor.polynomial", "Assemble the Taylor polynomial", call(command.expression), polynomial_node,
+                 "Divide each derivative value by the factorial of its order and multiply by the matching power of " +
+                     print(arena, offset()),
+                 exact ? "Derivative " + std::to_string(order + 1) + " is identically zero, so the polynomial equals the function"
+                       : "The polynomial matches the function and its first " + std::to_string(order) +
+                             " derivatives at the center and approximates it nearby",
+                 false, ClaimType::NoClaim) == kNoStep) return;
+        Rational next_factorial;
+        if (!rational_mul(factorial, {static_cast<int64_t>(order + 1), 1}, &next_factorial)) {
+            refuse(coefficient_ceiling);
+            return;
+        }
+        const std::string point_name = command.variable_name == "c" ? "xi" : "c";
+        const NodeId intermediate = arena.symbol(point_name);
+        const NodeId at_intermediate = exact ? arena.integer("0") : substitute(derivative, intermediate);
+        if (at_intermediate == kNoNode) return;
+        const NodeId remainder = exact ? arena.integer("0")
+            : folded(arena.binary(Kind::Mul, arena.binary(Kind::Mul, at_intermediate,
+                                                   arena.binary(Kind::Pow, number(arena, next_factorial), arena.integer("-1"))),
+                           arena.binary(Kind::Pow, offset(), arena.integer(std::to_string(order + 1)))));
+        const StepId bound = step("taylor.remainder", "State the remainder", derivative, remainder,
+                 exact ? "Use zero for the remainder because derivative " + std::to_string(order + 1) + " vanishes"
+                       : "Evaluate derivative " + std::to_string(order + 1) + " at an unnamed point " + point_name +
+                             " and divide by " + std::to_string(order + 1) + " factorial",
+                 exact ? "The Lagrange remainder carries a factor of the next derivative, which is zero here"
+                       : "Lagrange's theorem gives the error as the next derivative at some point between the center and " +
+                             command.variable_name,
+                 false, ClaimType::NoClaim);
+        if (bound == kNoStep) return;
+        if (!exact) {
+            derivation.restrictions_at(bound).push_back(point_name + " lies strictly between " + print(arena, command.point) +
+                                                         " and " + command.variable_name);
+            derivation.restrictions_at(bound).push_back("the function has derivative " + std::to_string(order + 1) +
+                                                         " at every point between " + print(arena, command.point) +
+                                                         " and " + command.variable_name);
+        }
+        if (!verify_taylor(polynomial_node, values, center)) return;
+        result.remainder = remainder;
+        result.outcome = CalculusOutcome::Evaluated;
+        result.value = polynomial_node;
+    }
+
+    NodeId offset() {
+        Rational center;
+        if (evaluate_rational(arena, command.point, {}, &center) && center.num == 0) return command.variable;
+        return folded(arena.binary(Kind::Add, command.variable, arena.unary(Kind::Neg, command.point)));
+    }
+
+    bool differentiate_once(NodeId *expression) {
+        const DiffResult differentiated = differentiate(arena, derivation, *expression, command.variable, meter);
+        if (differentiated.outcome == DiffOutcome::Differentiated && differentiated.derivative != kNoNode) {
+            *expression = folded(differentiated.derivative);
+            return *expression != kNoNode;
+        }
+        switch (differentiated.outcome) {
+            case DiffOutcome::Cancelled:
+                result.outcome = CalculusOutcome::Cancelled;
+                result.status = DerivationStatus::Cancelled;
+                break;
+            case DiffOutcome::ResourceExceeded:
+                result.outcome = CalculusOutcome::ResourceExceeded;
+                result.status = DerivationStatus::ResourceLimitReached;
+                break;
+            case DiffOutcome::Refused:
+                result.outcome = CalculusOutcome::Refused;
+                result.status = DerivationStatus::Unsupported;
+                break;
+            default:
+                result.outcome = CalculusOutcome::UnsupportedForm;
+                result.status = DerivationStatus::Unsupported;
+                break;
+        }
+        result.detail = differentiated.detail.empty()
+            ? "the native differentiation engine has no rule for this expression"
+            : differentiated.detail;
+        return false;
+    }
+
+    NodeId assemble(const std::vector<Rational> &coefficients) {
+        std::vector<NodeId> terms;
+        for (size_t k = 0; k < coefficients.size(); ++k) {
+            if (coefficients[k].num == 0) continue;
+            NodeId term = number(arena, coefficients[k]);
+            if (k > 0) {
+                const NodeId power = k == 1 ? offset()
+                    : arena.binary(Kind::Pow, offset(), arena.integer(std::to_string(k)));
+                term = coefficients[k].num == 1 && coefficients[k].den == 1 ? power
+                     : arena.binary(Kind::Mul, term, power);
+            }
+            terms.push_back(term);
+        }
+        if (arena.failed() || !work()) return kNoNode;
+        if (terms.empty()) return arena.integer("0");
+        return terms.size() == 1 ? terms[0] : arena.nary(Kind::Add, terms);
+    }
+
+    // The final check the family is required to have. The assembled polynomial is differentiated
+    // again by the native engine and each derivative is read at the center, which has to give back
+    // the derivative values the coefficients were built from. That is the property that defines it.
+    bool verify_taylor(NodeId polynomial_node, const std::vector<Rational> &values, const Rational &center) {
+        bool read = true;
+        bool matched = true;
+        NodeId current = polynomial_node;
+        for (size_t k = 0; k < values.size() && read; ++k) {
+            if (k > 0) {
+                Derivation scratch;
+                const DiffResult differentiated = differentiate(arena, scratch, current, command.variable, meter);
+                if (differentiated.outcome != DiffOutcome::Differentiated) {
+                    read = false;
+                    break;
+                }
+                current = folded(differentiated.derivative);
+            }
+            Rational observed;
+            if (current == kNoNode ||
+                !evaluate_rational(arena, current, {{command.variable_name, center}}, &observed)) {
+                read = false;
+                break;
+            }
+            if (compare(observed, values[k]) != 0) matched = false;
+        }
+        matched = matched && read;
+        if (!work() || !meter.step()) return false;
+        Step check;
+        check.phase = "check";
+        check.goal = "Check the polynomial against the derivatives at the center";
+        check.rule_id = "taylor.check-polynomial";
+        check.rule_name = "Taylor agreement at the center";
+        check.claim = ClaimType::EquivalentExpression;
+        check.explanation_short =
+            "Differentiate the assembled polynomial and read each derivative at the center, which has to "
+            "give back the values the coefficients came from";
+        check.proof_obligations.push_back(
+            {"obl.calculus.taylor-agreement",
+             "the polynomial and the function have the same derivatives at the center up to the order"});
+        VerificationRecord evidence;
+        evidence.method = "derivatives of the polynomial at the center";
+        evidence.outcome = matched ? VerificationOutcome::Passed
+                         : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive;
+        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+        evidence.detail = matched
+            ? "every derivative of the polynomial up to the order matches the function's at the center"
+            : read ? "a derivative of the polynomial disagrees with the function's at the center"
+                   : "the polynomial's derivatives could not be evaluated exactly at the center";
+        check.verifications.push_back(std::move(evidence));
+        CheckPayload payload;
+        payload.target_claim = "the assembled polynomial is the Taylor polynomial of the requested order";
+        payload.check_method = "differentiate the polynomial and evaluate each derivative at the center";
+        payload.expected_relation = "derivatives 0 through " + std::to_string(values.size() - 1) +
+                                    " equal the function's at the center";
+        payload.observed_result = read ? print(arena, polynomial_node) : "not exactly evaluable";
+        derivation.add_check(kNoStep, std::move(check), std::move(payload));
+        if (matched) return true;
+        if (!work()) return false;
+        result.outcome = CalculusOutcome::VerificationFailed;
+        result.status = DerivationStatus::VerificationFailed;
+        result.detail = "the assembled polynomial failed its derivative check at the center, so the answer is withheld";
+        return false;
+    }
+
     void record_comparison(VerificationOutcome outcome, const std::string &detail,
                            CheckPayload comparison_record) {
         Step check;
@@ -938,7 +1168,7 @@ struct Calculation {
     }
 
     void cross_check(Backend &backend) {
-        if (linear_family()) return;
+        if (linear_family() || taylor_family()) return;
         if (arena.failed() || meter.stopped() || result.infinity != 0 || result.does_not_exist ||
             (result.value == kNoNode && result.status != DerivationStatus::Unsupported &&
              result.status != DerivationStatus::PartiallySolved)) return;
@@ -1024,6 +1254,7 @@ struct Calculation {
             command.kind == CommandKind::Tangent ? "calculus.tangent-line.single-variable"
           : command.kind == CommandKind::Linearize ? "calculus.linearization.single-variable"
           : command.kind == CommandKind::Limit ? "calculus.limit.single-variable"
+          : taylor_family() ? "calculus.taylor-polynomial.single-variable"
                                                : "calculus.integral.definite.single-variable";
         context.requested_method = command_kind_name(command.kind);
         context.original_expression = derivation.request.original_expression;
@@ -1068,6 +1299,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         ((command.kind == CommandKind::DefiniteIntegral && present(command.lower) && present(command.upper)) ||
          ((command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) &&
           present(command.point)) ||
+         ((command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) &&
+          present(command.point) && present(command.order)) ||
          (command.kind == CommandKind::Limit && present(command.point) && command.direction >= -1 && command.direction <= 1));
     if (!complete) {
         calculation.result.outcome = CalculusOutcome::InvalidInput;
@@ -1080,6 +1313,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         else if (command.kind == CommandKind::Limit) calculation.limit();
         else if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize)
             calculation.tangent();
+        else if (command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin)
+            calculation.taylor();
     }
     if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact)
         calculation.cross_check(*backend);

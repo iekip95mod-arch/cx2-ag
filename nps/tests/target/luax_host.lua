@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -261,6 +261,7 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.taylor-polynomial.single-variable",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.catch-up.equal-position",
@@ -425,6 +426,44 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-011. The Taylor family checks itself natively, so the bridge carries the order, the
+    -- center, the remainder and whether the polynomial equals the function or only approximates it.
+    for _, case in ipairs({
+        {"maclaurin(exp(x),x,3)", "maclaurin", "3", "0", true, "approximately equal", "exp(c)"},
+        {"taylor(x^3,x,1,3)", "taylor", "3", "1", false, "equal", "0"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and
+              command_has_rule(record, "taylor.polynomial") and command_has_rule(record, "taylor.remainder") and
+              command_has_rule(record, "taylor.check-polynomial"),
+              case[1] .. " exposes the native Taylor walkthrough with its remainder and final check")
+        check(record.mode == case[2] and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+        check(record.taylor_order == case[3] and record.taylor_center == case[4],
+              case[1] .. " reports the order and the center it was asked for")
+        check(record.approximation == case[5] and record.relation == case[6],
+              case[1] .. " states whether the polynomial equals the function or approximates it")
+        check(type(record.taylor_remainder) == "string" and record.taylor_remainder:find(case[7], 1, true) ~= nil,
+              case[1] .. " carries the remainder the polynomial leaves out")
+    end
+    for _, case in ipairs({
+        {"taylor(sin(x),x,1,2)", "unsupported form"},
+        {"maclaurin(exp(x),x,20)", "resource exceeded"},
+        {"taylor(x^2,x,0,-1)", "invalid input"},
+        {"maclaurin(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.taylor_remainder == nil and type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the Taylor envelope and says why")
+    end
+    do
+        local record = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "decimal")
+        check(not record.solved and record.outcome == "unsupported form",
+              "the Taylor family refuses decimal mode rather than approximating its coefficients")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},

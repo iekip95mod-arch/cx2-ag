@@ -203,6 +203,16 @@ const ObligationSchema kTangentAgreement[] = {
      kTangentAgreementEvidence, 1},
 };
 
+const EvidenceAlternative kTaylorAgreementEvidence[] = {
+    {"derivatives of the polynomial at the center",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kTaylorAgreement[] = {
+    {"obl.calculus.taylor-agreement",
+     "the polynomial and the function have the same derivatives at the center up to the order",
+     kTaylorAgreementEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -1340,6 +1350,12 @@ const RuleSchema kRules[] = {
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
+
+    // calculus.taylor-polynomial, CALC-011
+    {"taylor.derivative-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.polynomial", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.remainder", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.check-polynomial", ClaimType::EquivalentExpression, kTaylorAgreement, 1, FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,

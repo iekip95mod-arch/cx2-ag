@@ -31,6 +31,8 @@ struct CalculusResult {
     NodeId slope = kNoNode;
     NodeId point_value = kNoNode;
     bool approximate = false;
+    // The Taylor family. remainder is the Lagrange form of what the polynomial leaves out.
+    NodeId remainder = kNoNode;
     bool answer_only = false;
     bool backend_attempted = false;
     bool backend_compared = false;

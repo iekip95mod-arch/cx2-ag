@@ -2251,6 +2251,8 @@ menu = {
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
          { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
          { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
+         { "Taylor polynomial at a point", function() template("taylor(,x,0,3)", 7) end },
+         { "Maclaurin polynomial", function() template("maclaurin(,x,3)", 5) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2357,6 +2359,8 @@ menu = {
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
+       	 { "Taylor Polynomial  taylor(expr,var,a,n)",	function() menustring( "taylor(" ) end },
+       	 { "Maclaurin Polynomial  maclaurin(expr,var,n)",	function() menustring( "maclaurin(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -3373,6 +3377,8 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
+    ["Taylor polynomial at a point"] = "Fill the expression. Change 0 to the center and 3 to the order. Shows the remainder.",
+    ["Maclaurin polynomial"] = "A Taylor polynomial centered at 0. Change 3 to the order. An approximation, not an equality.",
 }
 
 function openTemplatePicker()
