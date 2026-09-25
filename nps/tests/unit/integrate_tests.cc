@@ -168,6 +168,11 @@ void test_methods(TestSink &t) {
         const Integrated s = run("u*cos(u^2)", "u");
         t.equal(s.status, "solved and verified", "an integrand already written in u substitutes another name");
     }
+    {
+        const Integrated s = run("1/((x+1)*(x-1) - x^2 + 1)", "x");
+        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
+                "a base whose derivative folds to zero is not taken as a substitution");
+    }
     for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
         const Integrated s = run(refused, "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
