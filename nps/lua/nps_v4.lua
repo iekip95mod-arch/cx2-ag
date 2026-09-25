@@ -64,6 +64,7 @@ local requiredSolvers = {
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2741,6 +2742,23 @@ PHYSICS_FIXTURES = {
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+				projectile = true,
+			})
+		end,
+	},
+	{
+		label = "Find where something drifts when both directions speed up",
+		problem = "A puck slides across a tilted table, gaining speed sideways as well as down. " ..
+		          "Find where it gets to and how fast it is going after two seconds.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "puck",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
