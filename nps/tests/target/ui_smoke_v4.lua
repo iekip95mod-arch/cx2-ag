@@ -3449,6 +3449,31 @@ evidence("PLAT-012", failed_integrity_no_fallback and failed_integrity_env.hasGi
          #failed_integrity_module.capability_manifest().installed_modules == 0,
          "a corrupt runtime exposes a reduced manifest and permits no local or outside fallback")
 
+-- Calibrated to luax_host: the rejected surface has these two entries only, with interface_id unavailable.
+do
+    local rejected_manifest = copyManifest()
+    rejected_manifest.installed_modules = {}
+    rejected_manifest.symbolic_backend = {
+        name = "Giac", version = fake_manifest.symbolic_backend.version,
+        available = false, interface_id = "unavailable", deployment = "integrity-rejected",
+    }
+    local rejected_manifest_calls = 0
+    local rejected_surface = {
+        integrity_status = function() return "mismatch" end,
+        capability_manifest = function()
+            rejected_manifest_calls = rejected_manifest_calls + 1
+            return rejected_manifest
+        end,
+    }
+    local rejected_env, _, _, rejected_ok, rejected_error = loadIsolated(rejected_surface)
+    local rejected_refusal = rejected_ok and rejected_env.runSteps("integrate", "1/x")
+    check(rejected_ok and rejected_manifest_calls == 0 and
+          rejected_refusal == "StepCAS unavailable (integrity: mismatch)",
+          "the bridge's own rejected surface refuses as an integrity failure rather than as a " ..
+              "backend interface mismatch, and its manifest goes unread: " ..
+                  tostring(rejected_refusal or rejected_error))
+end
+
 -- PERF-010's launch reading. The budgets lane reads it off the launch screen on the handheld, where
 -- keysvc cannot press an arrow, so it has to stay reachable without one. Driven on an isolated
 -- module rather than the shared fake, because a heap reading also joins the viewer's header metrics
