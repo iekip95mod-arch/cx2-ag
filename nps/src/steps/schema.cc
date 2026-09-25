@@ -118,6 +118,42 @@ const ObligationSchema kCasesAreComplete[] = {
      "every real value satisfying the equation is one of the cases recorded", kSplitIsComplete, 2},
 };
 
+// algebra.quadratic.formula.one-unknown. The degree bound is what makes reading the coefficients
+// off three values an identity rather than an agreement on samples, so it is a precondition of the
+// strategy rather than a detail of how the reading was done.
+const EvidenceAlternative kDegreeBoundAndInterpolation[] = {
+    {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaStrategy[] = {
+    {"pre.quadratic.degree-two", "the equation is a polynomial of degree two in the unknown over "
+     "the rationals", kDegreeBoundAndInterpolation, 1},
+    {"pre.quadratic.exact-discriminant-root",
+     "the discriminant has an exact rational square root or is negative", kExactSquareRoot, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+
+const EvidenceAlternative kDiscriminantArithmetic[] = {
+    {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kDiscriminantDecides[] = {
+    {"obl.quadratic.discriminant-decides",
+     "the sign of the discriminant decides how many real roots the equation has",
+     kDiscriminantArithmetic, 1},
+};
+
+const EvidenceAlternative kCollectedPolynomialIsZero[] = {
+    {"exact evaluation of the collected polynomial", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaCaseIsARoot[] = {
+    {"obl.quadratic.formula-case-is-a-root",
+     "this case makes a*x^2 + b*x + c zero at the coefficients that were read",
+     kCollectedPolynomialIsZero, 1},
+};
+
 // Every rewriting rule in the two calculus engines carries the same obligation and discharges it
 // the same way, through the rule_invariant helper each file has. It is one schema rather than
 // twenty because it is one obligation: the rule rewrote a subexpression into one with the same
@@ -360,7 +396,7 @@ const EvidenceAlternative kModelValidation[] = {
     {"problem-family model validation", EvidenceStrength::StructurallyValid},
 };
 const EvidenceAlternative kRouteSearch[] = {
-    {"exact route search through the linear solver", EvidenceStrength::StructurallyValid},
+    {"exact route search through the solving rules", EvidenceStrength::StructurallyValid},
 };
 const ObligationSchema kKinematicsStrategy[] = {
     {"pre.kinematics.constant-acceleration", "acceleration is constant over the interval",
@@ -404,6 +440,14 @@ const ObligationSchema kRoundingWithinHalfPlace[] = {
     {"obl.kinematics.rounding-within-half-place",
      "the reported value is within half a unit in the last place of the exact one",
      kUnroundedComparison, 1},
+};
+const EvidenceAlternative kStatedConditionComparison[] = {
+    {"exact comparison against the stated condition", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSelectedRootIsAdmissible[] = {
+    {"obl.kinematics.selected-root-is-admissible",
+     "the value reported is the only root the stated condition allows", kStatedConditionComparison,
+     1},
 };
 
 // catch-up
@@ -1295,6 +1339,22 @@ const RuleSchema kRules[] = {
     {"eq.quadratic.cases-reconstruct-the-original", ClaimType::SolutionSetPreserved,
      kCasesAreComplete, 1, FailureBehavior::WithholdResult},
 
+    // algebra.quadratic.formula.one-unknown. Standard form cannot fail for the same reason the
+    // isolation above cannot: the coefficients are read from the equation and written back in the
+    // same order, so there is no run in which the rule applies and disagrees with itself. The
+    // discriminant is a check whose answer decides the shape of the split rather than the answer,
+    // so a wrong one would misreport the number of roots, which withholds.
+    {"eq.quadratic.formula", ClaimType::NoClaim, kFormulaStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.standard-form", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
+     FailureBehavior::CannotFail},
+    {"eq.quadratic.discriminant", ClaimType::NoClaim, kDiscriminantDecides, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.formula-case", ClaimType::SolutionSetNarrowed, kFormulaCaseIsARoot, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.reject-negative-discriminant", ClaimType::SolutionSetPreserved,
+     kRejectedCaseIsInfeasible, 1, FailureBehavior::CannotFail},
+
     // calculus.differentiate. Every rule below records its invariant unconditionally, which is what
     // CannotFail says: the rule matched the form or it was never reached, so there is no run in
     // which it applies and disagrees with itself.
@@ -1433,6 +1493,11 @@ const RuleSchema kRules[] = {
     {"kin.substitute", ClaimType::SolutionSetPreserved, kSubstitutionPreservesSolutions, 1,
      FailureBehavior::WithholdResult},
     {"kin.significant-figures", ClaimType::NoClaim, kRoundingWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+    // An equation of degree two has two answers and the problem asks about one of them. Dropping
+    // the other without saying why is the failure this rule exists to prevent, so a comparison that
+    // came back false about the kept root has to withhold rather than report it anyway.
+    {"kin.select-physical-root", ClaimType::SolutionSetNarrowed, kSelectedRootIsAdmissible, 1,
      FailureBehavior::WithholdResult},
 
     // physics.kinematics.catch-up.equal-position

@@ -2,6 +2,7 @@
 
 #include "nps/core/context.h"
 #include "nps/steps/linear.h"
+#include "nps/steps/quadratic.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "algebra_first.h"
@@ -84,6 +85,11 @@ bool names_contain(const std::vector<std::string> &names, const std::string &s) 
     return false;
 }
 
+// Which rule isolated the target. The equations are degree two in t and in either velocity, so an
+// engine that stops at degree one cannot reach half of them, and which one answered decides what
+// the hop still has to record.
+enum class Engine : uint8_t { Linear, SquareRoot, Formula };
+
 // One equation solved for one quantity. A route is a sequence of these ending at the unknown, and
 // each hop's answer is a known quantity for the hops after it.
 struct Hop {
@@ -92,6 +98,7 @@ struct Hop {
     NodeId symbolic = kNoNode;
     NodeId numeric = kNoNode;
     NodeId value = kNoNode;
+    Engine engine = Engine::Linear;
     SolveOutcome solve_outcome = SolveOutcome::Refused;
     DerivationStatus refusal_status = DerivationStatus::NotRecorded;
     // Why each equation this hop did not use was not used, in the solver's own words where the
@@ -291,6 +298,200 @@ enum class RouteOutcome : uint8_t {
     Contradiction,
 };
 
+// What the engines between them made of one equation, in the shape the route search reads. The
+// order they are tried in lives here alone: the route search and the real solve have to agree about
+// which rule answers an equation, and a second copy of the order is a second thing to keep in step.
+struct Attempt {
+    Engine engine = Engine::Linear;
+    SolveOutcome outcome = SolveOutcome::Refused;
+    std::vector<NodeId> solutions;
+    std::string detail;
+    DerivationStatus status = DerivationStatus::NotRecorded;
+    Cost cost;
+};
+
+void charge_attempt(Attempt *attempt, const Cost &spent) {
+    attempt->cost.steps += spent.steps;
+    attempt->cost.rewrites += spent.rewrites;
+    attempt->cost.branches += spent.branches;
+    attempt->cost.backend_calls += spent.backend_calls;
+    attempt->cost.replayed += spent.replayed;
+}
+
+// A quadratic outcome said in the vocabulary the route search already speaks, so one switch handles
+// every engine rather than each caller learning two enums.
+SolveOutcome as_solve_outcome(QuadraticOutcome outcome) {
+    switch (outcome) {
+        case QuadraticOutcome::Solved: return SolveOutcome::Solved;
+        case QuadraticOutcome::NoRealSolution: return SolveOutcome::NoSolution;
+        case QuadraticOutcome::NotAnEquation: return SolveOutcome::NotAnEquation;
+        case QuadraticOutcome::Cancelled: return SolveOutcome::Cancelled;
+        case QuadraticOutcome::ResourceExceeded: return SolveOutcome::ResourceExceeded;
+        case QuadraticOutcome::NotPureQuadratic:
+        case QuadraticOutcome::OutsideEnvelope:
+        case QuadraticOutcome::Refused: break;
+    }
+    return SolveOutcome::Refused;
+}
+
+Attempt isolate(Arena &arena, Derivation &derivation, NodeId equation, NodeId unknown,
+                const Budget &budget) {
+    Attempt out;
+    const SolveResult linear = solve_linear(arena, derivation, equation, unknown, budget);
+    out.outcome = linear.outcome;
+    out.detail = linear.detail;
+    out.status = linear.status;
+    charge_attempt(&out, linear.cost);
+    if (linear.outcome == SolveOutcome::Solved) {
+        out.solutions.push_back(linear.solution);
+        return out;
+    }
+    // Degree one is the only thing the linear rule refuses that another rule here can take. Every
+    // other refusal is about the equation rather than about the rule, so it stays the last word.
+    if (linear.outcome != SolveOutcome::NotLinear)
+        return out;
+
+    const QuadraticResult square = solve_by_square_root(arena, derivation, equation, unknown, budget);
+    charge_attempt(&out, square.cost);
+    if (square.outcome != QuadraticOutcome::NotPureQuadratic) {
+        out.engine = Engine::SquareRoot;
+        out.outcome = as_solve_outcome(square.outcome);
+        out.detail = square.detail;
+        out.status = square.status;
+        out.solutions = square.solutions;
+        return out;
+    }
+
+    const QuadraticResult formula = solve_quadratic(arena, derivation, equation, unknown, budget);
+    charge_attempt(&out, formula.cost);
+    if (formula.outcome == QuadraticOutcome::NotPureQuadratic)
+        return out;
+    out.engine = Engine::Formula;
+    out.outcome = as_solve_outcome(formula.outcome);
+    out.detail = formula.detail;
+    out.status = formula.status;
+    out.solutions = formula.solutions;
+    return out;
+}
+
+// A root as a reader expects to see it, 4 or -22/3 rather than the arena's spelling of a reciprocal.
+std::string node_value_text(const Arena &arena, NodeId id) {
+    Rational value;
+    return rational_of_node(arena, id, &value) ? rational_text(value) : print(arena, id);
+}
+
+bool known_value(const Arena &arena, const std::vector<std::string> &names,
+                 const std::vector<NodeId> &values, const std::string &symbol, Rational *out) {
+    for (size_t i = 0; i < names.size() && i < values.size(); ++i) {
+        if (names[i] == symbol)
+            return rational_of_node(arena, values[i], out);
+    }
+    return false;
+}
+
+// Which of an equation's roots the problem is asking about, and the physical reason for it. An
+// undecided answer is an answer: two admissible values mean the motion really does reach the stated
+// condition twice and the problem has not said which, so nothing is picked and the refusal says so.
+struct RootChoice {
+    bool decided = false;
+    size_t index = 0;
+    std::string assumption;
+    std::string why;
+};
+
+std::string roots_text(const std::string &target, const std::vector<Rational> &roots,
+                       const std::vector<size_t> &which) {
+    std::string out;
+    for (size_t i = 0; i < which.size(); ++i)
+        out += (out.empty() ? "" : " and ") + target + " = " + rational_text(roots[which[i]]);
+    return out;
+}
+
+std::string every_root(const std::string &target, const std::vector<Rational> &roots) {
+    std::vector<size_t> all(roots.size());
+    for (size_t i = 0; i < all.size(); ++i)
+        all[i] = i;
+    return roots_text(target, roots, all);
+}
+
+RootChoice choose_physical_root(const Arena &arena, const std::string &target,
+                                const std::vector<std::string> &names,
+                                const std::vector<NodeId> &values,
+                                const std::vector<Rational> &roots) {
+    RootChoice out;
+    std::string assumption;
+    bool keep_non_negative = true;
+    if (target == "t") {
+        assumption = "a time measured from the start of the interval is not negative";
+    } else if (target == "v" || target == "v0") {
+        // v = v0 + a*t over an interval with t >= 0, so the other velocity and the acceleration fix
+        // this one's sign when they agree, and nothing here fixes it when they do not.
+        const std::string other = target == "v" ? "v0" : "v";
+        Rational other_value;
+        Rational acceleration;
+        if (!known_value(arena, names, values, other, &other_value) ||
+            !known_value(arena, names, values, "a", &acceleration)) {
+            out.why = "the sign of " + target + " is not fixed by what is given, so neither root is "
+                                                "the one the problem means";
+            return out;
+        }
+        const bool acceleration_forward =
+            target == "v" ? acceleration.num >= 0 : acceleration.num <= 0;
+        const bool acceleration_backward =
+            target == "v" ? acceleration.num <= 0 : acceleration.num >= 0;
+        const std::string relation =
+            target == "v" ? "v = v0 + a*t" : "v0 = v - a*t";
+        const std::string acceleration_sign_forward =
+            target == "v" ? "a are both non-negative" : "a is non-positive";
+        const std::string acceleration_sign_backward =
+            target == "v" ? "a are both non-positive" : "a is non-negative";
+        if (other_value.num >= 0 && acceleration_forward) {
+            keep_non_negative = true;
+            assumption = (target == "v" ? "v0 and " : "v is non-negative and ") +
+                         acceleration_sign_forward + ", so " + relation +
+                         " is not negative for t >= 0";
+        } else if (other_value.num <= 0 && acceleration_backward) {
+            keep_non_negative = false;
+            assumption = (target == "v" ? "v0 and " : "v is non-positive and ") +
+                         acceleration_sign_backward + ", so " + relation +
+                         " is not positive for t >= 0";
+        } else if (roots.size() == 1) {
+            // One root is the whole solution set, so there is no sign to choose between.
+            out.decided = true;
+            out.assumption = "the equation has a single root, so the sign of " + target +
+                             " is not a choice";
+            return out;
+        } else {
+            out.why = every_root(target, roots) + " both satisfy this, and the signs of " + other +
+                      " and a do not say which one " + relation + " gives";
+            return out;
+        }
+    } else {
+        out.why = "nothing here says which root of " + target + " the problem means";
+        return out;
+    }
+
+    std::vector<size_t> admissible;
+    for (size_t i = 0; i < roots.size(); ++i) {
+        if (keep_non_negative ? roots[i].num >= 0 : roots[i].num <= 0)
+            admissible.push_back(i);
+    }
+    if (admissible.size() == 1) {
+        out.decided = true;
+        out.index = admissible[0];
+        out.assumption = assumption;
+        return out;
+    }
+    if (admissible.empty()) {
+        out.why = every_root(target, roots) + " is ruled out, because " + assumption;
+        return out;
+    }
+    out.why = roots_text(target, roots, admissible) +
+              " both satisfy this and the stated condition, and the problem does not say which is "
+              "meant";
+    return out;
+}
+
 // One equation offered to the linear solver with the given knowns substituted in. The solver is
 // what decides whether the equation is usable, not a table: it is the engine that would have to do
 // the isolation, so a quadratic or a square root is refused by the thing that can see it. The knowns
@@ -318,9 +519,10 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
     hop->numeric = candidate;
     Derivation scratch;
     scratch.share_runs(s.derivation);
-    SolveResult probe = solve_linear(s.arena, scratch, candidate, s.arena.symbol(target), s.budget);
+    const Attempt probe = isolate(s.arena, scratch, candidate, s.arena.symbol(target), s.budget);
     hop->refusal_status = probe.status;
     hop->solve_outcome = probe.outcome;
+    hop->engine = probe.engine;
     if (probe.outcome == SolveOutcome::Cancelled || probe.outcome == SolveOutcome::ResourceExceeded) {
         s.cancelled = probe.outcome == SolveOutcome::Cancelled;
         s.halt_detail = probe.detail;
@@ -336,7 +538,29 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
         *reason = probe.detail;
         return Probe::Refused;
     }
-    hop->value = probe.solution;
+    if (probe.engine == Engine::Linear) {
+        hop->value = probe.solutions.empty() ? kNoNode : probe.solutions[0];
+        return Probe::Solved;
+    }
+    // The algebra gives every value that satisfies the equation. Which of them the problem is about
+    // is a question about the motion, and one this route cannot take without an answer to.
+    std::vector<Rational> roots;
+    for (size_t i = 0; i < probe.solutions.size(); ++i) {
+        Rational root;
+        if (!rational_of_node(s.arena, probe.solutions[i], &root)) {
+            *reason = "a root came back in a form this route cannot read as an exact value";
+            hop->refusal_status = DerivationStatus::Unsupported;
+            return Probe::Refused;
+        }
+        roots.push_back(root);
+    }
+    const RootChoice chosen = choose_physical_root(s.arena, target, names, values, roots);
+    if (!chosen.decided) {
+        *reason = chosen.why;
+        hop->refusal_status = DerivationStatus::Unsupported;
+        return Probe::Refused;
+    }
+    hop->value = probe.solutions[chosen.index];
     return Probe::Solved;
 }
 
@@ -905,10 +1129,15 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                                    problem.unknown + ", " + route_text +
                                    " reduces to a contradiction, so the given data have no solution";
     } else if (route.size() == 1) {
-        plan.selection_rationale = std::string("of the four constant-acceleration equations, ") +
-                                   chosen->text + " is the first that has " + problem.unknown +
-                                   " with every other quantity known and is linear in it once the "
-                                   "values are in";
+        plan.selection_rationale =
+            std::string("of the four constant-acceleration equations, ") + chosen->text +
+            " is the first that has " + problem.unknown +
+            " with every other quantity known and " +
+            (final_hop.engine == Engine::Linear
+                 ? "is linear in it once the values are in"
+                 : final_hop.engine == Engine::SquareRoot
+                       ? "leaves its square against constants once the values are in"
+                       : "leaves a quadratic in it once the values are in");
     } else {
         // A route worth explaining, because the reader can see that no single equation would do.
         std::string intermediates;
@@ -952,7 +1181,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
     register_strategy_precondition(
         plan, plan_step, "pre.kinematics.route-applicable",
         "every selected equation contains its target and only quantities known by that hop",
-        "exact route search through the linear solver", EvidenceStrength::StructurallyValid,
+        "exact route search through the solving rules", EvidenceStrength::StructurallyValid,
         VerificationOutcome::Passed, route_text);
     if (!ctx.meter.step()) {
         ctx.halted = true;
@@ -1039,8 +1268,10 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
         }
 
         bool giac_disagreed = false;
-        // A no-solution answer has no scalar value for a backend rearrangement to corroborate.
-        if (ctx.giac && hop.solve_outcome == SolveOutcome::Solved) {
+        // A no-solution answer has no scalar value for a backend rearrangement to corroborate, and
+        // neither does a hop with more than one root: the rearrangement is a single expression and
+        // comparing it against one of a pair would report a disagreement that is not one.
+        if (ctx.giac && hop.engine == Engine::Linear && hop.solve_outcome == SolveOutcome::Solved) {
             NodeId hop_isolated = kNoNode;
             giac_rearrangement(ctx, plan_id, hop.symbolic, hop_symbol, names, values, hop.value,
                                &hop_isolated, &giac_disagreed);
@@ -1061,7 +1292,9 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
         // the equation is still symbolic, and ALG-007's moves are the steps that say how. Recorded
         // after the backend's own check so a contradicted rearrangement still leaves before any
         // move is on the page, and before the substitution so the shape stays algebra then numbers.
-        if (hop.solve_outcome == SolveOutcome::Solved) {
+        // ALG-007 undoes one operation at a time, which is degree one, so a hop another engine
+        // answered has no isolation of this kind to record and its own rule records the algebra.
+        if (hop.engine == Engine::Linear && hop.solve_outcome == SolveOutcome::Solved) {
             const physics::IsolationRecord isolation = physics::record_symbolic_isolation(
                 arena, derivation, plan_id, hop.symbolic, hop_symbol, budget, ctx.meter);
             if (isolation.halted) {
@@ -1083,7 +1316,9 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                               "Replace each known symbol by its value in SI units");
             s.explanation_detailed =
                 "What remains is an equation in " + hop.produces +
-                " alone, with numbers everywhere else, which the linear solver takes from here.";
+                " alone, with numbers everywhere else, which the " +
+                (hop.engine == Engine::Linear ? "linear solver" : "degree-two rule below") +
+                " takes from here.";
             s.verifications.push_back(verified(
                 "rule-local invariant", "every symbol but " + hop.produces + " has a known value",
                 EvidenceStrength::StructurallyValid, true));
@@ -1097,9 +1332,45 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
         }
 
         // The engine that isolates and evaluates, with its own steps and its own substitution check.
+        // Which one that is was settled by the route search, and asking again here would let the
+        // record show a rule the search never offered the equation to.
         const size_t solve_start = derivation.mark();
-        solved = solve_linear(arena, derivation, numeric, hop_symbol,
-                              remaining_budget(budget, ctx.meter));
+        const Attempt worked =
+            isolate(arena, derivation, numeric, hop_symbol, remaining_budget(budget, ctx.meter));
+        solved = SolveResult();
+        solved.outcome = worked.outcome;
+        solved.detail = worked.detail;
+        solved.status = worked.status;
+        solved.cost = worked.cost;
+        RootChoice picked;
+        if (worked.outcome == SolveOutcome::Solved) {
+            if (worked.engine == Engine::Linear) {
+                solved.solution = worked.solutions.empty() ? kNoNode : worked.solutions[0];
+            } else {
+                std::vector<Rational> roots;
+                bool readable = true;
+                for (size_t r = 0; r < worked.solutions.size(); ++r) {
+                    Rational root;
+                    if (!rational_of_node(arena, worked.solutions[r], &root)) {
+                        readable = false;
+                        break;
+                    }
+                    roots.push_back(root);
+                }
+                picked = readable ? choose_physical_root(arena, hop.produces, names, values, roots)
+                                  : RootChoice();
+                if (picked.decided)
+                    solved.solution = worked.solutions[picked.index];
+                else {
+                    solved.outcome = SolveOutcome::Refused;
+                    solved.status = DerivationStatus::Unsupported;
+                    solved.detail = picked.why.empty()
+                                        ? "a root came back in a form this route cannot read as an "
+                                          "exact value"
+                                        : picked.why;
+                }
+            }
+        }
         derivation.adopt_roots_since(solve_start, plan_id);
         result.cost.replayed += solved.cost.replayed;
         // Charged to our meter, not the result alone, so the next hop's remainder knows this spend.
@@ -1124,26 +1395,96 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             return result;
         }
 
-        std::vector<LinearKnown> precision_knowns;
-        precision_knowns.reserve(si_knowns.size());
-        for (const Known &known : si_knowns) {
-            LinearKnown binding;
-            binding.symbol = known.symbol;
-            binding.value = known.quantity.value;
-            binding.precision = known.quantity.precision;
-            precision_knowns.push_back(binding);
-        }
-        Rational precision_value;
         Precision hop_precision;
         Rational solved_value;
-        if (!linear_solution_precision(arena, hop.symbolic, hop_symbol, precision_knowns,
-                                       &precision_value, &hop_precision) ||
-            !rational_of_node(arena, solved.solution, &solved_value) ||
-            !rational_equal(precision_value, solved_value)) {
+        if (!rational_of_node(arena, solved.solution, &solved_value)) {
             result.outcome = KinematicsOutcome::VerificationFailed;
-            result.detail = "the exact solve and its precision evaluation disagree";
+            result.detail = "the answer did not come back as an exact value";
             result.status = DerivationStatus::VerificationFailed;
             return result;
+        }
+        if (worked.engine == Engine::Linear) {
+            std::vector<LinearKnown> precision_knowns;
+            precision_knowns.reserve(si_knowns.size());
+            for (const Known &known : si_knowns) {
+                LinearKnown binding;
+                binding.symbol = known.symbol;
+                binding.value = known.quantity.value;
+                binding.precision = known.quantity.precision;
+                precision_knowns.push_back(binding);
+            }
+            Rational precision_value;
+            if (!linear_solution_precision(arena, hop.symbolic, hop_symbol, precision_knowns,
+                                           &precision_value, &hop_precision) ||
+                !rational_equal(precision_value, solved_value)) {
+                result.outcome = KinematicsOutcome::VerificationFailed;
+                result.detail = "the exact solve and its precision evaluation disagree";
+                result.status = DerivationStatus::VerificationFailed;
+                return result;
+            }
+        } else {
+            // A root keeps the figures of the quantities it came from, which is the same fewest
+            // rule a product follows. The walk linear_solution_precision does is degree one, so it
+            // has nothing to say here and the givens are what the count comes from.
+            Precision combined;
+            for (const Known &known : si_knowns)
+                combined = precision_combine(combined, known.quantity.precision);
+            hop_precision = precision_at_digits(solved_value, combined);
+
+            // The algebra gave every value that satisfies the equation. Which one the problem is
+            // about is a fact about the motion, so it is recorded as its own move with the reason
+            // on it rather than settled by which root happened to be written first.
+            if (!ctx.meter.step()) {
+                ctx.halted = true;
+                return result;
+            }
+            std::string rejected;
+            for (size_t r = 0; r < worked.solutions.size(); ++r) {
+                if (r == picked.index)
+                    continue;
+                rejected += (rejected.empty() ? "" : ", ") + hop.produces + " = " +
+                            node_value_text(arena, worked.solutions[r]);
+            }
+            const std::string kept =
+                hop.produces + " = " + node_value_text(arena, worked.solutions[picked.index]);
+            Step s;
+            s.phase = "solve";
+            s.goal = "Choose the root this problem asks for";
+            s.rule_id = "kin.select-physical-root";
+            s.rule_name = "Physical root selection";
+            s.claim = ClaimType::SolutionSetNarrowed;
+            s.explanation_short = kept + ", because " + picked.assumption;
+            s.explanation_detailed =
+                "The equation is satisfied by every root the algebra found. Which of them the "
+                "problem is about is a question about the motion rather than about the equation, "
+                "so the condition that decides it is stated here and the roots it rules out are "
+                "named rather than quietly dropped.";
+            s.assumptions_after.push_back(picked.assumption);
+            s.proof_obligations.push_back(
+                {"obl.kinematics.selected-root-is-admissible",
+                 "the value reported is the only root the stated condition allows"});
+            s.verifications.push_back(verified(
+                "exact comparison against the stated condition",
+                rejected.empty() ? "the only root satisfies " + picked.assumption
+                                 : "of the roots found, only " + kept + " satisfies " +
+                                       picked.assumption,
+                EvidenceStrength::StructurallyValid, true));
+            TransformationPayload p;
+            p.before = worked.solutions.size() == 1
+                           ? arena.binary(Kind::Equals, hop_symbol, worked.solutions[picked.index])
+                           : numeric;
+            p.after = arena.binary(Kind::Equals, hop_symbol, worked.solutions[picked.index]);
+            std::string action = "Keep ";
+            action += kept;
+            if (!rejected.empty()) {
+                action += " and reject ";
+                action += rejected;
+            }
+            action += ", since ";
+            action += picked.assumption;
+            p.concrete_action = std::move(action);
+            p.reversible = false;
+            derivation.add_transformation(plan_id, std::move(s), std::move(p));
         }
         result_precision = hop_precision;
 

@@ -1,7 +1,7 @@
-problem: find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2
+problem: find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2
 variable: t
 outcome: no applicable equation
-detail: no constant-acceleration equation reaches t from what is given; v = v0 + a*t: needs v, and no equation reaches v; x = v0*t + (1/2)*a*t^2: this equation is not linear in t; v^2 = v0^2 + 2*a*x: does not contain t; x = (1/2)*(v0 + v)*t: needs v, and no equation reaches v
+detail: no constant-acceleration equation reaches t from what is given; v = v0 + a*t: needs v, and no equation reaches v; x = v0*t + (1/2)*a*t^2: the discriminant is 377, whose square root is not exact, and this rule reports no decimals; v^2 = v0^2 + 2*a*x: does not contain t; x = (1/2)*(v0 + v)*t: needs v, and no equation reaches v
 context
   application version: nps 0.2
   capability manifest: <current>

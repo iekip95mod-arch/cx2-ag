@@ -1,0 +1,96 @@
+problem: x^2 + x + 1 = 0
+variable: x
+outcome: no real solution
+detail: the discriminant is (-3), and no real square is negative
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.formula.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((((x^2) + x) + 1) = 0)
+  requested method: read the coefficients, take the discriminant and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.formula, Read the coefficients and apply the quadratic formula
+    claim: no claim
+    explanation: Write the equation as a*x^2 + b*x + c = 0, then read off its roots
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Read the coefficients and apply the quadratic formula
+    applicability: the equation is a polynomial of degree two in x over the rationals
+    applicability: the discriminant has an exact rational square root or is negative
+    fact: one unknown, x
+    fact: degree two in x with a term of degree one
+    alternative: isolating the square, which this equation has no form for because a term of degree one leaves a bare x behind
+    rationale: the coefficients are exact rationals, so the discriminant is exact, and its sign says how many real values of x there are before any of them is written down
+    verification: structural degree bound and exact interpolation, passed, no power of x above the second occurs, and the coefficient of x^2 is 1
+    verification: exact rational square root, passed, the discriminant is negative, so no real root is needed
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Write the equation as a*x^2 + b*x + c = 0
+      rule: eq.quadratic.standard-form, Standard form
+      claim: solution set preserved
+      explanation: Move everything to one side so the three coefficients are on show
+      detail: The formula is about a, b and c, so they have to be visible before it can be applied. Moving every term to one side changes how the equation is written and not what solves it.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Collect on the left: a = 1, b = 1, c = 1
+      before: ((((x^2) + x) + 1) = 0)
+      after: ((((1 * (x^2)) + (1 * x)) + 1) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the coefficients were read from the equation itself and put back in the same order
+      verified: yes
+      1.1.1 check
+        phase: check
+        goal: Work out the discriminant
+        rule: eq.quadratic.discriminant, Discriminant
+        claim: no claim
+        explanation: b^2 - 4*a*c is (-3)
+        detail: Reach for this before writing any root down. The formula takes the square root of this one number, so its sign decides whether there are two real values, one, or none, and nothing about the roots has to be guessed at to find out.
+        proof obligation: obl.quadratic.discriminant-decides, the sign of the discriminant decides how many real roots the equation has
+        target claim: the discriminant of the equation is (-3)
+        check method: b^2 - 4*a*c in exact rationals
+        expected: a negative discriminant, so no real root
+        observed: (-3) is negative
+        verification: exact rational arithmetic, passed, b^2 - 4*a*c came out (-3), which is negative
+        verified: nothing claimed
+      1.1.2 branch
+        phase: solve
+        goal: Rule out a real root
+        rule: eq.quadratic.reject-negative-discriminant, Negative discriminant has no real root
+        claim: solution set preserved
+        explanation: The discriminant is (-3), and no real number squares to a negative
+        detail: Reach for this whenever the discriminant comes out negative. Completing the square turns the equation into one real square equal to the discriminant over a positive number, and a real square is never negative, so the equation has no real solution rather than an unfinished one.
+        proof obligation: obl.quadratic.rejected-case-is-infeasible, no real value satisfies the condition this case stands for
+        condition: ((((1 * (x^2)) + (1 * x)) + 1) = 0)
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: sign of a real square
+        feasibility: infeasible over the reals
+        resolution: rejected
+        resolution evidence: no real number squares to a negative
+        verification: sign of a real square, passed, the discriminant is (-3), and a real square is never negative
+        verified: yes
+      1.1.3 check
+        phase: check
+        goal: Check that no case is missing
+        rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+        claim: solution set preserved
+        explanation: A real square is never negative, so there is no case to miss
+        detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+        proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+        target claim: the cases recorded are every real solution of the equation
+        check method: inspect the sign of the discriminant
+        expected: the discriminant is negative
+        observed: the discriminant is negative
+        verification: sign of a real square, passed, the discriminant is negative, so the empty set of roots is complete
+        verified: yes

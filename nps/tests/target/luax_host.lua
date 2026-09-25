@@ -1784,7 +1784,10 @@ check(r.outcome == "invalid input", "a problem with no unknown is refused")
 check(type(r.steps) == "table" and #r.steps == 0, "with an empty steps table")
 check(r.answer_only == false and r.result == nil, "invalid kinematics is not answer-only success")
 
-local quadratic_problem = "find t; x = 4 m; v0 = 4 m/s; a = -2 m/s^2"
+-- Degree two in t, with a discriminant of 377 that has no exact rational square root. The local
+-- rules reach the equation and stop at the envelope, which is what leaves a fully specified
+-- candidate for the backend to answer.
+local quadratic_problem = "find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2"
 script("[[2]]")
 r = nps.kinematics(quadratic_problem)
 check(r.outcome == "no applicable equation" and r.status == "unsupported" and

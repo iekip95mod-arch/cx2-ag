@@ -27,6 +27,13 @@ enum class Reconstruction : uint8_t { Rebuilt, OutOfRoom, Missing };
 Reconstruction cases_reconstruct_the_square(const std::vector<Rational> &roots,
                                             const Rational &square, std::string *why);
 
+// The same identity for a quadratic that has a term of degree one. A monic x^2 + linear*x + constant
+// is its roots, so the recorded cases have to sum to minus the linear coefficient and multiply to
+// the constant term. cases_reconstruct_the_square is this with a linear coefficient of zero, and
+// calls through rather than keeping a second copy of the arithmetic.
+Reconstruction cases_reconstruct_the_monic(const std::vector<Rational> &roots, const Rational &linear,
+                                           const Rational &constant, std::string *why);
+
 enum class QuadraticOutcome : uint8_t {
     Solved,
     // The equation holds for no real value, which is an answer rather than a refusal: x^2 = -4 has
@@ -69,6 +76,21 @@ struct QuadraticResult {
 // the monic quadratic rebuilt from them has to be the one that was solved.
 QuadraticResult solve_by_square_root(Arena &arena, Derivation &derivation, NodeId equation,
                                      NodeId unknown, const Budget &budget = Budget());
+
+// The other half of degree two: an equation with a term of degree one, which the rule above refuses
+// because it reads its equation as linear in the square and a bare unknown has nowhere to go.
+//
+// The envelope is declared the same way and is the same shape. Coefficients are exact rationals, and
+// a discriminant whose square root is not exact comes back OutsideEnvelope rather than as a decimal.
+// The coefficients are read by bounding the degree structurally and then evaluating the equation at
+// three points. That is interpolation rather than sampling: a polynomial of degree two is determined
+// by its value at three distinct points, and the structural bound is what makes that identity apply.
+//
+// Soundness is checked twice per case, against the coefficients that were read and against the
+// equation as it was typed, because a miscollection would otherwise check out against itself.
+// Completeness is the same root-coefficient reconstruction, with the linear term in it.
+QuadraticResult solve_quadratic(Arena &arena, Derivation &derivation, NodeId equation, NodeId unknown,
+                                const Budget &budget = Budget());
 
 }  // namespace nps
 

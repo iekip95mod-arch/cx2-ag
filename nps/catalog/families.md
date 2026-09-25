@@ -97,6 +97,35 @@ rule eq.quadratic.check-by-substitution fixture
 rule eq.quadratic.reject-negative-square fixture
 rule eq.quadratic.cases-reconstruct-the-original fixture
 
+family id algebra.quadratic.formula.one-unknown
+topic_and_level Degree-two equations in one unknown with a term of degree one, solved by the quadratic formula
+family_envelope_version 1
+accepted_expression_grammar the same equation grammar with the unknown at powers zero, one and two, so sums, products, negations and constant powers, and no other symbol in it
+accepted_input_forms an equation that is a polynomial of degree two in the unknown over the rationals, written in the project's own grammar
+domains_and_parameter_assumptions the real domain, and the coefficient of the square is read from the equation and checked to be non-zero before the formula is applied
+supported_branches_and_degenerate_cases two roots when the discriminant is positive, one repeated root when it is zero, and no real solution when it is negative
+exact_special_function_and_numerical_result_policy exact rationals only, refusing a discriminant whose root is irrational rather than reporting a decimal
+parser_module_ids src/core/parser.cc, src/steps/quadratic.cc, src/steps/linear.cc
+required_assumptions none, the degree is bounded structurally before the coefficients are read and the sign of the discriminant decides the case rather than being assumed
+test_group_ids quadratic
+proof_obligation_ids obl.eq.same-solutions, obl.quadratic.discriminant-decides, obl.quadratic.formula-case-is-a-root, obl.quadratic.candidate-satisfies, obl.quadratic.rejected-case-is-infeasible, obl.quadratic.cases-are-complete, obl.plan.preconditions-hold
+supported_methods bound the degree, read the three coefficients exactly, take the discriminant and record one case per real root
+unsupported_near_neighbors discriminants with no exact rational root, higher degree, complex roots, symbolic coefficients
+solution_soundness_status verified twice, each case is evaluated against the coefficients that were read and substituted into the equation as it was typed
+solution_completeness_status verified within the envelope, the recorded cases are multiplied back out and compared with the monic quadratic they were split from
+corpus_case_ids the golden fixtures naming this family
+device_performance_status not yet measured on the physical calculator
+direct_keypad_entry_status not yet entered from the calculator keypad
+isolated_runtime_status unqualified, host build results do not establish isolated calculator execution
+release_status unreleased
+rule eq.quadratic.formula fixture
+rule eq.quadratic.standard-form fixture
+rule eq.quadratic.discriminant fixture
+rule eq.quadratic.formula-case fixture
+rule eq.quadratic.reject-negative-discriminant fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+
 family id physics.kinematics.catch-up.equal-position
 reference_curriculum_set_ids StepCAS product requirements PHYS-002, PHYS-014, PHYS-015, PHYS-025, PHYS-026, PHYS-027, PHYS-028, PHYS-029, M1 archetype 4
 curriculum_source_locations StepCAS_Product_Requirements_Document.md sections 9.4 through 9.7, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 4
@@ -700,8 +729,8 @@ required_assumptions "acceleration is constant" and "motion is along one axis, p
 test_group_ids kinematics, units
 # The linear solver's obligation appears here too, for the same reason its rules do: a kinematics
 # solve nests it and the record carries what it raised.
-proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold
-supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear solver
+proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold, obl.quadratic.discriminant-decides, obl.quadratic.formula-case-is-a-root, obl.quadratic.candidate-satisfies, obl.quadratic.cases-are-complete, obl.kinematics.selected-root-is-admissible
+supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear rule and then to the two degree-two rules
 unsupported_near_neighbors two bodies at equal position, forces, energy
 solution_soundness_status verified, dimensions checked and the answer substituted back by the linear solver
 solution_completeness_status partial, one body and one axis
@@ -727,6 +756,16 @@ rule eq.divide-both-sides fixture
 rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
+# Two of the four equations are degree two in t and in either velocity, so a kinematics record can
+# nest the quadratic rules for the same reason it nests the linear ones, and then says which root
+# the problem is about.
+rule eq.quadratic.formula fixture
+rule eq.quadratic.standard-form fixture
+rule eq.quadratic.discriminant fixture
+rule eq.quadratic.formula-case fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+rule kin.select-physical-root fixture
 
 family id physics.kinematics.constant-acceleration.projectile.two-dimension
 topic_and_level Two-dimensional projectile motion under constant vertical acceleration, PRD section 22.1 and PHYS-028's Event/State/Interval distinction

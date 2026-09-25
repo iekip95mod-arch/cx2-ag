@@ -1,6 +1,7 @@
 #include <string>
 
 #include "nps/physics/kinematics.h"
+#include "nps/core/evaluate.h"
 #include "nps/core/parser.h"
 #include "../../src/physics/algebra_first.h"
 #include "nps/core/print.h"
@@ -25,6 +26,9 @@ struct Solved {
     std::string actions;
     std::string goals;
     std::string assumptions;
+    // What the steps themselves rest on, which is where a physical choice belongs. The field above
+    // is the solution context's list and is a different question.
+    std::string assumptions_after;
     std::string applicability;
     size_t backend = 0;
     size_t rewrites = 0;
@@ -63,6 +67,9 @@ Solved run(const std::string &text, const Budget &budget = Budget()) {
         if (!s.rule_id.empty())
             out.rules += (out.rules.empty() ? "" : " ") + s.rule_id;
         out.goals += (out.goals.empty() ? "" : " | ") + s.goal;
+        for (size_t a = 0; a < s.assumptions_after.size(); ++a)
+            out.assumptions_after += (out.assumptions_after.empty() ? "" : " | ") +
+                                     s.assumptions_after[a];
         if (s.kind == StepKind::Check) {
             ++out.checks;
             for (size_t v = 0; v < s.verifications.size(); ++v) {
@@ -282,8 +289,78 @@ void test_algebra_before_arithmetic(TestSink &t) {
     }
 }
 
+// Issue 412: the unknown at exponent two. The route search used to stop at the linear solver, so a
+// displacement equation solved for t and a v^2 relation solved for v were both refused.
+void test_quadratic_route(TestSink &t) {
+    // The dropped body: x = (1/2)*a*t^2 once v0 is zero, whose positive root is the fall time.
+    {
+        const Solved s = run("find t; x = 45 m; v0 = 0 m/s; a = 10 m/s^2");
+        t.equal(s.outcome, "solved", "a displacement equation solves for t at exponent two");
+        t.equal(s.answer, "t = 3 s", "and the fall time is the non-negative root");
+        t.equal(integer_text(static_cast<int64_t>(s.failed_checks)), "0", "with no failed check");
+        t.check(has(s.rules, "kin.select-physical-root"), "the root selection is a step of its own");
+        t.check(has(s.goals, "Choose the root this problem asks for"), "named as a choice");
+        t.check(has(s.assumptions_after, "a time measured from the start of the interval is not "
+                                         "negative"),
+                "resting on a stated assumption rather than on a silent drop");
+        t.check(has(s.actions, "-3"), "and the rejected root is named rather than dropped");
+    }
+    // The same givens solved for the impact speed, through v^2 = v0^2 + 2*a*x.
+    {
+        const Solved s = run("find v; x = 45 m; v0 = 0 m/s; a = 10 m/s^2");
+        t.equal(s.outcome, "solved", "a v^2 relation solves for v");
+        t.equal(s.answer, "v = 30 m/s", "and the impact speed is the root whose sign is forced");
+        t.check(has(s.assumptions_after,
+                    "v0 and a are both non-negative, so v = v0 + a*t is not negative for t >= 0"),
+                "the sign of v is stated rather than assumed");
+    }
+    // The headline case, which has a term of degree one and needs the formula rather than a square
+    // root. 3*t^2 + 10*t - 88 = 0, whose discriminant is 1156 = 34^2.
+    {
+        const Solved s = run("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2");
+        t.equal(s.outcome, "solved", "a displacement equation with a term of degree one solves for t");
+        t.equal(s.answer, "t = 4 s", "and the non-negative root is the answer");
+        t.check(has(s.rules, "eq.quadratic.formula"), "the quadratic formula is the rule that did it");
+        t.check(has(s.rules, "eq.quadratic.discriminant"), "with the discriminant recorded");
+        t.check(has(s.actions, "-22/3"), "and the negative root named before it was rejected");
+    }
+    // Inside the family and outside the envelope: 2*t^2 + 5*t - 44 = 0 has discriminant 377, which
+    // is not a perfect square. The refusal has to say that rather than repeat the linear one.
+    {
+        const Solved s = run("find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2");
+        t.check(s.outcome != "solved", "a discriminant that is not a perfect square is refused");
+        t.equal(s.status, "unsupported", "as an unsupported technique rather than a failure");
+        t.check(has(s.detail, "377"), "naming the discriminant it could not take the root of");
+        t.check(!has(s.detail, "not linear in t"),
+                "and not as the linear solver's refusal, which is no longer the last word");
+    }
+    // Two non-negative times satisfy the equation, and nothing in the problem says which is meant.
+    // 16 = 10*t - t^2 has roots 2 and 8, both after the start of the interval.
+    {
+        const Solved s = run("find t; x = 16 m; v0 = 10 m/s; a = -2 m/s^2");
+        t.check(s.outcome != "solved", "two admissible times are refused rather than chosen between");
+        t.check(has(s.detail, "t = 8 and t = 2 both satisfy this"), "with both of them named");
+    }
+    // The answer checked independently of the engine that produced it: put it back into the equation
+    // the problem states and see the two sides agree.
+    {
+        Arena arena;
+        const NodeId equation = parse(arena, "x = v0*t + (1/2)*a*t^2").root;
+        const std::vector<SymbolValue> values{{"x", Rational{44, 1}}, {"v0", Rational{5, 1}},
+                                              {"a", Rational{3, 1}}, {"t", Rational{4, 1}}};
+        Rational left;
+        Rational right;
+        const ChildView sides = arena.children(arena.at(equation));
+        t.check(evaluate_rational(arena, sides[0], values, &left) &&
+                    evaluate_rational(arena, sides[1], values, &right) &&
+                    rational_equal(left, right),
+                "t = 4 satisfies the displacement equation with the given numbers");
+    }
+}
+
 void run_kinematics_tests(TestSink &t) {
     test_algebra_before_arithmetic(t);
+    test_quadratic_route(t);
     for (const std::string &reply : {"[]", "[-2,2]", "[2,2]"}) {
         SequencedGiac giac(reply, "0");
         std::string rearranged;
@@ -695,11 +772,13 @@ void run_kinematics_tests(TestSink &t) {
         t.check(count(s.rules, "kin.substitute") == 2, "each hop substitutes into its own equation");
         t.check(s.checks >= 4, "and each hop carries a dimensional check and the solver's own");
         t.equal(integer_text(static_cast<int64_t>(s.failed_checks)), "0", "with none failing");
-        // Whether an equation the search passed over would also have worked is the solver's answer.
+        // Whether an equation the search passed over would also have worked is the engines' answer.
         // Labelling it from the table alone called a quadratic applicable, in the plan a student
-        // reads.
-        t.check(has(s.alternatives, "v^2 = v0^2 + 2*a*x: this equation is not linear in v"),
-                "an equation the solver would refuse is not offered as one that would have worked");
+        // reads. Here v0 came out negative against a positive acceleration, so the square root has
+        // two roots and nothing given says which of them the motion reaches.
+        t.check(has(s.alternatives, "v^2 = v0^2 + 2*a*x: v = 11 and v = -11 both satisfy this"),
+                "an equation whose roots the physics cannot choose between is not offered as one "
+                "that would have worked");
         t.check(has(s.alternatives, "x = (1/2)*(v0 + v)*t: also applicable, not needed"),
                 "and one it would take is");
         t.evidence("PHYS-004",
@@ -733,22 +812,24 @@ void run_kinematics_tests(TestSink &t) {
 
     // Refusals, each with the reason where the user can read it.
     {
-        Solved s = run("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2");
-        t.equal(s.outcome, "no applicable equation", "t from x, v0 and a is a quadratic");
-        t.check(has(s.detail, "x = v0*t + (1/2)*a*t^2: this equation is not linear in t"),
-                "and the refusal carries the solver's verdict");
+        // Degree two is reachable now, so what is left outside the envelope is a discriminant with
+        // no exact square root: 2*t^2 + 5*t - 44 = 0 has 377, which is not a perfect square.
+        Solved s = run("find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2");
+        t.equal(s.outcome, "no applicable equation", "t from x, v0 and a can need an inexact root");
+        t.check(has(s.detail, "x = v0*t + (1/2)*a*t^2: the discriminant is 377"),
+                "and the refusal carries the rule's own verdict");
         t.equal(integer_text(static_cast<int64_t>(s.steps)), "0", "with no steps written");
     }
     {
         KinematicsProblem problem;
         std::string why;
-        t.check(parse_kinematics("find t; x = 4 m; v0 = 4 m/s; a = -2 m/s^2", &problem, &why),
-                "a one-root quadratic fallback problem parses");
+        t.check(parse_kinematics("find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2", &problem, &why),
+                "a problem outside the exact-root envelope parses");
         Arena arena;
         Derivation derivation;
         KinematicsResult result = solve_kinematics(arena, derivation, problem);
         t.equal(kinematics_outcome_name(result.outcome), "no applicable equation",
-                "the local method still refuses the quadratic fallback candidate");
+                "the local method still refuses a root it cannot take exactly");
         t.equal(derivation_status_name(result.status), "unsupported",
                 "and preserves the unsupported derivation status");
         t.check(result.equation != kNoNode && result.substituted != kNoNode &&
@@ -762,9 +843,9 @@ void run_kinematics_tests(TestSink &t) {
     }
     {
         Solved s = run("find v; v0 = 5 m/s; a = 3 m/s^2; x = 44 m");
-        t.equal(s.outcome, "no applicable equation", "v from v0, a and x needs a square root");
-        t.check(has(s.detail, "v^2 = v0^2 + 2*a*x: this equation is not linear in v"),
-                "and the refusal says so");
+        t.equal(s.answer, "v = 17 m/s", "v from v0, a and x goes through the square root");
+        t.check(has(s.rules, "eq.quadratic.square-root"),
+                "and the pure square is solved by the rule that owns it rather than by the formula");
     }
     {
         Solved s = run("find v; v0 = 5 m/s; a = 3 m/s^2");
