@@ -29,6 +29,7 @@
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/physics/kinematics.h"
+#include "nps/steps/calculus.h"
 #include "nps/steps/derivation.h"
 #include "nps/steps/differentiate.h"
 #include "nps/steps/integrate.h"
@@ -41,6 +42,7 @@
 
 using nps::Arena;
 using nps::Budget;
+using nps::CalculusResult;
 using nps::Derivation;
 using nps::DerivationStatus;
 using nps::DiffResult;
@@ -607,6 +609,42 @@ void run_kinematics(Arena &arena, const Case &c, bool refusal, Run *run) {
     read_derivation(arena, derivation, refusal, run);
 }
 
+// CALC-010. Section 22.1 names no minimum for the tangent family, so a case here is a refusal this
+// engine owes rather than a solve it is counted for, the way the square-root rule's cases are. Its
+// successful walkthroughs are evidenced in the golden fixtures, which is the population that reaches
+// one. The input is a whole command rather than an expression, since the point and the variable are
+// arguments rather than fields.
+void run_tangent(Arena &arena, const Case &c, bool refusal, Run *run) {
+    const NodeId invocation = parse_into(arena, c.value("input"), &run->detail);
+    const std::string variable_text = c.value("variable");
+    if (variable_text.empty()) {
+        run->could_not_run = "no variable field";
+        return;
+    }
+    run->shape = shape_text(arena, invocation, c.value("input"), variable_text);
+    if (invocation == kNoNode) {
+        run->outcome = "not parsed";
+        run->result_class = "none";
+        return;
+    }
+    Derivation derivation;
+    if (!c.numeric_mode(&derivation.request.numeric_mode)) {
+        run->could_not_run = "numeric mode has to be exact or decimal";
+        return;
+    }
+    derivation.request.original_expression = c.value("input");
+    const CalculusResult result = calculus_walkthrough(
+        arena, derivation, nps::parse_command(arena, c.value("input"), variable_text), c.budget());
+    run->outcome = calculus_outcome_name(result.outcome);
+    run->detail = result.detail;
+    run->answer = result.value;
+    run->has_answer = result.value != kNoNode;
+    if (run->has_answer)
+        run->answer_text = print(arena, result.value);
+    run->result_class = result_class_of(arena, result.value);
+    read_derivation(arena, derivation, refusal, run);
+}
+
 void run_case(const Case &c, Run *run) {
     Arena arena;
     const std::string family = c.family;
@@ -624,6 +662,8 @@ void run_case(const Case &c, Run *run) {
         run_integral(arena, c, refusal, run);
     else if (mode == "kinematics")
         run_kinematics(arena, c, refusal, run);
+    else if (mode == "tangent" || mode == "linearize")
+        run_tangent(arena, c, refusal, run);
     else
         run->could_not_run = "no runner for mode " + mode;
 }
