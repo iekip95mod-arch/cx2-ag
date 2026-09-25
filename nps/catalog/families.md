@@ -326,8 +326,9 @@ solution_soundness_status verified by dimensional analysis and exact substitutio
 solution_completeness_status complete for one unknown and one compatible known when the unique exact rational answer fits
 corpus_case_ids not yet filed
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge not yet implemented
-isolated_runtime_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.modern.photon-wavelength
 release_status in development, unreleased
 rule physics.modern.planck-relation fixture
 rule physics.modern.check-dimensions fixture
@@ -356,8 +357,9 @@ solution_soundness_status verified by dimensional analysis and exact substitutio
 solution_completeness_status complete for one unknown and two compatible knowns above the threshold when the unique exact rational answer fits
 corpus_case_ids not yet filed
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge not yet implemented
-isolated_runtime_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.modern.photoelectric
 release_status in development, unreleased
 rule physics.modern.einstein-photoelectric fixture
 rule physics.modern.check-dimensions fixture
@@ -386,8 +388,9 @@ solution_soundness_status verified by dimensional analysis and exact substitutio
 solution_completeness_status complete for one unknown and one compatible known when the unique exact rational answer fits
 corpus_case_ids not yet filed
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge not yet implemented
-isolated_runtime_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.modern.mass-energy
 release_status in development, unreleased
 rule physics.modern.mass-energy-equivalence fixture
 rule physics.modern.check-dimensions fixture
@@ -1061,8 +1064,9 @@ solution_soundness_status verified, the frames, the speed and the factor identit
 solution_completeness_status partial, one boost along one shared axis with an exact rational Lorentz factor
 corpus_case_ids relativity_time_dilation_exact_gamma
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.relativity.time-dilation
 release_status unreleased
 rule physics.relativity.plan fixture
 rule physics.relativity.check-frames fixture
@@ -1088,8 +1092,9 @@ solution_soundness_status verified, the frames, the speed and the factor identit
 solution_completeness_status partial, one rod along one shared axis with an exact rational Lorentz factor
 corpus_case_ids relativity_length_contraction_exact_gamma
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.relativity.length-contraction
 release_status unreleased
 rule physics.relativity.plan fixture
 rule physics.relativity.check-frames fixture
@@ -1115,8 +1120,9 @@ solution_soundness_status verified, the transformed coordinates are checked agai
 solution_completeness_status partial, one event and one boost along one shared axis with an exact rational Lorentz factor
 corpus_case_ids relativity_lorentz_transformation_event
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge implemented, no Ki V4 menu template yet
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.relativity.lorentz-transformation
 release_status unreleased
 rule physics.relativity.plan fixture
 rule physics.relativity.check-frames fixture
@@ -1142,8 +1148,9 @@ solution_soundness_status verified, both speeds are checked before the relation 
 solution_completeness_status partial, one object along one shared axis
 corpus_case_ids relativity_velocity_addition_half_c
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.relativity.velocity-addition
 release_status unreleased
 # No lorentz-factor rule or factor-identity obligation, because this relation does not read gamma.
 rule physics.relativity.plan fixture
@@ -1169,8 +1176,9 @@ solution_soundness_status verified, every reported energy has its own recorded e
 solution_completeness_status partial, one particle at one boost with an exact rational Lorentz factor
 corpus_case_ids relativity_energy_momentum_proton
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.relativity.energy-momentum
 release_status unreleased
 rule physics.relativity.plan fixture
 rule physics.relativity.check-frames fixture

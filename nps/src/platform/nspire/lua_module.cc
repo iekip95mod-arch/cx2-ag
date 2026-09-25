@@ -43,10 +43,12 @@
 #include "nps/physics/density.h"
 #include "nps/physics/gravitation.h"
 #include "nps/physics/kinematics.h"
+#include "nps/physics/modern.h"
 #include "nps/physics/optics.h"
 #include "nps/physics/oscillation.h"
 #include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
+#include "nps/physics/relativity.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
@@ -3293,6 +3295,235 @@ int l_wave(lua_State *L) {
     return relation_into(L, wave_model(), solve_wave);
 }
 
+// These families read working units the unit table does not carry, so the bridge attaches them.
+// A value written in some other unit keeps it, and the engine refuses it by name.
+bool declared_quantity(std::string_view text, const char *unit_text, const Dimension &dimension,
+                       Quantity *quantity, std::string *why) {
+    const std::string suffix = std::string(" ") + unit_text;
+    if (text.size() > suffix.size() && text.ends_with(suffix))
+        text.remove_suffix(suffix.size());
+    if (!parse_quantity(std::string(text), quantity, why))
+        return false;
+    if (quantity->unit.text.empty() && quantity->unit.dimension == Dimension()) {
+        quantity->unit.text = unit_text;
+        quantity->unit.dimension = dimension;
+        quantity->unit.scale.num = 1;
+        quantity->unit.scale.den = 1;
+    }
+    return true;
+}
+
+constexpr size_t kModernRelationCount = 3;
+constexpr size_t kModernVariableCount = 6;
+
+bool modern_relation(std::string_view name, ModernRelation *relation) {
+    for (size_t i = 0; i < kModernRelationCount; ++i) {
+        const auto candidate = static_cast<ModernRelation>(i);
+        if (name == modern_relation_name(candidate)) {
+            *relation = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool modern_variable(std::string_view name, ModernVariable *variable) {
+    for (size_t i = 0; i < kModernVariableCount; ++i) {
+        const auto candidate = static_cast<ModernVariable>(i);
+        if (name == modern_variable_name(candidate)) {
+            *variable = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Every modern relation reads one or two knowns, so the second pair is optional.
+int l_modern(lua_State *L) {
+    const char *relation_text = scalar_string_argument(L, 1);
+    const char *unknown_text = scalar_string_argument(L, 2);
+    const char *names[2] = {scalar_string_argument(L, 3), scalar_string_argument(L, 5, "")};
+    const char *values[2] = {scalar_string_argument(L, 4), scalar_string_argument(L, 6, "")};
+    GcPause paused(L);
+
+    ModernProblem problem;
+    std::string why;
+    bool parsed = modern_relation(relation_text, &problem.relation);
+    if (!parsed)
+        why = "unknown modern relation " + std::string(relation_text);
+    if (parsed && !modern_variable(unknown_text, &problem.unknown)) {
+        parsed = false;
+        why = "unknown modern variable " + std::string(unknown_text);
+    }
+    for (size_t i = 0; parsed && i < 2; ++i) {
+        if (*names[i] == '\0' && *values[i] == '\0')
+            continue;
+        ModernKnown known;
+        if (!modern_variable(names[i], &known.variable)) {
+            parsed = false;
+            why = "unknown modern variable " + std::string(names[i]);
+            break;
+        }
+        if (!declared_quantity(values[i], modern_variable_unit(known.variable),
+                               modern_variable_dimension(known.variable), &known.quantity, &why)) {
+            parsed = false;
+            break;
+        }
+        problem.knowns.push_back(std::move(known));
+    }
+    if (!parsed)
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const ModernResult r = solve_modern(arena, d, problem, interactive_budget());
+    const char *unknown_name = modern_variable_name(problem.unknown);
+
+    lua_newtable(L);
+    set_field(L, "outcome", modern_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == ModernOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    set_field(L, "relation", modern_relation_name(problem.relation));
+    set_field(L, "unknown", unknown_name);
+    if (r.outcome == ModernOutcome::Solved) {
+        set_field(L, "result", std::string(unknown_name) + " = " + r.value_text + " " + r.unit_text);
+        set_field(L, "value", r.value_text);
+        set_field(L, "exact_value", rational_text(r.quantity.value));
+        set_field(L, "unit", r.unit_text);
+        set_precision(L, r.quantity.precision);
+    }
+    if (r.equation != kNoNode)
+        set_field(L, "equation", print(arena, r.equation));
+    if (r.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, r.substituted));
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
+constexpr size_t kRelativityRelationCount = 5;
+constexpr size_t kRelativityVariableCount = 14;
+
+bool relativity_relation(std::string_view name, RelativityRelation *relation) {
+    for (size_t i = 0; i < kRelativityRelationCount; ++i) {
+        const auto candidate = static_cast<RelativityRelation>(i);
+        if (name == relativity_relation_name(candidate)) {
+            *relation = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool relativity_variable(std::string_view name, RelativityVariable *variable) {
+    for (size_t i = 0; i < kRelativityVariableCount; ++i) {
+        const auto candidate = static_cast<RelativityVariable>(i);
+        if (name == relativity_variable_name(candidate)) {
+            *variable = candidate;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Every relativity relation reads one or two knowns and names both frames and the boost.
+int l_relativity(lua_State *L) {
+    const char *relation_text = scalar_string_argument(L, 1);
+    const char *rest_text = scalar_string_argument(L, 2);
+    const char *moving_text = scalar_string_argument(L, 3);
+    const char *boost_text = scalar_string_argument(L, 4);
+    const char *names[2] = {scalar_string_argument(L, 5), scalar_string_argument(L, 7, "")};
+    const char *values[2] = {scalar_string_argument(L, 6), scalar_string_argument(L, 8, "")};
+    GcPause paused(L);
+
+    RelativityProblem problem;
+    problem.rest_frame.name = rest_text;
+    problem.moving_frame.name = moving_text;
+    std::string why;
+    bool parsed = relativity_relation(relation_text, &problem.relation);
+    if (!parsed)
+        why = "unknown relativity relation " + std::string(relation_text);
+    Dimension speed;
+    if (parsed && !declared_quantity(boost_text, "c", speed, &problem.boost, &why))
+        parsed = false;
+    for (size_t i = 0; parsed && i < 2; ++i) {
+        if (*names[i] == '\0' && *values[i] == '\0')
+            continue;
+        RelativityKnown known;
+        if (!relativity_variable(names[i], &known.variable)) {
+            parsed = false;
+            why = "unknown relativity variable " + std::string(names[i]);
+            break;
+        }
+        if (!declared_quantity(values[i], relativity_variable_unit(known.variable),
+                               relativity_variable_dimension(known.variable), &known.quantity,
+                               &why)) {
+            parsed = false;
+            break;
+        }
+        problem.knowns.push_back(std::move(known));
+    }
+    if (!parsed)
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const RelativityResult r = solve_relativity(arena, d, problem, interactive_budget());
+
+    lua_newtable(L);
+    set_field(L, "outcome", relativity_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == RelativityOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    set_field(L, "relation", relativity_relation_name(problem.relation));
+    set_field(L, "rest_frame", problem.rest_frame.name);
+    set_field(L, "moving_frame", problem.moving_frame.name);
+    set_field(L, "convention", r.convention);
+    if (r.has_factor)
+        set_field(L, "lorentz_factor", r.factor_text);
+    if (r.outcome == RelativityOutcome::Solved) {
+        std::vector<std::string> answers;
+        lua_pushstring(L, "outputs");
+        lua_newtable(L);
+        for (size_t i = 0; i < r.outputs.size(); ++i) {
+            const RelativityOutput &output = r.outputs[i];
+            const char *name = relativity_variable_name(output.variable);
+            answers.push_back(std::string(name) + " = " + output.value_text + " " +
+                              output.unit_text + " in " + output.frame.name);
+            lua_pushinteger(L, static_cast<lua_Integer>(i + 1));
+            lua_newtable(L);
+            set_field(L, "variable", name);
+            set_field(L, "value", output.value_text);
+            set_field(L, "exact_value", rational_text(output.quantity.value));
+            set_field(L, "unit", output.unit_text);
+            set_field(L, "frame", output.frame.name);
+            set_precision(L, output.quantity.precision);
+            lua_settable(L, -3);
+        }
+        lua_settable(L, -3);
+        std::string result;
+        for (const std::string &answer : answers)
+            result += (result.empty() ? "" : ", ") + answer;
+        set_field(L, "result", result);
+    }
+    if (r.equation != kNoNode)
+        set_field(L, "equation", print(arena, r.equation));
+    if (r.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, r.substituted));
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
 int l_vector_addition(lua_State *L) {
     const char *first_text = scalar_string_argument(L, 1);
     const char *second_text = scalar_string_argument(L, 2);
@@ -4119,6 +4350,8 @@ const luaL_Reg lib[] = {
     {"gravitation", l_gravitation},
     {"oscillation", l_oscillation},
     {"wave", l_wave},
+    {"modern", l_modern},
+    {"relativity", l_relativity},
     {"vector_addition", l_vector_addition},
     {"vector_cross", l_vector_cross},
     {"relative_motion", l_relative_motion},

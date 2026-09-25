@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 42,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -288,6 +288,14 @@ local expected_modules = {
     "physics.gravitation.point-masses",
     "physics.oscillation.restoring-force",
     "physics.wave.speed-frequency-wavelength",
+    "physics.modern.photon-wavelength",
+    "physics.modern.photoelectric",
+    "physics.modern.mass-energy",
+    "physics.relativity.time-dilation",
+    "physics.relativity.length-contraction",
+    "physics.relativity.lorentz-transformation",
+    "physics.relativity.velocity-addition",
+    "physics.relativity.energy-momentum",
     "units.chain-link-conversion",
     "units.si"
 }
@@ -868,6 +876,10 @@ do
                            "separation", "1 m" } },
         { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
         { "wave", { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" } },
+        { "modern", { "Einstein photoelectric equation", "maximum kinetic energy",
+                      "photon energy", "5.0 eV", "work function", "2.3 eV" } },
+        { "relativity", { "Lorentz transformation", "station", "ship", "0.6 c",
+                          "event position", "300 m", "event time", "1 s" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
             local arguments = { unpack(calculation[2]) }
@@ -1358,6 +1370,113 @@ check(not pcall(nps.wave, "wavelength", "wave speed", "340 m/s"),
 r = nps.wave("wavelength", "wave speed", "340", "frequency", "170 s^-1")
 check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
       "the wave bridge refuses a speed given without its unit")
+
+-- The modern family reads eV, nm, MeV and u, which the unit table does not carry, so the bridge
+-- attaches the declared unit to a bare number and accepts the same number written with it.
+do
+    r = nps.modern("Planck photon relation", "photon energy", "wavelength", "620 nm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "Planck photon relation" and r.unknown == "photon energy",
+          "the modern bridge returns a verified photon energy")
+    -- hc = 1239.8 eV nm, so 1239.8 / 620 = 1.99968 eV, kept to the five figures of the constant.
+    check(r.result == "photon energy = 1.9997 eV" and r.value == "1.9997" and
+          r.exact_value == "6199/3100" and r.unit == "eV" and r.precision.kind == "measured" and
+          r.precision.significant_digits == 5,
+          "the photon energy of red light carries the tabulated constant's precision")
+    local bare = nps.modern("Planck photon relation", "photon energy", "wavelength", "620")
+    check(bare.result == r.result,
+          "a bare wavelength is read in the family's declared nanometres")
+    local modern_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then modern_rules[s.rule] = true end end
+    check(modern_rules["physics.modern.check-dimensions"] and
+          modern_rules["physics.modern.substitute"] and
+          modern_rules["physics.modern.check-candidate"] and
+          type(r.assumptions) == "string" and r.assumptions:find("1239.8", 1, true) ~= nil,
+          "the modern bridge retains its dimension, substitution and candidate records")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "5.0 eV", "work function", "2.3 eV")
+    check(r.solved == true and r.result == "maximum kinetic energy = 2.7 eV",
+          "the photoelectric bridge subtracts the work function from the photon energy")
+    r = nps.modern("Mass-energy equivalence", "rest energy", "mass defect", "0.0304 u")
+    check(r.solved == true and r.result == "rest energy = 28.3 MeV" and r.unit == "MeV",
+          "the mass defect of helium-4 releases 28.3 MeV at 931.49 MeV per atomic mass unit")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "2.0 eV", "work function", "2.3 eV")
+    check(r.outcome == "unphysical value" and r.solved == false and r.result == nil and
+          r.detail:find("no electron is emitted", 1, true) ~= nil,
+          "a photon below the threshold emits nothing rather than a negative energy")
+    r = nps.modern("Planck photon relation", "photon energy", "wavelength", "620 m")
+    check(r.outcome == "dimension mismatch" and r.solved == false,
+          "a wavelength in metres is refused by the family rather than silently rescaled")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "5.0 eV")
+    check(r.outcome == "missing known" and r.solved == false,
+          "the photoelectric bridge refuses a relation given one known too few")
+    r = nps.modern("Compton scattering", "photon energy", "wavelength", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern relation Compton scattering",
+          "the modern bridge names a relation it does not carry")
+end
+
+-- Relativity names both frames and the boost, and reports every output in the frame it belongs to.
+do
+    r = nps.relativity("Time dilation", "station", "ship", "0.600 c", "proper time", "4.00 s")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "Time dilation" and r.rest_frame == "station" and r.moving_frame == "ship",
+          "the relativity bridge returns a verified dilation between two named frames")
+    check(r.lorentz_factor == "1.25" and r.result == "dilated time = 5.00 s in station" and
+          #r.outputs == 1 and r.outputs[1].variable == "dilated time" and
+          r.outputs[1].value == "5.00" and r.outputs[1].unit == "s" and
+          r.outputs[1].frame == "station" and r.outputs[1].precision.significant_digits == 3,
+          "gamma = 1.25 at 0.6 c stretches four seconds on the ship to five at the station")
+    check(type(r.convention) == "string" and r.convention:find("positive x axis", 1, true) ~= nil,
+          "the answer is read under the declared boost direction")
+    local relativity_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then relativity_rules[s.rule] = true end end
+    check(relativity_rules["physics.relativity.plan"] and
+          relativity_rules["physics.relativity.check-frames"] and
+          relativity_rules["physics.relativity.check-boost"],
+          "the relativity bridge retains its plan, frame and boost checks")
+    r = nps.relativity("Length contraction", "station", "ship", "0.600 c", "proper length", "100 m")
+    check(r.solved == true and r.result == "contracted length = 80.0 m in station",
+          "a hundred metre ship at 0.6 c measures eighty metres from the station")
+    r = nps.relativity("Lorentz transformation", "station", "ship", "0.6 c", "event position",
+                       "300 m", "event time", "1 s")
+    check(r.solved == true and #r.outputs == 2 and
+          r.outputs[1].variable == "transformed event position" and
+          r.outputs[1].exact_value == "-224843968.5" and r.outputs[1].frame == "ship" and
+          r.outputs[2].variable == "transformed event time" and
+          r.outputs[2].exact_value == "749480695/599584916" and r.outputs[2].frame == "ship",
+          "the Lorentz transformation reports both coordinates of the event in the moving frame")
+    r = nps.relativity("Relativistic velocity addition", "station", "ship", "0.500 c",
+                       "object velocity in the moving frame", "0.500 c")
+    check(r.solved == true and r.result == "object velocity in the rest frame = 0.800 c in station" and
+          r.lorentz_factor == nil,
+          "half of c on half of c adds to 0.8 c and never reaches c")
+    r = nps.relativity("Relativistic energy and momentum", "lab", "electron", "0.600 c",
+                       "rest energy", "0.511 MeV")
+    check(r.solved == true and #r.outputs == 3 and r.outputs[1].value == "0.639" and
+          r.outputs[2].value == "0.383" and r.outputs[3].value == "0.128" and
+          r.outputs[3].variable == "relativistic kinetic energy",
+          "an electron at 0.6 c reports its total, momentum and kinetic energies")
+    r = nps.relativity("Time dilation", "station", "ship", "0.5 c", "proper time", "4 s")
+    check(r.outcome == "inexact Lorentz factor" and r.solved == false and r.result == nil and
+          r.outputs == nil,
+          "a boost whose gamma is irrational reports nothing rather than an unchecked decimal")
+    r = nps.relativity("Time dilation", "ship", "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "frame mismatch" and r.solved == false,
+          "a frame cannot be boosted against itself")
+    r = nps.relativity("Time dilation", "station", "ship", "1 c", "proper time", "4 s")
+    check(r.outcome == "superluminal speed" and r.solved == false,
+          "a frame moving at c is refused")
+    r = nps.relativity("Time dilation", "station", "ship", "0.6 c", "rest energy", "4 s")
+    check(r.solved == false and r.result == nil,
+          "a known the relation does not read is refused")
+    r = nps.relativity("Time travel", "station", "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown relativity relation Time travel",
+          "the relativity bridge names a relation it does not carry")
+end
 
 local exact_precision = { kind = "exact", significant_digits = 0 }
 local measured_two = { kind = "measured", significant_digits = 2 }

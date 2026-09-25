@@ -116,15 +116,23 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-25, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4116), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4119 to 4121), `vector_addition` (lua_module.cc:4122), `vector_cross`
-(lua_module.cc:4123), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4347), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4350 to 4352), `modern` and `relativity` (lua_module.cc:4353 and 4354),
+`vector_addition` (lua_module.cc:4355), `vector_cross` (lua_module.cc:4356),
+`components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3222, which
-reads the variable names against the model's own term names (lua_module.cc:3208). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3224, which
+reads the variable names against the model's own term names (lua_module.cc:3210). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
+
+`modern` (lua_module.cc:3342) and `relativity` (lua_module.cc:3435) read their relation and variable
+names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
+exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
+nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3300 attaches the declared unit
+to a bare number or to the number written with that unit, and leaves any other unit for the engine to
+refuse.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -145,12 +153,14 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 `source`: read on 2026-09-25, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `gravitation`, `kinematics`, `magnitude_angle_to_components`,
-`optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`,
-`vector_cross`, `wave` and `work`.
+`modern`, `optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `relativity`,
+`unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. The Lorentz transformation is
+the one relativity relation the bridge carries and no fixture runs.
 
-The shell refuses a manifest listing more than 64 modules (nps_v4.lua:108). It was 32 until the
+The shell refuses a manifest listing more than 64 modules (nps_v4.lua:116). It was 32 until the
 relation families took the real manifest to 34, and nothing on the host held the real count against
-that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65.
+that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65. The real manifest now
+lists 42.
 
 `planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -173,8 +183,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3188, measureMath
-sets the expression at :3222, and the history editor sets its expression at :1440.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3264, measureMath
+sets the expression at :3298, and the history editor sets its expression at :1448.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
