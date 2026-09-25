@@ -358,6 +358,45 @@ void run_position_motion_tests(TestSink &t) {
         std::string assumptions;
         for (const std::string &one : without.derivation.context.active_assumptions)
             assumptions += one + " | ";
+        // Every exit, not only the three that happened to have a call. A refusal is a walkthrough a
+        // reader sees, so it carries the family as much as an answer does, and the solved control
+        // below the table is what stops this passing for a family id nothing ever writes.
+        struct Exit {
+            PositionMotionProblem problem;
+            const char *outcome;
+            const char *what;
+        };
+        PositionMotionProblem bad_rank = problem("3*t", "2*t^2", "0 s", "2 s", "2 s");
+        bad_rank.rank = 1;
+        PositionMotionProblem bad_dimension = problem("3*t", "2*t^2", "0 m", "2 s", "2 s");
+        PositionMotionProblem zero_duration = problem("3*t", "2*t^2", "2 s", "2 s", "2 s");
+        PositionMotionProblem bad_axis = problem("2^t", "2*t^2", "0 s", "2 s", "2 s");
+        const Exit exits[] = {
+            {bad_rank, "invalid input", "a rank the family does not support"},
+            {bad_dimension, "dimension mismatch", "an interval bound that is not a time"},
+            {zero_duration, "invalid input", "an interval of zero duration"},
+            {bad_axis, "unsupported form", "a component the differentiation engine cannot take"},
+        };
+        for (const Exit &exit : exits) {
+            Run refused(exit.problem);
+            t.equal(position_motion_outcome_name(refused.result.outcome), exit.outcome,
+                    std::string("the control for the line below, so ") + exit.what +
+                        " really does refuse");
+            t.equal(refused.derivation.context.problem_family_id, "physics.motion.position-vector",
+                    std::string("and the refusal for ") + exit.what + " still names this family");
+            t.equal(refused.derivation.context.problem_family_envelope_version, "1",
+                    std::string("and records the envelope version for ") + exit.what);
+        }
+        {
+            Budget exhausting;
+            exhausting.max_backend_calls = 5;
+            SequenceBackend halting({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0"});
+            Run halted(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), exhausting, &halting);
+            t.equal(position_motion_outcome_name(halted.result.outcome), "resource exceeded",
+                    "the control for the line below, so the conversion really does halt");
+            t.equal(halted.derivation.context.problem_family_id, "physics.motion.position-vector",
+                    "and a halted conversion still names this family");
+        }
         t.evidence("PHYS-025",
                    assumptions.find("function of t alone") != std::string::npos &&
                        assumptions.find("share one clock") != std::string::npos &&

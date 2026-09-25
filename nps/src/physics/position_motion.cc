@@ -35,8 +35,8 @@ Vector made_vector(const Rational values[3], uint8_t rank, Dimension dimension) 
     return v;
 }
 
-// Written after the nested engines have finished, because each of them writes a context of its own
-// and the last writer would otherwise leave this family's derivation naming one of theirs.
+// Written on the one funnel every outcome leaves by, because each nested engine writes a context of
+// its own and the last writer would otherwise leave this family's derivation naming one of theirs.
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status, bool converted_directions) {
     ContextInputs inputs;
@@ -177,9 +177,11 @@ const char *position_motion_outcome_name(PositionMotionOutcome outcome) {
     return "unknown";
 }
 
-PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
-                                            const PositionMotionProblem &problem,
-                                            const Budget &budget, Backend *giac) {
+namespace {
+
+PositionMotionResult solve_body(Arena &arena, Derivation &derivation,
+                                const PositionMotionProblem &problem, const Budget &budget,
+                                Backend *giac) {
     PositionMotionResult result;
     Meter meter(budget);
 
@@ -234,7 +236,6 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
             result.detail = axis.detail;
             result.status = axis.status;
             result.cost = meter.cost();
-            record_context(derivation, budget, kNoNode, result.status, false);
             return result;
         }
         average_velocity[axis_index] = axis.average_velocity;
@@ -274,7 +275,6 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
                     std::string(kVectorNames[index]) + " direction: " + polar.detail;
                 halted.status = polar.status;
                 halted.cost = meter.cost();
-                record_context(derivation, budget, kNoNode, halted.status, true);
                 return halted;
             }
             if (polar.outcome == VectorComponentsOutcome::Solved && polar.has_polar) {
@@ -307,7 +307,21 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
     result.outcome = PositionMotionOutcome::Solved;
     result.status = last_status;
     result.cost = meter.cost();
-    record_context(derivation, budget, kNoNode, result.status, giac != nullptr);
+    return result;
+}
+
+}  // namespace
+
+PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
+                                           const PositionMotionProblem &problem,
+                                           const Budget &budget, Backend *giac) {
+    const PositionMotionResult result = solve_body(arena, derivation, problem, budget, giac);
+    // The angle convention is stated only when a direction was actually reported, because a
+    // refusal that never reached the converter has no direction to state one for.
+    const bool converted = result.has_average_velocity_polar ||
+                           result.has_instantaneous_velocity_polar ||
+                           result.has_instantaneous_acceleration_polar;
+    record_context(derivation, budget, kNoNode, result.status, converted);
     return result;
 }
 
