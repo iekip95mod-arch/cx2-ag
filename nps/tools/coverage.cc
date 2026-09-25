@@ -100,21 +100,12 @@ struct AwaitingGroup {
 
 // A vector rather than an array so the table can empty out once every family has its block, and so
 // the selftest can stage a row of its own against a real table that no longer carries one.
-const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {
-    {"circular motion", "src/physics/circular_motion.cc, stamping physics.circular-motion.uniform"},
-    {"gravitation", "src/physics/gravitation.cc, stamping physics.gravitation.point-masses"},
-    {"oscillation", "src/physics/oscillation.cc, stamping physics.oscillation.restoring-force and "
-                    "physics.wave.speed-frequency-wavelength"},
-    {"position motion", "src/physics/position_motion.cc, composing the derivative engine and "
-                        "stamping no id of its own"},
-    {"ranking", "src/physics/ranking.cc, composing comparison and stamping no id of its own"},
-    {"relativity", "src/physics/relativity.cc, stamping physics.relativity.time-dilation, "
-                   "length-contraction, lorentz-transformation, velocity-addition and "
-                   "energy-momentum"},
-};
+const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {};
 
-// One line decides whether a family with no catalog block fails the run or only reports.
-const bool kAwaitingCatalogIsFatal = false;
+// One line decides whether a family with no catalog block fails the run or only reports. Every
+// family the tree implements now has a block, so the table above is empty and this can hold the
+// line rather than describe where it used to be.
+const bool kAwaitingCatalogIsFatal = true;
 
 struct Outcome {
     bool join_ran = false;
@@ -477,8 +468,8 @@ int selftest() {
          "a group that ran and a catalogued family names is coverage the catalog describes"},
         {nullptr, "staged group", 1, 1, 0, 0,
          "the same group with its family block gone is an uncatalogued family"},
-        {nullptr, "staged awaiting", 0, 0, 1, 0,
-         "a group whose family is written down as not catalogued yet is counted and survives"},
+        {nullptr, "staged awaiting", 1, 0, 1, 0,
+         "a group whose family is written down as not catalogued yet is counted and fails the run"},
         {"fuzz", "fuzz", 1, 0, 0, 1,
          "a group excused as having no family and named by one is a stale exemption"},
         {"staged awaiting", "staged awaiting", 1, 0, 0, 1,
