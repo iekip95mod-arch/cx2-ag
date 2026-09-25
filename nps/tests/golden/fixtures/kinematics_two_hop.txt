@@ -38,12 +38,12 @@ steps
     alternative: for v0: v^2 = v0^2 + 2*a*x: needs v, which is not given
     alternative: for v0: x = (1/2)*(v0 + v)*t: needs v, which is not given
     alternative: for v: x = v0*t + (1/2)*a*t^2: already used earlier on this route
-    alternative: for v: v^2 = v0^2 + 2*a*x: this equation is not linear in v
+    alternative: for v: v^2 = v0^2 + 2*a*x: v = 11 and v = -11 both satisfy this, and the signs of v0 and a do not say which one v = v0 + a*t gives
     alternative: for v: x = (1/2)*(v0 + v)*t: also applicable, not needed
     rationale: no single constant-acceleration equation reaches v from what is given, so v0 is found first and then used: x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v; no symbolic engine is attached, so the rearrangement is shown with the values already in
     verification: problem-family model validation, passed, the selected equation table is the constant-acceleration family
     verification: problem-family model validation, passed, the typed problem uses the one-dimensional kinematics family
-    verification: exact route search through the linear solver, passed, x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v
+    verification: exact route search through the solving rules, passed, x = v0*t + (1/2)*a*t^2 for v0, then v = v0 + a*t for v
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
     verified: nothing claimed
     1.1 check
