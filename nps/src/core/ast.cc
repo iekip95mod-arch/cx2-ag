@@ -164,6 +164,17 @@ bool depends_on(const Arena &arena, NodeId id, NodeId variable) {
     return arena.any_node(id, [variable](NodeId current) { return current == variable; });
 }
 
+bool angle_dependent(const Arena &arena, NodeId id, NodeId variable) {
+    static constexpr std::string_view names[] = {"sin",  "cos",  "tan",  "sec",  "csc",  "cot",  "asin",
+                                                 "acos", "atan", "asec", "acsc", "acot", "atan2"};
+    return arena.any_node(id, [&arena, variable](NodeId current) {
+        if (arena.at(current).kind != Kind::Call ||
+            (variable != kNoNode && !depends_on(arena, current, variable))) return false;
+        const std::string name = arena.text(current);
+        return std::find(std::begin(names), std::end(names), name) != std::end(names);
+    });
+}
+
 bool has_undefined_form(const Arena &arena, NodeId id) {
     return arena.any_node(id, [&arena](NodeId current) {
         const Node &node = arena.at(current);

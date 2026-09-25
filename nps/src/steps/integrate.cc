@@ -602,7 +602,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
     inputs.active_assumptions = assumptions;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain, principal values";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);
@@ -653,6 +653,13 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
     if (contains_list(arena, expression)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "list and matrix integration is not supported";
+        result.status = DerivationStatus::Unsupported;
+        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        return result;
+    }
+    if (derivation.request.angle_mode == AngleMode::Degrees && angle_dependent(arena, expression, variable)) {
+        result.outcome = IntegrateOutcome::UnsupportedForm;
+        result.detail = "the trigonometric integration rules assume radians, and degree mode is active";
         result.status = DerivationStatus::Unsupported;
         record_context(derivation, budget, expression, no_assumptions, result.status, mode);
         return result;

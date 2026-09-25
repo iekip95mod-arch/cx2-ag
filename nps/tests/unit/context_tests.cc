@@ -11,6 +11,8 @@
 #include "nps/physics/kinematics.h"
 #include "nps/steps/differentiate.h"
 #include "nps/steps/integrate.h"
+#include "nps/steps/calculus.h"
+#include "nps/steps/command.h"
 #include "nps/steps/linear.h"
 #include "golden/golden.h"
 #include "unit/adapter_tests.h"
@@ -829,6 +831,95 @@ void run_context_tests(TestSink &t) {
         t.equal(render_derivation(replay_arena, replay_derivation),
                 render_derivation(slow_arena, slow_derivation),
                 "and renders the same derivation as the original solve");
+    }
+    // MATH-007. The selected angle unit is what every derivation records, a saved record keeps it,
+    // and the calculus rules that assume radians refuse trigonometry in degree mode.
+    {
+        t.check(std::string(angle_mode_name(AngleMode::Radians)) == "radians" &&
+                std::string(angle_mode_name(AngleMode::Degrees)) == "degrees",
+                "the angle modes have the names the context records");
+        bool recorded = true;
+        std::string saved_convention;
+        for (const AngleMode mode : {AngleMode::Radians, AngleMode::Degrees}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.original_expression = "2x + 5 = 13";
+            derivation.request.angle_mode = mode;
+            const ParseResult parsed = parse(arena, "2x + 5 = 13");
+            const SolveResult solved = solve_linear(arena, derivation, parsed.root, arena.symbol("x"));
+            recorded = recorded && solved.outcome == SolveOutcome::Solved &&
+                       derivation.context.angle_convention == angle_mode_name(mode);
+            if (mode == AngleMode::Degrees) {
+                Arena restored;
+                SolutionContext reopened;
+                const ContextParseResult read = parse_context(serialize_context(arena, derivation.context), restored, &reopened);
+                saved_convention = read.ok() ? reopened.angle_convention : "unreadable";
+            }
+        }
+        t.check(recorded, "a linear solve records the angle mode it ran under");
+        t.check(saved_convention == "degrees", "a saved derivation reopens with the angle mode it was solved under: " +
+                                                   saved_convention);
+    }
+    struct DegreeCase {
+        const char *text;
+        bool refused;
+    };
+    for (const DegreeCase &item : {DegreeCase{"sin(x)", true}, DegreeCase{"x*cos(2*x)", true},
+                                   DegreeCase{"atan(x)", true}, DegreeCase{"x^2+sin(2)", false},
+                                   DegreeCase{"x^3", false}}) {
+        for (const AngleMode mode : {AngleMode::Radians, AngleMode::Degrees}) {
+            const bool expect_refusal = item.refused && mode == AngleMode::Degrees;
+            Arena arena;
+            Derivation derivative, integral;
+            derivative.request.angle_mode = mode;
+            integral.request.angle_mode = mode;
+            const ParseResult parsed = parse(arena, item.text);
+            const DiffResult d = differentiate(arena, derivative, parsed.root, arena.symbol("x"));
+            const IntegrateResult i = integrate(arena, integral, parsed.root, arena.symbol("x"));
+            const bool d_refused = d.outcome == DiffOutcome::UnsupportedForm && d.detail.find("degree mode") != std::string::npos;
+            const bool i_refused = i.outcome == IntegrateOutcome::UnsupportedForm && i.detail.find("degree mode") != std::string::npos;
+            t.check(d_refused == expect_refusal && derivative.context.angle_convention == angle_mode_name(mode),
+                    "differentiation refuses trigonometry only in degree mode and records the mode: " +
+                    std::string(item.text) + " in " + angle_mode_name(mode) + ": " + d.detail);
+            t.check(i_refused == expect_refusal && integral.context.angle_convention == angle_mode_name(mode),
+                    "integration refuses trigonometry only in degree mode and records the mode: " +
+                    std::string(item.text) + " in " + angle_mode_name(mode) + ": " + i.detail);
+        }
+    }
+    {
+        // The calculus walkthroughs refuse in degree mode without asking the backend for an answer
+        // it would read in radians.
+        class Counting : public Backend {
+          public:
+            size_t calls = 0;
+            bool eval(const std::string &, std::string *, std::string *) override { ++calls; return false; }
+        };
+        bool limits = true;
+        for (const char *text : {"limit(sin(x)/x,x,0)", "tangent(sin(x),x,0)", "int(cos(x),x,0,1)"}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.angle_mode = AngleMode::Degrees;
+            Counting backend;
+            const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "x"),
+                                                               Budget(), &backend);
+            limits = limits && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                     result.detail.find("degree mode") != std::string::npos && backend.calls == 0 &&
+                     !result.answer_only && derivation.context.angle_convention == "degrees";
+        }
+        Arena arena;
+        Derivation derivation;
+        derivation.request.angle_mode = AngleMode::Degrees;
+        const CalculusResult plain = calculus_walkthrough(arena, derivation, parse_command(arena, "limit(x^2,x,3)", "x"));
+        t.check(limits, "degree mode refuses trigonometric calculus walkthroughs without a backend answer");
+        t.check(plain.outcome == CalculusOutcome::Evaluated && derivation.context.angle_convention == "degrees",
+                "degree mode leaves calculus without trigonometry alone and records the mode");
+        Arena any;
+        const ParseResult constant = parse(any, "sin(30)+x");
+        t.evidence("MATH-007",
+                   limits && plain.outcome == CalculusOutcome::Evaluated && angle_dependent(any, constant.root) &&
+                       !angle_dependent(any, constant.root, any.symbol("x")),
+                   "the angle mode is selected per request, recorded in every derivation's context and its saved "
+                   "form, and trigonometric calculus that assumes radians is refused in degree mode");
     }
 }
 

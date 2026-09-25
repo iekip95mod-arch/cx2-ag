@@ -1028,7 +1028,7 @@ struct Calculation {
         context.requested_method = command_kind_name(command.kind);
         context.original_expression = derivation.request.original_expression;
         context.normalized_problem_model = model;
-        context.angle_convention = "radians";
+        context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";
         context.resource_policy = budget_policy(meter.budget());
@@ -1075,13 +1075,18 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         calculation.result.detail = "a complete calculus command is required";
     } else if (derivation.request.numeric_mode != NumericMode::Exact) {
         calculation.result.detail = "these native calculus walkthroughs currently require Exact mode";
+    } else if (derivation.request.angle_mode == AngleMode::Degrees &&
+               angle_dependent(arena, command.expression, command.variable)) {
+        calculation.result.detail = "the native calculus rules for trigonometric functions assume radians, and degree mode is active";
     } else if (calculation.work()) {
         if (command.kind == CommandKind::DefiniteIntegral) calculation.integral();
         else if (command.kind == CommandKind::Limit) calculation.limit();
         else if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize)
             calculation.tangent();
     }
-    if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact)
+    const bool radian_only = derivation.request.angle_mode == AngleMode::Degrees && complete &&
+                             angle_dependent(arena, command.expression, command.variable);
+    if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact && !radian_only)
         calculation.cross_check(*backend);
     return calculation.finish();
 }
