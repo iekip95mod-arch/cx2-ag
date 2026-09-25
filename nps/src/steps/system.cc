@@ -324,6 +324,82 @@ struct Run {
     }
 
     SystemResult stopped() { return finish(failure, detail); }
+
+    // The offered answer goes back into every equation as it was typed. A family is sampled at
+    // several values of its free unknowns, which corroborates it and does not prove it.
+    SystemResult conclude(const std::vector<NodeId> &solutions, const std::vector<bool> &is_free) {
+        if (!meter.step()) {
+            running();
+            return stopped();
+        }
+        bool family = false;
+        for (bool free : is_free)
+            family = family || free;
+        const size_t samples = family ? 3 : 1;
+        VerificationOutcome checked = VerificationOutcome::Passed;
+        std::string observed = "every equation holds";
+        for (size_t sample = 0; sample < samples && checked == VerificationOutcome::Passed; ++sample) {
+            std::array<Rational, kSystemMaxUnknowns> values{};
+            std::vector<SymbolValue> free_values;
+            for (size_t i = 0; i < n(); ++i) {
+                if (!is_free[i])
+                    continue;
+                values[i] = Rational{static_cast<int64_t>(sample * 3 + i + 1), 1};
+                free_values.push_back({unknown_name(i), values[i]});
+            }
+            for (size_t i = 0; i < n() && checked == VerificationOutcome::Passed; ++i) {
+                if (!is_free[i] &&
+                    !evaluate_rational(arena, arena.children(solutions[i])[1], free_values, &values[i])) {
+                    checked = VerificationOutcome::Inconclusive;
+                    observed = "the value offered for " + unknown_name(i) + " could not be evaluated exactly";
+                }
+            }
+            const std::vector<SymbolValue> assignment = this->assignment(values);
+            for (size_t row = 0; row < m() && checked == VerificationOutcome::Passed; ++row) {
+                Rational left, right;
+                if (!evaluate_sides(row, assignment, &left, &right)) {
+                    checked = VerificationOutcome::Inconclusive;
+                    observed = "equation " + std::to_string(row + 1) + " could not be evaluated exactly";
+                } else if (!rational_equal(left, right)) {
+                    checked = VerificationOutcome::Failed;
+                    observed = "equation " + std::to_string(row + 1) + " does not hold";
+                }
+            }
+        }
+        const EvidenceStrength passing = family ? EvidenceStrength::NumericallyCorroborated : EvidenceStrength::CandidateChecked;
+        Step substitute;
+        substitute.phase = "Check";
+        substitute.goal = "Check the answer in every original equation";
+        substitute.rule_id = family ? "system.check-family-by-sampling" : "system.check-by-substitution";
+        substitute.rule_name = family ? "Check the family at several values" : "Check by substitution";
+        substitute.claim = ClaimType::SolutionSetPreserved;
+        substitute.explanation_short = family ? "Pick values for the free unknowns and check every equation."
+                                              : "Put the values back into every equation as it was typed.";
+        substitute.explanation_detailed = family
+            ? "Three choices of the free unknowns each have to satisfy every original equation. Agreement at sample values supports the family and is weaker than a proof."
+            : "Both sides of each original equation have to come out equal.";
+        substitute.proof_obligations.push_back({"obl.system.candidate-satisfies",
+            "the solution satisfies every equation of the system as typed"});
+        substitute.verifications.push_back({family ? "substitution at sampled free values" : "substitution",
+            checked, strength_for(checked, passing), observed, "obl.system.candidate-satisfies"});
+        CheckPayload check;
+        check.target_claim = print(arena, arena.list(solutions)) + " satisfies every equation";
+        check.check_method = family ? "substitute sampled values of the free unknowns" : "substitute the solution into every equation as typed";
+        check.expected_relation = "both sides of every equation equal";
+        check.observed_result = observed;
+        derivation.add_check(plan, std::move(substitute), std::move(check));
+        if (!running())
+            return stopped();
+        if (checked != VerificationOutcome::Passed)
+            return finish(checked == VerificationOutcome::Failed ? SystemOutcome::VerificationFailed
+                                                                 : SystemOutcome::ResourceExceeded,
+                          checked == VerificationOutcome::Failed ? "the answer failed its substitution check, so it is not offered"
+                                                                 : "checking the answer exceeded exact arithmetic, so it is not offered");
+        return finish(family ? SystemOutcome::Family : SystemOutcome::Solved,
+                      family ? "infinitely many solutions, one for each value of the free unknowns"
+                             : "every equation holds at the solution",
+                      solutions);
+    }
 };
 
 const char *read_refusal(LinearRowRead read) {
@@ -687,77 +763,10 @@ SystemResult solve_linear_system(Arena &arena, Derivation &derivation, NodeId eq
     if (!run.running())
         return run.stopped();
 
-    // The candidate goes back into every equation as it was typed. A family is sampled at several
-    // values of its free unknowns, which corroborates it and does not prove it.
-    if (!run.meter.step()) {
-        run.running();
-        return run.stopped();
-    }
-    const size_t samples = family ? 3 : 1;
-    VerificationOutcome checked = VerificationOutcome::Passed;
-    std::string observed = "every equation holds";
-    for (size_t sample = 0; sample < samples && checked == VerificationOutcome::Passed; ++sample) {
-        std::array<Rational, kSystemMaxUnknowns> values{};
-        for (size_t i = 0; i < run.n(); ++i) {
-            if (!is_pivot[i])
-                values[i] = Rational{static_cast<int64_t>(sample * 3 + i + 1), 1};
-        }
-        for (size_t row = 0; row < pivots.size() && checked == VerificationOutcome::Passed; ++row) {
-            Rational value = run.cell(row, run.n());
-            for (size_t free = 0; free < run.n(); ++free) {
-                Rational term;
-                if (is_pivot[free])
-                    continue;
-                if (!rational_mul(run.cell(row, free), values[free], &term) || !rational_sub(value, term, &value))
-                    checked = VerificationOutcome::Inconclusive;
-            }
-            values[pivots[row]] = value;
-        }
-        const std::vector<SymbolValue> assignment = run.assignment(values);
-        for (size_t row = 0; row < run.m() && checked == VerificationOutcome::Passed; ++row) {
-            Rational left, right;
-            if (!run.evaluate_sides(row, assignment, &left, &right)) {
-                checked = VerificationOutcome::Inconclusive;
-                observed = "equation " + std::to_string(row + 1) + " could not be evaluated exactly";
-            } else if (!rational_equal(left, right)) {
-                checked = VerificationOutcome::Failed;
-                observed = "equation " + std::to_string(row + 1) + " does not hold";
-            }
-        }
-    }
-    const EvidenceStrength passing = family ? EvidenceStrength::NumericallyCorroborated : EvidenceStrength::CandidateChecked;
-    Step substitute;
-    substitute.phase = "Check";
-    substitute.goal = "Check the answer in every original equation";
-    substitute.rule_id = family ? "system.check-family-by-sampling" : "system.check-by-substitution";
-    substitute.rule_name = family ? "Check the family at several values" : "Check by substitution";
-    substitute.claim = ClaimType::SolutionSetPreserved;
-    substitute.explanation_short = family ? "Pick values for the free unknowns and check every equation."
-                                          : "Put the values back into every equation as it was typed.";
-    substitute.explanation_detailed = family
-        ? "Three choices of the free unknowns each have to satisfy every original equation. Agreement at sample values supports the family and is weaker than a proof."
-        : "Both sides of each original equation have to come out equal.";
-    substitute.proof_obligations.push_back({"obl.system.candidate-satisfies",
-        "the solution satisfies every equation of the system as typed"});
-    substitute.verifications.push_back({family ? "substitution at sampled free values" : "substitution",
-        checked, strength_for(checked, passing), observed, "obl.system.candidate-satisfies"});
-    CheckPayload check;
-    check.target_claim = print(arena, arena.list(solutions)) + " satisfies every equation";
-    check.check_method = family ? "substitute sampled values of the free unknowns" : "substitute the solution into every equation as typed";
-    check.expected_relation = "both sides of every equation equal";
-    check.observed_result = observed;
-    derivation.add_check(run.plan, std::move(substitute), std::move(check));
-    if (!run.running())
-        return run.stopped();
-    if (checked != VerificationOutcome::Passed)
-        return run.finish(checked == VerificationOutcome::Failed ? SystemOutcome::VerificationFailed
-                                                                 : SystemOutcome::ResourceExceeded,
-                          checked == VerificationOutcome::Failed ? "the answer failed its substitution check, so it is not offered"
-                                                                 : "checking the answer exceeded exact arithmetic, so it is not offered");
-    return run.finish(family ? SystemOutcome::Family : SystemOutcome::Solved,
-                      family ? "infinitely many solutions, one for each value of the free unknowns"
-                             : "every equation holds at the solution",
-                      solutions);
+    std::vector<bool> is_free(run.n(), false);
+    for (size_t i = 0; i < run.n(); ++i)
+        is_free[i] = !is_pivot[i];
+    return run.conclude(solutions, is_free);
 }
 
 }  // namespace nps
