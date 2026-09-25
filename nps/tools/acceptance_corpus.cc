@@ -609,11 +609,8 @@ void run_kinematics(Arena &arena, const Case &c, bool refusal, Run *run) {
     read_derivation(arena, derivation, refusal, run);
 }
 
-// CALC-010. Section 22.1 names no minimum for the tangent family, so a case here is a refusal this
-// engine owes rather than a solve it is counted for, the way the square-root rule's cases are. Its
-// successful walkthroughs are evidenced in the golden fixtures, which is the population that reaches
-// one. The input is a whole command rather than an expression, since the point and the variable are
-// arguments rather than fields.
+// CALC-010, refusals only for the reason run_quadratic gives. The input is a whole command, since
+// the variable and the point are arguments rather than fields.
 void run_tangent(Arena &arena, const Case &c, bool refusal, Run *run) {
     const NodeId invocation = parse_into(arena, c.value("input"), &run->detail);
     const std::string variable_text = c.value("variable");
@@ -797,7 +794,7 @@ nps::NodeId sum_of(Arena &arena, const char *left, const char *right) {
 }
 
 bool refused_definition_flaw(const std::string &flaw) {
-    return flaw == "definition prefix" || flaw == "unverified definition prefix" ||
+    return flaw == "undeclared definition prefix" || flaw == "unverified definition prefix" ||
            flaw == "unfinished definition";
 }
 
@@ -914,7 +911,9 @@ int selftest() {
         // see: a refusal whose status says it ran out, keeping a transformation nothing stands
         // behind. Criterion 4 fires on the same record, which is why both are named.
         {"4 and 8", "halted unchecked step", true},
-        {"", "definition prefix", true},
+        // The three ways a definition is still refused a prefix. Its one way through is a real
+        // engine record in calculus_tests.cc.
+        {"8", "undeclared definition prefix", true},
         {"4 and 8", "unverified definition prefix", true},
         {"8 and STEP-002", "unfinished definition", true},
         {"STEP-002", "nested rule name", false},
