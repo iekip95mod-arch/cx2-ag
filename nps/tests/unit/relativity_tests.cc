@@ -72,8 +72,8 @@ Quantity boost(const char *text) {
 RelativityProblem problem(RelativityRelation relation, const char *beta) {
     RelativityProblem input;
     input.relation = relation;
-    input.rest_frame_name = "station";
-    input.moving_frame_name = "ship";
+    input.rest_frame.name = "station";
+    input.moving_frame.name = "ship";
     input.boost = boost(beta);
     return input;
 }
@@ -123,7 +123,7 @@ bool contains_text(const std::string &haystack, const char *needle) {
 std::string reported(const Run &run, RelativityVariable variable) {
     for (const RelativityOutput &output : run.result.outputs) {
         if (output.variable == variable)
-            return output.value_text + " " + output.unit_text + " in " + output.frame;
+            return output.value_text + " " + output.unit_text + " in " + output.frame.name;
     }
     return "absent";
 }
@@ -327,7 +327,7 @@ void run_relativity_tests(TestSink &t) {
     }
     {
         RelativityProblem input = problem(RelativityRelation::TimeDilation, "3/5");
-        input.moving_frame_name.clear();
+        input.moving_frame.name.clear();
         input.knowns.push_back(known(RelativityVariable::ProperTime, "4"));
         const Run refused = run(input);
         t.equal(relativity_outcome_name(refused.result.outcome), "frame undeclared",
@@ -335,11 +335,34 @@ void run_relativity_tests(TestSink &t) {
     }
     {
         RelativityProblem input = problem(RelativityRelation::TimeDilation, "3/5");
-        input.moving_frame_name = input.rest_frame_name;
+        input.moving_frame = input.rest_frame;
         input.knowns.push_back(known(RelativityVariable::ProperTime, "4"));
         const Run refused = run(input);
         t.equal(relativity_outcome_name(refused.result.outcome), "frame mismatch",
                 "one frame cannot be both sides of its own boost");
+    }
+    {
+        // The frames are the units layer's identity, so a vector's frame is one a boost can name.
+        Vector velocity;
+        std::string error;
+        t.check(parse_vector("3 i + 4 j m/s", &velocity, &error), "a lab vector parses");
+        RelativityProblem input = problem(RelativityRelation::TimeDilation, "3/5");
+        input.rest_frame = velocity.frame;
+        input.knowns.push_back(known(RelativityVariable::ProperTime, "4"));
+        const Run solved = run(input);
+        t.equal(relativity_outcome_name(solved.result.outcome), "solved",
+                "a boost measured against a vector's frame solves");
+        bool reported_in_vector_frame = false;
+        for (const RelativityOutput &output : solved.result.outputs) {
+            if (output.variable == RelativityVariable::DilatedTime)
+                reported_in_vector_frame = output.frame == velocity.frame;
+        }
+        t.check(reported_in_vector_frame, "the dilated time is reported in the vector's own frame");
+
+        input.moving_frame = velocity.frame;
+        const Run refused = run(input);
+        t.equal(relativity_outcome_name(refused.result.outcome), "frame mismatch",
+                "a vector's frame on both sides of the boost is one frame");
     }
     {
         RelativityProblem input = problem(RelativityRelation::TimeDilation, "3/5");

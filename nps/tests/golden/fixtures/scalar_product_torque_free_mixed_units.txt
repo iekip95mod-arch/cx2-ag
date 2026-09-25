@@ -12,7 +12,7 @@ context
   active assumption: first vector frame is lab
   active assumption: second vector frame is lab
   active assumption: the two readings of the scalar product name one quantity
-  angle convention: <not recorded>
+  angle convention: not applicable
   branch convention: <not recorded>
   unit policy: exact SI conversion and component arithmetic, final-only precision
   detail projection: standard

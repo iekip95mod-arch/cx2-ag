@@ -1420,6 +1420,34 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "is the stronger of the two readings and is counted apart from it");
     }
     {
+        // #254. A limit head made the whole side unevaluable, so the number the rule produced here
+        // was never compared with anything.
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "7").root, &broken, &pass);
+        t.evidence("VER-002",
+                   mentions(broken, "claims an equivalent expression and its two sides disagree") &&
+                       pass.equivalence_unevaluated() == 0,
+                   "a limit step whose after state is not the value its approach point gives is "
+                   "caught, where a head the evaluator cannot reduce used to decline the whole "
+                   "comparison");
+    }
+    {
+        Arena arena;
+        invariants::Pass pass;
+        std::vector<std::string> broken;
+        const NodeId question = arena.call(
+            "limit", {parse(arena, "2 * x").root, arena.symbol("x"), parse(arena, "3").root});
+        walked(arena, question, parse(arena, "6").root, &broken, &pass);
+        t.check(broken.empty() && pass.equivalence_exact() == 1 &&
+                    pass.equivalence_unevaluated() == 0,
+                "and the same limit against the value its approach point gives is settled exactly, "
+                "which is the control the caught row needs");
+    }
+    {
         // #244. An after state leaving free a symbol the before state never had is a family rather
         // than one expression, so a step claiming both is reported instead of being counted and
         // left alone. Sampling would give C a value the left side never carried and report a
@@ -1479,6 +1507,47 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
         t.check(mentions(multiplied, "is not the before state with a constant added to it"),
                 "and a constant that multiplies rather than adds is not the family this claim "
                 "names");
+    }
+    {
+        // #329. The three read_family faults nothing had put to it, each picking a refusal's sentence.
+        Arena arena;
+
+        invariants::Pass two_symbols;
+        std::vector<std::string> several;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C * D").root, &several, &two_symbols);
+        t.check(mentions(several, "introduces 2 free symbols where a family up to a constant "
+                                  "introduces one") &&
+                    two_symbols.family_judged() == 0,
+                "a family whose after state leaves two symbols free is refused for the count it "
+                "introduced, which is read before the shape carrying them is looked at");
+
+        invariants::Pass carried_twice;
+        std::vector<std::string> still_free;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C + C").root, &still_free, &carried_twice);
+        t.check(mentions(still_free, "what is left under its constant still leaves free a symbol "
+                                     "the before state never had") &&
+                    carried_twice.family_judged() == 0,
+                "and an after state carrying its constant twice is refused for the symbol left "
+                "under it rather than for a disagreement, because taking one C off x^2 + C + C "
+                "leaves a family instead of the expression it was given");
+
+        invariants::Pass unfinished;
+        std::vector<std::string> unrecorded;
+        Derivation d;
+        TransformationPayload payload;
+        payload.before = parse(arena, "x^2").root;
+        payload.concrete_action = "Rewrite it";
+        d.add_transformation(kNoStep, claimed("selftest.rewrite", ClaimType::FamilyUpToConstant),
+                             std::move(payload));
+        unfinished.walk(arena, d, false, false, &unrecorded);
+        t.check(mentions(unrecorded, "claims a family up to a constant and one of its two states "
+                                     "is missing") &&
+                    unfinished.family_steps() == 1 && unfinished.family_judged() == 0,
+                "and a family claim whose transformation never recorded an after state is counted "
+                "into the population and refused for the missing state, which is what keeps the "
+                "readings under it from asking the arena for a node it does not hold");
     }
     {
         // The one symbol the new-symbol arm must not read as a variable. A conversion carries the

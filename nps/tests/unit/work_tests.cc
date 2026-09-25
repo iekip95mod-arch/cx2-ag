@@ -4,7 +4,9 @@
 #include <vector>
 
 #include "nps/physics/work.h"
+#include "nps/steps/schema.h"
 #include "unit/adapter_tests.h"
+#include "../step_invariants.h"
 
 namespace nps {
 namespace {
@@ -555,6 +557,40 @@ void run_work_tests(TestSink &t) {
                 "rank, frame, dimensional and arithmetic provenance is complete");
         t.check(solved.derivation.all_verified_from(0),
                 "every successful no-backend work claim has passing evidence");
+    }
+
+    {
+        t.check(rule_schema("physics.work.giac-cross-check") != nullptr,
+                "the work cross-check rule declares a proof-obligation schema");
+
+        struct Ending { const char *label; Backend *backend; };
+        ScriptedBackend agreeing("10");
+        ScriptedBackend disagreeing("11");
+        FailingBackend silent;
+        const Ending endings[] = {{"agrees", &agreeing},
+                                  {"disagrees", &disagreeing},
+                                  {"will not answer", &silent}};
+        for (const Ending &ending : endings) {
+            Run walked(problem(force, displacement), Budget(), ending.backend);
+            const bool refusal = walked.result.outcome != WorkOutcome::Solved;
+            invariants::Pass audit;
+            std::vector<std::string> broken;
+            audit.walk(walked.arena, walked.derivation, refusal, true, &broken);
+            std::string schema_rows;
+            for (size_t i = 0; i < broken.size(); ++i) {
+                if (broken[i].find("VER-016") != 0)
+                    continue;
+                schema_rows += schema_rows.empty() ? ", got " : " | ";
+                schema_rows += broken[i];
+            }
+            // Without this control the absence below passes for a run that recorded no cross-check.
+            t.check(has_rule(walked.derivation, "physics.work.giac-cross-check"),
+                    std::string("a cross-check record is there to audit when the backend ") +
+                        ending.label);
+            t.equal(schema_rows, "",
+                    std::string("the record left behind when the backend ") + ending.label +
+                        " conforms to the cross-check rule's declared schema");
+        }
     }
 }
 
