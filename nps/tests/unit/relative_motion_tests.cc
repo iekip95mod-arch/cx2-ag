@@ -568,6 +568,16 @@ void run_relative_motion_tests(TestSink &t) {
                     "(6 i - 5 j) m/s",
                     "and names both of the values it was between, which a literal outcome could "
                     "not have done");
+            t.check(step.claim == ClaimType::NoClaim && step.proof_obligations.size() == 1 &&
+                        step.proof_obligations[0].id ==
+                            "obl.relative-motion.rounding-within-half-place" &&
+                        step.proof_obligations[0].text ==
+                            "the reported value is within half a unit in its last place of the exact value" &&
+                        step.verifications[0].evidence_id ==
+                            "obl.relative-motion.rounding-within-half-place" &&
+                        step.verifications[0].strength == EvidenceStrength::CandidateChecked &&
+                        step.verifications[0].outcome == VerificationOutcome::Passed,
+                    "the exact comparison discharges the significant-figures obligation");
         }
     }
     {

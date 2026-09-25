@@ -1,8 +1,5 @@
 #include "nps/physics/ranking.h"
 
-#include <algorithm>
-#include <numeric>
-
 namespace nps {
 namespace {
 
@@ -37,9 +34,11 @@ struct PairOutcome {
     size_t deciding_criterion = static_cast<size_t>(-1);
 };
 
-PairOutcome compare_situations(const RankingModel &model, const RankingSituation &a,
-                               const RankingSituation &b) {
+PairOutcome compare_situations(Meter &meter, const RankingModel &model, const RankingSituation &a,
+                                const RankingSituation &b) {
     for (size_t index = 0; index < model.criteria.size(); ++index) {
+        if (!meter.rewrite())
+            return PairOutcome{Cmp::Unknown, index};
         const Cmp result = compare_magnitude(model.criteria[index], a.values[index], b.values[index]);
         if (result != Cmp::Equal)
             return PairOutcome{result, index};
@@ -49,8 +48,8 @@ PairOutcome compare_situations(const RankingModel &model, const RankingSituation
 
 // Records what problem 7's justification requires: which quantity in the expression differs
 // between situations and which is common to every one of them.
-void record_criterion_step(Derivation &derivation, const RankingModel &model,
-                           const RankingProblem &problem, size_t criterion_index) {
+bool record_criterion_step(Derivation &derivation, Meter &meter, const RankingModel &model,
+                            const RankingProblem &problem, size_t criterion_index) {
     const RankingCriterion &criterion = model.criteria[criterion_index];
     // A pair unknown for this criterion is neither a confirmed difference nor a confirmed tie, so it
     // is tracked apart from `varies`: a later pair that is genuinely different still wins the report,
@@ -61,6 +60,8 @@ void record_criterion_step(Derivation &derivation, const RankingModel &model,
     std::string unresolved;
     for (size_t i = 0; i + 1 < problem.situations.size() && !varies; ++i) {
         for (size_t j = i + 1; j < problem.situations.size() && !varies; ++j) {
+            if (!meter.rewrite())
+                return false;
             const Cmp result = compare_magnitude(criterion, problem.situations[i].values[criterion_index],
                                                  problem.situations[j].values[criterion_index]);
             if (result == Cmp::Unknown) {
@@ -80,7 +81,7 @@ void record_criterion_step(Derivation &derivation, const RankingModel &model,
     Step step;
     step.phase = "ranking";
     step.kind = StepKind::Check;
-    step.rule_id = std::string("physics.ranking.criterion.") + criterion.name;
+    step.rule_id = "physics.ranking.criterion";
     step.rule_name = criterion.name;
 
     CheckPayload payload;
@@ -99,7 +100,10 @@ void record_criterion_step(Derivation &derivation, const RankingModel &model,
         payload.expected_relation = "equal across situations";
         payload.observed_result = "common to all situations";
     }
+    if (!meter.step())
+        return false;
     derivation.add_check(kNoStep, step, payload);
+    return true;
 }
 
 std::string tier_text(const RankingProblem &problem, const RankingTier &tier) {
@@ -131,12 +135,15 @@ const char *ranking_outcome_name(RankingOutcome outcome) {
         case RankingOutcome::TooFewSituations: return "too few situations";
         case RankingOutcome::IndeterminateOrder: return "indeterminate order";
         case RankingOutcome::ResourceExceeded: return "resource exceeded";
+        case RankingOutcome::Cancelled: return "cancelled";
     }
     return "unknown";
 }
 
-RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
-                            const RankingProblem &problem, const Budget & /*budget*/) {
+namespace {
+
+RankingResult solve_body(Derivation &derivation, Meter &meter, const RankingModel &model,
+                         const RankingProblem &problem) {
     if (model.criteria.empty())
         return failed(RankingOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                       "a ranking needs at least one criterion");
@@ -144,6 +151,8 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
         return failed(RankingOutcome::TooFewSituations, DerivationStatus::InvalidInput,
                       "a ranking needs at least two situations");
     for (const RankingSituation &situation : problem.situations) {
+        if (!meter.checkpoint())
+            return RankingResult();
         if (situation.values.size() != model.criteria.size())
             return failed(RankingOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                           std::string(situation.name) + " does not give a value for every criterion");
@@ -152,7 +161,9 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
     const size_t n = problem.situations.size();
     for (size_t i = 0; i + 1 < n; ++i) {
         for (size_t j = i + 1; j < n; ++j) {
-            const PairOutcome outcome = compare_situations(model, problem.situations[i], problem.situations[j]);
+            const PairOutcome outcome = compare_situations(meter, model, problem.situations[i], problem.situations[j]);
+            if (meter.stopped())
+                return RankingResult();
             if (outcome.result == Cmp::Unknown) {
                 const std::string criterion_name = model.criteria[outcome.deciding_criterion].name;
                 return failed(RankingOutcome::IndeterminateOrder, DerivationStatus::Unsupported,
@@ -163,24 +174,40 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
         }
     }
 
-    for (size_t index = 0; index < model.criteria.size(); ++index)
-        record_criterion_step(derivation, model, problem, index);
+    for (size_t index = 0; index < model.criteria.size(); ++index) {
+        if (!record_criterion_step(derivation, meter, model, problem, index))
+            return RankingResult();
+    }
 
-    std::vector<size_t> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
-    std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
-        return compare_situations(model, problem.situations[a], problem.situations[b]).result == Cmp::Greater;
-    });
+    std::vector<size_t> indices;
+    for (size_t current = 0; current < n; ++current) {
+        auto position = indices.begin();
+        for (; position != indices.end(); ++position) {
+            const PairOutcome compared = compare_situations(
+                meter, model, problem.situations[current], problem.situations[*position]);
+            if (meter.stopped())
+                return RankingResult();
+            if (compared.result == Cmp::Greater)
+                break;
+        }
+        indices.insert(position, current);
+    }
 
     std::vector<RankingTier> order;
     for (size_t k = 0; k < n; ++k) {
         const size_t current = indices[k];
-        if (order.empty() ||
-            compare_situations(model, problem.situations[order.back().situations.back()],
-                               problem.situations[current]).result != Cmp::Equal) {
+        if (order.empty()) {
             order.push_back(RankingTier{{current}});
         } else {
-            order.back().situations.push_back(current);
+            const PairOutcome compared = compare_situations(
+                meter, model, problem.situations[order.back().situations.back()],
+                problem.situations[current]);
+            if (meter.stopped())
+                return RankingResult();
+            if (compared.result != Cmp::Equal)
+                order.push_back(RankingTier{{current}});
+            else
+                order.back().situations.push_back(current);
         }
     }
 
@@ -201,8 +228,28 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
     payload.check_method = "lexicographic comparison of ranking criteria";
     payload.expected_relation = "greatest first, with ties grouped together";
     payload.observed_result = result.detail;
+    if (!meter.step())
+        return RankingResult();
     derivation.add_check(kNoStep, step, payload);
 
+    return result;
+}
+
+}
+
+RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
+                            const RankingProblem &problem, const Budget &budget) {
+    Meter meter(budget);
+    const size_t mark = derivation.mark();
+    RankingResult result = solve_body(derivation, meter, model, problem);
+    if (meter.stopped()) {
+        derivation.rewind_to(mark);
+        const bool cancelled = meter.halt() == Halt::Cancelled;
+        result = failed(cancelled ? RankingOutcome::Cancelled : RankingOutcome::ResourceExceeded,
+                        cancelled ? DerivationStatus::NotRecorded : DerivationStatus::ResourceLimitReached,
+                        halt_name(meter.halt()));
+    }
+    result.cost = meter.cost();
     return result;
 }
 
