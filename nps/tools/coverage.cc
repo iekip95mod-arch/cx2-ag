@@ -446,6 +446,45 @@ int selftest() {
         std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
                   << "the coverage report is not written over a malformed family header\n";
     }
+    {
+        // Before any family is read there is no block for the header to merge into, which is why
+        // this one was skipped rather than refused.
+        std::ofstream staged(header_catalog.c_str());
+        staged << "family ix staged.first\n"
+               << "topic_and_level first topic\n"
+               << "rule eq.one fixture\n"
+               << "family id staged.second\n"
+               << "topic_and_level second topic\n"
+               << "rule eq.two fixture\n";
+        staged.close();
+        std::vector<Family> staged_families;
+        std::string fault;
+        const bool ok = read_catalog(header_catalog, &staged_families, &fault);
+        const bool refused = !ok && staged_families.empty() &&
+                             fault.find("family ix staged.first") != std::string::npos;
+        if (!refused)
+            ++failures;
+        std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
+                  << "a malformed first family header is refused rather than dropping its block\n";
+    }
+    {
+        std::ofstream staged(header_catalog.c_str());
+        staged << "A preamble line of prose.\n"
+               << "Another that talks about a family without starting with the word.\n"
+               << "family id staged.second\n"
+               << "rule eq.two fixture\n";
+        staged.close();
+        std::vector<Family> staged_families;
+        std::string fault;
+        const bool read = read_catalog(header_catalog, &staged_families, &fault) &&
+                          fault.empty() && staged_families.size() == 1 &&
+                          staged_families[0].id == "staged.second" &&
+                          staged_families[0].rules.size() == 1;
+        if (!read)
+            ++failures;
+        std::cout << "coverage selftest: " << (read ? "ok   " : "FAIL ")
+                  << "and a preamble of prose before the first header still reads\n";
+    }
     for (const std::string answer : {"complete", "omitted", "none", ""}) {
         std::ofstream metadata(metadata_path);
         for (const std::string id : {"staged.complete", "staged.incomplete"}) {

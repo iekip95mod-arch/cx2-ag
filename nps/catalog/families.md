@@ -29,8 +29,10 @@ coverage run does not establish that the release meets section 27.
 A field whose answer is nothing opens with the word none and then says why. That is a different
 statement from a line left out, which is the question nobody answered, and the eight fields section
 5.5 calls the family envelope have to carry one or the other for every family. On
-proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so a
-family that raises no obligation says so and the join still fails the day a fixture raises one.
+proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so
+a family that raises no obligation says so and the join still fails the day a fixture raises one.
+A line whose first word is family is always read as a family header, so prose here never opens a
+line with that word, and a malformed header anywhere in the file refuses the whole read.
 
 The required_assumptions field is prose and an assumption is a sentence, so the join is over the
 engine strings the line puts in double quotes. Each quoted string has to be recorded by a fixture of that family,
