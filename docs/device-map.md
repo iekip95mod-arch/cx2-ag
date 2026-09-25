@@ -116,13 +116,13 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4112), `vector_addition` (lua_module.cc:4115),
-`vector_cross` (lua_module.cc:4116), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4111), `vector_addition` (lua_module.cc:4114),
+`vector_cross` (lua_module.cc:4115), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
-`source`: read on 2026-09-25, `judge_attempt` is registered at lua_module.cc:4082 and defined at
-lua_module.cc:1819. It takes the state, the attempt, the later route states and the variable, and
+`source`: read on 2026-09-25, `judge_attempt` is registered at lua_module.cc:4081 and defined at
+lua_module.cc:1818. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -151,8 +151,8 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2748 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2759-2766 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -161,9 +161,9 @@ nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
 nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
-`judge_attempt` is reachable from the entry line rather than from a menu: `source`, nps/lua/nps_v4.lua:2797
-routes `!a` to the attempt mode and attemptFeedback at nps/lua/nps_v4.lua:3790 calls the binding with
-the last revealed state and the rest of the route.
+`judge_attempt` is reachable from the entry line and from the Steps menu, whose last entry types `!a`:
+`source`, nps/lua/nps_v4.lua:2798 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:3789 calls the binding with the last revealed state and the rest of the route.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or

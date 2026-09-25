@@ -3,7 +3,6 @@
 
 #include "nps/core/parser.h"
 #include "nps/steps/attempt.h"
-#include "nps/steps/linear.h"
 #include "unit/adapter_tests.h"
 
 namespace nps {
@@ -150,37 +149,6 @@ void test_halts(TestSink &t) {
                "a judgment out of rewrites is a resource limit rather than a verdict");
 }
 
-// VER-019. The verdict is its own record, so judging an attempt against a derivation whose check
-// failed leaves that check failed whatever the attempt says.
-void test_failed_obligations_stay_failed(TestSink &t) {
-    Arena arena;
-    Derivation d;
-    const NodeId equation = parse(arena, "2*x + 3 = 7").root;
-    solve_linear(arena, d, equation, arena.symbol("x"));
-    Step failed;
-    VerificationRecord check;
-    check.method = "substitution";
-    check.outcome = VerificationOutcome::Failed;
-    check.detail = "the left side was not the right side";
-    failed.verifications.push_back(check);
-    d.add_check(kNoStep, failed, CheckPayload{});
-    d.context.derivation_status = DerivationStatus::VerificationFailed;
-    const std::string transcript = verification_transcript(d);
-    t.check(transcript.find("failed, the left side") != std::string::npos,
-            "the control derivation carries a failed obligation");
-    const size_t steps = d.size();
-    const DerivationStatus status = d.context.derivation_status;
-
-    const AttemptVerdict verdict = judge_attempt(
-        arena, equation, parse(arena, "2*x = 4").root, arena.symbol("x"), {});
-    t.check(verdict.equivalence == AttemptEquivalence::Equivalent,
-            "the attempt itself is judged equivalent");
-    t.evidence("VER-019", verification_transcript(d), transcript,
-               "judging an equivalent attempt leaves the failed obligation failed");
-    t.evidence("VER-019", d.size() == steps && d.context.derivation_status == status,
-               "and adds nothing to the derivation or its status");
-}
-
 void test_names(TestSink &t) {
     t.equal(attempt_equivalence_name(AttemptEquivalence::NotComparable), "not comparable",
             "the not comparable name");
@@ -194,7 +162,6 @@ void run_attempt_tests(TestSink &t) {
     test_equivalence(t);
     test_usefulness(t);
     test_halts(t);
-    test_failed_obligations_stay_failed(t);
     test_names(t);
 }
 

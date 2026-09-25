@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 187, "every palette entry survives the regrouping: " .. entries .. " of 187")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -1046,8 +1046,9 @@ for box = 1, #registered_menu do
     if registered_menu[box][1] == "Steps" then step_menu_count = step_menu_count + 1 end
 end
 check(step_menu_count == 1 and registered_menu[3][2][1] == "Full walkthrough (all steps)" and
-      registered_menu[3][3][1] == "Hint walkthrough (Tab next)",
-      "one explicit Steps group exposes both progression settings")
+      registered_menu[3][3][1] == "Hint walkthrough (Tab next)" and
+      registered_menu[3][4][1] == "Check my next step  !a",
+      "one explicit Steps group exposes both progression settings and the attempt check")
 registered_menu[3][3][2]()
 check(steps.progression == "hint", "the Steps palette enables hint progression before solving")
 registered_menu[3][2][2]()
@@ -4739,8 +4740,7 @@ do
     end)()
 end
 
--- STEP-013, STEP-014 and VER-019 through the real bridge: the attempt is judged against the state
--- the reader has reached, and judging it reveals nothing and passes nothing.
+-- STEP-013, STEP-014 and VER-019 through the real bridge and the Steps menu.
 if os.getenv("NPS_COMMAND_MODULE") then
     (function()
     local module = copyModule()
@@ -4763,6 +4763,16 @@ if os.getenv("NPS_COMMAND_MODULE") then
     end
     local start = "(((2 * x) + 5) = 13)"
 
+    local attempt_item
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Check my next step  !a" then attempt_item = item[2] end
+        end
+    end
+    attempt_item()
+    check(env.fctEditor.editor:getExpression():find("!a ", 1, true) ~= nil,
+          "the Steps menu types the attempt command into the entry line")
     enter("!a 2*x = 8")
     check(#judged == 0 and env.steps.status == "attempt needs a walkthrough to compare against",
           "an attempt before any walkthrough is refused without calling the judge")

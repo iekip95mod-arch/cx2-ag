@@ -10,9 +10,7 @@
 
 namespace nps {
 
-// STEP-013's first half. Whether a transformation the student wrote keeps the meaning of the state
-// it was written against. Proof and corroboration stay apart, because PRD section 17 forbids
-// reporting a sample agreement as an identity.
+// STEP-013, with proof and sample corroboration kept apart as PRD section 17 requires.
 enum class AttemptEquivalence : uint8_t {
     Equivalent,
     // Agreed at every sample that had a value, which is evidence rather than proof.
@@ -26,8 +24,7 @@ enum class AttemptEquivalence : uint8_t {
 
 const char *attempt_equivalence_name(AttemptEquivalence e);
 
-// STEP-014. A valid move can still go nowhere, so usefulness is judged apart from validity and only
-// once the move is known or corroborated to be valid.
+// STEP-014, judged apart from validity and only once the move is known or corroborated valid.
 enum class AttemptUsefulness : uint8_t {
     // Lands on a state the recorded route passes through later.
     Advances,
@@ -51,10 +48,7 @@ struct AttemptVerdict {
     size_t reaches = 0;
 };
 
-// Judges an attempt against the state it was written from and the states the recorded derivation
-// passes through after it. Every node belongs to the one arena. The verdict is a record of its own
-// and never touches a derivation, so a student's move cannot turn a failed obligation into a passed
-// one, which is VER-019.
+// Takes no derivation, so an attempt cannot turn a failed obligation into a passed one (VER-019).
 AttemptVerdict judge_attempt(Arena &arena, NodeId current, NodeId attempt, NodeId variable,
                              const std::vector<NodeId> &route, const Budget &budget = Budget());
 

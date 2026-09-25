@@ -1814,12 +1814,11 @@ int l_canonical(lua_State *L) {
     return 1;
 }
 
-// STEP-013 and STEP-014. The state, the attempt, the later route states as an array of strings and
-// the variable. Nothing here reads or writes a derivation, which is what keeps VER-019 structural.
+// STEP-013 and STEP-014, touching no derivation so VER-019 holds by construction.
 int l_judge_attempt(lua_State *L) {
     const char *current_text = scalar_string_argument(L, 1);
     const char *attempt_text = scalar_string_argument(L, 2);
-    // Raw reads, all checked before any native object exists, so a refusal longjmps past nothing.
+    // Raw reads checked before any native object exists, so a refusal longjmps past nothing.
     int count = 0;
     if (!lua_isnoneornil(L, 3)) {
         luaL_checktype(L, 3, LUA_TTABLE);

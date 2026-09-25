@@ -2256,6 +2256,7 @@ menu = {
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
         { "Hint walkthrough (Tab next)", function() stepsSetProgression("hint") end },
+        { "Check my next step  !a", function() menustring("!a ") end },
        },
        -- Native wording first, the callable form after it. A tool palette has no submenu, second
        -- line or tooltip, so where the pair runs past 44 characters the argument spelling gives way
@@ -3757,8 +3758,7 @@ local function invalidExpressionContext(r, text)
 	       type(r.normalized_expression) ~= "string" or r.normalized_expression == ""
 end
 
--- The whole states a walkthrough passes through, which are the transformations whose before is the
--- state the previous one left. A transformation of a part of the expression is not a state.
+-- Whole states only, each transformation starting where the previous one ended.
 function attemptRoute(r)
 	local chain, state = {}, nil
 	for i, s in ipairs(r.steps or {}) do
@@ -3785,8 +3785,7 @@ local ATTEMPT_EQUIVALENCE = {
 	["resource exceeded"] = "too large to judge",
 }
 
--- STEP-013 and STEP-014. Judged against the last state the reader has seen, and it reveals nothing
--- and rechecks nothing, so an attempt cannot turn a failed check into a passed one (VER-019).
+-- STEP-013 and STEP-014, against the last state seen, revealing and rechecking nothing for VER-019.
 function attemptFeedback(text)
 	local r = steps.result
 	if not hasSteps or not nps_nspire.judge_attempt then return "no attempt checker in this build" end
