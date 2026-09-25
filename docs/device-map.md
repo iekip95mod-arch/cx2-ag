@@ -116,10 +116,14 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4095), `vector_addition` (lua_module.cc:4098),
+`vector_cross` (lua_module.cc:4099), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
+
+`source`: read on 2026-09-25, `rule_definition` and `unit_definition` are registered at
+lua_module.cc:4065-4066 and defined at lua_module.cc:1833 and 1871. The first reads `rule_schema`
+and the second reads the unit table and `quantity_name`, so neither carries prose of its own.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -147,8 +151,8 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2748 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2759-2766 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -156,6 +160,10 @@ physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
 nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
 nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
+
+Definitions are reachable from an open walkthrough: `source`, D at nps/lua/nps_v4.lua:5011 and the
+Actions entry at nps/lua/nps_v4.lua:2268 both open definitionParagraphs (nps/lua/nps_v4.lua:4596) for
+the focused step, and `!u` at nps/lua/nps_v4.lua:2798 defines a unit.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -183,8 +191,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156, measureMath
-sets the expression at :3190, and the history editor sets its expression at :1437.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3177, measureMath
+sets the expression at :3211, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
