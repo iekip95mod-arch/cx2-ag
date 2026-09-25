@@ -578,6 +578,7 @@ int selftest() {
     const std::string wide_domain_prd = std::string(made) + "/prd-wide-domain.md";
     const std::string short_scope_prd = std::string(made) + "/prd-short-scope.md";
     const std::string late_module_prd = std::string(made) + "/prd-late-module.md";
+    const std::string unshalled_prd = std::string(made) + "/prd-unshalled.md";
     const std::string good_catalog = std::string(made) + "/catalog-good.md";
     const std::string unevidenced_catalog = std::string(made) + "/catalog-unevidenced.md";
     const std::string untagged_catalog = std::string(made) + "/catalog-untagged.md";
@@ -625,6 +626,13 @@ int selftest() {
         out << "| ID | Priority | Requirement |\n|---|---|---|\n"
             << "| MATH-001 | P0 | The solver shall do the thing. |\n"
             << "| PHYS-025 | P1 | Every physics solver shall expose a module condition. |\n";
+    }
+    {
+        // The module word sits where a scope puts it, but shall does not follow it.
+        std::ofstream out(unshalled_prd.c_str());
+        out << "| ID | Priority | Requirement |\n|---|---|---|\n"
+            << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+            << "| PHYS-025 | P1 | Every physics module conditions expose. |\n";
     }
     {
         std::ofstream out(good_catalog.c_str());
@@ -695,6 +703,10 @@ int selftest() {
     const int late_module_status = analyse(late_module_prd, evidence_file, good_catalog, report,
                                            &late_module);
     const std::string late_module_report = file_text(report);
+    Outcome unshalled;
+    const int unshalled_status = analyse(unshalled_prd, evidence_file, good_catalog, report,
+                                         &unshalled);
+    const std::string unshalled_report = file_text(report);
     Outcome untagged;
     const int untagged_status = analyse(good_prd, evidence_file, untagged_catalog, report,
                                         &untagged);
@@ -778,6 +790,12 @@ int selftest() {
         {late_module_report.find("| PHYS-025 | P1 | evidenced | physics.kinematics.probe |") !=
              std::string::npos,
          "that row is evidenced by its own passing check, which is the control on the line above"},
+        {unshalled_status == 1 && unshalled.universal_scope_faults == 1 &&
+             unshalled.universal_family_gaps == 0,
+         "a module scope whose module word is not followed by shall is a fault that fails the run"},
+        {unshalled_report.find("unmet, malformed universal module scope") != std::string::npos &&
+             unshalled_report.find("none, malformed scope") != std::string::npos,
+         "that fault names no domain rather than reading physics as one"},
         {untagged_status == 0 && untagged.untagged_groups == 1 && untagged.missing_groups == 0,
          "a group that ran with nothing tagged stays a gap the run survives"},
         {absent_status == 1 && absent.missing_groups == 1,

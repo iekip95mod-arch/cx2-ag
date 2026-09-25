@@ -448,6 +448,22 @@ fake_planar_kinematics = {
     },
 }
 
+-- The general planar family. Only the values luax asserts against the real bridge differ from the
+-- record above. Global for the same 200-locals reason.
+fake_planar_kinematics_general = {
+    outcome = "solved", detail = "", solved = true, answer_only = false,
+    status = "solved and verified", result = "(10 i - 12 j) m",
+    displacement = { result = "(10 i - 12 j) m", exact_x = "10", exact_y = "-12", unit = "m",
+                     frame = "lab", stage = "interval" },
+    final_velocity = { result = "(7 i - 16 j) m/s", exact_x = "7", exact_y = "-16", stage = "state" },
+    nodes = 24, step_count = 3, rewrites = 3, giac_calls = 1,
+    steps = {
+        fake_planar_kinematics.steps[1],
+        fake_planar_kinematics.steps[2],
+        fake_planar_kinematics.steps[3],
+    },
+}
+
 local fake_unit_conversion = {
     outcome = "converted", detail = "", solved = true, answer_only = false,
     status = "solved and verified", result = "0.00000250 m^3", nodes = 10,
@@ -661,6 +677,7 @@ local fake_manifest = {
         { kind = "solver", id = "calculus.integral.indefinite.single-variable" },
         { kind = "solver", id = "physics.kinematics.constant-acceleration.one-dimension" },
         { kind = "solver", id = "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { kind = "solver", id = "physics.kinematics.constant-acceleration.two-dimension" },
         { kind = "solver", id = "physics.kinematics.catch-up.equal-position" },
         { kind = "solver", id = "physics.density.mass-volume" },
         { kind = "solver", id = "physics.vectors.cartesian-addition.two-dimension" },
@@ -867,7 +884,11 @@ nps_split = {
     planar_kinematics = function(...)
         calls.planar_kinematics = calls.planar_kinematics + 1
         last_args = { ... }
-        return fake_planar_kinematics
+        -- The real bridge reads the flag as optional and picks the family from it, so the fake
+        -- has to split on the same field or one record would stand in for both families.
+        local problem = ({ ... })[1]
+        if type(problem) == "table" and problem.projectile then return fake_planar_kinematics end
+        return fake_planar_kinematics_general
     end,
 }
 nps_split.integrity_status = function() calls.integrity = calls.integrity + 1 return "verified" end
@@ -1209,7 +1230,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 35 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 36 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -1578,8 +1599,11 @@ end
 
 do
     local planar_kinematics_index = nil
+    -- Two fixtures share this mode now, one per family, so the index is keyed on the label.
     for index, fixture in ipairs(PHYSICS_FIXTURES) do
-        if fixture.mode == "planar_kinematics" then planar_kinematics_index = index end
+        if fixture.mode == "planar_kinematics" and fixture.label:find("thrown ball", 1, true) then
+            planar_kinematics_index = index
+        end
     end
     check(planar_kinematics_index ~= nil,
           "the guided browser carries a planar-kinematics fixture")
@@ -1600,7 +1624,7 @@ do
           planar_input.initial_velocity.unit == "m/s" and
           planar_input.acceleration.x == "0" and planar_input.acceleration.y == "-10" and
           planar_input.acceleration.unit == "m/s^2" and
-          planar_input.elapsed_time == "2 s",
+          planar_input.elapsed_time == "2 s" and planar_input.projectile == true,
           "the fixture sends a named body with framed 2D velocity and acceleration vectors")
     check(steps.result.result == "(6 i - 12 j) m" and
           steps.result.displacement.exact_x == "6" and steps.result.displacement.exact_y == "-12" and
@@ -1614,6 +1638,44 @@ do
           "the planar-kinematics fixture joins document history")
     on.escapeKey()
     physicsBrowser.focus = planar_focus_before
+end
+
+do
+    local general_index = nil
+    for index, fixture in ipairs(PHYSICS_FIXTURES) do
+        if fixture.mode == "planar_kinematics" and fixture.label:find("sideways wind", 1, true) then
+            general_index = index
+        end
+    end
+    check(general_index ~= nil,
+          "the guided browser carries a general planar-kinematics fixture")
+    local general_calls_before = calls.planar_kinematics
+    local general_history_before = #steps.histText
+    local general_focus_before = physicsBrowser.focus
+    openPhysicsFixtures()
+    physicsBrowser.focus = general_index
+    on.enterKey()
+    check(calls.planar_kinematics == general_calls_before + 1 and
+          steps.result.mode == "planar_kinematics" and type(last_args[1]) == "table",
+          "the general planar fixture calls the native bridge exactly once")
+    local general_input = last_args[1]
+    check(general_input.body_name == "ball" and general_input.acceleration.x == "2" and
+          general_input.acceleration.y == "-10" and general_input.elapsed_time == "2 s" and
+          general_input.projectile == nil,
+          "the general fixture sends a horizontal acceleration and leaves the projectile flag unset")
+    check(steps.result.result == "(10 i - 12 j) m" and
+          steps.result.displacement.exact_x == "10" and
+          steps.result.final_velocity.exact_x == "7" and
+          steps.result.final_velocity.exact_y == "-16",
+          "the viewer retains the general planar displacement and final velocity")
+    text = painted()
+    check(mathBoxShowing("(10 i - 12 j) m") ~= nil,
+          "the general planar result renders in the viewer")
+    check(#steps.histText == general_history_before + 1 and
+          steps.histText[#steps.histText][2]:find("10 i %- 12 j", 1) ~= nil,
+          "the general planar fixture joins document history")
+    on.escapeKey()
+    physicsBrowser.focus = general_focus_before
 end
 
 -- The label says what the entry finds and the command lands in the input editor, so a beginner
