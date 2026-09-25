@@ -1090,6 +1090,12 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "planar_kinematics_projectile_mixed_units",
                  planar_kinematics_record("(36.0, 0.0) km/h", "(0.0, -9.80) m/s^2", "4.00 s", true,
                                           Budget()));
+    // Issue 226's catalog half. The general two-dimension family is a different family id from the
+    // projectile one and had no fixture of its own, so an acceleration with a non-zero horizontal
+    // component, which the projectile specialization refuses outright.
+    check_golden(t, "planar_kinematics_general_two_dimension",
+                 planar_kinematics_record("(3.0, 4.0) m/s", "(2.0, -9.80) m/s^2", "2.00 s", false,
+                                          Budget()));
     // A torque, because it is the cross product a first course actually meets, and because a
     // centimetre lever arm against a newton force reaches the two rules the unit tests cannot:
     // the SI conversion only runs on a non-SI operand and the final rounding only on a measured one.

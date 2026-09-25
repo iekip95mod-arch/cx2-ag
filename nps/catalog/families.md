@@ -728,6 +728,43 @@ rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
 
+family id physics.kinematics.constant-acceleration.two-dimension
+topic_and_level Two-dimensional motion under a constant acceleration in any direction, PRD section 22.1 and PHYS-028's Event/State/Interval distinction
+accepted_expression_grammar existing scalar expression grammar for each vector component
+accepted_input_forms one typed PlanarKinematicsProblem naming a body, a declared frame, rank-two velocity and acceleration vectors and an interval, with the projectile flag clear
+domains_and_parameter_assumptions both vectors are rank two, declare the same named frame and carry matching stage identity, and the acceleration is constant over the interval with no constraint on its direction
+supported_branches_and_degenerate_cases the general case where both components of the acceleration may be non-zero, which is what separates this family from the projectile specialization beside it
+exact_special_function_and_numerical_result_policy exact rational SI conversion and per-component solving with the existing one-dimensional linear engine, with measured precision applied only to the final report
+parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
+required_assumptions the frame and the axis convention are declared rather than inferred, carried as "positive i is right and positive j is up", "the acceleration is constant over the whole interval" and "one shared time links both axes"
+test_group_ids planar kinematics
+proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
+supported_methods validate rank, frame, stage identity and dimensions, then solve each axis independently with the existing one-dimensional kinematics engine under one shared time
+unsupported_near_neighbors an acceleration that changes over the interval, air resistance, more than two dimensions, and the apex cross-check, which belongs to the projectile specialization
+solution_soundness_status verified by rank, frame, stage and dimension checks and by the shared-time check that links the two axes
+solution_completeness_status partial, one body under one constant acceleration over one interval
+corpus_case_ids planar_kinematics_general_two_dimension
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+release_status in development, unreleased
+# No projectile-plan, check-projectile or check-apex-routes rule here. Those three belong to the
+# specialization below, which is the whole difference between the two families' recorded steps.
+rule physics.planar-kinematics.plan fixture
+rule physics.planar-kinematics.check-rank fixture
+rule physics.planar-kinematics.check-frame-declared fixture
+rule physics.planar-kinematics.check-frame-match fixture
+rule physics.planar-kinematics.check-stages fixture
+rule physics.planar-kinematics.check-input-dimensions fixture
+rule physics.planar-kinematics.definition fixture
+rule physics.planar-kinematics.substitute fixture
+rule physics.planar-kinematics.convert-si fixture
+rule physics.planar-kinematics.check-result-dimension fixture
+rule physics.planar-kinematics.component-i fixture
+rule physics.planar-kinematics.component-j fixture
+rule physics.planar-kinematics.check-shared-time fixture
+rule physics.planar-kinematics.significant-figures fixture
+
 family id physics.kinematics.constant-acceleration.projectile.two-dimension
 topic_and_level Two-dimensional projectile motion under constant vertical acceleration, PRD section 22.1 and PHYS-028's Event/State/Interval distinction
 accepted_expression_grammar existing scalar expression grammar for each vector component
