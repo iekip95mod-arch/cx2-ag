@@ -138,13 +138,15 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`source`: read on 2026-09-24, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
 `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
 `work`.
 
 `planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
-engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
+engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
+nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
+with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
 
 ## What renders on screen
@@ -162,7 +164,7 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1435.
+**`D2Editor` rich text**, the typeset path, used by mathBox at nps/lua/nps_v4.lua:3152.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
