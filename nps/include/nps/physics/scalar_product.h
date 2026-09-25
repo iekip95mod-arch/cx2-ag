@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <string>
 
+#include "nps/cas/giac_adapter.h"
 #include "nps/core/budgets.h"
+#include "nps/physics/vector_components.h"
 #include "nps/steps/derivation.h"
 #include "nps/units/units.h"
 
@@ -16,6 +18,7 @@ struct ScalarProductProblem {
     Vector first;
     Vector second;
     bool angle = false;
+    AngleUnit angle_unit = AngleUnit::Degrees;
 };
 
 enum class ScalarProductOutcome : uint8_t {
@@ -49,6 +52,11 @@ struct ScalarProductResult {
     std::string value_text;
     ScalarAngle angle = ScalarAngle::NotAsked;
     std::string angle_text;
+    // The sign reading above is exact and always there. The number needs a backend, so it is a
+    // separate fact rather than another spelling of the same one.
+    NodeId numeric_angle = kNoNode;
+    std::string numeric_angle_text;
+    bool has_numeric_angle = false;
     std::string detail;
     DerivationStatus status = DerivationStatus::NotRecorded;
     Cost cost;
@@ -56,7 +64,7 @@ struct ScalarProductResult {
 
 ScalarProductResult solve_scalar_product(Arena &arena, Derivation &derivation,
                                          const ScalarProductProblem &problem,
-                                         const Budget &budget = Budget());
+                                         const Budget &budget = Budget(), Backend *giac = nullptr);
 
 }  // namespace nps
 

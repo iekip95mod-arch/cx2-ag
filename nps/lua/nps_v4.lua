@@ -3604,6 +3604,12 @@ local function physicsFixtureAnswer(r)
 		local p = r.polar
 		if type(p.magnitude) == "string" and type(p.angle) == "string" and
 		   type(p.unit) == "string" and type(p.angle_unit) == "string" then
+			-- A rank three direction needs both angles and the axis each is measured from, in the
+			-- wording golden_tests.cc:646 already uses, since the azimuth alone names another vector.
+			if type(p.polar_angle) == "string" then
+				return p.magnitude .. " " .. p.unit .. " at polar " .. p.polar_angle .. " " ..
+				       p.angle_unit .. " from z, azimuth " .. p.angle .. " " .. p.angle_unit
+			end
 			return p.magnitude .. " " .. p.unit .. " at " .. p.angle .. " " .. p.angle_unit
 		end
 	end
@@ -4393,14 +4399,16 @@ local function resultLines()
 		out[#out + 1] = { text = text, color = color }
 	end
 	add("Input: " .. (r.input or ""), {90, 90, 90})
-	local answer = finalResultVisible(r) and answerText(r)
-	if answer then
-		out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
-		                  math = answer, color = {0, 0, 140} }
+	if finalResultVisible(r) then
+		local answer = answerText(r)
+		if answer then
+			out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
+			                  math = answer, color = {0, 0, 140} }
+		end
+		add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
+		if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
+		if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	end
-	add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
-	if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
-	if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	return out
 end
 

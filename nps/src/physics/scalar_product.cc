@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "nps/core/context.h"
+#include "nps/core/print.h"
 #include "nps/core/rational.h"
 #include "measurement_support.h"
 
@@ -18,6 +19,14 @@ NodeId rational_node(Arena &arena, const Rational &value) {
     return arena.binary(Kind::Mul, arena.integer(integer_text(value.num)),
                         arena.binary(Kind::Pow, arena.integer(integer_text(value.den)),
                                      arena.integer("-1")));
+}
+
+const char *angle_unit_text(AngleUnit unit) {
+    switch (unit) {
+        case AngleUnit::Radians: return "radians";
+        case AngleUnit::Degrees: return "degrees";
+    }
+    return "invalid";
 }
 
 NodeId vector_node(Arena &arena, const Vector &value) {
@@ -137,9 +146,12 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.application_version = application_version();
     inputs.problem_family_id = "physics.vectors.cartesian-scalar-product";
     inputs.requested_method =
-        problem.angle
-            ? "convert components to SI, sum the component products, and read the angle from its sign"
-            : "convert components to SI, sum the component products, report once";
+        problem.angle ? "convert components to SI, sum the component products, read the angle from "
+                        "its sign, and measure it as atan2(|a x b|, a . b) when a backend is "
+                        "supplied"
+                      : "convert components to SI, sum the component products, report once";
+    inputs.angle_convention =
+        problem.angle ? angle_unit_text(problem.angle_unit) : "not applicable";
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
     inputs.active_assumptions.push_back("first vector frame is " + problem.first.frame.name);
@@ -188,6 +200,94 @@ bool is_zero(const Vector &v) {
     return v.x.num == 0 && v.y.num == 0 && (v.rank != 3 || v.z.num == 0);
 }
 
+NodeId sqrt_node(Arena &arena, const Rational &value) {
+    return arena.call("sqrt", std::vector<NodeId>{rational_node(arena, value)});
+}
+
+bool literal_zero(const Arena &arena, NodeId value) {
+    if (value == kNoNode || value >= arena.node_count())
+        return false;
+    const Node &node = arena.at(value);
+    return node.kind == Kind::Integer && node.small_valid && node.small == 0;
+}
+
+bool backend_value(const Arena &arena, Adapter &adapter, Meter &meter, const Request &request,
+                   NodeId *value, std::string *why) {
+    if (!meter.backend_call()) {
+        *why = halt_name(meter.halt());
+        return false;
+    }
+    const Response response = adapter.run(request);
+    if (!response.usable() || response.value == kNoNode || response.value >= arena.node_count()) {
+        *why = response.detail.empty() ? tag_name(response.tag) : response.detail;
+        return false;
+    }
+    *value = response.value;
+    return true;
+}
+
+struct AngleMeasurement {
+    NodeId value = kNoNode;
+    std::string text;
+    std::string detail;
+    VerificationOutcome outcome = VerificationOutcome::Inconclusive;
+    bool measured = false;
+    bool disagreed = false;
+};
+
+// Lagrange makes the Cauchy-Schwarz slack exactly the square of the cross-product magnitude at
+// either rank, so this needs no cross product and no promotion of a plane pair to rank three.
+AngleMeasurement measure_angle(Arena &arena, Meter &meter, Backend &giac, const Rational &slack,
+                               const Rational &dot, const Rational &self_product, AngleUnit unit) {
+    AngleMeasurement out;
+    Adapter adapter(arena, giac);
+
+    Request atan;
+    atan.op = Op::Atan2;
+    atan.target = sqrt_node(arena, slack);
+    atan.argument = rational_node(arena, dot);
+    NodeId radians = kNoNode;
+    if (arena.failed() || !backend_value(arena, adapter, meter, atan, &radians, &out.detail))
+        return out;
+
+    // Asking the backend to confirm its own atan2 answer would pass with the two arguments swapped,
+    // and this identity would not.
+    Request agrees;
+    agrees.op = Op::IsZero;
+    agrees.target = arena.binary(
+        Kind::Add,
+        arena.binary(Kind::Mul, arena.call("cos", std::vector<NodeId>{radians}),
+                     sqrt_node(arena, self_product)),
+        arena.unary(Kind::Neg, rational_node(arena, dot)));
+    NodeId residual = kNoNode;
+    if (arena.failed() || !backend_value(arena, adapter, meter, agrees, &residual, &out.detail))
+        return out;
+    if (!literal_zero(arena, residual)) {
+        out.disagreed = true;
+        out.outcome = VerificationOutcome::Failed;
+        out.detail = "the returned angle does not satisfy a b cos(phi) = a . b";
+        return out;
+    }
+
+    out.value = unit == AngleUnit::Degrees
+                    ? arena.binary(Kind::Mul, radians,
+                                   arena.binary(Kind::Mul, arena.integer("180"),
+                                                arena.binary(Kind::Pow, arena.symbol("pi"),
+                                                             arena.integer("-1"))))
+                    : radians;
+    Request numeric;
+    numeric.op = Op::Approximate;
+    numeric.target = out.value;
+    NodeId decimal = kNoNode;
+    if (arena.failed() || !backend_value(arena, adapter, meter, numeric, &decimal, &out.detail))
+        return out;
+    out.text = print(arena, decimal) + " " + angle_unit_text(unit);
+    out.detail = out.text + " satisfies a b cos(phi) = a . b";
+    out.outcome = VerificationOutcome::Passed;
+    out.measured = true;
+    return out;
+}
+
 std::string component_action(const Vector &first, const Vector &second) {
     const Rational left[3] = {first.x, first.y, first.z};
     const Rational right[3] = {second.x, second.y, second.z};
@@ -229,7 +329,7 @@ const char *scalar_angle_name(ScalarAngle angle) {
 
 ScalarProductResult solve_scalar_product(Arena &arena, Derivation &derivation,
                                          const ScalarProductProblem &problem,
-                                         const Budget &budget) {
+                                         const Budget &budget, Backend *giac) {
     const size_t mark = derivation.mark();
     Meter meter(budget);
     const NodeId model = arena.call("dot", {vector_model_node(arena, problem.first),
@@ -638,6 +738,58 @@ ScalarProductResult solve_scalar_product(Arena &arena, Derivation &derivation,
                        "positive is acute, zero is perpendicular, negative is obtuse",
                        scalar_angle_name(result.angle)))
             return halted_result(arena, derivation, mark, meter, budget, model, problem);
+
+        if (giac != nullptr) {
+            const AngleMeasurement measured = measure_angle(arena, meter, *giac, slack,
+                                                            product.value, self_product,
+                                                            problem.angle_unit);
+            if (arena.failed())
+                return arena_result(arena, derivation, mark, meter, budget, model, problem);
+            if (meter.stopped())
+                return halted_result(arena, derivation, mark, meter, budget, model, problem);
+            Step step;
+            step.phase = "check";
+            step.goal = "Measure the angle between the two vectors";
+            step.rule_id = "vec.dot.measure-angle";
+            step.rule_name = "Angle from atan2";
+            step.explanation_short =
+                "Take atan2 of the exact cross-product magnitude against the exact scalar product";
+            step.explanation_detailed =
+                "Reach for this when the question wants a number of degrees rather than which side "
+                "of a right angle the vectors fall on. The inverse cosine route divides by two "
+                "magnitudes, and a magnitude is a square root that is almost never exact, so it "
+                "cannot be taken here. Lagrange's identity gives the same angle without one: the "
+                "slack in the Cauchy-Schwarz comparison above is the square of the cross-product "
+                "magnitude, so atan2 of its root against the scalar product is the angle, and both "
+                "of its arguments were already worked out exactly. The check is that the cosine of "
+                "the answer, times the magnitude product, is the scalar product again.";
+            step.claim = ClaimType::Definition;
+            step.proof_obligations.push_back(
+                {"obl.scalar-product.angle-satisfies-definition",
+                 "the reported angle satisfies a b cos(phi) = a . b"});
+            step.verifications.push_back(
+                verification("Giac atan2 against the exact Cauchy-Schwarz slack", measured.detail,
+                             EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+                             measured.outcome));
+            if (!add_check(derivation, meter, plan_id, std::move(step),
+                           "the angle between the two vectors is measured",
+                           "phi = atan2(|a x b|, a . b) with a b cos(phi) = a . b",
+                           measured.measured ? measured.text : measured.detail))
+                return halted_result(arena, derivation, mark, meter, budget, model, problem);
+            if (measured.disagreed) {
+                result.outcome = ScalarProductOutcome::VerificationFailed;
+                result.detail = measured.detail;
+                result.status = DerivationStatus::VerificationFailed;
+                result.cost = meter.cost();
+                record_context(derivation, budget, model, result.status, problem);
+                return result;
+            }
+            if (measured.measured) {
+                result.numeric_angle = measured.value;
+                result.numeric_angle_text = measured.text;
+                result.has_numeric_angle = true;
+            }
+        }
     }
 
     result.value_text = rational_text(product.value) + " " + product.unit.text;

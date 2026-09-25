@@ -1,9 +1,11 @@
 import { strict as assert } from "node:assert";
-import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MAP, coverage, covers, declaredMapLines, declares, drifted, pullNumber } from "./device-map-drift.mjs";
+import { fileURLToPath } from "node:url";
+import { MAP, coverage, covers, declaredMapLines, declares, drifted, fromGitHub, pullNumber } from "./device-map-drift.mjs";
 
 const SAMPLE = [
   "# Device map",
@@ -102,6 +104,66 @@ test("the pull request number is read from the event file, and its absence is no
   }
   assert.equal(pullNumber(undefined), null);
   assert.equal(pullNumber(join(tmpdir(), "no-such-event-file.json")), null);
+});
+
+test("local changed files come from the git diff, not a shorter or empty path list", () => {
+  const workspace = fileURLToPath(new URL("../../.Internal/workspaces/", import.meta.url));
+  mkdirSync(workspace, { recursive: true });
+  const root = mkdtempSync(join(workspace, "device-map-drift-git-"));
+  const git = (...args) => {
+    const run = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+  };
+  try {
+    mkdirSync(join(root, "docs"));
+    mkdirSync(join(root, "nps", "lua"), { recursive: true });
+    writeFileSync(join(root, MAP), SAMPLE);
+    writeFileSync(join(root, "nps/lua/ti_info.lua"), "first\n");
+    git("init", "-q", "-b", "main");
+    git("add", ".");
+    git("-c", "user.name=Drift Test", "-c", "user.email=drift@test.invalid", "commit", "-qm", "baseline");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
+    writeFileSync(join(root, "nps/lua/ti_info.lua"), "second\n");
+    git("add", ".");
+    git("-c", "user.name=Drift Test", "-c", "user.email=drift@test.invalid", "commit", "-qm", "covered change");
+
+    const env = { ...process.env, GITHUB_BASE_REF: "main" };
+    delete env.GITHUB_REPOSITORY;
+    delete env.GITHUB_TOKEN;
+    delete env.GITHUB_EVENT_PATH;
+    const script = fileURLToPath(new URL("./device-map-drift.mjs", import.meta.url));
+    const covered = spawnSync(process.execPath, [script], { cwd: root, env, encoding: "utf8" });
+    assert.equal(covered.status, 1, covered.stdout + covered.stderr);
+    assert.match(covered.stdout, /nps\/lua\/ti_info\.lua/);
+
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
+    writeFileSync(join(root, "uncovered.txt"), "not mapped\n");
+    git("add", ".");
+    git("-c", "user.name=Drift Test", "-c", "user.email=drift@test.invalid", "commit", "-qm", "uncovered change");
+    const uncovered = spawnSync(process.execPath, [script], { cwd: root, env, encoding: "utf8" });
+    assert.equal(uncovered.status, 0, uncovered.stdout + uncovered.stderr);
+    assert.match(uncovered.stdout, /nothing this branch changed/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("GitHub changed files include the page after a full first page", async t => {
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({ filename: `source/file-${index}.cc` }));
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    requests.push({ url, options });
+    return { ok: true, json: async () => url.endsWith("page=1") ? firstPage : [{ filename: "nps/lua/ti_info.lua" }] };
+  });
+  const files = await fromGitHub("iekip95mod-arch/cx2-ag", 391, "fixture-token");
+  assert.equal(files.length, 101);
+  assert.equal(files[0], "source/file-0.cc");
+  assert.equal(files[100], "nps/lua/ti_info.lua");
+  assert.deepEqual(requests.map(request => request.url), [
+    "https://api.github.com/repos/iekip95mod-arch/cx2-ag/pulls/391/files?per_page=100&page=1",
+    "https://api.github.com/repos/iekip95mod-arch/cx2-ag/pulls/391/files?per_page=100&page=2",
+  ]);
+  assert.equal(requests[0].options.headers.authorization, "Bearer fixture-token");
 });
 
 // Every path the map claims to describe has to exist, or the check silently stops guarding it and

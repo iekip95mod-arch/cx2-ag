@@ -70,6 +70,13 @@ struct RuleSchema {
     const ObligationSchema *obligations;
     size_t obligation_count;
     FailureBehavior on_failure;
+    // Whether what this rule established is still true after the derivation around it refuses, which
+    // decides whether criterion 8 lets a refusal keep the step. An equivalence and a preserved
+    // solution set are that by construction, so only the claims that are not say so here. Declared
+    // per rule rather than derived from the claim type, because Definition covers both a value
+    // instantiated at a point and a physical law applied to build the very equation that then
+    // failed, and only the first survives.
+    bool survives_refusal = false;
 };
 
 // Null when the rule has not been declared yet, which the invariant pass counts rather than treats

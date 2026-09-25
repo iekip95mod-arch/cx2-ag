@@ -1,0 +1,238 @@
+# The tangent-line and linearization refusals, PRD section 9 CALC-010 and section 22.1 row 5.
+#
+# Section 22.1 names no minimum for this family, the way it names none for the square-root rule, so
+# what belongs here is the refusals the engine owes rather than the solves it is counted for. The
+# successful walkthroughs are evidenced by the golden fixtures tangent_line and tangent_linearization,
+# which is the population that reaches one, and by the calculus unit tests beside them.
+#
+# The input is a whole command rather than an expression, because the variable and the point are
+# arguments. A case still names the variable, so two problems that differ only in which letter they
+# use share a signature.
+#
+# Every outcome and every detail below was read off a run rather than chosen. Both commands are
+# covered on each route out of the envelope, since they share one engine and differ only in whether
+# the answer is stated as an equality.
+
+# The point itself. An irrational or symbolic point is turned back before the function is touched,
+# because a tangent line assembled at a point with no exact value could only be an approximation
+# dressed as an equation.
+case invalid.tangent.irrational-point
+  family invalid
+  mode tangent
+  input tangent(x^2,x,sqrt(2))
+  variable x
+  expect unsupported form
+  detail the tangent point must be an exact number
+
+case invalid.tangent.symbolic-point
+  family invalid
+  mode tangent
+  input tangent(x^2,x,a)
+  variable x
+  expect unsupported form
+  detail the tangent point must be an exact number
+
+case invalid.linearize.irrational-point
+  family invalid
+  mode linearize
+  input linearize(x^2,x,sqrt(2))
+  variable x
+  expect unsupported form
+  detail the tangent point must be an exact number
+
+# The function at the point. A pole, a point outside the domain and a value that does not fold to an
+# exact rational are one refusal with one sentence, and the sentence is about the expression rather
+# than about this build.
+case invalid.tangent.pole-at-the-point
+  family invalid
+  mode tangent
+  input tangent(1/x,x,0)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+case invalid.linearize.pole-at-the-point
+  family invalid
+  mode linearize
+  input linearize(1/x,x,0)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+case invalid.tangent.shifted-pole
+  family invalid
+  mode tangent
+  input tangent(1/(x-1),x,1)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+case invalid.tangent.outside-the-log-domain
+  family invalid
+  mode tangent
+  input tangent(ln(x),x,0)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+# tan(0) is zero and the exact engine has no transcendental arithmetic to say so, which is a refusal
+# rather than a wrong answer.
+case invalid.tangent.value-is-not-rational
+  family invalid
+  mode tangent
+  input tangent(tan(x),x,0)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+# The point substitutes the variable the command names, so a variable the expression does not contain
+# leaves the expression standing rather than reducing it.
+case invalid.tangent.variable-not-in-the-expression
+  family invalid
+  mode tangent
+  input tangent(x^2,y,1)
+  variable y
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+case invalid.tangent.decimal-exponent
+  family invalid
+  mode tangent
+  input tangent(x^2.5,x,3)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+case invalid.tangent.fractional-exponent
+  family invalid
+  mode tangent
+  input tangent(x^(1/2),x,4)
+  variable x
+  expect unsupported form
+  detail the expression has no exact value at that point, so it has no tangent line there
+
+# The derivative at the point. The function value is exact here and the slope is not, so the refusal
+# has to name the slope rather than repeat the sentence above it. Without a case on this route the
+# two halves of the envelope would be evidenced by one of them.
+case invalid.tangent.slope-is-not-rational
+  family invalid
+  mode tangent
+  input tangent(x*tan(x),x,0)
+  variable x
+  expect unsupported form
+  detail the derivative has no exact value at that point, so the slope is undefined there
+
+case invalid.linearize.slope-is-not-rational
+  family invalid
+  mode linearize
+  input linearize(x*tan(x),x,0)
+  variable x
+  expect unsupported form
+  detail the derivative has no exact value at that point, so the slope is undefined there
+
+# The differentiation engine's own refusals, reported through this family rather than swallowed by it.
+case invalid.tangent.variable-in-the-exponent
+  family invalid
+  mode tangent
+  input tangent(2^x,x,1)
+  variable x
+  expect unsupported form
+  detail an exponent that contains the variable needs logarithmic differentiation, which is not implemented
+
+case invalid.linearize.variable-in-the-exponent
+  family invalid
+  mode linearize
+  input linearize(2^x,x,1)
+  variable x
+  expect unsupported form
+  detail an exponent that contains the variable needs logarithmic differentiation, which is not implemented
+
+case invalid.tangent.noninteger-exponent-in-a-product
+  family invalid
+  mode tangent
+  input tangent(x*x^(1/2),x,0)
+  variable x
+  expect unsupported form
+  detail only an integer exponent is supported here
+
+# The command rather than the mathematics. Both commands take exactly three arguments and the second
+# has to be a name, so each way of getting that wrong is refused before any engine runs.
+case invalid.tangent.too-few-arguments
+  family invalid
+  mode tangent
+  input tangent(x^2,x)
+  variable x
+  expect invalid input
+  detail a complete calculus command is required
+
+case invalid.tangent.too-many-arguments
+  family invalid
+  mode tangent
+  input tangent(x^2,x,3,1)
+  variable x
+  expect invalid input
+  detail a complete calculus command is required
+
+case invalid.linearize.too-few-arguments
+  family invalid
+  mode linearize
+  input linearize(x^2,x)
+  variable x
+  expect invalid input
+  detail a complete calculus command is required
+
+case invalid.tangent.variable-argument-is-a-number
+  family invalid
+  mode tangent
+  input tangent(x^2,3,1)
+  variable x
+  expect invalid input
+  detail a complete calculus command is required
+
+case invalid.tangent.unclosed-command
+  family invalid
+  mode tangent
+  input tangent(x^2,x,3
+  variable x
+  expect not parsed
+  detail expected a closing parenthesis
+
+# Decimal mode. The same problem that answers in Exact mode is refused here, which is what keeps the
+# refusal about the mode rather than about the input.
+case invalid.tangent.decimal-mode
+  family invalid
+  mode tangent
+  input tangent(x^2,x,3)
+  variable x
+  numeric decimal
+  expect unsupported form
+  detail these native calculus walkthroughs currently require Exact mode
+
+# Resource limits, on a problem that is otherwise inside the envelope. The two limits are reported
+# apart, so a case that named only one would leave the other free to report the wrong words.
+case invalid.tangent.step-limit
+  family invalid
+  mode tangent
+  input tangent(x^2,x,3)
+  variable x
+  max_steps 1
+  expect resource exceeded
+  detail step limit
+
+case invalid.tangent.rewrite-limit
+  family invalid
+  mode tangent
+  input tangent(x^2,x,3)
+  variable x
+  max_rewrites 2
+  expect resource exceeded
+  detail rewrite limit
+
+case invalid.linearize.step-limit
+  family invalid
+  mode linearize
+  input linearize(x^2,x,3)
+  variable x
+  max_steps 1
+  expect resource exceeded
+  detail step limit

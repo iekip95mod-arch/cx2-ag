@@ -27,6 +27,10 @@ enum class Reconstruction : uint8_t { Rebuilt, OutOfRoom, Missing };
 Reconstruction cases_reconstruct_the_square(const std::vector<Rational> &roots,
                                             const Rational &square, std::string *why);
 
+// The same identity with a linear term in it, which the predicate above is the zero case of.
+Reconstruction cases_reconstruct_the_monic(const std::vector<Rational> &roots, const Rational &linear,
+                                           const Rational &constant, std::string *why);
+
 enum class QuadraticOutcome : uint8_t {
     Solved,
     // The equation holds for no real value, which is an answer rather than a refusal: x^2 = -4 has
@@ -69,6 +73,10 @@ struct QuadraticResult {
 // the monic quadratic rebuilt from them has to be the one that was solved.
 QuadraticResult solve_by_square_root(Arena &arena, Derivation &derivation, NodeId equation,
                                      NodeId unknown, const Budget &budget = Budget());
+
+// The quadratic formula, for the equations with a term of degree one the rule above refuses.
+QuadraticResult solve_quadratic(Arena &arena, Derivation &derivation, NodeId equation, NodeId unknown,
+                                const Budget &budget = Budget());
 
 }  // namespace nps
 

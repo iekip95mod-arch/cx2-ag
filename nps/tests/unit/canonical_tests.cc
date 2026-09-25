@@ -667,6 +667,110 @@ void run_canonical_tests(TestSink &t) {
     t.equal(canon("-x"), "(-1 * x)", "negation becomes a factor of minus one");
     t.equal(canon("2 - 3"), "-1", "a subtraction of larger from smaller folds to a negative");
     t.equal(canon("1 + x + 2"), "(3 + x)", "constants gather at the front of a sum");
+    t.equal(canon("2*x + 3*x"), "(5 * x)", "whole-number coefficients of one term gather");
+    t.equal(canon("x + x"), "(2 * x)", "an implicit unit coefficient gathers too");
+    t.equal(canon("2*x - x"), "x", "like terms cancel down to one copy");
+    t.equal(canon("2*x*y + 3*y*x"), "(5 * x * y)",
+            "products with the same symbolic factors gather independent of factor order");
+    t.equal(canon("pi/3 + pi/3"), "(2 * pi * (3^-1))",
+            "rational coefficients of one symbolic term gather exactly");
+    t.equal(canon("1/3 + 1/3"), "(2 * (3^-1))",
+            "pure rational terms gather the same way a symbolic one does");
+    t.equal(canon("1/3 + 1/6"), "(2^-1)", "unlike denominators gather over a common one");
+    t.equal(canon("1 + 1/3"), "(4 * (3^-1))", "a whole number gathers with a fraction");
+    t.equal(canon("1/3 + 2/3"), "1", "rational terms that total one gather to the integer");
+    t.equal(canon("1/3 - 1/3"), "0", "rational terms that cancel leave nothing behind");
+    t.equal(canon("pi*(-2/3 - 2/3) + 16*pi/3"), "(4 * pi)",
+            "a symbolic factor over a folded rational sum gathers with its like term");
+    t.equal(canon("0.5 + 0.5"), "(0.5 + 0.5)",
+            "decimal constants keep their numeric-mode spelling and stay separate");
+    t.equal(canon("99999999999999999999 + 99999999999999999999"),
+            "(2 * 99999999999999999999)",
+            "an integer too large to fold gathers as a like term of its own");
+    t.equal(canon("20000000000000000000 + 20000000000000000000 + 20000000000000000000"),
+            "(3 * 20000000000000000000)",
+            "three copies of an unfoldable integer gather into one coefficient");
+    t.equal(canon("x + 20000000000000000000 + 20000000000000000000"),
+            "(x + (2 * 20000000000000000000))",
+            "an unfoldable integer gathers beside a symbolic term");
+    t.check(same("20000000000000000000 + 20000000000000000000", "2*20000000000000000000"),
+            "a doubled unfoldable integer stays canonically identical to its written double");
+    t.equal(canon("x*20000000000000000000 + x*20000000000000000000"),
+            "((20000000000000000000 * x) + (20000000000000000000 * x))",
+            "an unfoldable integer inside a product keeps that product out of the collection");
+    t.equal(canon("0.5*x + 0.5*x"), "((0.5 * x) + (0.5 * x))",
+            "decimal coefficients keep their numeric-mode spelling and stay separate");
+    t.equal(canon("2*x + 3*y"), "((2 * x) + (3 * y))",
+            "terms with different symbolic factors stay separate");
+    t.equal(canon("x + (x^2)"), "(x + (x^2))",
+            "different powers are not treated as like terms");
+    for (const char *source : {"0^-1 - 0^-1", "x^-1 - x^-1", "log(x) - log(x)",
+                               "sqrt(-1) - sqrt(-1)", "x^(1/2) - x^(1/2)",
+                               "tan(x) - tan(x)", "asin(x) - asin(x)"}) {
+        Arena arena;
+        const ParseResult parsed = parse(arena, source);
+        const NodeId once = parsed.ok() ? canonicalize(arena, parsed.root) : kNoNode;
+        const NodeId twice = once != kNoNode ? canonicalize(arena, once) : kNoNode;
+        t.check(once != kNoNode && once == twice && arena.at(once).kind == Kind::Add,
+                std::string(source) + " keeps its domain-sensitive factor at a fixed point");
+    }
+    {
+        Arena arena;
+        const ParseResult reciprocal = parse(arena, "0^-1 - 0^-1");
+        const NodeId canonical = reciprocal.ok() ? canonicalize(arena, reciprocal.root) : kNoNode;
+        t.check(canonical != kNoNode && divides_by_zero(arena, canonical),
+                "cancelling undefined reciprocals remain visibly undefined");
+
+        const ParseResult logarithm = parse(arena, "log(x) - log(x)");
+        const NodeId log_canonical = logarithm.ok() ? canonicalize(arena, logarithm.root) : kNoNode;
+        t.check(log_canonical != kNoNode && !restrictions_of(arena, log_canonical).empty(),
+                "cancelling logarithms retain their positive-argument restriction");
+
+        const ParseResult root = parse(arena, "sqrt(-1) - sqrt(-1)");
+        const NodeId root_canonical = root.ok() ? canonicalize(arena, root.root) : kNoNode;
+        t.check(root_canonical != kNoNode && has_unmeetable_condition(arena, root_canonical),
+                "cancelling invalid square roots remain outside the real domain");
+    }
+    for (const char *source : {"x - x", "sin(x) - sin(x)"}) {
+        Arena arena;
+        const ParseResult parsed = parse(arena, source);
+        const NodeId once = parsed.ok() ? canonicalize(arena, parsed.root) : kNoNode;
+        const NodeId twice = once != kNoNode ? canonicalize(arena, once) : kNoNode;
+        t.check(once != kNoNode && once == twice && print(arena, once) == "0",
+                std::string(source) + " cancels as a total expression at a fixed point");
+    }
+    for (const char *source : {"x/3 + x/6", "x/2 + x/3 - x/3"}) {
+        Arena arena;
+        const ParseResult parsed = parse(arena, source);
+        const NodeId once = parsed.ok() ? canonicalize(arena, parsed.root) : kNoNode;
+        const NodeId twice = once != kNoNode ? canonicalize(arena, once) : kNoNode;
+        t.check(once != kNoNode && once == twice,
+                std::string(source) + " reaches its canonical form in one pass");
+    }
+    t.equal(canon("x/3 + x/6"), "(x * (2^-1))",
+            "a unit numerator is omitted from a gathered rational coefficient");
+    t.equal(canon("x/2 + x/3 - x/3"), "(x * (2^-1))",
+            "cancelled thirds leave the existing half coefficient");
+    t.equal(canon("9223372036854775807*x + x"),
+            "(x + (9223372036854775807 * x))",
+            "an unrepresentable coefficient sum preserves its terms");
+    t.equal(canon("9223372036854775807*x + 2*x - 2*x"),
+            "(9223372036854775807 * x)",
+            "a wide intermediate coefficient sum can still cancel to a representable total");
+    for (size_t bound : {size_t{3}, size_t{4}}) {
+        Limits limits;
+        limits.max_nodes = bound;
+        Arena arena(limits);
+        const ParseResult parsed = parse(arena, "x+x");
+        const NodeId canonical = parsed.ok() ? canonicalize(arena, parsed.root) : kNoNode;
+        if (bound == 3) {
+            t.check(canonical == kNoNode && arena.status() == Status::SizeExceeded,
+                    "like-term collection reports the node limit it reaches");
+        } else {
+            t.check(canonical != kNoNode && print(arena, canonical) == "(2 * x)",
+                    "one additional node is enough to collect two symbols");
+        }
+    }
     t.equal(canon("-9223372036854775807 + -2 + 2"), "-9223372036854775807",
             "an overflowing prefix folds when the full exact sum fits");
     t.equal(canon("9223372036854775807 + 2"), "(2 + 9223372036854775807)",
@@ -905,6 +1009,29 @@ void run_canonical_tests(TestSink &t) {
                 "the starved arena records a resource status");
         t.check(canonical_refusal(starved) == CanonicalRefusal::ResourceLimit,
                 "a failed arena names the limit it hit");
+    }
+
+    // The two strings a reader is handed, exercised here because the bridge entry point cannot reach
+    // either arm: the parser builds no invalid node, and 4096 input bytes cannot fill 4096 nodes.
+    {
+        Arena clean;
+        ParseResult r = parse(clean, "x");
+        t.check(canonicalize(clean, clean.nary(Kind::Pow, {r.root})) == kNoNode,
+                "the unsupported shape refuses before its wording is read");
+        t.equal(canonical_refusal_message(clean),
+                "this expression has no canonical form in StepCAS",
+                "an unsupported refusal tells the reader the form has none");
+
+        Limits limits;
+        limits.max_nodes = 8;
+        Arena starved(limits);
+        for (size_t i = 0; i < limits.max_nodes + 4 && !starved.failed(); ++i)
+            starved.integer(std::to_string(i));
+        t.check(starved.failed(), "the starved arena has failed before its wording is read");
+        t.equal(canonical_refusal_message(starved),
+                std::string("the expression outgrew the limits while being put in canonical form: ") +
+                    status_name(starved.status()),
+                "a limit refusal names the limit and the status that caused it");
     }
 
     {

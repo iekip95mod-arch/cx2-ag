@@ -1,0 +1,19 @@
+problem: x^2 + x - 1 = 0
+variable: x
+outcome: outside the declared envelope
+detail: the discriminant is 5, whose square root is not exact, and this rule reports no decimals
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.formula.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((((x^2) + x) + (-1)) = 0)
+  requested method: read the coefficients, take the discriminant and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none
