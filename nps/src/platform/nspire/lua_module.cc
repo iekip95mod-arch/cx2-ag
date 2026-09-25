@@ -34,6 +34,7 @@
 #include "nps/steps/integer.h"
 #include "nps/steps/matrix.h"
 #include "nps/steps/rewrite.h"
+#include "nps/steps/schema.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/solve_task.h"
 #include "nps/steps/differentiate.h"
@@ -1825,6 +1826,44 @@ int l_math_display(lua_State *L) {
     if (!parsed.ok()) return parse_failed(L, parsed);
     const std::string display = print_math(arena, parsed.root);
     lua_pushlstring(L, display.data(), display.size());
+    return 1;
+}
+
+// UI-009. A rule's definition is its registration, so the reader cannot drift from what the checks demand.
+int l_rule_definition(lua_State *L) {
+    const char *rule_id = scalar_string_argument(L, 1);
+    const RuleSchema *rule = rule_schema(rule_id);
+    if (rule == nullptr) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "no rule is registered under that id");
+        return 2;
+    }
+    if (!lua_checkstack(L, 8))
+        return luaL_error(L, "rule_definition has no stack room");
+    lua_newtable(L);
+    set_field(L, "rule", rule->rule_id);
+    set_field(L, "claim", claim_type_name(rule->claim));
+    set_field(L, "on_failure", failure_behavior_name(rule->on_failure));
+    set_field(L, "survives_refusal", rule->survives_refusal);
+    lua_createtable(L, static_cast<int>(rule->obligation_count), 0);
+    for (size_t i = 0; i < rule->obligation_count; ++i) {
+        const ObligationSchema &obligation = rule->obligations[i];
+        lua_createtable(L, 0, 3);
+        set_field(L, "id", obligation.id);
+        set_field(L, "text", obligation.text);
+        lua_createtable(L, static_cast<int>(obligation.evidence_count), 0);
+        for (size_t j = 0; j < obligation.evidence_count; ++j) {
+            const EvidenceAlternative &evidence = obligation.evidence[j];
+            lua_createtable(L, 0, 3);
+            set_field(L, "method", evidence.method);
+            set_field(L, "strength", evidence_strength_name(evidence.strength));
+            set_field(L, "may_corroborate", evidence.may_corroborate);
+            lua_rawseti(L, -2, static_cast<int>(j + 1));
+        }
+        lua_setfield(L, -2, "evidence");
+        lua_rawseti(L, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(L, -2, "obligations");
     return 1;
 }
 
@@ -3994,6 +4033,7 @@ const luaL_Reg lib[] = {
     {"canonical", l_canonical},
     {"math_display", l_math_display},
     {"giac", l_giac},
+    {"rule_definition", l_rule_definition},
     {"walkthrough", l_walkthrough},
     {"ui_panel", l_ui_panel},
     {"ui_icon", l_ui_icon},
