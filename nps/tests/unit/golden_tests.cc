@@ -817,8 +817,7 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "quadratic_step_budget_halt", quadratic_record("x^2 = 4", "x", one_step()));
     check_golden(t, "quadratic_cancelled", quadratic_record("x^2 = 4", "x", cancelling()));
 
-    // The formula, which is the equations the rule above refuses: two roots, a repeated one, an
-    // empty solution set and a discriminant with no exact root.
+    // The formula: two roots, a repeated one, an empty set and a discriminant with no exact root.
     check_golden(t, "quadratic_formula_two_roots",
                  quadratic_record("3x^2 + 10x - 88 = 0", "x", Budget(), true));
     check_golden(t, "quadratic_formula_repeated_root",
@@ -925,12 +924,10 @@ void run_golden_tests(TestSink &t) {
                  kinematics_record("find v; x = 20 m; t = 4 s; a = 3 m/s^2", Budget()));
     check_golden(t, "kinematics_significant_figures",
                  kinematics_record("find t; v = 1.0 m/s; v0 = 0 m/s; a = 3 m/s^2", Budget()));
-    // Degree two in t, with a term of degree one, so the whole record is pinned: the formula, the
-    // discriminant, both roots and the step that says which of them the problem is about.
+    // Degree two in t, so the formula, the discriminant, both roots and the selection are pinned.
     check_golden(t, "kinematics_quadratic_solved",
                  kinematics_record("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2", Budget()));
-    // The same shape one unit of acceleration along, where the discriminant is 377 and has no exact
-    // rational root. Inside the family and outside the envelope, which stays a refusal.
+    // The same shape with a discriminant of 377, inside the family and outside the envelope.
     check_golden(t, "kinematics_quadratic_refused",
                  kinematics_record("find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2", Budget()));
     check_golden(t, "kinematics_step_budget_halt",

@@ -53,9 +53,7 @@ VerificationRecord inconclusive(const char *method, const std::string &detail) {
 }  // namespace
 
 // A monic quadratic is its roots: (x - r1)(x - r2) = x^2 - (r1 + r2)x + r1*r2, so matching it
-// against the one that was solved asks two things of the recorded set, that the coefficient of x it
-// implies is the one the equation has and that its constant term is too. One recorded case stands
-// for a repeated root, which is the same identity with r1 = r2.
+// against the one that was solved asks the recorded set for both of its coefficients.
 // Chosen over expanding the factored form because it is exact integer arithmetic with no backend
 // behind it, so the fixtures and the corpus can both run it, and it stays out of canonical.cc.
 Reconstruction cases_reconstruct_the_monic(const std::vector<Rational> &roots, const Rational &linear,
@@ -720,9 +718,7 @@ QuadraticResult solve_by_square_root(Arena &arena, Derivation &derivation, NodeI
 
 namespace {
 
-// How far the unknown is raised in an expression, or the reason the walk would not say. The formula
-// needs this bound before it reads coefficients off values, because three points determine a
-// polynomial of degree two and determine nothing at all without it.
+// How far the unknown is raised. Three points determine a degree-two polynomial only with this.
 enum class DegreeRead : uint8_t { Read, TooHigh, Unreadable, Halted };
 
 DegreeRead degree_in(const Arena &arena, NodeId id, const std::string &name, Meter &meter,
@@ -776,9 +772,13 @@ DegreeRead degree_in(const Arena &arena, NodeId id, const std::string &name, Met
             const DegreeRead read = degree_in(arena, parts[0], name, meter, &base);
             if (read != DegreeRead::Read)
                 return read;
-            // A constant base stays a constant whatever the exponent is, including the negative one
-            // a division is written as, so the exponent only has to be read when the unknown is in
-            // the base.
+            // An unknown in the exponent is not polynomial whatever the base is.
+            int64_t power = 0;
+            const DegreeRead raised = degree_in(arena, parts[1], name, meter, &power);
+            if (raised != DegreeRead::Read)
+                return raised == DegreeRead::Halted ? raised : DegreeRead::Unreadable;
+            if (power != 0)
+                return DegreeRead::Unreadable;
             if (base == 0) {
                 *out = 0;
                 return DegreeRead::Read;
@@ -798,9 +798,7 @@ DegreeRead degree_in(const Arena &arena, NodeId id, const std::string &name, Met
 
 enum class CoefficientRead : uint8_t { Read, NotQuadratic, TooHigh, Unreadable, OutOfRoom, Halted };
 
-// The a, b and c for which the equation reads a*x^2 + b*x + c = 0, exactly. The values come from
-// evaluating both sides at three points and subtracting, which is Lagrange interpolation once the
-// degree is bounded above by two, so it is an identity rather than an agreement on samples.
+// Exact a, b and c for a*x^2 + b*x + c = 0, by interpolation over the bound, not by samples.
 CoefficientRead read_quadratic(const Arena &arena, NodeId equation, const std::string &name,
                                Meter &meter, Rational *a, Rational *b, Rational *c) {
     const ChildView sides = arena.children(arena.at(equation));
@@ -846,8 +844,7 @@ CoefficientRead read_quadratic(const Arena &arena, NodeId equation, const std::s
     return CoefficientRead::Read;
 }
 
-// The equation rewritten with its coefficients on show, which is the move the rest of the rule reads
-// from and the one a reader has to be able to check.
+// The equation rewritten with its coefficients on show, which is what the rest of the rule reads.
 NodeId standard_form(Arena &arena, NodeId unknown, const Rational &a, const Rational &b,
                      const Rational &c) {
     const NodeId square = arena.binary(Kind::Pow, unknown, arena.integer("2"));
@@ -1080,8 +1077,7 @@ QuadraticResult solve_formula_body(Arena &arena, Derivation &derivation, NodeId 
         Case taking_plus;
         taking_plus.root = with_plus;
         cases.push_back(taking_plus);
-        // A discriminant of zero has one root rather than two written twice, which is the same
-        // distinction the square-root rule draws for a square of zero.
+        // A discriminant of zero has one root rather than two written twice.
         if (root_of_discriminant.num != 0) {
             Case taking_minus;
             taking_minus.root = with_minus;
@@ -1141,8 +1137,7 @@ QuadraticResult solve_formula_body(Arena &arena, Derivation &derivation, NodeId 
         s.proof_obligations.push_back(
             {"obl.quadratic.formula-case-is-a-root",
              "this case makes a*x^2 + b*x + c zero at the coefficients that were read"});
-        // Checked against the coefficients here and against the equation as it was typed in the
-        // check below, because a miscollection would otherwise check out against itself.
+        // Against the coefficients here and the typed equation below, so neither self-checks.
         Rational squared;
         Rational quadratic_part;
         Rational linear_part;
@@ -1166,8 +1161,7 @@ QuadraticResult solve_formula_body(Arena &arena, Derivation &derivation, NodeId 
         payload.condition = cases[i].condition;
         payload.siblings_exhaustive = true;
         payload.siblings_exclusive = exclusive;
-        // Nothing here divides by an expression in the unknown and nothing enters a domain a case
-        // could fall outside, so the cases agree with the derivation's conditions by construction.
+        // Nothing here divides by the unknown or enters a domain a case could fall outside.
         payload.siblings_domain_consistent = true;
         payload.exhaustive_evidence = "root-coefficient reconstruction";
         payload.feasibility_status = "feasible";
@@ -1280,8 +1274,7 @@ QuadraticResult solve_formula_body(Arena &arena, Derivation &derivation, NodeId 
     if (meter.stopped())
         return result;
 
-    // The equation divided through by its leading coefficient, which is the monic one the cases have
-    // to rebuild.
+    // The monic form the cases have to rebuild.
     Rational monic_linear;
     Rational monic_constant;
     const bool monic = rational_div(b, a, &monic_linear) && rational_div(c, a, &monic_constant);

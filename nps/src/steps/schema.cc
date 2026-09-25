@@ -118,9 +118,7 @@ const ObligationSchema kCasesAreComplete[] = {
      "every real value satisfying the equation is one of the cases recorded", kSplitIsComplete, 2},
 };
 
-// algebra.quadratic.formula.one-unknown. The degree bound is what makes reading the coefficients
-// off three values an identity rather than an agreement on samples, so it is a precondition of the
-// strategy rather than a detail of how the reading was done.
+// algebra.quadratic.formula.one-unknown. The degree bound is a precondition, not a detail of how.
 const EvidenceAlternative kDegreeBoundAndInterpolation[] = {
     {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid},
 };
@@ -1477,11 +1475,7 @@ const RuleSchema kRules[] = {
     {"eq.quadratic.cases-reconstruct-the-original", ClaimType::SolutionSetPreserved,
      kCasesAreComplete, 1, FailureBehavior::WithholdResult},
 
-    // algebra.quadratic.formula.one-unknown. Standard form cannot fail for the same reason the
-    // isolation above cannot: the coefficients are read from the equation and written back in the
-    // same order, so there is no run in which the rule applies and disagrees with itself. The
-    // discriminant is a check whose answer decides the shape of the split rather than the answer,
-    // so a wrong one would misreport the number of roots, which withholds.
+    // algebra.quadratic.formula.one-unknown. A wrong discriminant misreports how many roots exist.
     {"eq.quadratic.formula", ClaimType::NoClaim, kFormulaStrategy, 3,
      FailureBehavior::WithholdResult},
     {"eq.quadratic.standard-form", ClaimType::SolutionSetPreserved, kSameSolutions, 1,

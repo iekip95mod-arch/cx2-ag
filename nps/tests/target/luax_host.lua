@@ -1784,15 +1784,13 @@ check(r.outcome == "invalid input", "a problem with no unknown is refused")
 check(type(r.steps) == "table" and #r.steps == 0, "with an empty steps table")
 check(r.answer_only == false and r.result == nil, "invalid kinematics is not answer-only success")
 
--- Degree two in t, with a discriminant of 377 that has no exact rational square root. The local
--- rules reach the equation and stop at the envelope, which is what leaves a fully specified
--- candidate for the backend to answer.
+-- A discriminant of 377 stops the local rules at the envelope, leaving a candidate for the backend.
 local quadratic_problem = "find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2"
 script("[[2]]")
 r = nps.kinematics(quadratic_problem)
 check(r.outcome == "no applicable equation" and r.status == "unsupported" and
       r.answer_only == true,
-      "a locally refused one-root kinematics equation can return a Giac answer")
+      "a kinematics equation refused at the exact-root envelope can return a Giac answer")
 check(r.result == "t = 2 s" and r.value == "2" and r.unit == "s" and r.giac_tag == "exact",
       "the answer-only kinematics result carries its quantity, unit and Giac tag")
 check(r.has_result == true, "backend-only kinematics publishes has_result")
@@ -1800,6 +1798,21 @@ check(type(r.steps) == "table" and #r.steps == 0 and r.step_count == 0,
       "answer-only kinematics carries no derivation")
 check(r.detail:find("fully specified and dimensionally valid", 1, true) ~= nil,
       "and records why that exact equation was offered")
+
+-- Issue 412: the bridge carries the degree-two record, root selection included.
+local before_quadratic_solve = giac_calls
+r = nps.kinematics_local("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2")
+check(r.outcome == "solved" and r.result == "t = 4 s" and r.has_result == true,
+      "the bridge solves a kinematics unknown at exponent two")
+check(giac_calls == before_quadratic_solve and r.answer_only == false,
+      "from the local rules alone, with no backend answer behind it")
+local selected, formula = false, false
+for _, step in ipairs(r.steps) do
+    if step.rule == "kin.select-physical-root" then selected = true end
+    if step.rule == "eq.quadratic.formula" then formula = true end
+end
+check(formula, "and the record carries the quadratic formula the answer came from")
+check(selected, "and the step that says which root the problem asked for")
 
 for _, sample in ipairs({
     {"3*x^2-12=0", "[-2,2]", true},

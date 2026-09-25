@@ -756,9 +756,7 @@ rule eq.divide-both-sides fixture
 rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
-# Two of the four equations are degree two in t and in either velocity, so a kinematics record can
-# nest the quadratic rules for the same reason it nests the linear ones, and then says which root
-# the problem is about.
+# A kinematics record nests the quadratic rules for the same reason it nests the linear ones.
 rule eq.quadratic.formula fixture
 rule eq.quadratic.standard-form fixture
 rule eq.quadratic.discriminant fixture

@@ -570,8 +570,7 @@ bool says(const std::string &text, const char *piece) {
     return text.find(piece) != std::string::npos;
 }
 
-// The half of degree two the square-root rule cannot reach, which is every equation with a term of
-// degree one. Issue 412.
+// The half of degree two the square-root rule cannot reach. Issue 412.
 void test_quadratic_formula(TestSink &t) {
     {
         Arena arena;
@@ -594,9 +593,7 @@ void test_quadratic_formula(TestSink &t) {
                 "and each case is put back into the equation as it was typed");
     }
     {
-        // The same equation read the other way round, so the coefficients have to come off both
-        // sides rather than off a left side that was already collected. The leading coefficient is
-        // negative this way, so the sign taken in the formula picks the other root first.
+        // Read the other way round, so the leading coefficient is negative and the signs swap order.
         Arena arena;
         Derivation d;
         const QuadraticResult r = by_formula(arena, d, "88 = 3x^2 + 10x", "x");
@@ -654,16 +651,40 @@ void test_quadratic_formula(TestSink &t) {
                 "a symbolic coefficient is refused rather than evaluated to something");
     }
     {
-        // The pure square the other rule owns still solves here, because the formula is the general
-        // case and a missing term of degree one is a coefficient of zero.
+        // A pure square is this rule's b equal to zero, so it still solves.
         Arena arena;
         Derivation d;
         const QuadraticResult r = by_formula(arena, d, "x^2 = 4", "x");
         t.equal(roots(arena, r), "2 (-2)", "a pure square is the formula's b equal to zero");
     }
+    // Shapes with no bounded degree, where reading three values would be sampling. Issue 412.
+    for (const char *shape : {"8*2^x = x^2 + 7x + 8", "2^x = x + 1", "x^2 = 2^x",
+                              "sin(x) + x^2 = 0", "sqrt(x) = x^2", "1/x + x = 2",
+                              "abs(x) = x^2", "x^x = 4"}) {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, shape, "x");
+        t.check(r.outcome != QuadraticOutcome::Solved && r.solutions.empty() && d.size() == 0,
+                std::string("a shape that is not a polynomial is refused with nothing recorded: ") +
+                    shape);
+        t.check(says(r.detail, "polynomial of degree two"),
+                std::string("and the refusal says that is what it needed: ") + shape);
+    }
     {
-        // The completeness predicate on its own, with a linear term in it. The square-root rule's
-        // own call is this one with a linear coefficient of zero.
+        // The controls, so the refusals above are about the shape rather than about any power.
+        Arena arena;
+        Derivation d;
+        t.equal(roots(arena, by_formula(arena, d, "x^2 + x = 2^2 + 2", "x")), "2 (-3)",
+                "a constant raised to a constant is still a constant");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        t.equal(roots(arena, by_formula(arena, d, "x^2/2 + x/2 = 3", "x")), "2 (-3)",
+                "and division by a constant, which is a power of minus one, still reads");
+    }
+    {
+        // The completeness predicate on its own, with a linear term in it.
         std::string why;
         const std::vector<Rational> both{Rational{4, 1}, Rational{-22, 3}};
         t.check(cases_reconstruct_the_monic(both, Rational{10, 3}, Rational{-88, 3}, &why) ==
