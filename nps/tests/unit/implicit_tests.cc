@@ -48,7 +48,10 @@ void run_implicit_tests(TestSink &t) {
                                 // The isolation's own substitution check cannot evaluate cos(y) at its
                                 // points, so the record says unchecked even though the final identity held.
                                 Case{"implicit_trig", "implicit(sin(y)=x,x,y)", 5, 0, {1, 1}, DerivationStatus::SolvedButUnchecked},
-                                Case{"", "implicit(y=x^2,x,y)", 3, 7, {6, 1}, DerivationStatus::SolvedAndVerified}}) {
+                                Case{"", "implicit(y=x^2,x,y)", 3, 7, {6, 1}, DerivationStatus::SolvedAndVerified},
+                                // No sample point folds cos(x+y) off the line x = -y, so the answer
+                                // stands unchecked rather than failed.
+                                Case{"", "implicit(sin(x+y)=x,x,y)", 1, -1, {0, 1}, DerivationStatus::SolvedButUnchecked}}) {
         Run run;
         implicit_run(run, fixture.text);
         t.check(run.result.outcome == ImplicitOutcome::Differentiated && run.result.derivative != kNoNode &&
@@ -109,8 +112,7 @@ void run_implicit_tests(TestSink &t) {
              Refusal{"implicit(x+y=1,x,x)", ImplicitOutcome::InvalidInput, DerivationStatus::InvalidInput},
              Refusal{"implicit(y-y=x,x,y)", ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported, "cancel"},
              Refusal{"implicit(asin(y)=x,x,y)", ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported},
-             Refusal{"implicit(dydx+y=x,x,y)", ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported},
-             Refusal{"implicit(sin(x+y)=x,x,y)", ImplicitOutcome::VerificationFailed, DerivationStatus::VerificationFailed}}) {
+             Refusal{"implicit(dydx+y=x,x,y)", ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported}}) {
         Run run;
         implicit_run(run, refusal.text);
         t.check(run.result.derivative == kNoNode && !run.result.detail.empty() &&

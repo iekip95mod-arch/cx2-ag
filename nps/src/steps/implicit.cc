@@ -257,11 +257,11 @@ struct Implicit {
         payload.expected_relation = "zero at every sample point where the answer is defined";
         payload.observed_result = evidence.detail;
         derivation.add_check(kNoStep, std::move(check), std::move(payload));
-        if (matched) return true;
+        // No exact reading is an unchecked answer rather than a failed one, and the record says so.
+        if (matched || read == 0) return work();
         if (!work()) return false;
         stop(ImplicitOutcome::VerificationFailed, DerivationStatus::VerificationFailed,
-             read > 0 ? "the derivative failed its check against the original relation, so it is withheld"
-                      : "the derivative could not be checked exactly at any sample point, so it is withheld");
+             "the derivative failed its check against the original relation, so it is withheld");
         return false;
     }
 
