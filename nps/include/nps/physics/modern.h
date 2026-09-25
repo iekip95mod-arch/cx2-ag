@@ -39,6 +39,7 @@ const char *modern_variable_name(ModernVariable variable);
 // The unit each variable is declared in, as text. This family does not convert to SI: a photon
 // energy in joules does not fit the exact integer rationals every other step here relies on.
 const char *modern_variable_unit(ModernVariable variable);
+Dimension modern_variable_dimension(ModernVariable variable);
 
 bool modern_relation_has(ModernRelation relation, ModernVariable variable);
 

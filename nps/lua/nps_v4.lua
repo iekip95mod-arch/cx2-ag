@@ -63,6 +63,17 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "gravitation", "physics.gravitation.point-masses" },
+	{ "oscillation", "physics.oscillation.restoring-force" },
+	{ "wave", "physics.wave.speed-frequency-wavelength" },
+	{ "modern", "physics.modern.photon-wavelength" },
+	{ "modern", "physics.modern.photoelectric" },
+	{ "modern", "physics.modern.mass-energy" },
+	{ "relativity", "physics.relativity.time-dilation" },
+	{ "relativity", "physics.relativity.length-contraction" },
+	{ "relativity", "physics.relativity.lorentz-transformation" },
+	{ "relativity", "physics.relativity.velocity-addition" },
+	{ "relativity", "physics.relativity.energy-momentum" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
@@ -2763,6 +2774,103 @@ PHYSICS_FIXTURES = {
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
+		end,
+	},
+	{
+		label = "Find how hard two masses pull together",
+		problem = "Everything with mass pulls on everything else. Two bags of 2 and 3 kilograms " ..
+		          "a metre apart do too, but so weakly that nobody ever feels it.",
+		mode = "gravitation",
+		run = function()
+			return nps_nspire.gravitation("gravitational force", "first mass", "2.0 kg",
+			                              "second mass", "3.0 kg", "separation", "1.0 m")
+		end,
+	},
+	{
+		label = "Find how hard a stretched spring pulls back",
+		problem = "A spring needs 200 newtons for every metre it is stretched. Pull it 5 " ..
+		          "centimetres and it pulls back. How hard?",
+		mode = "oscillation",
+		run = function()
+			return nps_nspire.oscillation("restoring force", "stiffness", "200 N/m",
+			                              "displacement", "5 cm")
+		end,
+	},
+	{
+		label = "Find how far apart the crests of a sound are",
+		problem = "A note shakes the air 170 times a second and the sound moves at 340 metres " ..
+		          "per second. How far apart are its crests?",
+		mode = "wave",
+		run = function()
+			return nps_nspire.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+		end,
+	},
+	{
+		label = "Find the energy carried by red light",
+		problem = "Light comes in small packets. Red light has a wavelength of 620 billionths of " ..
+		          "a metre. How much energy does one packet of it carry?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Planck photon relation", "photon energy", "wavelength", "620 nm")
+		end,
+	},
+	{
+		label = "Find the energy of an electron freed by light",
+		problem = "A 5.0 eV packet of light hits a metal that needs 2.3 eV to free an electron. " ..
+		          "What is left over as the electron's energy of motion?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Einstein photoelectric equation", "maximum kinetic energy",
+			                         "photon energy", "5.0 eV", "work function", "2.3 eV")
+		end,
+	},
+	{
+		label = "Find the energy that holds a helium core together",
+		problem = "A helium core weighs 0.0304 mass units less than its parts. That missing mass " ..
+		          "became energy. How much?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Mass-energy equivalence", "rest energy", "mass defect", "0.0304 u")
+		end,
+	},
+	{
+		label = "Find how slow a fast ship's clock looks",
+		problem = "A ship passes a station at 0.600 of light speed. The ship's clock ticks 4.00 " ..
+		          "seconds. How long does the station say that took?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Time dilation", "station", "ship", "0.600 c",
+			                             "proper time", "4.00 s")
+		end,
+	},
+	{
+		label = "Find how short a fast ship looks",
+		problem = "The same ship is 100 metres long on board. Racing past at 0.600 of light speed, " ..
+		          "how long does the station measure it?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Length contraction", "station", "ship", "0.600 c",
+			                             "proper length", "100 m")
+		end,
+	},
+	{
+		label = "See why speeds near light do not simply add",
+		problem = "A ship at half light speed fires a probe forward at half light speed. Seen from " ..
+		          "the station the probe does not reach light speed.",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Relativistic velocity addition", "station", "ship",
+			                             "0.500 c", "object velocity in the moving frame", "0.500 c")
+		end,
+	},
+	{
+		label = "Find the energy of a fast electron",
+		problem = "An electron, 0.511 MeV when at rest, flies at 0.600 of light speed. Find its " ..
+		          "total energy, its momentum and its energy of motion.",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Relativistic energy and momentum", "lab", "electron",
+			                             "0.600 c", "rest energy", "0.511 MeV")
 		end,
 	},
 }

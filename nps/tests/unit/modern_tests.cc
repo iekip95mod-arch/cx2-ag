@@ -299,6 +299,24 @@ void run_modern_tests(TestSink &t) {
         t.equal(modern_relation_name(ModernRelation::MassEnergy), "Mass-energy equivalence",
                 "each relation names itself");
     }
+    {
+        Dimension energy;
+        energy.length = 2;
+        energy.mass = 1;
+        energy.time = -2;
+        Dimension length;
+        length.length = 1;
+        Dimension mass;
+        mass.mass = 1;
+        t.check(modern_variable_dimension(ModernVariable::PhotonEnergy) == energy &&
+                    modern_variable_dimension(ModernVariable::KineticEnergy) == energy &&
+                    modern_variable_dimension(ModernVariable::WorkFunction) == energy &&
+                    modern_variable_dimension(ModernVariable::RestEnergy) == energy,
+                "every energy position is declared with the dimension of an energy");
+        t.check(modern_variable_dimension(ModernVariable::Wavelength) == length &&
+                    modern_variable_dimension(ModernVariable::MassDefect) == mass,
+                "the wavelength is a length and the mass defect is a mass");
+    }
 }
 
 }  // namespace nps

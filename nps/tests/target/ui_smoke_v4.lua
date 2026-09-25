@@ -627,7 +627,8 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, work = 0, components = 0,
-    forces = 0, optics = 0,
+    forces = 0, optics = 0, gravitation = 0, oscillation = 0, wave = 0,
+    modern = 0, relativity = 0,
     catch_up = 0, relative_motion = 0, planar_kinematics = 0,
     resource_profile_begin = 0, resource_profile_finish = 0,
     solve_begin = 0, solve_advance = 0, solve_cancel = 0,
@@ -690,6 +691,17 @@ local fake_manifest = {
         { kind = "solver", id = "physics.optics.spherical-mirror.image" },
         { kind = "solver", id = "physics.optics.double-slit.maxima" },
         { kind = "solver", id = "physics.optics.single-slit.minima" },
+        { kind = "solver", id = "physics.gravitation.point-masses" },
+        { kind = "solver", id = "physics.oscillation.restoring-force" },
+        { kind = "solver", id = "physics.wave.speed-frequency-wavelength" },
+        { kind = "solver", id = "physics.modern.photon-wavelength" },
+        { kind = "solver", id = "physics.modern.photoelectric" },
+        { kind = "solver", id = "physics.modern.mass-energy" },
+        { kind = "solver", id = "physics.relativity.time-dilation" },
+        { kind = "solver", id = "physics.relativity.length-contraction" },
+        { kind = "solver", id = "physics.relativity.lorentz-transformation" },
+        { kind = "solver", id = "physics.relativity.velocity-addition" },
+        { kind = "solver", id = "physics.relativity.energy-momentum" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
     },
@@ -770,6 +782,66 @@ nps_split = {
     end,
     density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
     optics = function(...) calls.optics = calls.optics + 1 last_args = { ... } return fake_optics end,
+    -- The three relation families copy the strings luax_host asserts the real bridge emits.
+    gravitation = function(...)
+        calls.gravitation = calls.gravitation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "gravitational force",
+            result = "gravitational force = 0.00000000040 kg m/s^2", value = "0.00000000040",
+            exact_value = "0.00000000040044", unit = "kg m/s^2",
+            precision = { kind = "measured", significant_digits = 2 },
+            nodes = 30, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Newton's law of gravitation", goal = "Find the gravitational force",
+                  short = "Use F = G*m1*m2/r^2", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
+    oscillation = function(...)
+        calls.oscillation = calls.oscillation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "restoring force",
+            result = "restoring force = 10 kg m/s^2", value = "10", exact_value = "10",
+            unit = "kg m/s^2", precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Simple harmonic restoring force",
+                  goal = "Find the restoring force", short = "Use F = k*x", claim = "no claim",
+                  verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    modern = function(...)
+        calls.modern = calls.modern + 1
+        last_args = { ... }
+        return relation_replies[last_args[1]]
+    end,
+    relativity = function(...)
+        calls.relativity = calls.relativity + 1
+        last_args = { ... }
+        return relation_replies[last_args[1]]
+    end,
+    wave = function(...)
+        calls.wave = calls.wave + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "wavelength",
+            result = "wavelength = 2 m", value = "2", exact_value = "2", unit = "m",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Mechanical wave relation", goal = "Find the wavelength",
+                  short = "Use v = f*lambda", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
     vector_addition = function(...)
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
@@ -1158,7 +1230,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 25 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 36 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -2921,6 +2993,144 @@ do
     on.escapeKey()
 end
 
+-- Each relation family is found by mode, then has to reach its own bridge with names its model uses.
+do
+    local relation_cases = {
+        { mode = "gravitation", args = { "gravitational force", "first mass", "2.0 kg",
+                                          "second mass", "3.0 kg", "separation", "1.0 m" },
+          result = "gravitational force = 0.00000000040 kg m/s^2" },
+        { mode = "oscillation", args = { "restoring force", "stiffness", "200 N/m",
+                                          "displacement", "5 cm" },
+          result = "restoring force = 10 kg m/s^2" },
+        { mode = "wave", args = { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" },
+          result = "wavelength = 2 m" },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(relation_cases) do
+        local index = nil
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == case.mode then index = position end
+        end
+        check(index ~= nil, "the guided browser carries a " .. case.mode .. " fixture")
+        local before = calls[case.mode]
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls[case.mode] == before + 1 and steps.result.mode == case.mode,
+              "the " .. case.mode .. " fixture runs through its native bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, "the " .. case.mode .. " fixture names the unknown and knowns its model uses")
+        check(steps.result.result == case.result,
+              "the " .. case.mode .. " fixture keeps the answer the bridge returned")
+        painted()
+        check(mathBoxExact(case.result) ~= nil,
+              "the " .. case.mode .. " answer renders whole with its unit in the viewer")
+        check(#steps.histText == history_before + 1,
+              "the " .. case.mode .. " fixture joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
+end
+
+-- The modern and relativity replies copy the strings luax_host asserts the real bridge returns for
+-- the same arguments. Global, since this file is at Lua's 200-local ceiling.
+do
+    local function relation_reply(result, extra)
+        local reply = {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", result = result,
+            precision = { kind = "measured", significant_digits = 3 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = { { kind = "plan", name = "Relation", goal = "Apply the relation",
+                        short = "Substitute and solve", claim = "no claim", verified = true,
+                        failed = false, depth = 0 } },
+        }
+        for key, value in pairs(extra or {}) do reply[key] = value end
+        return reply
+    end
+    relation_replies = {
+        ["Planck photon relation"] = relation_reply("photon energy = 1.9997 eV"),
+        ["Einstein photoelectric equation"] = relation_reply("maximum kinetic energy = 2.7 eV"),
+        ["Mass-energy equivalence"] = relation_reply("rest energy = 28.3 MeV"),
+        ["Time dilation"] = relation_reply("dilated time = 5.00 s in station",
+                                           { lorentz_factor = "1.25" }),
+        ["Length contraction"] = relation_reply("contracted length = 80.0 m in station",
+                                                { lorentz_factor = "1.25" }),
+        ["Relativistic velocity addition"] =
+            relation_reply("object velocity in the rest frame = 0.800 c in station"),
+        ["Relativistic energy and momentum"] = relation_reply(
+            "total energy = 0.639 MeV in lab, momentum energy pc = 0.383 MeV in lab, " ..
+            "relativistic kinetic energy = 0.128 MeV in lab", { lorentz_factor = "1.25" }),
+    }
+end
+do
+    local cases = {
+        { mode = "modern", args = { "Planck photon relation", "photon energy", "wavelength", "620 nm" } },
+        { mode = "modern", args = { "Einstein photoelectric equation", "maximum kinetic energy",
+                                    "photon energy", "5.0 eV", "work function", "2.3 eV" } },
+        { mode = "modern", args = { "Mass-energy equivalence", "rest energy", "mass defect",
+                                    "0.0304 u" } },
+        { mode = "relativity", args = { "Time dilation", "station", "ship", "0.600 c",
+                                        "proper time", "4.00 s" } },
+        { mode = "relativity", args = { "Length contraction", "station", "ship", "0.600 c",
+                                        "proper length", "100 m" } },
+        { mode = "relativity", args = { "Relativistic velocity addition", "station", "ship",
+                                        "0.500 c", "object velocity in the moving frame",
+                                        "0.500 c" } },
+        { mode = "relativity", args = { "Relativistic energy and momentum", "lab", "electron",
+                                        "0.600 c", "rest energy", "0.511 MeV" },
+          wrapped = { "total energy = 0.639 MeV", "0.383 MeV", "kinetic energy = 0.128 MeV" } },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(cases) do
+        local relation = case.args[1]
+        local index = nil
+        -- Found by the relation its run names, since several fixtures share each mode.
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == case.mode and index == nil then
+                local saved, seen = nps_nspire[case.mode], nil
+                nps_nspire[case.mode] = function(name) seen = name return {} end
+                pcall(fixture.run)
+                nps_nspire[case.mode] = saved
+                if seen == relation then index = position end
+            end
+        end
+        check(index ~= nil, "the guided browser carries a fixture for " .. relation)
+        local before = calls[case.mode]
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls[case.mode] == before + 1 and steps.result.mode == case.mode,
+              relation .. " runs through the " .. case.mode .. " bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, relation .. " passes exactly the names and values its engine reads")
+        local shown_text = painted()
+        local rendered = mathBoxExact(relation_replies[relation].result) ~= nil
+        -- Three outputs are too wide for one typeset row, so the viewer wraps them as plain text.
+        if case.wrapped then
+            rendered = true
+            for _, fragment in ipairs(case.wrapped) do
+                rendered = rendered and shown_text:find(fragment, 1, true) ~= nil
+            end
+        end
+        check(steps.result.result == relation_replies[relation].result and rendered,
+              relation .. " renders its whole answer in the viewer")
+        check(#steps.histText == history_before + 1, relation .. " joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
+end
+
 -- Every guided entry has to tell a student who has not taken the course what it does. That is a
 -- judgement, but two halves of it are mechanical and are the halves that rot: a label full of the
 -- vocabulary the student came here to learn, and a label the screen cuts off.
@@ -3639,6 +3849,17 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "gravitation", "physics.gravitation.point-masses" },
+        { "oscillation", "physics.oscillation.restoring-force" },
+        { "wave", "physics.wave.speed-frequency-wavelength" },
+        { "modern", "physics.modern.photon-wavelength" },
+        { "modern", "physics.modern.photoelectric" },
+        { "modern", "physics.modern.mass-energy" },
+        { "relativity", "physics.relativity.time-dilation" },
+        { "relativity", "physics.relativity.length-contraction" },
+        { "relativity", "physics.relativity.lorentz-transformation" },
+        { "relativity", "physics.relativity.velocity-addition" },
+        { "relativity", "physics.relativity.energy-momentum" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()

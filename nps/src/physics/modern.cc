@@ -836,6 +836,10 @@ const char *modern_variable_unit(ModernVariable variable) {
     return "eV";
 }
 
+Dimension modern_variable_dimension(ModernVariable variable) {
+    return variable_dimension(variable);
+}
+
 bool modern_relation_has(ModernRelation relation, ModernVariable variable) {
     return index_in(shape_of(relation), variable) >= 0;
 }
