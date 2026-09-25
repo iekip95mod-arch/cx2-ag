@@ -244,6 +244,21 @@ lua_module.cc appears in the build graph only as a phony source node rather than
 So on a machine or runner without luajit, **a change to the Lua bridge is never compiled**. Check
 `ninja -t targets all | grep nps_luax` before believing a green build.
 
+Two rows need a device build that a host configure never produces. device_evidence sweeps the device
+build tree for offline audit and device run records, and report_size sizes the ARM image. Without one
+they both report Skipped, so the absent device stage stays visible rather than reading as coverage of
+the device requirements.
+
+`source`: nps/CMakeLists.txt sets SKIP_RETURN_CODE 77 on device_evidence, which is what the sweep in
+tools/device_evidence.cc returns when the directory holds no records, and the branch beside report_size
+registers a row whose echoed text is the literal its SKIP_REGULAR_EXPRESSION matches.
+
+`measured` on 2026-09-25: with no device tree, ctest -R '^(device_evidence|report_size)$' reports two
+Skipped rows and exits 0. Both Pass instead when the ndl SDK is present and NPS_DEVICE_BUILD_DIR names
+a tree holding nps_nspire.elf, nps_nspire.offline-audit.txt and the nps_nspire.luax.tns that record's
+digest is checked against. Stage only the audit record and device_evidence refuses it for a missing
+artifact rather than passing.
+
 What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
 `fast` alone. They used to wait on `review-ready` as well, which was right while an approving review
 was required to merge.

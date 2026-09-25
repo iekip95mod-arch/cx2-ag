@@ -738,6 +738,11 @@ void selftest_verdicts() {
     expect(manifest_build("stepcas.unified.short") == "short", "and a short one is left alone");
 }
 
+// A sweep with no records proves nothing, so it answers with its own code rather than with success.
+constexpr int kNothingToSweep = 77;
+
+int sweep(const std::string &directory);
+
 // Every refusal is made to fire before the acceptance is believed, because a gate that has only ever
 // accepted is indistinguishable from no gate.
 int selftest() {
@@ -966,6 +971,8 @@ int selftest() {
     } else {
         expect(records_in(swept).empty(),
                "an empty directory sweeps to no records rather than to a failure");
+        expect(sweep(swept) == kNothingToSweep,
+               "and an empty sweep answers nothing to sweep rather than success");
         write_file(swept + "/notes.txt", "not a record");
         write_file(swept + "/device-run.txt", "a name that is only the suffix");
         expect(records_in(swept).empty(),
@@ -981,6 +988,8 @@ int selftest() {
                "audits come before runs and each group is sorted, so the evidence file is stable");
         expect(found[0] != found[2],
                "and one module carrying both kinds is two records rather than a collision");
+        expect(sweep(swept) != kNothingToSweep,
+               "while a sweep that found records answers on those records, whatever it made of them");
     }
 
     std::cout << "device evidence: " << failures << " failed\n";
@@ -1012,11 +1021,10 @@ int ingest_one(const std::string &record_path, const std::string &directory) {
 int sweep(const std::string &directory) {
     const std::vector<std::string> records = records_in(directory);
     if (records.empty()) {
-        // Said out loud, because the alternative is a suite that looks complete and has ingested
-        // nothing. With no record the rows read unmet rather than passing on an absence.
+        // Success here is the one answer indistinguishable from a suite that covers the device rows.
         std::cout << "device evidence: no records under " << directory
                   << ", so the device requirements have no evidence in this tree\n";
-        return 0;
+        return kNothingToSweep;
     }
     int refused = 0;
     for (const std::string &name : records)
