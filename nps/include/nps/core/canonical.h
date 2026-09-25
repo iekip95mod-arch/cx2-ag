@@ -2,6 +2,7 @@
 #define NPS_CANONICAL_H
 
 #include "nps/core/ast.h"
+#include "nps/core/rational.h"
 
 namespace nps {
 
@@ -106,6 +107,9 @@ bool has_decimal_exponent(const Arena &arena, NodeId id);
 // decimal literal already is a fraction over a power of ten. kNoNode when a literal carries more
 // digits than the rational can hold, which is a refusal rather than a silent narrowing.
 NodeId exactify(Arena &arena, NodeId id);
+
+// A rational in the spelling canonical form writes it in, for an engine building its own literals.
+NodeId canonical_rational(Arena &arena, const Rational &value);
 
 // The other direction, for reporting an answer once the arithmetic is done. A rational whose
 // denominator is only twos and fives is written back as the decimal it equals, and one that would

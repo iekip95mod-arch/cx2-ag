@@ -29,6 +29,7 @@
 #include "nps/steps/linear.h"
 #include "nps/steps/quadratic.h"
 #include "nps/steps/rearrange.h"
+#include "nps/steps/trig.h"
 #include "nps/steps/rewrite.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
@@ -143,6 +144,18 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
         answer += print(arena, result.solutions[i]);
     }
     return header(equation, name, quadratic_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string trig_record(const char *expression, TrigGoal goal, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const TrigResult result = trig_rewrite(arena, derivation, parsed.root, goal, budget);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(expression, "", trig_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -998,6 +1011,13 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "rearrange_even_power_refused", rearrange_record("y = x^2", "x", Budget()));
     check_golden(t, "rearrange_repeated_variable", rearrange_record("y = x + x", "x", Budget()));
     check_golden(t, "rearrange_step_budget_halt", rearrange_record("v = u + a*t", "t", one_step()));
+    check_golden(t, "trig_angle_sum", trig_record("sin(x+y)", TrigGoal::Expand, Budget()));
+    check_golden(t, "trig_triple_angle", trig_record("sin(3x)", TrigGoal::Expand, Budget()));
+    check_golden(t, "trig_odd_even", trig_record("sin(-x) + cos(-2x)", TrigGoal::Expand, Budget()));
+    check_golden(t, "trig_pythagorean", trig_record("sin(x)^2 + cos(x)^2", TrigGoal::Collect, Budget()));
+    check_golden(t, "trig_half_angle_collect", trig_record("2*sin(x)^2 + cos(2x)", TrigGoal::Collect, Budget()));
+    check_golden(t, "trig_double_angle_product", trig_record("sin(x)*cos(x)", TrigGoal::Collect, Budget()));
+    check_golden(t, "trig_outside_envelope", trig_record("sin(x+1)", TrigGoal::Expand, Budget()));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));

@@ -1294,6 +1294,47 @@ rule alg.factor.product-and-sum fixture
 rule alg.factor.difference-of-squares fixture
 rule alg.rewrite.check-by-evaluation fixture
 
+family id algebra.trigonometric-identities
+reference_curriculum_set_ids none, this family answers PRD ALG-010 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-010
+topic_and_level Expanding and collecting sines and cosines with the Pythagorean, angle-sum, double-angle and half-angle identities
+family_envelope_version 1
+accepted_expression_grammar sums, differences, products and whole powers up to 8 of rational numbers and sin or cos calls whose argument is a rational multiple of one or more variables with no constant term
+accepted_input_forms texpand(expr) and tcollect(expr) menu commands, for example texpand(sin(x+y)) or tcollect(2*sin(x)^2 + cos(2x))
+domains_and_parameter_assumptions every angle is a rational combination of the variables with no constant term, and each variable's base angle is its least common denominator, at most 64. The identities hold for every real angle in radians and in degrees, so no condition is recorded
+supported_branches_and_degenerate_cases texpand applies the angle-sum and angle-difference identities, the double-angle identities, the odd and even identities for a negative angle, and splits a multiple up to 6 into a sum. tcollect applies the Pythagorean identity to matching squares, the double-angle identity read backwards to a sine and cosine of one angle, and the half-angle identities to a square, then collects like terms. An expression with nothing to rewrite is already in form
+exact_special_function_and_numerical_result_policy exact rational coefficients only. The final form is read off an exact exponential form, never evaluated in floating point
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/trig.cc
+required_assumptions none, every identity used holds for every angle
+test_group_ids trig, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.trig.identity-holds
+strategy_ids plan.trig-expand, plan.trig-collect
+supported_methods every step applies one named identity to one subterm. Each step and the result are checked by writing both sides as Laurent polynomials in e to the i times each variable's base angle, with exact complex rational coefficients, and comparing every coefficient, which decides the identity exactly
+unsupported_near_neighbors a constant inside an angle, a variable outside sin or cos, tan, sec, csc and cot, a multiple above 6, powers above 2 and products of different angles in tcollect, which need the product-to-sum identity
+solution_soundness_status every step and the result are checked by exact exponential normal form, which is a proof rather than a sample
+solution_completeness_status texpand stops when no sine or cosine of a sum or a whole multiple is left. tcollect ends with every like term collected from the exact form. Cancellation and Meter limits retain the verified prefix without a final result
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch from the existing Expand Trig and Collect Trig menu entries, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.trigonometric-identities
+release_status in development, unreleased
+rule plan.trig-expand fixture
+rule plan.trig-collect fixture
+rule trig.angle-sum fixture
+rule trig.double-angle fixture
+rule trig.split-multiple fixture
+rule trig.odd fixture
+rule trig.even fixture
+rule trig.pythagorean fixture
+rule trig.double-angle-product fixture
+rule trig.half-angle fixture
+rule trig.collect fixture
+rule trig.check-identity fixture
+
 family id number.integer-method.literal
 reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
 curriculum_source_locations docs/menu-walkthrough-plan.md, Number and Probability menu inventory

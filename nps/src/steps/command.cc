@@ -23,6 +23,8 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "texpand") return CommandKind::TrigExpand;
+    if (name == "tcollect") return CommandKind::TrigCollect;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
 }
@@ -46,6 +48,8 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::TrigExpand: return "texpand";
+        case CommandKind::TrigCollect: return "tcollect";
         case CommandKind::Unhandled: return "command";
     }
     return "command";
@@ -125,7 +129,8 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         return command;
     }
     const bool rewrite = command.kind == CommandKind::Simplify || command.kind == CommandKind::Expand ||
-                         command.kind == CommandKind::Factor;
+                         command.kind == CommandKind::Factor || command.kind == CommandKind::TrigExpand ||
+                         command.kind == CommandKind::TrigCollect;
     const bool limit = command.kind == CommandKind::Limit;
     const bool tangent = command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
     const size_t minimum = limit || tangent ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
