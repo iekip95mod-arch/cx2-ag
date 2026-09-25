@@ -3849,6 +3849,17 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "gravitation", "physics.gravitation.point-masses" },
+        { "oscillation", "physics.oscillation.restoring-force" },
+        { "wave", "physics.wave.speed-frequency-wavelength" },
+        { "modern", "physics.modern.photon-wavelength" },
+        { "modern", "physics.modern.photoelectric" },
+        { "modern", "physics.modern.mass-energy" },
+        { "relativity", "physics.relativity.time-dilation" },
+        { "relativity", "physics.relativity.length-contraction" },
+        { "relativity", "physics.relativity.lorentz-transformation" },
+        { "relativity", "physics.relativity.velocity-addition" },
+        { "relativity", "physics.relativity.energy-momentum" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()
@@ -3997,32 +4008,6 @@ do
     check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
           "StepCAS module incompatible (missing number.integer-method.literal)",
           "a stale module cannot silently omit integer walkthroughs")
-end
-
--- A stale module that predates the relation families must be refused rather than failing on first use.
-do
-    for _, family in ipairs({ { "gravitation", "physics.gravitation.point-masses" },
-                              { "oscillation", "physics.oscillation.restoring-force" },
-                              { "wave", "physics.wave.speed-frequency-wavelength" },
-                              { "modern", "physics.modern.photoelectric" },
-                              { "relativity", "physics.relativity.energy-momentum" } }) do
-        local manifest = copyManifest()
-        for _, entry in ipairs(manifest.installed_modules) do
-            if entry.id == family[2] then entry.id = family[2] .. ".old" end
-        end
-        local module = copyModule()
-        module.capability_manifest = function() return manifest end
-        local env, _, _, ok = loadIsolated(module)
-        check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
-              "StepCAS module incompatible (missing " .. family[2] .. ")",
-              "the manifest must advertise " .. family[2])
-        module = copyModule()
-        module[family[1]] = nil
-        env, _, _, ok = loadIsolated(module)
-        check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
-              "StepCAS module is outdated or incomplete (missing " .. family[1] .. ")",
-              "the module must export " .. family[1])
-    end
 end
 
 -- The real bridge publishes more modules than the fake does, so the ceiling is held against a padded copy.
