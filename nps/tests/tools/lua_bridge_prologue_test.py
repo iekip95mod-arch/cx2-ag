@@ -189,6 +189,8 @@ def main() -> int:
         if not violations(hoisted(f), raising):
             raise AssertionError(f"{f.name} with its owned object hoisted was not reported")
         watched += 1
+    if watched == 0:
+        raise AssertionError("no bridge function validates before its owned object, so the hoisting check proved nothing")
 
     check_order(
         body_of(defined, "l_magnitude_angle_to_components"),
