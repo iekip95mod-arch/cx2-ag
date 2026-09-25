@@ -6,6 +6,7 @@
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
 #include "nps/steps/linear.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -62,18 +63,17 @@ bool valid_motion(CatchUpMotionModel model) {
     return false;
 }
 
-bool normalized(const Rational &source, Rational *value) {
-    *value = source;
-    return normalise(&value->num, &value->den);
-}
+using measure::normalize_copy;
+using measure::normalized_rational_node;
+using measure::verification;
 
 bool valid_quantity(const Quantity &quantity, std::string *detail) {
     Rational value;
-    if (!normalized(quantity.value, &value)) {
+    if (!normalize_copy(quantity.value, &value)) {
         *detail = "the quantity has an invalid exact value";
         return false;
     }
-    if (!normalized(quantity.unit.scale, &value) || value.num <= 0) {
+    if (!normalize_copy(quantity.unit.scale, &value) || value.num <= 0) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
@@ -201,19 +201,6 @@ bool convert_body(const CatchUpBody &body, BodySI *converted,
     return true;
 }
 
-NodeId rational_node(Arena &arena, const Rational &source) {
-    Rational value;
-    if (!normalized(source, &value))
-        return kNoNode;
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    const NodeId numerator = arena.integer(integer_text(value.num));
-    const NodeId denominator = arena.integer(integer_text(value.den));
-    const NodeId reciprocal =
-        arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
 bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
     if (id == kNoNode)
         return false;
@@ -253,9 +240,9 @@ NodeId position_expression(Arena &arena, NodeId time, NodeId position, NodeId ve
 }
 
 NodeId position_expression(Arena &arena, NodeId time, const BodySI &body) {
-    return position_expression(arena, time, rational_node(arena, body.position),
-                               rational_node(arena, body.velocity),
-                               rational_node(arena, body.start));
+    return position_expression(arena, time, normalized_rational_node(arena, body.position),
+                               normalized_rational_node(arena, body.velocity),
+                               normalized_rational_node(arena, body.start));
 }
 
 // The subscript is which body rather than which name, because the two laws are one law written twice.
@@ -286,16 +273,6 @@ Precision finer_precision(const Precision &a, const Precision &b) {
     if (a.kind == NumberKind::Exact || b.kind == NumberKind::Exact)
         return Precision();
     return a.last_significant_decimal_place <= b.last_significant_decimal_place ? a : b;
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
 }
 
 Precision answer_precision(const CatchUpProblem &problem) {
@@ -540,7 +517,7 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     const NodeId first_position = position_expression(arena, time, first);
     const NodeId second_position = position_expression(arena, time, second);
     const NodeId equation = arena.binary(Kind::Equals, first_position, second_position);
-    const NodeId shared_start_node = rational_node(arena, shared_start);
+    const NodeId shared_start_node = normalized_rational_node(arena, shared_start);
     const NodeId active_domain =
         arena.binary(Kind::GreaterEqual, time, shared_start_node);
     *model = equation;
@@ -846,9 +823,9 @@ CatchUpResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         return result;
     }
     const bool positions_match = rational_equal(first_event_position, second_event_position);
-    const NodeId candidate_node = rational_node(arena, candidate);
-    const NodeId first_event_node = rational_node(arena, first_event_position);
-    const NodeId second_event_node = rational_node(arena, second_event_position);
+    const NodeId candidate_node = normalized_rational_node(arena, candidate);
+    const NodeId first_event_node = normalized_rational_node(arena, first_event_position);
+    const NodeId second_event_node = normalized_rational_node(arena, second_event_position);
     const NodeId substituted = arena.binary(Kind::Equals, first_event_node, second_event_node);
     if (arena.failed()) {
         return failed(CatchUpOutcome::ResourceExceeded,

@@ -5,6 +5,7 @@
 
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -38,41 +39,10 @@ ForcesResult failed(ForcesOutcome outcome, DerivationStatus status, const std::s
     return result;
 }
 
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
-               const char *rule_name, const std::string &goal, const std::string &explanation,
-               const char *obligation_id, const std::string &obligation, const char *method,
-               const std::string &verification_detail, EvidenceStrength passing,
-               VerificationOutcome outcome, const std::string &target, const std::string &expected,
-               const std::string &observed) {
-    if (!meter.step())
-        return false;
-    Step step;
-    step.phase = "check";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.claim = ClaimType::Definition;
-    step.proof_obligations.push_back({obligation_id, obligation});
-    step.verifications.push_back(verification(method, verification_detail, passing, outcome));
-    CheckPayload payload;
-    payload.target_claim = target;
-    payload.check_method = method;
-    payload.expected_relation = expected;
-    payload.observed_result = observed;
-    derivation.add_check(parent, std::move(step), std::move(payload));
-    return true;
-}
+using measure::verification;
+using measure::add_check;
+using measure::normalize_copy;
+using measure::normalized_rational_node;
 
 bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
                         const char *rule_name, const std::string &goal,
@@ -102,11 +72,6 @@ bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, con
     return true;
 }
 
-bool normalized(const Rational &source, Rational *value) {
-    *value = source;
-    return normalise(&value->num, &value->den);
-}
-
 bool quantity_si(const Quantity &quantity, const Dimension &expected, Rational *value,
                  std::string *detail) {
     if (quantity.unit.dimension != expected) {
@@ -116,7 +81,7 @@ bool quantity_si(const Quantity &quantity, const Dimension &expected, Rational *
         return false;
     }
     Rational scale;
-    if (!normalized(quantity.unit.scale, &scale) || scale.num <= 0) {
+    if (!normalize_copy(quantity.unit.scale, &scale) || scale.num <= 0) {
         *detail = "the unit " + quantity.unit.text + " has an invalid SI conversion scale";
         return false;
     }
@@ -125,18 +90,6 @@ bool quantity_si(const Quantity &quantity, const Dimension &expected, Rational *
         return false;
     }
     return true;
-}
-
-NodeId rational_node(Arena &arena, const Rational &source) {
-    Rational value;
-    if (!normalized(source, &value))
-        return kNoNode;
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    const NodeId numerator = arena.integer(integer_text(value.num));
-    const NodeId denominator = arena.integer(integer_text(value.den));
-    return arena.binary(Kind::Mul, numerator,
-                        arena.binary(Kind::Pow, denominator, arena.integer("-1")));
 }
 
 std::string newtons(const Rational &value) { return rational_text(value) + " N"; }
@@ -286,7 +239,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         cosine.num = 1;
         cosine.den = 1;
     } else {
-        if (!normalized(problem.incline_sin, &sine) || !normalized(problem.incline_cos, &cosine)) {
+        if (!normalize_copy(problem.incline_sin, &sine) || !normalize_copy(problem.incline_cos, &cosine)) {
             return failed(ForcesOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                           "the incline sine and cosine are not valid exact values");
         }
@@ -314,7 +267,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         coefficient.num = 0;
         coefficient.den = 1;
     } else {
-        if (!normalized(problem.friction_coefficient, &coefficient) || coefficient.num < 0) {
+        if (!normalize_copy(problem.friction_coefficient, &coefficient) || coefficient.num < 0) {
             return failed(ForcesOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                           "the friction coefficient must be an exact non-negative value");
         }
@@ -379,10 +332,10 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
 
     *model = arena.call(
         "forces_problem",
-        {arena.symbol(problem.body), rational_node(arena, mass), rational_node(arena, gravity),
-         arena.symbol(surface_kind_name(problem.surface)), rational_node(arena, sine),
-         rational_node(arena, cosine), arena.symbol(friction_model_name(problem.friction)),
-         rational_node(arena, coefficient), arena.symbol(motion_sense_name(problem.motion)),
+        {arena.symbol(problem.body), normalized_rational_node(arena, mass), normalized_rational_node(arena, gravity),
+         arena.symbol(surface_kind_name(problem.surface)), normalized_rational_node(arena, sine),
+         normalized_rational_node(arena, cosine), arena.symbol(friction_model_name(problem.friction)),
+         normalized_rational_node(arena, coefficient), arena.symbol(motion_sense_name(problem.motion)),
          arena.symbol(forces_unknown_name(problem.unknown))});
     if (arena.failed()) {
         return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
@@ -491,7 +444,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
               weight_across.value, weight.value, true);
 
     const NodeId weight_expression =
-        arena.binary(Kind::Mul, rational_node(arena, mass), rational_node(arena, gravity));
+        arena.binary(Kind::Mul, normalized_rational_node(arena, mass), normalized_rational_node(arena, gravity));
     if (!add_transformation(derivation, meter, plan_id, "physics.forces.weight", "Weight",
                             "Resolve the weight onto the axes",
                             "The weight is m g downward, resolved by the incline angle",
@@ -510,7 +463,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                             ClaimType::EquivalentExpression, weight_expression,
                             "W = " + rational_text(mass) + " * " + rational_text(gravity) + " = " +
                                 newtons(weight.value),
-                            rational_node(arena, weight.value))) {
+                            normalized_rational_node(arena, weight.value))) {
         return ForcesResult();
     }
 
@@ -535,10 +488,10 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     result.across_equation_text = "N + (" + newtons(weight_across.value) + ") = 0";
     result.across_equation = arena.binary(
         Kind::Equals,
-        arena.binary(Kind::Add, arena.symbol("N"), rational_node(arena, weight_across.value)),
+        arena.binary(Kind::Add, arena.symbol("N"), normalized_rational_node(arena, weight_across.value)),
         arena.integer("0"));
     const NodeId isolated_normal =
-        arena.binary(Kind::Equals, arena.symbol("N"), rational_node(arena, normal.value));
+        arena.binary(Kind::Equals, arena.symbol("N"), normalized_rational_node(arena, normal.value));
     if (arena.failed()) {
         return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
                       status_name(arena.status()));
@@ -629,8 +582,8 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     if (problem.friction == FrictionModel::Kinetic) {
         friction = problem.motion == MotionSense::UpTheAxis ? negated(maximum_static.value)
                                                             : maximum_static.value;
-        NodeId friction_expression = arena.binary(Kind::Mul, rational_node(arena, coefficient),
-                                                  rational_node(arena, normal.value));
+        NodeId friction_expression = arena.binary(Kind::Mul, normalized_rational_node(arena, coefficient),
+                                                  normalized_rational_node(arena, normal.value));
         if (problem.motion == MotionSense::UpTheAxis)
             friction_expression = arena.unary(Kind::Neg, friction_expression);
         if (arena.failed()) {
@@ -651,7 +604,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                                  motion_sense_name(problem.motion),
                              EvidenceStrength::DimensionallyValid, VerificationOutcome::Passed),
                 ClaimType::EquivalentExpression, friction_expression,
-                "f = mu_k N = " + newtons(friction), rational_node(arena, friction))) {
+                "f = mu_k N = " + newtons(friction), normalized_rational_node(arena, friction))) {
             return ForcesResult();
         }
         add_entry(&result, ForceKind::Friction, "f", problem.support, friction, zero,
@@ -724,8 +677,8 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     result.along_equation_text =
         rational_text(along_total.value) + " N = " + rational_text(mass) + " kg * a";
     result.along_equation = arena.binary(
-        Kind::Equals, rational_node(arena, along_total.value),
-        arena.binary(Kind::Mul, rational_node(arena, mass), arena.symbol("a")));
+        Kind::Equals, normalized_rational_node(arena, along_total.value),
+        arena.binary(Kind::Mul, normalized_rational_node(arena, mass), arena.symbol("a")));
     if (arena.failed()) {
         return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
                       status_name(arena.status()));
@@ -754,8 +707,8 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             isolated_answer = answer;
             solve_equation = arena.binary(
                 Kind::Equals,
-                arena.binary(Kind::Add, rational_node(arena, along_total.value), arena.symbol("F")),
-                rational_node(arena, required.value));
+                arena.binary(Kind::Add, normalized_rational_node(arena, along_total.value), arena.symbol("F")),
+                normalized_rational_node(arena, required.value));
             solve_symbol = "F";
             break;
         case ForcesUnknown::NormalForce:
@@ -773,8 +726,8 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             isolated_answer = sub(required, along_known);
             solve_equation = arena.binary(
                 Kind::Equals,
-                arena.binary(Kind::Add, rational_node(arena, along_known.value), arena.symbol("f")),
-                rational_node(arena, required.value));
+                arena.binary(Kind::Add, normalized_rational_node(arena, along_known.value), arena.symbol("f")),
+                normalized_rational_node(arena, required.value));
             solve_symbol = "f";
             break;
     }
@@ -784,7 +737,7 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     }
     const NodeId isolated_unknown =
         arena.binary(Kind::Equals, arena.symbol(solve_symbol),
-                     rational_node(arena, isolated_answer.value));
+                     normalized_rational_node(arena, isolated_answer.value));
     if (arena.failed()) {
         return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
                       status_name(arena.status()));

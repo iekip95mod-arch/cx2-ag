@@ -86,6 +86,15 @@ inline NodeId rational_node(Arena &arena, const Rational &rational) {
     return arena.binary(Kind::Mul, numerator, reciprocal);
 }
 
+// The same spelling after normalising first, which refuses a zero denominator or an overflow with
+// no node rather than writing an unreduced fraction into the arena.
+inline NodeId normalized_rational_node(Arena &arena, const Rational &source) {
+    Rational value;
+    if (!normalize_copy(source, &value))
+        return kNoNode;
+    return rational_node(arena, value);
+}
+
 // dimension_powers owns the count, so a new base dimension is still one edit rather than nine.
 inline NodeId dimension_node(Arena &arena, const Dimension &dimension) {
     int powers[kDimensionCount];
@@ -135,7 +144,7 @@ inline bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
     return normalise(&value->num, &value->den);
 }
 
-inline VerificationRecord verification(const char *method, const std::string &detail,
+inline VerificationRecord verification(const std::string &method, const std::string &detail,
                                        EvidenceStrength passing, VerificationOutcome outcome) {
     VerificationRecord record;
     record.method = method;
@@ -143,6 +152,12 @@ inline VerificationRecord verification(const char *method, const std::string &de
     record.outcome = outcome;
     record.strength = strength_for(outcome, passing);
     return record;
+}
+
+inline VerificationRecord verification(const std::string &method, const std::string &detail,
+                                       EvidenceStrength passing, bool passed) {
+    return verification(method, detail, passing,
+                        passed ? VerificationOutcome::Passed : VerificationOutcome::Failed);
 }
 
 // detailed has no default on purpose. STEP-021 wants every transformation to say how to recognise
@@ -159,6 +174,90 @@ inline Step transformation_step(const std::string &goal, const std::string &rule
     step.explanation_detailed = detailed;
     step.claim = ClaimType::SolutionSetPreserved;
     return step;
+}
+
+inline Step transformation_step(const char *rule_id, const char *rule_name, const std::string &goal,
+                                const std::string &explanation, const std::string &detailed,
+                                ClaimType claim, const VerificationRecord &record,
+                                size_t backend_requests = 0) {
+    Step step;
+    step.phase = "solve";
+    step.goal = goal;
+    step.rule_id = rule_id;
+    step.rule_name = rule_name;
+    step.explanation_short = explanation;
+    step.explanation_detailed = detailed;
+    step.claim = claim;
+    step.verifications.push_back(record);
+    step.backend_requests = static_cast<uint32_t>(backend_requests);
+    return step;
+}
+
+// A check whose step the caller has already built. The meter is charged first, so a check the
+// budget cannot pay for is not recorded at all.
+inline bool add_check(Derivation &derivation, Meter &meter, StepId parent, Step step,
+                      const std::string &target, const std::string &expected,
+                      const std::string &observed) {
+    if (!meter.step())
+        return false;
+    CheckPayload payload;
+    payload.target_claim = target;
+    payload.check_method = step.verifications[0].method;
+    payload.expected_relation = expected;
+    payload.observed_result = observed;
+    derivation.add_check(parent, std::move(step), std::move(payload));
+    return true;
+}
+
+inline bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
+                      const char *rule_name, const std::string &goal, const std::string &explanation,
+                      const char *obligation_id, const std::string &obligation, const char *method,
+                      const std::string &verification_detail, EvidenceStrength passing,
+                      VerificationOutcome outcome, const std::string &target,
+                      const std::string &expected, const std::string &observed,
+                      size_t backend_requests = 0) {
+    if (!meter.step())
+        return false;
+    Step step;
+    step.phase = "check";
+    step.goal = goal;
+    step.rule_id = rule_id;
+    step.rule_name = rule_name;
+    step.explanation_short = explanation;
+    step.claim = ClaimType::Definition;
+    step.proof_obligations.push_back({obligation_id, obligation});
+    step.verifications.push_back(verification(method, verification_detail, passing, outcome));
+    step.backend_requests = static_cast<uint32_t>(backend_requests);
+    CheckPayload payload;
+    payload.target_claim = target;
+    payload.check_method = method;
+    payload.expected_relation = expected;
+    payload.observed_result = observed;
+    derivation.add_check(parent, std::move(step), std::move(payload));
+    return true;
+}
+
+// Two argument orders are in use, before-after-action and before-action-after. Both are kept so
+// the callers stay as they were, and the parameter types keep the two apart.
+inline bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
+                               NodeId before, NodeId after, const std::string &action,
+                               bool reversible = true) {
+    if (!meter.rewrite() || !meter.step())
+        return false;
+    TransformationPayload payload;
+    payload.before = before;
+    payload.after = after;
+    payload.concrete_action = action;
+    payload.reversible = reversible;
+    derivation.add_transformation(parent, std::move(step), std::move(payload));
+    return true;
+}
+
+inline bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
+                               NodeId before, const std::string &action, NodeId after,
+                               bool reversible) {
+    return add_transformation(derivation, meter, parent, std::move(step), before, after, action,
+                              reversible);
 }
 
 // What the measured-precision tail did, so each caller maps it onto its own outcome enum.

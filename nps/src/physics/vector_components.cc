@@ -17,16 +17,7 @@ enum class ConversionDirection : uint8_t {
     ToPolar,
 };
 
-NodeId rational_node(Arena &arena, const Rational &value) {
-    Rational normalized = value;
-    if (!normalise(&normalized.num, &normalized.den))
-        return kNoNode;
-    if (normalized.den == 1)
-        return arena.integer(std::to_string(normalized.num));
-    return arena.binary(Kind::Mul, arena.integer(std::to_string(normalized.num)),
-                        arena.binary(Kind::Pow, arena.integer(std::to_string(normalized.den)),
-                                     arena.integer("-1")));
-}
+using measure::normalized_rational_node;
 
 const char *angle_unit_name(AngleUnit unit) {
     switch (unit) {
@@ -49,7 +40,7 @@ NodeId magnitude_angle_model(Arena &arena, const MagnitudeAngleExpr &input) {
     return arena.call(
         "magnitude_angle_to_components",
         {input.magnitude, input.angle, arena.symbol(angle_unit_name(input.angle_unit)),
-         arena.symbol(input.frame.name), rational_node(arena, input.unit.scale),
+         arena.symbol(input.frame.name), normalized_rational_node(arena, input.unit.scale),
          dimension_node(arena, input.unit.dimension), precision_node(arena, input.precision)});
 }
 
@@ -57,7 +48,7 @@ NodeId vector_model(Arena &arena, const VectorExpr &input, AngleUnit output_unit
     return arena.call(
         "components_to_magnitude_angle",
         {arena.call("vector", {input.x, input.y}), arena.symbol(angle_unit_name(output_unit)),
-         arena.symbol(input.frame.name), rational_node(arena, input.unit.scale),
+         arena.symbol(input.frame.name), normalized_rational_node(arena, input.unit.scale),
          dimension_node(arena, input.unit.dimension), precision_node(arena, input.precision),
          arena.integer(std::to_string(input.rank))});
 }
@@ -453,9 +444,9 @@ const char *vector_components_outcome_name(VectorComponentsOutcome outcome) {
 
 VectorExpr vector_expr_from_exact(Arena &arena, const Vector &value) {
     VectorExpr expression;
-    expression.x = rational_node(arena, value.x);
-    expression.y = rational_node(arena, value.y);
-    expression.z = rational_node(arena, value.z);
+    expression.x = normalized_rational_node(arena, value.x);
+    expression.y = normalized_rational_node(arena, value.y);
+    expression.z = normalized_rational_node(arena, value.z);
     expression.rank = value.rank;
     expression.frame = value.frame;
     expression.unit = value.unit;
@@ -829,7 +820,7 @@ static VectorComponentsResult components_to_magnitude_angle_impl(
     const bool approximate = input.precision.kind == NumberKind::Measured;
     const size_t magnitude_calls_before = meter.backend_calls();
     if (exact_magnitude) {
-        magnitude = rational_node(arena, exact_magnitude->value);
+        magnitude = normalized_rational_node(arena, exact_magnitude->value);
         Request check;
         check.op = Op::IsZero;
         check.target = difference(arena, magnitude_formula, magnitude);

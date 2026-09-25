@@ -11,13 +11,8 @@ namespace {
 
 using measure::dimension_node;
 
-NodeId rational_node(Arena &arena, const Rational &value) {
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    return arena.binary(Kind::Mul, arena.integer(integer_text(value.num)),
-                        arena.binary(Kind::Pow, arena.integer(integer_text(value.den)),
-                                     arena.integer("-1")));
-}
+using measure::rational_node;
+using measure::verification;
 
 std::string unit_name(const Unit &unit) {
     return unit.text.empty() ? si_unit_text(unit.dimension) : unit.text;
@@ -37,18 +32,6 @@ NodeId quantity_node(Arena &arena, NodeId value, const Unit &unit, const Precisi
 NodeId quantity_node(Arena &arena, const Quantity &quantity) {
     return quantity_node(arena, rational_node(arena, quantity.value), quantity.unit,
                          quantity.precision);
-}
-
-// Takes the outcome rather than a bool, because a check that could not run is not a check that
-// failed and a bool cannot hold the difference.
-VerificationRecord verification(const std::string &method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.outcome = outcome;
-    record.strength = strength_for(record.outcome, passing);
-    record.detail = detail;
-    return record;
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
