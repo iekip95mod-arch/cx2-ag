@@ -2581,10 +2581,13 @@ do
                       steps_truncated = false }
     local module_differentiate = nps_split.differentiate
     nps_split.differentiate = function() return refusal end
-    local entries = #steps.histText
+    -- The row before, rather than the count: the shell keeps 50 entries and drops the oldest past
+    -- that, so once the suite has filled the history a count cannot tell one row from none.
+    local previous = steps.histText[#steps.histText]
     type_line("!d " .. string.rep("x*", 300) .. "x")
     on.enterKey()
-    check(steps.active == true and steps.result == refusal and #steps.histText == entries + 1 and
+    check(steps.active == true and steps.result == refusal and
+          steps.histText[#steps.histText - 1] == previous and
           steps.histText[#steps.histText][2]:find("resource", 1, true) ~= nil,
           "a typed resource refusal opens the viewer and records the halt, not an invalid record: " ..
               tostring(steps.status))
@@ -2619,7 +2622,6 @@ end
 -- No fixture asks for a rank three magnitude and direction yet, so the record is scripted onto one
 -- that exists. The field values copy what luax_host.lua:1681-1691 asserts the bridge emits for
 -- x = 1, y = 2, z = 3, so the shell is read against the strings it will really be handed.
--- Late in the file because each guided run adds a history row and the shell keeps 50 of them.
 do
 local polar_fixture = nil
 for index, fixture in ipairs(PHYSICS_FIXTURES) do
