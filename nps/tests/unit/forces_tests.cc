@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 
+#include "nps/core/canonical.h"
+#include "nps/core/print.h"
 #include "nps/physics/forces.h"
 #include "unit/adapter_tests.h"
 
@@ -40,6 +42,43 @@ bool has_rule(const Derivation &derivation, const char *rule) {
             return true;
     }
     return false;
+}
+
+bool has_obligation_contract(const Derivation &derivation, const char *rule,
+                             const char *obligation_id, const char *obligation_text,
+                             const char *method, ClaimType claim) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const Step &step = derivation.at(static_cast<StepId>(index));
+        if (step.rule_id != rule)
+            continue;
+        return step.claim == claim &&
+               step.proof_obligations.size() == 1 &&
+               step.proof_obligations[0].id == obligation_id &&
+               step.proof_obligations[0].text == obligation_text && step.verifications.size() == 1 &&
+               step.verifications[0].evidence_id == obligation_id &&
+               step.verifications[0].method == method &&
+               step.verifications[0].strength == EvidenceStrength::DimensionallyValid &&
+               step.verifications[0].outcome == VerificationOutcome::Passed;
+    }
+    return false;
+}
+
+const Step *step_by(const Derivation &derivation, const char *rule) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const Step &step = derivation.at(static_cast<StepId>(index));
+        if (step.rule_id == rule)
+            return &step;
+    }
+    return nullptr;
+}
+
+const TransformationPayload *moved_by(const Derivation &derivation, const char *rule) {
+    for (size_t index = 0; index < derivation.size(); ++index) {
+        const StepId id = static_cast<StepId>(index);
+        if (derivation.at(id).rule_id == rule)
+            return derivation.transformation(id);
+    }
+    return nullptr;
 }
 
 const ForceEntry *entry_of(const ForcesResult &result, ForceKind kind) {
@@ -86,6 +125,67 @@ void run_forces_tests(TestSink &t) {
                 "the residual and dimension checks are recorded");
         t.check(solved.derivation.all_verified_from(0),
                 "every claim in a solved force problem has passing evidence");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.weight", "obl.forces.weight-components",
+                    "weight is mass times gravity and its components are its exact incline projections",
+                    "exact rational product", ClaimType::EquivalentExpression),
+                "the weight product discharges its component obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.normal-force",
+                    "obl.forces.normal-from-balance",
+                    "the normal force makes the exact across-axis sum zero",
+                    "exact across-axis sum", ClaimType::SolutionSetPreserved),
+                "the across-axis sum discharges the normal-force obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.kinetic-friction",
+                    "obl.forces.kinetic-friction",
+                    "kinetic friction has magnitude mu_k N and points opposite the declared motion",
+                    "exact rational product", ClaimType::EquivalentExpression),
+                "the friction product discharges the kinetic-friction obligation");
+        t.check(has_obligation_contract(
+                    solved.derivation, "physics.forces.solve-unknown",
+                    "obl.forces.unknown-isolated",
+                    "exact rearrangement isolates the requested unknown from its force-balance equation",
+                    "exact rearrangement", ClaimType::SolutionSetPreserved),
+                "the rearrangement discharges the unknown-isolation obligation");
+        const TransformationPayload *kinetic =
+            moved_by(solved.derivation, "physics.forces.kinetic-friction");
+        const Step *kinetic_step = step_by(solved.derivation, "physics.forces.kinetic-friction");
+        t.check(kinetic != nullptr && kinetic_step != nullptr &&
+                    kinetic_step->claim == ClaimType::EquivalentExpression && kinetic->reversible,
+                "the kinetic-friction record claims a reversible equivalent expression");
+        if (kinetic != nullptr) {
+            t.check(solved.arena.at(kinetic->before).kind == Kind::Neg &&
+                        literal_sign(solved.arena, kinetic->after) == Sign::Negative,
+                    "the kinetic-friction expression and value both carry the opposing sign");
+            t.check(canonicalize(solved.arena, kinetic->before) ==
+                        canonicalize(solved.arena, kinetic->after),
+                    "the signed kinetic-friction expression is exactly equivalent to its value");
+        }
+        const TransformationPayload *normal_move =
+            moved_by(solved.derivation, "physics.forces.normal-force");
+        const Step *normal_step = step_by(solved.derivation, "physics.forces.normal-force");
+        t.check(normal_move != nullptr && normal_step != nullptr &&
+                    normal_step->claim == ClaimType::SolutionSetPreserved &&
+                    normal_move->reversible &&
+                    solved.arena.at(normal_move->before).kind == Kind::Equals &&
+                    solved.arena.at(normal_move->after).kind == Kind::Equals,
+                "normal-force isolation preserves an equation's solution set reversibly");
+        if (normal_move != nullptr)
+            t.equal(print(solved.arena, normal_move->after), "(N = 20)",
+                    "normal-force isolation records the solved equation rather than a scalar");
+        const TransformationPayload *solve_move =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const Step *solve_step = step_by(solved.derivation, "physics.forces.solve-unknown");
+        t.check(solve_move != nullptr && solve_step != nullptr &&
+                    solve_step->claim == ClaimType::SolutionSetPreserved &&
+                    solve_move->reversible &&
+                    solved.arena.at(solve_move->before).kind == Kind::Equals &&
+                    solved.arena.at(solve_move->after).kind == Kind::Equals,
+                "unknown isolation preserves an equation's solution set reversibly");
+        if (solve_move != nullptr)
+            t.equal(print(solved.arena, solve_move->after), "(a = (7 * (2^-1)))",
+                    "unknown isolation records the solved equation rather than a scalar");
         bool every_entry_known = true;
         for (const ForceEntry &entry : solved.result.inventory)
             every_entry_known = every_entry_known && entry.known;
@@ -121,6 +221,14 @@ void run_forces_tests(TestSink &t) {
         const ForceEntry *given_weight = entry_of(solved.result, ForceKind::Weight);
         t.check(given_weight != nullptr && given_weight->known,
                 "the weight supplied with the problem stays marked known beside it");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId friction_symbol = solved.arena.symbol("f");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, friction_symbol),
+                "friction isolation starts from an equation that contains friction");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(f = 12)",
+                    "friction isolation preserves the solved equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a consistent static equilibrium carries passing evidence throughout");
     }
@@ -149,8 +257,46 @@ void run_forces_tests(TestSink &t) {
                 "the weight supplied beside the kinetic friction stays marked known");
         t.check(has_rule(solved.derivation, "physics.forces.kinetic-friction"),
                 "the kinetic friction rule is recorded for the requested unknown");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(f = -5)",
+                    "a consistent kinetic candidate matches the isolated balance equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a solved kinetic friction request carries passing evidence throughout");
+    }
+    {
+        ForcesProblem problem = base(ForcesUnknown::FrictionForce);
+        problem.applied = parsed("9 N");
+        problem.has_applied = true;
+        problem.friction = FrictionModel::Kinetic;
+        problem.friction_coefficient = Rational{1, 4};
+        problem.motion = MotionSense::UpTheAxis;
+        problem.assume_equilibrium = false;
+        problem.acceleration = parsed("0 m/s^2");
+        problem.has_acceleration = true;
+        Run refused(problem);
+        t.check(refused.result.outcome == ForcesOutcome::VerificationFailed,
+                "a kinetic candidate inconsistent with the declared acceleration is refused");
+        t.check(!refused.result.has_value,
+                "an inconsistent kinetic candidate does not publish a friction value");
+        const TransformationPayload *candidate =
+            moved_by(refused.derivation, "physics.forces.kinetic-friction");
+        const TransformationPayload *isolation =
+            moved_by(refused.derivation, "physics.forces.solve-unknown");
+        if (candidate != nullptr)
+            t.equal(print(refused.arena, candidate->after), "-5",
+                    "the coefficient-derived kinetic candidate stays recorded separately");
+        if (isolation != nullptr) {
+            t.equal(print(refused.arena, isolation->before), "((9 + f) = 0)",
+                    "friction isolation starts from the declared force balance");
+            t.equal(print(refused.arena, isolation->after), "(f = -9)",
+                    "friction isolation derives its value from the same balance equation");
+        }
+        t.check(candidate != nullptr && isolation != nullptr,
+                "the inconsistent kinetic candidate and algebraic isolation are both auditable");
+        t.check(!refused.derivation.all_verified_from(0),
+                "the residual check records the inconsistent kinetic candidate as failing");
     }
     {
         // The same ramp with too little friction: the assumption is tested and fails.
@@ -238,6 +384,14 @@ void run_forces_tests(TestSink &t) {
                 others_known = others_known && entry.known;
         }
         t.check(others_known, "the forces the problem supplied stay marked known");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId applied_symbol = solved.arena.symbol("F");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, applied_symbol),
+                "applied-force isolation starts from an equation that contains the applied force");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(F = 14)",
+                    "applied-force isolation preserves the solved equation");
     }
     {
         // The shape the bridge suite publishes: a frictionless horizontal push solved for.
@@ -378,6 +532,14 @@ void run_forces_tests(TestSink &t) {
         const ForceEntry *support = entry_of(solved.result, ForceKind::Normal);
         t.check(support != nullptr && !support->known,
                 "the normal force the request asked for is inventoried as the unknown one");
+        const TransformationPayload *isolation =
+            moved_by(solved.derivation, "physics.forces.solve-unknown");
+        const NodeId normal_symbol = solved.arena.symbol("N");
+        t.check(isolation != nullptr && depends_on(solved.arena, isolation->before, normal_symbol),
+                "normal-force isolation starts from the across-axis equation containing N");
+        if (isolation != nullptr)
+            t.equal(print(solved.arena, isolation->after), "(N = 20)",
+                    "normal-force isolation preserves the solved equation");
         t.check(solved.derivation.all_verified_from(0),
                 "a normal force answer carries passing evidence throughout");
     }

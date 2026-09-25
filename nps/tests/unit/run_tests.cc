@@ -682,13 +682,12 @@ void test_math004_relations() {
         return c == kNoNode ? std::string("did not canonicalize") : print(a, c);
     };
     // Asked as a comparison rather than against a literal, because the interesting claim is that
-    // the relation is the only thing that differs. Canonicalization reorders both sides the same
+    // the relation is the only thing that differs. Canonicalization collects both sides the same
     // way whichever relation sits between them, so an approximation coming back equalized would
-    // show up here as the two agreeing. Like terms are not collected at this stage, by either
-    // relation, which is the collect rule's job and not this one's.
-    equal(canonical_shape("2x + x ~= 3"), "((x + (2 * x)) ~= 3)",
+    // show up here as the two agreeing.
+    equal(canonical_shape("2x + x ~= 3"), "((3 * x) ~= 3)",
           "MATH-004: canonicalizing an approximation keeps it an approximation");
-    equal(canonical_shape("2x + x == 3"), "((x + (2 * x)) == 3)",
+    equal(canonical_shape("2x + x == 3"), "((3 * x) == 3)",
           "and canonicalizing an identity keeps it an identity");
     check(canonical_shape("2x + x ~= 3") != canonical_shape("2x + x = 3"),
           "so an approximation and the equality written over the same sides stay apart");
