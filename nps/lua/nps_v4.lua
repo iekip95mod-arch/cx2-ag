@@ -2731,6 +2731,46 @@ PHYSICS_FIXTURES = {
 		end,
 	},
 	{
+		label = "Find where a curved mirror puts the image",
+		problem = "A candle stands 30 centimetres from a mirror curved like a bowl that focuses " ..
+		          "at 10 centimetres. Where does its picture form, and which way up?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("spherical mirror", "image distance", "focal length", "10 cm",
+			                         "object distance", "30 cm")
+		end,
+	},
+	{
+		label = "See why light can get trapped inside glass",
+		problem = "Glass that bends light twice as much as air, and a ray meeting its surface at " ..
+		          "a steep slant. Past a certain slant the light cannot get out at all.",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("refraction", "transmitted sine", "incident index", "2",
+			                         "incident sine", "0.8", "transmitted index", "1")
+		end,
+	},
+	{
+		label = "Find where bright bands form behind two slits",
+		problem = "Microwaves 3 centimetres long pass two slits 6 centimetres apart. At what " ..
+		          "slant is the first bright band beside the middle one?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("two-slit interference", "fringe sine", "slit spacing", "6 cm",
+			                         "fringe order", "1", "wavelength", "3 cm")
+		end,
+	},
+	{
+		label = "Find where the first dark band falls behind a gap",
+		problem = "The same 3 centimetre microwaves pass one gap 6 centimetres wide. At what " ..
+		          "slant does the first dark band fall?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm",
+			                         "fringe order", "1", "wavelength", "3 cm")
+		end,
+	},
+	{
 		label = "Find where a thrown ball lands",
 		problem = "A ball is thrown sideways off a ledge while gravity pulls it down. Find how " ..
 		          "far sideways it travels and how fast it is moving when it lands.",
@@ -2890,8 +2930,11 @@ local function resultClass(r)
 end
 
 local function resultNote(r)
+	-- A verified conclusion with no answer, such as total internal reflection, is named by its outcome.
+	local state = r.status or r.outcome or "unavailable"
+	if not hasAnswer(r) and r.status == "solved and verified" and r.outcome then state = r.outcome end
 	local note = (r.answer_only and "CAS answer  |  " or "") .. resultClass(r) ..
-	             "  |  " .. (r.status or r.outcome or "unavailable") .. "  |  " .. stepVerdict(r)
+	             "  |  " .. state .. "  |  " .. stepVerdict(r)
 	if not r.solved and r.detail and r.detail ~= "" then note = note .. "  |  " .. r.detail end
 	return note
 end

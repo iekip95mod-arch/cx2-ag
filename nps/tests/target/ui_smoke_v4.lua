@@ -752,7 +752,11 @@ nps_split = {
         return fake_unit_conversion
     end,
     density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
-    optics = function(...) calls.optics = calls.optics + 1 last_args = { ... } return fake_optics end,
+    optics = function(...)
+        calls.optics = calls.optics + 1
+        last_args = { ... }
+        return optics_replies and optics_replies[last_args[1]] or fake_optics
+    end,
     vector_addition = function(...)
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
@@ -2790,7 +2794,7 @@ do
     local optics_before = calls.optics
     local optics_index = nil
     for index, fixture in ipairs(PHYSICS_FIXTURES) do
-        if fixture.mode == "optics" then optics_index = index end
+        if fixture.mode == "optics" and optics_index == nil then optics_index = index end
     end
     check(optics_index ~= nil, "the guided browser carries an optics fixture")
     physicsBrowser.focus = optics_index
@@ -2805,6 +2809,113 @@ do
     check(steps.result.result == "image distance = 0.3 m",
           "the optics fixture shows the image distance the bridge returned")
     on.escapeKey()
+end
+
+-- The other four optics relations, each answered with the strings luax_host asserts the real
+-- bridge emits for the same arguments. Global, since this file is at Lua's 200-local ceiling.
+optics_replies = {
+    ["spherical mirror"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "image distance = 0.15 m", value = "0.15",
+        exact_value = "0.15", unit = "m", relation = "spherical mirror", unknown = "image distance",
+        magnification = "-0.5", precision = { kind = "exact", significant_digits = 0 },
+        convention = "distances are positive in front of the mirror, so a real object has do > 0",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Spherical mirror equation", goal = "Find the image distance",
+                    short = "Use 1/do + 1/di = 1/f", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["refraction"] = {
+        outcome = "total internal reflection", solved = false, answer_only = false,
+        status = "solved and verified", relation = "refraction", unknown = "transmitted sine",
+        detail = "the transmitted sine would be 1.6, above the critical sine 0.5",
+        critical_sine = "0.5", nodes = 15, step_count = 4, rewrites = 3, giac_calls = 0,
+        convention = "angles are measured from the normal, each sine is a non-negative ratio",
+        steps = { { kind = "plan", name = "Snell's law", goal = "Find the transmitted sine",
+                    short = "Use n1 sin(t1) = n2 sin(t2)", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["two-slit interference"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "fringe sine = 0.5", value = "0.5",
+        exact_value = "0.5", unit = "", relation = "two-slit interference", unknown = "fringe sine",
+        precision = { kind = "exact", significant_digits = 0 },
+        convention = "the order m counts bright fringes outward from the central maximum",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Two-slit maxima", goal = "Find the fringe sine",
+                    short = "Use d sin(t) = m lambda", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["single-slit diffraction"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "fringe sine = 0.5", value = "0.5",
+        exact_value = "0.5", unit = "", relation = "single-slit diffraction", unknown = "fringe sine",
+        precision = { kind = "exact", significant_digits = 0 },
+        convention = "the order m counts diffraction minima outward",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Single-slit minima", goal = "Find the fringe sine",
+                    short = "Use a sin(t) = m lambda", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+}
+do
+    local cases = {
+        { relation = "spherical mirror", result = "image distance = 0.15 m",
+          args = { "spherical mirror", "image distance", "focal length", "10 cm",
+                   "object distance", "30 cm" } },
+        { relation = "refraction", reflected = true,
+          args = { "refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
+                   "transmitted index", "1" } },
+        { relation = "two-slit interference", result = "fringe sine = 0.5",
+          args = { "two-slit interference", "fringe sine", "slit spacing", "6 cm", "fringe order", "1",
+                   "wavelength", "3 cm" } },
+        { relation = "single-slit diffraction", result = "fringe sine = 0.5",
+          args = { "single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "1", "wavelength", "3 cm" } },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(cases) do
+        local index = nil
+        -- Found by the relation its run names, since five fixtures now share the optics mode.
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == "optics" and index == nil then
+                local saved, seen = nps_nspire.optics, nil
+                nps_nspire.optics = function(relation) seen = relation return {} end
+                pcall(fixture.run)
+                nps_nspire.optics = saved
+                if seen == case.relation then index = position end
+            end
+        end
+        check(index ~= nil, "the guided browser carries a " .. case.relation .. " fixture")
+        local before = calls.optics
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls.optics == before + 1 and steps.result.mode == "optics",
+              "the " .. case.relation .. " fixture runs through the optics bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, "the " .. case.relation .. " fixture names the relation, unknown and knowns")
+        text = painted()
+        if case.reflected then
+            check(steps.result.outcome == "total internal reflection" and steps.result.result == nil,
+                  "the trapped-light fixture keeps its conclusion rather than inventing an answer")
+            check(text:find("total internal reflection", 1, true) ~= nil and
+                  text:find("critical sine 0.5", 1, true) ~= nil,
+                  "the trapped-light fixture shows the conclusion and the critical sine")
+        else
+            check(steps.result.result == case.result and mathBoxExact(case.result) ~= nil,
+                  "the " .. case.relation .. " answer renders whole in the viewer")
+        end
+        check(#steps.histText == history_before + 1,
+              "the " .. case.relation .. " fixture joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
 end
 
 -- Every guided entry has to tell a student who has not taken the course what it does. That is a

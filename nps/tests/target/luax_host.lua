@@ -1185,6 +1185,67 @@ r = nps.optics("refraction", "transmitted sine", "incident index", "2", "inciden
 check(r.outcome == "total internal reflection" and r.solved == false and r.result == nil and
       r.critical_sine == "0.5" and #r.steps > 0,
       "the optics bridge preserves total internal reflection as a recorded conclusion")
+do
+    check(r.detail:find("1.6", 1, true) ~= nil and r.relation == "refraction" and
+          r.unknown == "transmitted sine",
+          "total internal reflection says which transmitted sine could not exist")
+    local tir_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then tir_rules[s.rule] = true end end
+    check(tir_rules["physics.optics.total-internal-reflection"] and
+          tir_rules["physics.optics.refraction.snell"],
+          "the reflection conclusion keeps the record that proved it from the critical sine")
+
+    -- 1/di = 1/10 - 1/30 = 1/15 per centimetre, so the image is 15 cm out at half height.
+    r = nps.optics("spherical mirror", "image distance", "focal length", "10 cm",
+                   "object distance", "30 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "spherical mirror" and r.unknown == "image distance",
+          "the optics bridge returns a verified spherical mirror solution")
+    check(r.result == "image distance = 0.15 m" and r.value == "0.15" and r.unit == "m" and
+          r.magnification == "-0.5" and r.precision.kind == "exact",
+          "the mirror answer carries the real inverted half-size image")
+    check(r.convention:find("in front of the mirror", 1, true) ~= nil and r.critical_sine == nil,
+          "the mirror answer is read under the mirror's own sign convention")
+    local mirror_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then mirror_rules[s.rule] = true end end
+    check(mirror_rules["physics.optics.spherical-mirror.image"] and
+          mirror_rules["physics.optics.sign-convention"] and
+          mirror_rules["physics.optics.check-candidate"],
+          "the mirror bridge retains its relation, convention and candidate check")
+
+    -- d sin(t) = m lambda with 3 cm microwaves through slits 6 cm apart gives 1 * 3 / 6.
+    r = nps.optics("two-slit interference", "fringe sine", "slit spacing", "6 cm",
+                   "fringe order", "1", "wavelength", "3 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "two-slit interference" and r.unknown == "fringe sine",
+          "the optics bridge returns a verified two-slit solution")
+    check(r.result == "fringe sine = 0.5" and r.value == "0.5" and r.unit == "" and
+          r.magnification == nil and r.critical_sine == nil,
+          "the two-slit answer is a bare sine with no unit")
+    check(r.convention:find("bright fringes", 1, true) ~= nil,
+          "the two-slit answer counts bright fringes from the centre")
+    local slit_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then slit_rules[s.rule] = true end end
+    check(slit_rules["physics.optics.double-slit.maxima"] and
+          slit_rules["physics.optics.check-domain"],
+          "the two-slit bridge retains its relation and domain check")
+
+    r = nps.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "1", "wavelength", "3 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "single-slit diffraction" and r.result == "fringe sine = 0.5",
+          "the optics bridge returns a verified single-slit solution")
+    check(r.convention:find("diffraction minima", 1, true) ~= nil,
+          "the single-slit answer counts dark minima rather than bright fringes")
+    slit_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then slit_rules[s.rule] = true end end
+    check(slit_rules["physics.optics.single-slit.minima"],
+          "the single-slit bridge retains its own relation record")
+    r = nps.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "0", "wavelength", "3 cm")
+    check(r.solved == false and r.result == nil and r.outcome ~= "solved",
+          "the single-slit bridge refuses order zero, the central maximum rather than a minimum")
+end
 
 r = nps.optics("thin lens", "image distance", "focal length", "10 cm", "object distance", "3 s")
 check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil and

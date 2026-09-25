@@ -162,7 +162,7 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1435.
+**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1437.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
