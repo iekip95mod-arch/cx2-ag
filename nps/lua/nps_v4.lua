@@ -67,6 +67,7 @@ local requiredSolvers = {
 	{ "oscillation", "physics.oscillation.restoring-force" },
 	{ "wave", "physics.wave.speed-frequency-wavelength" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -2744,6 +2745,24 @@ PHYSICS_FIXTURES = {
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+				projectile = true,
+			})
+		end,
+	},
+	{
+		label = "Find where a ball goes in a steady sideways wind",
+		problem = "A ball is thrown up and forward while a steady wind pushes it sideways the " ..
+		          "whole way and gravity pulls it down. It rises, slows, and is falling again " ..
+		          "by the time two seconds are up. Find where it has got to and how fast it is going.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "ball",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})

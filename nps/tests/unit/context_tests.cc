@@ -48,6 +48,7 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "calculus.linearization.single-variable"},
     {"solver", "physics.kinematics.constant-acceleration.one-dimension"},
     {"solver", "physics.kinematics.constant-acceleration.projectile.two-dimension"},
+    {"solver", "physics.kinematics.constant-acceleration.two-dimension"},
     {"solver", "physics.kinematics.catch-up.equal-position"},
     {"solver", "physics.kinematics.relative-motion.components.two-dimension"},
     {"solver", "physics.density.mass-volume"},

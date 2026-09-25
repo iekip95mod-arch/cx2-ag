@@ -148,11 +148,25 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 `optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`,
 `vector_cross`, `wave` and `work`.
 
-The shell refuses a manifest listing more than 64 modules (nps_v4.lua:108). It was 32 until the
+The shell refuses a manifest listing more than 64 modules (nps_v4.lua:109). It was 32 until the
 relation families took the real manifest to 34, and nothing on the host held the real count against
 that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65.
 
-`planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
+`planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
+single entry point and the family is chosen by an optional flag, so one menu entry per family is what
+makes both of them reachable.
+
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2750 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2761-2768 carries no projectile key at all, which is how the
+ball in a sideways wind reaches the general family.
+nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+physics.kinematics.constant-acceleration.projectile.two-dimension or
+physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
+nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/lua/nps_v4.lua:69-70, so a build missing either one refuses to start rather than offering a
+menu entry that cannot run.
+
+`position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
 nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
 with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
@@ -173,8 +187,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3188, measureMath
-sets the expression at :3222, and the history editor sets its expression at :1440.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3207, measureMath
+sets the expression at :3241, and the history editor sets its expression at :1441.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
