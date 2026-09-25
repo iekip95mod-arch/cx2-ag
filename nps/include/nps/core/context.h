@@ -41,9 +41,7 @@ struct ContextInputs {
 SolutionContext make_context(const ContextInputs &inputs);
 
 #if NPS_FAMILY_CENSUS
-// The host test build only, so the device target carries neither the storage nor the call. Every
-// family id in the codebase is stamped through make_context, which is why the census sits there
-// rather than in a test that each engine would have to remember to call.
+// Host only, and it sits at make_context because that is the one point every family id passes.
 const std::set<std::string> &family_census();
 #endif
 

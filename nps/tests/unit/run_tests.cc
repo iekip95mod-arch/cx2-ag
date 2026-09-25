@@ -836,8 +836,7 @@ void write_evidence(const TestSink &s) {
     }
     for (const std::string &g : s.groups_run)
         fprintf(f, "group\t%s\n", g.c_str());
-    // Every family id this run stamped, which is what lets the coverage join ask after a family
-    // rather than after a test group that some other family already claims.
+    // Every family id this run stamped, so the coverage join can ask after a family rather than a group.
     for (const std::string &family : family_census())
         fprintf(f, "family\t%s\n", family.c_str());
     for (const Evidence &e : s.evidence_records)

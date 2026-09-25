@@ -1206,8 +1206,7 @@ else()
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
     target_include_directories(nps_core PUBLIC include)
-    # The family census the coverage join reads. Host only, so the calculator build carries neither
-    # the storage nor the call.
+    # The family census the coverage join reads, host only so the calculator build carries none of it.
     target_compile_definitions(nps_core PUBLIC NPS_FAMILY_CENSUS=1)
 
     # Section 5.2's item 2, the host test harness.
