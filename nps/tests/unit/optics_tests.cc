@@ -120,6 +120,17 @@ void run_optics_tests(TestSink &t) {
                        contains(solved.rules, "physics.optics.check-candidate"),
                    "refraction provenance names the plan, dimensions, domain, convention, "
                    "substitution and final check");
+        // Issue 423. One tag covers all five optics families, which share this group and these steps.
+        t.evidence("PHYS-025",
+                   contains(solved.rules, "physics.optics.refraction.snell") &&
+                       contains(solved.rules, "physics.optics.check-domain") &&
+                       contains(solved.rules, "physics.optics.sign-convention") &&
+                       contains(solved.rules, "physics.optics.check-dimensions") &&
+                       contains(solved.rules, "physics.optics.check-candidate") &&
+                       solved.result.has_critical_sine,
+                   "the optics families record the law each selects, the sign convention they "
+                   "report under, the domain the law is valid on and their dimension and candidate "
+                   "checks");
         t.check(solved.result.equation != kNoNode && solved.result.substituted != kNoNode &&
                     solved.result.unknown != kNoNode && solved.result.value != kNoNode,
                 "the typed refraction result retains the symbolic and substituted models");

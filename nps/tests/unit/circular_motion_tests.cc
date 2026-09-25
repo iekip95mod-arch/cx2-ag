@@ -71,6 +71,21 @@ void run_circular_motion_tests(TestSink &t) {
                    contains(assumptions_of(derivation),
                             "directed toward the centre of the circle"),
                    "the derivation records that the acceleration points at the centre");
+        std::string rules;
+        for (size_t index = 0; index < derivation.size(); ++index)
+            rules += derivation.at(static_cast<StepId>(index)).rule_id + " | ";
+        t.evidence("PHYS-025",
+                   contains(assumptions_of(derivation), "the speed is constant") &&
+                       contains(assumptions_of(derivation),
+                                "directed toward the centre of the circle") &&
+                       contains(rules, "physics.circular-motion.period.definition") &&
+                       contains(rules, "physics.circular-motion.period.check-dimensions") &&
+                       contains(rules, "physics.circular-motion.period.substitute") &&
+                       contains(rules, "physics.circular-motion.period.check-candidate") &&
+                       contains(rules, "physics.circular-motion.acceleration.definition") &&
+                       contains(rules, "physics.circular-motion.acceleration.check-candidate"),
+                   "the circular-motion family records its constant-speed condition, the direction "
+                   "convention for the acceleration, both governing relations and their checks");
     }
     {
         // r = 1 m and T set to the same exact 2*pi rational the engine uses makes v = 2*pi*r/T
