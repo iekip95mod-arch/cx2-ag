@@ -1127,8 +1127,9 @@ int l_capability_manifest(lua_State *L) {
     lua_newtable(L);
     set_field(L, "name", manifest.symbolic_backend.name);
     set_field(L, "version", manifest.symbolic_backend.version);
+    // No availability key: SymbolicBackendCapability has no such field and integrity_status already
+    // answers that question, so an invented one would have read false in every state.
     if (integrity_failed) {
-        set_field(L, "available", false);
         set_field(L, "interface_id", "unavailable");
         set_field(L, "deployment", "integrity-rejected");
     } else {
