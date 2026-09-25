@@ -1900,6 +1900,19 @@ int solve_into(lua_State *L, bool cross) {
     Attempt a;
     QuadraticResult q =
         solve_by_square_root(arena, d, parsed.root, unknown, interactive_budget());
+    if (!quadratic_family(q.outcome)) {
+        // A term of degree one: factoring when an integer pair exists, and the formula when not.
+        QuadraticResult factored =
+            solve_by_factoring(arena, d, parsed.root, unknown, interactive_budget());
+        add_cost(&factored.cost, q.cost);
+        if (factored.outcome == QuadraticOutcome::OutsideEnvelope) {
+            QuadraticResult formula =
+                solve_quadratic(arena, d, parsed.root, unknown, interactive_budget());
+            add_cost(&formula.cost, factored.cost);
+            factored = formula;
+        }
+        q = factored;
+    }
     if (quadratic_family(q.outcome)) {
         a = quadratic_attempt(arena, q);
     } else {

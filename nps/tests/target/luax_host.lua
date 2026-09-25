@@ -253,11 +253,13 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
     "algebra.quadratic.pure-square.one-unknown",
+    "algebra.quadratic.formula.one-unknown",
+    "algebra.quadratic.factoring.one-unknown",
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
     "number.integer-method.literal",
@@ -2312,10 +2314,24 @@ check(r.outcome == "outside the declared envelope" and r.solved == false and #r.
       r.detail:find("whose square root is not exact", 1, true) ~= nil,
       "a square with no exact root is refused by name rather than answered in decimals")
 
+-- ALG-004. A term of degree one goes to factoring, and to the formula when no integer pair exists.
 script("[-4,1]")
 r = nps.solve("x^2 + 3x = 4", "x")
-check(r.outcome == "not linear in the unknown" and #r.steps == 0 and r.has_result == true and
-      r.answer_only == true and r.status == "unsupported" and r.result == "[(-4), 1]",
+check(r.outcome == "solved" and r.solved == true and r.answer_only == false and
+      r.status == "solved and verified" and r.result == "(-4) and 1" and r.agrees == true and
+      command_has_rule(r, "eq.quadratic.factor") and command_has_rule(r, "eq.quadratic.zero-product-case"),
+      "a quadratic with an integer factor pair is solved natively by factoring and agrees with Giac")
+script("[]")
+r = nps.solve("x^2 + x + 1 = 0", "x")
+check(r.outcome == "no real solution" and r.has_result == true and r.answer_only == false and
+      command_has_rule(r, "eq.quadratic.reject-negative-discriminant") and
+      not command_has_rule(r, "eq.quadratic.factor"),
+      "a quadratic with no factor pair and a negative discriminant is settled by the formula")
+script("[(-1-sqrt(5))/2,(-1+sqrt(5))/2]")
+r = nps.solve("x^2 + x = 1", "x")
+check(r.outcome == "outside the declared envelope" and #r.steps == 0 and r.has_result == true and
+      r.answer_only == true and r.status == "unsupported" and
+      r.result == "[(((-1) + (-sqrt(5))) * (2^(-1))), (((-1) + sqrt(5)) * (2^(-1)))]",
       "a refused native quadratic retains every backend root as an explicitly separate answer")
 
 -- The linear rule states two answers that have no value to print, the same way the square-root rule

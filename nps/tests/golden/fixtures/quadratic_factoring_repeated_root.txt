@@ -1,0 +1,111 @@
+problem: x^2 - 6x + 9 = 0
+variable: x
+outcome: solved
+result: 3
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.factoring.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((((x^2) + (-(6 * x))) + 9) = 0)
+  requested method: find two integers whose product is a*c and whose sum is b, factor, and set each factor to zero
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.factoring, Solve by factoring
+    claim: no claim
+    explanation: Find two numbers whose product is a*c and whose sum is b, then factor and set each factor to zero
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Factor the quadratic and set each factor to zero
+    applicability: the equation is a polynomial of degree two in x over the rationals
+    applicability: two integers multiply to a*c and add to b once the equation is cleared of fractions
+    fact: one unknown, x
+    fact: degree two in x with a term of degree one
+    fact: (-3) and (-3) multiply to 9 and add to (-6)
+    alternative: the quadratic formula, which solves every quadratic but reads the roots off the coefficients rather than showing the two factors they come from
+    rationale: an integer pair with product a*c and sum b exists, so the quadratic splits into two linear factors and each root can be read off the factor that vanishes
+    verification: structural degree bound and exact interpolation, passed, no power of x above the second occurs, and the coefficient of x^2 is 1
+    verification: exact integer factor pair, passed, (-3) and (-3) multiply to 9 and add to (-6)
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Write the equation as a*x^2 + b*x + c = 0
+      rule: eq.quadratic.standard-form, Standard form
+      claim: solution set preserved
+      explanation: Move everything to one side so the three coefficients are on show
+      detail: Factoring works on an expression equal to zero, so every term has to be on one side first. Moving them changes how the equation is written and not what solves it.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Collect on the left: a = 1, b = (-6), c = 9
+      before: ((((x^2) + (-(6 * x))) + 9) = 0)
+      after: ((((1 * (x^2)) + ((-6) * x)) + 9) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the coefficients were read from the equation itself and put back in the same order
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Factor the quadratic
+      rule: eq.quadratic.factor, Factor by a product and sum pair
+      claim: solution set preserved
+      explanation: (-3) and (-3) multiply to a*c and add to b, so the quadratic splits into one repeated factor
+      detail: Reach for factoring when a*c has a factor pair adding to b. Each number in the pair gives a linear factor, and writing the quadratic as their product changes its form and not its value, which the multiplication back out confirms.
+      proof obligation: obl.alg.factor-multiplies-back, the factored form multiplies back out to the original
+      action: Split b into (-3) and (-3) and factor
+      before: ((((1 * (x^2)) + ((-6) * x)) + 9) = 0)
+      after: (((1 * (x + (-3))) * (x + (-3))) = 0)
+      reversible: yes
+      verification: multiply the factors out and compare term by term, passed, multiplied out, the factors have the coefficients a = 1, b = (-6) and c = 9, read by exact interpolation at 0, 1 and -1
+      verified: yes
+      1.2.1 branch
+        phase: solve
+        goal: Set the factor (x + (-3)) to zero
+        rule: eq.quadratic.zero-product-case, Zero product case
+        claim: solution set narrowed
+        explanation: x = 3 makes the repeated factor zero
+        detail: A product is zero exactly when one of its factors is, so each factor set to zero is one case, and together the cases are every way the product can vanish.
+        proof obligation: obl.quadratic.factor-is-zero, this case makes its factor zero, so it makes the product zero
+        condition: (x = 3)
+        siblings exhaustive: yes
+        siblings exclusive: no
+        siblings domain consistent: yes
+        exhaustive evidence: root-coefficient reconstruction
+        feasibility: feasible
+        resolution: solved
+        resolution evidence: substitution into the original equation
+        verification: exact evaluation of the factor, passed, (x + (-3)) came out zero at 3
+        verified: yes
+        1.2.1.1 check
+          phase: check
+          goal: Check this case
+          rule: eq.quadratic.check-by-substitution, Check by substitution
+          claim: solution set preserved
+          explanation: Put 3 back into the equation as it was typed
+          detail: Substituting into the original rather than into the factored form is what makes this a check: the factored form came from the step being checked, so agreeing with it would prove nothing about the answer.
+          proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+          target claim: x = 3 satisfies the equation
+          check method: substitute the case into the original equation
+          expected: left side equals right side
+          observed: both sides came out equal
+          verification: substitution, passed, both sides came out equal
+          verified: yes
+      1.2.2 check
+        phase: check
+        goal: Check that no case is missing
+        rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+        claim: solution set preserved
+        explanation: The cases multiply back out to the equation that was split
+        detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+        proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+        target claim: the cases recorded are every real solution of the equation
+        check method: rebuild the quadratic from the recorded cases and compare it
+        expected: the rebuilt quadratic is the one that was split
+        observed: the rebuilt quadratic is the one that was split
+        verification: root-coefficient reconstruction, passed, the 1 recorded case rebuilds x^2 + (-6)*x + 9 = 0
+        verified: yes

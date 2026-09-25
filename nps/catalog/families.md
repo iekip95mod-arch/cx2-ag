@@ -126,6 +126,41 @@ rule eq.quadratic.reject-negative-discriminant fixture
 rule eq.quadratic.check-by-substitution fixture
 rule eq.quadratic.cases-reconstruct-the-original fixture
 
+family id algebra.quadratic.factoring.one-unknown
+reference_curriculum_set_ids StepCAS product requirements ALG-004
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 ALG-004
+topic_and_level Degree-two equations in one unknown solved by factoring over the rationals, PRD section 9 ALG-004
+family_envelope_version 1
+accepted_expression_grammar the same equation grammar the formula family reads, with the unknown at powers zero, one and two, so sums, products, negations and constant powers, and no other symbol in it
+accepted_input_forms an equation that is a polynomial of degree two in the unknown over the rationals, written in the project's own grammar, typed through solve
+word_language_profile_ids none, typed entry only
+domains_and_parameter_assumptions the real domain, with the coefficient of the square read from the equation and non-zero, and fractional coefficients cleared by their common denominator before the pair is looked for
+supported_branches_and_degenerate_cases two distinct rational roots, one repeated root written once, a missing constant term that factors out the unknown itself, and fractional coefficients
+exact_special_function_and_numerical_result_policy exact rationals only. A quadratic with no integer pair whose product is a*c and whose sum is b is refused before any step as not factoring over the rationals, which is where the quadratic formula family takes over
+parser_module_ids src/core/parser.cc, src/steps/quadratic.cc, src/steps/linear.cc
+required_assumptions none, the degree is bounded structurally before the coefficients are read and the factor pair is found exactly rather than assumed
+test_group_ids quadratic
+strategy_ids eq.quadratic.factoring
+supported_methods bound the degree, read the three coefficients exactly, clear fractions, find the integer pair with product a*c and sum b, factor, set each factor to zero and check each case against the equation as it was typed
+unsupported_near_neighbors quadratics with irrational or complex roots, which have no integer pair and go to the formula, higher degree, symbolic coefficients, and factoring an expression rather than solving an equation, which the rewrite family owns
+proof_obligation_ids obl.plan.preconditions-hold, obl.eq.same-solutions, obl.alg.factor-multiplies-back, obl.quadratic.factor-is-zero, obl.quadratic.candidate-satisfies, obl.quadratic.cases-are-complete
+solution_soundness_status verified twice, the factored form multiplies back out to the collected coefficients and each case is substituted into the equation as it was typed
+solution_completeness_status verified within the envelope, the recorded cases are multiplied back out and compared with the monic quadratic they were split from
+corpus_case_ids quadratic_factoring_two_roots, quadratic_factoring_repeated_root, quadratic_factoring_fractions, quadratic_factoring_no_integer_pair
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not yet measured on the physical calculator
+direct_keypad_entry_status solve reaches it natively for a quadratic with a term of degree one. Handheld qualification pending
+isolated_runtime_status unqualified, host build results do not establish isolated calculator execution
+capability_manifest_ids algebra.quadratic.factoring.one-unknown
+release_status unreleased
+rule eq.quadratic.factoring fixture
+rule eq.quadratic.standard-form fixture
+rule eq.quadratic.factor fixture
+rule eq.quadratic.zero-product-case fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+
 family id physics.kinematics.catch-up.equal-position
 reference_curriculum_set_ids StepCAS product requirements PHYS-002, PHYS-014, PHYS-015, PHYS-025, PHYS-026, PHYS-027, PHYS-028, PHYS-029, M1 archetype 4
 curriculum_source_locations StepCAS_Product_Requirements_Document.md sections 9.4 through 9.7, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 4

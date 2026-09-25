@@ -1,5 +1,8 @@
 #include "nps/steps/quadratic.h"
 
+#include <limits>
+#include <numeric>
+
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
 #include "nps/core/evaluate.h"
@@ -121,6 +124,9 @@ const char kPureSquareFamily[] = "algebra.quadratic.pure-square.one-unknown";
 const char kPureSquareMethod[] = "isolate the square and split on its roots";
 const char kFormulaFamily[] = "algebra.quadratic.formula.one-unknown";
 const char kFormulaMethod[] = "read the coefficients, take the discriminant and split on its roots";
+const char kFactoringFamily[] = "algebra.quadratic.factoring.one-unknown";
+const char kFactoringMethod[] =
+    "find two integers whose product is a*c and whose sum is b, factor, and set each factor to zero";
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status, NumericMode mode, const char *family,
@@ -1393,6 +1399,496 @@ QuadraticResult solve_quadratic(Arena &arena, Derivation &derivation, NodeId equ
         result.status = derivation.outcome_from(mark);
     result.cost = meter.cost();
     record_context(derivation, budget, equation, result.status, mode, kFormulaFamily, kFormulaMethod);
+    return result;
+}
+
+namespace {
+
+// The smallest positive integer that clears every denominator, or false when int64 cannot hold it.
+bool common_denominator(const Rational &a, const Rational &b, const Rational &c, int64_t *out) {
+    int64_t scale = 1;
+    for (const int64_t den : {a.den, b.den, c.den}) {
+        const int64_t magnitude = den < 0 ? -den : den;
+        const int64_t shared = std::gcd(scale, magnitude);
+        if (scale / shared > std::numeric_limits<int64_t>::max() / magnitude)
+            return false;
+        scale = scale / shared * magnitude;
+    }
+    *out = scale;
+    return true;
+}
+
+QuadraticResult solve_factoring_body(Arena &arena, Derivation &derivation, NodeId equation,
+                                     NodeId unknown, Meter &meter) {
+    QuadraticResult result;
+    if (equation == kNoNode || unknown == kNoNode || arena.failed()) {
+        result.detail = "nothing to solve";
+        result.status = DerivationStatus::InvalidInput;
+        return result;
+    }
+    if (arena.at(equation).kind != Kind::Equals) {
+        result.outcome = QuadraticOutcome::NotAnEquation;
+        result.detail = "this rule solves an equation, and that is not one";
+        result.status = DerivationStatus::InvalidInput;
+        return result;
+    }
+    if (arena.at(unknown).kind != Kind::Symbol) {
+        result.detail = "the unknown has to be a symbol";
+        result.status = DerivationStatus::InvalidInput;
+        return result;
+    }
+    if (contains_list(arena, equation)) {
+        result.outcome = QuadraticOutcome::NotPureQuadratic;
+        result.detail = "list and matrix equations are not supported";
+        result.status = DerivationStatus::Unsupported;
+        return result;
+    }
+    if (divides_by_zero(arena, equation)) {
+        result.outcome = QuadraticOutcome::Refused;
+        result.detail = "the equation divides by zero, which has no value to solve for";
+        result.status = DerivationStatus::InvalidInput;
+        return result;
+    }
+
+    const std::string name = arena.text(unknown);
+    Rational a;
+    Rational b;
+    Rational c;
+    switch (read_quadratic(arena, equation, name, meter, &a, &b, &c)) {
+        case CoefficientRead::Read:
+            break;
+        case CoefficientRead::Halted:
+            return result;
+        case CoefficientRead::TooHigh:
+            result.outcome = QuadraticOutcome::NotPureQuadratic;
+            result.detail = name + " is raised above the second power here, and this rule stops at "
+                                   "degree two";
+            result.status = DerivationStatus::Unsupported;
+            return result;
+        case CoefficientRead::Unreadable:
+            result.outcome = QuadraticOutcome::NotPureQuadratic;
+            result.detail = "this rule needs a polynomial of degree two in " + name +
+                            " with rational coefficients";
+            result.status = DerivationStatus::Unsupported;
+            return result;
+        case CoefficientRead::NotQuadratic:
+            result.outcome = QuadraticOutcome::NotPureQuadratic;
+            result.detail = name + " is not squared here, so the linear rule is the one that solves "
+                                   "this";
+            result.status = DerivationStatus::Unsupported;
+            return result;
+        case CoefficientRead::OutOfRoom:
+            result.outcome = QuadraticOutcome::ResourceExceeded;
+            result.detail = "reading the coefficients ran out of exact arithmetic";
+            result.status = DerivationStatus::ResourceLimitReached;
+            return result;
+    }
+
+    // The pair is read off integer coefficients, so the equation is first cleared of fractions.
+    int64_t scale = 1;
+    Rational big_a;
+    Rational big_b;
+    Rational big_c;
+    Rational ac;
+    Rational b_squared;
+    Rational four_ac;
+    Rational discriminant;
+    if (!common_denominator(a, b, c, &scale) ||
+        !rational_mul(a, Rational{scale, 1}, &big_a) || !rational_mul(b, Rational{scale, 1}, &big_b) ||
+        !rational_mul(c, Rational{scale, 1}, &big_c) || !rational_mul(big_a, big_c, &ac) ||
+        !rational_mul(big_b, big_b, &b_squared) ||
+        !rational_mul(Rational{4, 1}, ac, &four_ac) ||
+        !rational_sub(b_squared, four_ac, &discriminant)) {
+        result.outcome = QuadraticOutcome::ResourceExceeded;
+        result.detail = "the coefficients grew past what exact integer arithmetic here can hold";
+        result.status = DerivationStatus::ResourceLimitReached;
+        return result;
+    }
+    Rational root_of_discriminant;
+    if (discriminant.num < 0 || !rational_sqrt_exact(discriminant, &root_of_discriminant)) {
+        result.outcome = QuadraticOutcome::OutsideEnvelope;
+        result.detail = "no two integers multiply to " + rational_text_for(arena, ac) +
+                        " and add to " + rational_text_for(arena, big_b) +
+                        ", so this does not factor over the rationals and the quadratic formula "
+                        "is the method that decides it";
+        result.status = DerivationStatus::Unsupported;
+        return result;
+    }
+
+    // m + n = b and m*n = a*c, the pair the ac method looks for, and each gives a root -m/a.
+    Rational sum_with;
+    Rational sum_without;
+    Rational m;
+    Rational n;
+    Rational first_root;
+    Rational second_root;
+    if (!rational_add(big_b, root_of_discriminant, &sum_with) ||
+        !rational_sub(big_b, root_of_discriminant, &sum_without) ||
+        !rational_div(sum_with, Rational{2, 1}, &m) || !rational_div(sum_without, Rational{2, 1}, &n) ||
+        !rational_div(m, big_a, &first_root) || !rational_div(n, big_a, &second_root) ||
+        !rational_sub(Rational{0, 1}, first_root, &first_root) ||
+        !rational_sub(Rational{0, 1}, second_root, &second_root)) {
+        result.outcome = QuadraticOutcome::ResourceExceeded;
+        result.detail = "the factor pair grew past what exact integer arithmetic here can hold";
+        result.status = DerivationStatus::ResourceLimitReached;
+        return result;
+    }
+    const bool repeated = root_of_discriminant.num == 0;
+    const std::string pair = rational_text_for(arena, m) + " and " + rational_text_for(arena, n);
+
+    PlanPayload plan;
+    plan.strategy_id = "eq.quadratic.factoring";
+    plan.selected_strategy = "Factor the quadratic and set each factor to zero";
+    plan.matched_problem_facts.push_back("one unknown, " + name);
+    plan.matched_problem_facts.push_back("degree two in " + name + " with a term of degree one");
+    plan.matched_problem_facts.push_back(pair + " multiply to " + rational_text_for(arena, ac) +
+                                         " and add to " + rational_text_for(arena, big_b));
+    plan.alternatives_considered.push_back(
+        "the quadratic formula, which solves every quadratic but reads the roots off the "
+        "coefficients rather than showing the two factors they come from");
+    plan.selection_rationale =
+        "an integer pair with product a*c and sum b exists, so the quadratic splits into two linear "
+        "factors and each root can be read off the factor that vanishes";
+    Step plan_step;
+    plan_step.phase = "plan";
+    plan_step.goal = "Solve for " + name;
+    plan_step.rule_id = plan.strategy_id;
+    plan_step.rule_name = "Solve by factoring";
+    plan_step.claim = ClaimType::NoClaim;
+    plan_step.explanation_short =
+        "Find two numbers whose product is a*c and whose sum is b, then factor and set each factor "
+        "to zero";
+    register_strategy_precondition(
+        plan, plan_step, "pre.quadratic.degree-two",
+        "the equation is a polynomial of degree two in " + name + " over the rationals",
+        "structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid,
+        VerificationOutcome::Passed,
+        "no power of " + name + " above the second occurs, and the coefficient of " + name +
+            "^2 is " + rational_text_for(arena, a));
+    register_strategy_precondition(
+        plan, plan_step, "pre.quadratic.integer-factor-pair",
+        "two integers multiply to a*c and add to b once the equation is cleared of fractions",
+        "exact integer factor pair", EvidenceStrength::StructurallyValid,
+        VerificationOutcome::Passed,
+        pair + " multiply to " + rational_text_for(arena, ac) + " and add to " +
+            rational_text_for(arena, big_b));
+    if (!meter.step())
+        return result;
+    const StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
+
+    const NodeId standard = standard_form(arena, unknown, a, b, c);
+    if (standard == kNoNode || arena.failed()) {
+        result.detail = "the arena could not hold the equation in standard form";
+        result.status = DerivationStatus::ResourceLimitReached;
+        return result;
+    }
+    if (!meter.step())
+        return result;
+    Step collect;
+    collect.phase = "solve";
+    collect.goal = "Write the equation as a*" + name + "^2 + b*" + name + " + c = 0";
+    collect.rule_id = "eq.quadratic.standard-form";
+    collect.rule_name = "Standard form";
+    collect.claim = ClaimType::SolutionSetPreserved;
+    collect.explanation_short = "Move everything to one side so the three coefficients are on show";
+    collect.explanation_detailed =
+        "Factoring works on an expression equal to zero, so every term has to be on one side first. "
+        "Moving them changes how the equation is written and not what solves it.";
+    collect.proof_obligations.push_back(
+        {"obl.eq.same-solutions", "the rewritten equation has the solutions the original had"});
+    collect.verifications.push_back(
+        passed("rule-local equality invariant", EvidenceStrength::StructurallyValid,
+               "the coefficients were read from the equation itself and put back in the same order"));
+    TransformationPayload collect_payload;
+    collect_payload.before = equation;
+    collect_payload.after = standard;
+    collect_payload.concrete_action =
+        "Collect on the left: a = " + rational_text_for(arena, a) + ", b = " +
+        rational_text_for(arena, b) + ", c = " + rational_text_for(arena, c);
+    collect_payload.reversible = true;
+    const StepId collect_id =
+        derivation.add_transformation(plan_id, std::move(collect), std::move(collect_payload));
+
+    std::vector<Rational> roots{first_root};
+    if (!repeated)
+        roots.push_back(second_root);
+    std::vector<NodeId> factors;
+    for (const Rational &root : roots) {
+        factors.push_back(arena.binary(Kind::Add, unknown,
+                                       rational_node(arena, Rational{-root.num, root.den})));
+    }
+    NodeId product = rational_node(arena, a);
+    for (size_t i = 0; i < 2; ++i)
+        product = arena.binary(Kind::Mul, product, factors[repeated ? 0 : i]);
+    const NodeId factored = arena.binary(Kind::Equals, product, arena.integer("0"));
+    if (factored == kNoNode || arena.failed()) {
+        result.detail = "the arena could not hold the factored equation";
+        result.status = DerivationStatus::ResourceLimitReached;
+        return result;
+    }
+
+    // The recorded product is read at three points, which fixes all three coefficients of it.
+    bool multiplies_back = true;
+    for (const Rational &point : {Rational{0, 1}, Rational{1, 1}, Rational{-1, 1}}) {
+        Rational from_factors;
+        Rational from_standard;
+        multiplies_back =
+            multiplies_back &&
+            evaluate_rational(arena, product, {{name, point}}, &from_factors) &&
+            evaluate_rational(arena, arena.children(arena.at(standard))[0], {{name, point}},
+                              &from_standard) &&
+            rational_equal(from_factors, from_standard);
+    }
+    if (!meter.step())
+        return result;
+    Step factor;
+    factor.phase = "solve";
+    factor.goal = "Factor the quadratic";
+    factor.rule_id = "eq.quadratic.factor";
+    factor.rule_name = "Factor by a product and sum pair";
+    factor.claim = ClaimType::SolutionSetPreserved;
+    factor.explanation_short = pair + " multiply to a*c and add to b, so the quadratic splits into " +
+                               (repeated ? "one repeated factor" : "two linear factors");
+    factor.explanation_detailed =
+        "Reach for factoring when a*c has a factor pair adding to b. Each number in the pair gives a "
+        "linear factor, and writing the quadratic as their product changes its form and not its "
+        "value, which the multiplication back out confirms.";
+    factor.proof_obligations.push_back(
+        {"obl.alg.factor-multiplies-back", "the factored form multiplies back out to the original"});
+    factor.verifications.push_back(
+        multiplies_back
+            ? passed("multiply the factors out and compare term by term",
+                     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+                     "multiplied out, the factors have the coefficients a = " +
+                         rational_text_for(arena, a) + ", b = " + rational_text_for(arena, b) +
+                         " and c = " + rational_text_for(arena, c) +
+                         ", read by exact interpolation at 0, 1 and -1")
+            : failed("multiply the factors out and compare term by term",
+                     "the factors do not multiply back out to the quadratic that was factored"));
+    TransformationPayload factor_payload;
+    factor_payload.before = standard;
+    factor_payload.after = factored;
+    factor_payload.concrete_action = "Split b into " + pair + " and factor";
+    factor_payload.reversible = true;
+    const StepId factor_id =
+        derivation.add_transformation(plan_id, std::move(factor), std::move(factor_payload));
+    if (!multiplies_back) {
+        result.outcome = QuadraticOutcome::Refused;
+        result.detail = "the factored form did not multiply back out, so no answer is offered";
+        result.status = DerivationStatus::VerificationFailed;
+        return result;
+    }
+
+    std::vector<Case> cases;
+    for (size_t i = 0; i < roots.size(); ++i) {
+        Case one;
+        one.root = roots[i];
+        one.condition = arena.binary(Kind::Equals, unknown, rational_node(arena, roots[i]));
+        if (one.condition == kNoNode || arena.failed()) {
+            result.detail = "the arena could not hold a case";
+            result.status = DerivationStatus::ResourceLimitReached;
+            return result;
+        }
+        one.substitution = satisfies_original(arena, equation, name, one.root, &one.substitution_detail);
+        if (one.substitution == Substitution::OutOfRoom) {
+            result.outcome = QuadraticOutcome::ResourceExceeded;
+            result.detail = "checking a case against the equation as it was typed ran out of exact "
+                            "arithmetic, so no answer is offered";
+            result.status = DerivationStatus::ResourceLimitReached;
+            return result;
+        }
+        cases.push_back(one);
+    }
+
+    std::vector<StepId> case_ids;
+    for (size_t i = 0; i < cases.size(); ++i) {
+        Step s;
+        s.phase = "solve";
+        s.goal = "Set the factor " + print(arena, factors[i]) + " to zero";
+        s.rule_id = "eq.quadratic.zero-product-case";
+        s.rule_name = "Zero product case";
+        s.claim = ClaimType::SolutionSetNarrowed;
+        s.explanation_short = name + " = " + rational_text_for(arena, cases[i].root) +
+                              (repeated ? " makes the repeated factor zero"
+                                        : " makes this factor zero, and so the product");
+        s.explanation_detailed =
+            "A product is zero exactly when one of its factors is, so each factor set to zero is one "
+            "case, and together the cases are every way the product can vanish.";
+        s.proof_obligations.push_back(
+            {"obl.quadratic.factor-is-zero", "this case makes its factor zero, so it makes the "
+                                             "product zero"});
+        Rational factor_value;
+        const bool vanishes =
+            evaluate_rational(arena, factors[i], {{name, cases[i].root}}, &factor_value) &&
+            factor_value.num == 0;
+        s.verifications.push_back(
+            vanishes ? passed("exact evaluation of the factor", EvidenceStrength::StructurallyValid,
+                              print(arena, factors[i]) + " came out zero at " +
+                                  rational_text_for(arena, cases[i].root))
+                     : failed("exact evaluation of the factor",
+                              print(arena, factors[i]) + " did not come out zero at " +
+                                  rational_text_for(arena, cases[i].root)));
+        BranchPayload payload;
+        payload.condition = cases[i].condition;
+        payload.siblings_exhaustive = true;
+        payload.siblings_exclusive = !repeated;
+        payload.siblings_domain_consistent = true;
+        payload.exhaustive_evidence = "root-coefficient reconstruction";
+        payload.feasibility_status = "feasible";
+        const bool satisfied = cases[i].substitution == Substitution::Satisfied;
+        payload.resolution = satisfied ? BranchResolution::Solved : BranchResolution::Rejected;
+        payload.resolution_evidence = "substitution into the original equation";
+        if (!meter.step())
+            return result;
+        const StepId id = derivation.add_branch(meter, factor_id, std::move(s), std::move(payload));
+        if (id == kNoStep)
+            return result;
+        case_ids.push_back(id);
+
+        if (!meter.step())
+            return result;
+        Step check;
+        check.phase = "check";
+        check.goal = "Check this case";
+        check.rule_id = "eq.quadratic.check-by-substitution";
+        check.rule_name = "Check by substitution";
+        check.claim = ClaimType::SolutionSetPreserved;
+        check.explanation_short = "Put " + rational_text_for(arena, cases[i].root) + " back into "
+                                  "the equation as it was typed";
+        check.explanation_detailed =
+            "Substituting into the original rather than into the factored form is what makes this a "
+            "check: the factored form came from the step being checked, so agreeing with it would "
+            "prove nothing about the answer.";
+        check.proof_obligations.push_back(
+            {"obl.quadratic.candidate-satisfies", "the candidate satisfies the original equation"});
+        check.verifications.push_back(
+            satisfied ? passed("substitution", EvidenceStrength::CandidateChecked,
+                               cases[i].substitution_detail)
+                      : failed("substitution", cases[i].substitution_detail));
+        CheckPayload check_payload;
+        check_payload.target_claim = name + " = " + rational_text_for(arena, cases[i].root) +
+                                     " satisfies the equation";
+        check_payload.check_method = "substitute the case into the original equation";
+        check_payload.expected_relation = "left side equals right side";
+        check_payload.observed_result = cases[i].substitution_detail;
+        derivation.add_check(id, std::move(check), std::move(check_payload));
+        if (!satisfied || !vanishes) {
+            result.outcome = QuadraticOutcome::Refused;
+            result.detail = "a case failed its own check, so no answer is offered";
+            result.status = DerivationStatus::VerificationFailed;
+            return result;
+        }
+    }
+
+    if (!meter.step())
+        return result;
+    std::vector<Rational> recorded;
+    bool readable = true;
+    for (size_t i = 0; i < case_ids.size(); ++i) {
+        const BranchPayload *p = derivation.branch(case_ids[i]);
+        Rational case_coefficient;
+        Rational case_constant;
+        Rational value;
+        if (p == nullptr || p->condition == kNoNode ||
+            linear_form(arena, p->condition, unknown, meter, &case_coefficient, &case_constant) !=
+                LinearForm::Reduced ||
+            !rational_sub(Rational{0, 1}, case_constant, &value) ||
+            !rational_div(value, case_coefficient, &value)) {
+            readable = false;
+            break;
+        }
+        recorded.push_back(value);
+    }
+    if (meter.stopped())
+        return result;
+    Rational monic_linear;
+    Rational monic_constant;
+    const bool monic = rational_div(b, a, &monic_linear) && rational_div(c, a, &monic_constant);
+    std::string why;
+    if (!readable)
+        why = "a recorded case could not be read back as an exact value";
+    else if (!monic)
+        why = "dividing the equation through by its leading coefficient ran out of exact arithmetic";
+    const Reconstruction rebuilt = !readable || !monic
+                                       ? Reconstruction::OutOfRoom
+                                       : cases_reconstruct_the_monic(recorded, monic_linear,
+                                                                     monic_constant, &why);
+    const bool complete = rebuilt == Reconstruction::Rebuilt;
+    Step closing;
+    closing.phase = "check";
+    closing.goal = "Check that no case is missing";
+    closing.rule_id = "eq.quadratic.cases-reconstruct-the-original";
+    closing.rule_name = "Completeness of the split";
+    closing.claim = ClaimType::SolutionSetPreserved;
+    closing.explanation_short = "The cases multiply back out to the equation that was split";
+    closing.explanation_detailed =
+        "Reach for this at the end of any split. Checking each case on its own says the answers "
+        "given are right, and says nothing about an answer left out, so the cases are multiplied "
+        "back together and compared with the equation they came from.";
+    closing.proof_obligations.push_back(
+        {"obl.quadratic.cases-are-complete", "every real value satisfying the equation is one of "
+                                             "the cases recorded"});
+    closing.verifications.push_back(
+        complete ? passed("root-coefficient reconstruction",
+                          EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+                          "the " + integer_text(static_cast<int64_t>(recorded.size())) +
+                              (recorded.size() == 1 ? " recorded case rebuilds "
+                                                    : " recorded cases rebuild ") +
+                              name + "^2 + " + rational_text_for(arena, monic_linear) + "*" + name +
+                              " + " + rational_text_for(arena, monic_constant) + " = 0")
+        : rebuilt == Reconstruction::OutOfRoom ? inconclusive("root-coefficient reconstruction", why)
+                                               : failed("root-coefficient reconstruction", why));
+    CheckPayload closing_payload;
+    closing_payload.target_claim = "the cases recorded are every real solution of the equation";
+    closing_payload.check_method = "rebuild the quadratic from the recorded cases and compare it";
+    closing_payload.expected_relation = "the rebuilt quadratic is the one that was split";
+    closing_payload.observed_result = complete ? closing_payload.expected_relation : why;
+    derivation.add_check(factor_id, std::move(closing), std::move(closing_payload));
+    if (rebuilt == Reconstruction::OutOfRoom) {
+        result.outcome = QuadraticOutcome::ResourceExceeded;
+        result.detail = "rebuilding the equation from its cases ran out of exact arithmetic, so no "
+                        "answer is offered";
+        result.status = DerivationStatus::ResourceLimitReached;
+        return result;
+    }
+    if (!complete) {
+        result.outcome = QuadraticOutcome::Refused;
+        result.detail = "the split could not be shown to be complete, so no answer is offered";
+        result.status = DerivationStatus::VerificationFailed;
+        return result;
+    }
+    result.outcome = QuadraticOutcome::Solved;
+    for (size_t i = 0; i < cases.size(); ++i)
+        result.solutions.push_back(rational_node(arena, cases[i].root));
+    return result;
+}
+
+}  // namespace
+
+QuadraticResult solve_by_factoring(Arena &arena, Derivation &derivation, NodeId equation,
+                                   NodeId unknown, const Budget &budget) {
+    Meter meter(budget);
+    const size_t mark = derivation.mark();
+    const NumericMode mode = derivation.request.numeric_mode;
+    QuadraticResult result = solve_factoring_body(arena, derivation, equation, unknown, meter);
+    if (meter.stopped()) {
+        const bool cancelled = meter.halt() == Halt::Cancelled;
+        const bool kept = keep_verified_prefix(derivation, mark, arena);
+        QuadraticResult halted;
+        halted.outcome = cancelled ? QuadraticOutcome::Cancelled : QuadraticOutcome::ResourceExceeded;
+        halted.detail = halt_name(meter.halt());
+        halted.status = cancelled ? kept ? DerivationStatus::Cancelled : DerivationStatus::NotRecorded
+                                  : DerivationStatus::ResourceLimitReached;
+        halted.cost = meter.cost();
+        record_context(derivation, budget, equation, halted.status, mode, kFactoringFamily,
+                       kFactoringMethod);
+        return halted;
+    }
+    if (result.outcome == QuadraticOutcome::Solved)
+        result.status = derivation.outcome_from(mark);
+    result.cost = meter.cost();
+    record_context(derivation, budget, equation, result.status, mode, kFactoringFamily,
+                   kFactoringMethod);
     return result;
 }
 

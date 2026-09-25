@@ -34,6 +34,8 @@ const char kDecimalBlobV3[] =
 const InstalledModule kExpectedModules[] = {
     {"solver", "algebra.linear-equation.one-unknown"},
     {"solver", "algebra.quadratic.pure-square.one-unknown"},
+    {"solver", "algebra.quadratic.formula.one-unknown"},
+    {"solver", "algebra.quadratic.factoring.one-unknown"},
     {"solver", "algebra.formula-rearrangement.single-occurrence"},
     {"solver", "algebra.polynomial-rewrite.single-expression"},
     {"solver", "number.integer-method.literal"},

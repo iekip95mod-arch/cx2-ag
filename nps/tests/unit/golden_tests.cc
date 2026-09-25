@@ -122,7 +122,7 @@ std::string integer_record(const char *expression, const Budget &budget) {
 }
 
 std::string quadratic_record(const std::string &equation, const char *name, const Budget &budget,
-                             bool by_formula = false) {
+                             bool by_formula = false, bool by_factoring = false) {
     Arena arena;
     ParseResult parsed = parse(arena, equation);
     if (!parsed.ok())
@@ -131,8 +131,9 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
     Derivation derivation;
     NodeId unknown = arena.symbol(name);
     QuadraticResult result =
-        by_formula ? solve_quadratic(arena, derivation, parsed.root, unknown, budget)
-                   : solve_by_square_root(arena, derivation, parsed.root, unknown, budget);
+        by_factoring ? solve_by_factoring(arena, derivation, parsed.root, unknown, budget)
+        : by_formula ? solve_quadratic(arena, derivation, parsed.root, unknown, budget)
+                     : solve_by_square_root(arena, derivation, parsed.root, unknown, budget);
 
     // Every root rather than the first. A fixture showing one of two would agree with the engine
     // that dropped the other, which is the failure these fixtures exist to catch.
@@ -990,6 +991,15 @@ void run_golden_tests(TestSink &t) {
                  quadratic_record("x^2 + x + 1 = 0", "x", Budget(), true));
     check_golden(t, "quadratic_formula_outside_envelope",
                  quadratic_record("x^2 + x - 1 = 0", "x", Budget(), true));
+    // Factoring: two roots, a repeated one, cleared fractions and a quadratic with no integer pair.
+    check_golden(t, "quadratic_factoring_two_roots",
+                 quadratic_record("x^2 - 5x + 6 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_repeated_root",
+                 quadratic_record("x^2 - 6x + 9 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_fractions",
+                 quadratic_record("x^2/2 - x/2 - 1 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_no_integer_pair",
+                 quadratic_record("x^2 + x - 1 = 0", "x", Budget(), false, true));
 
     check_golden(t, "rearrange_kinematics_formula", rearrange_record("v = u + a*t", "t", Budget()));
     check_golden(t, "rearrange_reciprocal", rearrange_record("R = 1/x", "x", Budget()));
