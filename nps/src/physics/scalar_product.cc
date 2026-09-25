@@ -13,13 +13,10 @@ namespace {
 
 using measure::dimension_node;
 
-NodeId rational_node(Arena &arena, const Rational &value) {
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    return arena.binary(Kind::Mul, arena.integer(integer_text(value.num)),
-                        arena.binary(Kind::Pow, arena.integer(integer_text(value.den)),
-                                     arena.integer("-1")));
-}
+using measure::rational_node;
+using measure::verification;
+using measure::add_check;
+using measure::add_transformation;
 
 const char *angle_unit_text(AngleUnit unit) {
     switch (unit) {
@@ -80,22 +77,6 @@ NodeId substituted_equation(Arena &arena, const Vector &first, const Vector &sec
                         component_sum(arena, left, right, first.rank));
 }
 
-VerificationRecord verification(const std::string &method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.outcome = outcome;
-    record.strength = strength_for(record.outcome, passing);
-    record.detail = detail;
-    return record;
-}
-
-VerificationRecord verification(const std::string &method, const std::string &detail,
-                                EvidenceStrength passing, bool passed) {
-    return verification(method, detail, passing,
-                        passed ? VerificationOutcome::Passed : VerificationOutcome::Failed);
-}
-
 Step check_step(const char *rule_id, const char *rule_name, const std::string &goal,
                 const std::string &explanation, const char *obligation_id,
                 const std::string &obligation, const std::string &method,
@@ -110,34 +91,6 @@ Step check_step(const char *rule_id, const char *rule_name, const std::string &g
     step.proof_obligations.push_back({obligation_id, obligation});
     step.verifications.push_back(verification(method, detail, passing, passed));
     return step;
-}
-
-bool add_check(Derivation &derivation, Meter &meter, StepId parent, Step step,
-               const std::string &target, const std::string &expected,
-               const std::string &observed) {
-    if (!meter.step())
-        return false;
-    CheckPayload payload;
-    payload.target_claim = target;
-    payload.check_method = step.verifications[0].method;
-    payload.expected_relation = expected;
-    payload.observed_result = observed;
-    derivation.add_check(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
-                        NodeId before, NodeId after, const std::string &action,
-                        bool reversible = true) {
-    if (!meter.rewrite() || !meter.step())
-        return false;
-    TransformationPayload payload;
-    payload.before = before;
-    payload.after = after;
-    payload.concrete_action = action;
-    payload.reversible = reversible;
-    derivation.add_transformation(parent, std::move(step), std::move(payload));
-    return true;
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,

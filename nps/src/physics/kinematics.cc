@@ -5,6 +5,7 @@
 #include "nps/steps/quadratic.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
+#include "measurement_support.h"
 #include "algebra_first.h"
 
 namespace nps {
@@ -178,14 +179,7 @@ void record(Context &ctx, StepId parent, Step s, NodeId before, NodeId after,
     ctx.derivation.add_transformation(parent, std::move(s), std::move(p));
 }
 
-// A value as the linear solver reads it: an integer, or a numerator times a reciprocal.
-NodeId rational_node(Arena &arena, const Rational &r) {
-    if (r.den == 1)
-        return arena.integer(integer_text(r.num));
-    NodeId n = arena.integer(integer_text(r.num));
-    NodeId d = arena.integer(integer_text(r.den));
-    return arena.binary(Kind::Mul, n, arena.binary(Kind::Pow, d, arena.integer("-1")));
-}
+using measure::rational_node;
 
 // The reverse, for the solver's answer: an integer, a negation, or a numerator times a
 // reciprocal, in either spelling of the exponent.

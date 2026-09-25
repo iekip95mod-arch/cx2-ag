@@ -52,22 +52,24 @@ bool valid_profile(WorkForceProfile profile) {
     return false;
 }
 
-bool normalized(const Rational &source, Rational *value) {
-    *value = source;
-    return normalise(&value->num, &value->den);
-}
+using measure::normalize_copy;
+using measure::normalized_rational_node;
+using measure::verification;
+using measure::add_check;
+using measure::add_transformation;
+using measure::transformation_step;
 
 bool valid_vector(const Vector &vector, std::string *detail) {
     const Rational components[3] = {vector.x, vector.y, vector.z};
     const char *names[3] = {"x", "y", "z"};
     Rational value;
     for (size_t axis = 0; axis < 3; ++axis) {
-        if (!normalized(components[axis], &value)) {
+        if (!normalize_copy(components[axis], &value)) {
             *detail = std::string("the ") + names[axis] + " component has an invalid exact value";
             return false;
         }
     }
-    if (!normalized(vector.unit.scale, &value) || value.num <= 0) {
+    if (!normalize_copy(vector.unit.scale, &value) || value.num <= 0) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
@@ -90,31 +92,18 @@ bool valid_vector(const Vector &vector, std::string *detail) {
     return false;
 }
 
-NodeId rational_node(Arena &arena, const Rational &source) {
-    Rational value;
-    if (!normalized(source, &value))
-        return kNoNode;
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    const NodeId numerator = arena.integer(integer_text(value.num));
-    const NodeId denominator = arena.integer(integer_text(value.den));
-    const NodeId reciprocal =
-        arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
 NodeId vector_node(Arena &arena, const Vector &vector) {
     std::vector<NodeId> components;
-    components.push_back(rational_node(arena, vector.x));
-    components.push_back(rational_node(arena, vector.y));
+    components.push_back(normalized_rational_node(arena, vector.x));
+    components.push_back(normalized_rational_node(arena, vector.y));
     if (vector.rank == 3)
-        components.push_back(rational_node(arena, vector.z));
+        components.push_back(normalized_rational_node(arena, vector.z));
     return arena.call("vector", components);
 }
 
 NodeId vector_model_node(Arena &arena, const Vector &vector) {
     return arena.call("framed_vector",
-                      {vector_node(arena, vector), rational_node(arena, vector.unit.scale),
+                      {vector_node(arena, vector), normalized_rational_node(arena, vector.unit.scale),
                        arena.symbol(vector.frame.name), dimension_node(arena, vector.unit.dimension),
                        arena.integer(integer_text(vector.rank))});
 }
@@ -128,79 +117,13 @@ NodeId work_equation(Arena &arena, NodeId work_symbol, const Vector &force,
 
 bool needs_conversion(const Vector &vector) {
     Rational scale;
-    return !normalized(vector.unit.scale, &scale) || scale.num != 1 || scale.den != 1;
+    return !normalize_copy(vector.unit.scale, &scale) || scale.num != 1 || scale.den != 1;
 }
 
 std::string safe_vector_text(const Vector &vector) {
     if (vector.rank == 2 || vector.rank == 3)
         return vector_text(vector);
     return "rank " + std::to_string(vector.rank) + " vector";
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
-               const char *rule_name, const std::string &goal, const std::string &explanation,
-               const char *obligation_id, const std::string &obligation, const char *method,
-               const std::string &verification_detail, EvidenceStrength passing,
-               VerificationOutcome outcome, const std::string &target,
-               const std::string &expected, const std::string &observed,
-               size_t backend_requests = 0) {
-    if (!meter.step())
-        return false;
-    Step step;
-    step.phase = "check";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.claim = ClaimType::Definition;
-    step.proof_obligations.push_back({obligation_id, obligation});
-    step.verifications.push_back(verification(method, verification_detail, passing, outcome));
-    step.backend_requests = static_cast<uint32_t>(backend_requests);
-    CheckPayload payload;
-    payload.target_claim = target;
-    payload.check_method = method;
-    payload.expected_relation = expected;
-    payload.observed_result = observed;
-    derivation.add_check(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
-                        NodeId before, const std::string &action, NodeId after, bool reversible) {
-    if (!meter.rewrite() || !meter.step())
-        return false;
-    TransformationPayload payload;
-    payload.before = before;
-    payload.after = after;
-    payload.concrete_action = action;
-    payload.reversible = reversible;
-    derivation.add_transformation(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-Step transformation_step(const char *rule_id, const char *rule_name, const char *goal,
-                         const char *explanation, const char *detailed, ClaimType claim,
-                         const VerificationRecord &record) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = claim;
-    step.verifications.push_back(record);
-    return step;
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
@@ -244,10 +167,10 @@ const char *sign_interpretation(WorkSign sign) {
 
 void component_nodes(Arena &arena, const Vector &vector, std::vector<NodeId> *components) {
     components->clear();
-    components->push_back(rational_node(arena, vector.x));
-    components->push_back(rational_node(arena, vector.y));
+    components->push_back(normalized_rational_node(arena, vector.x));
+    components->push_back(normalized_rational_node(arena, vector.y));
     if (vector.rank == 3)
-        components->push_back(rational_node(arena, vector.z));
+        components->push_back(normalized_rational_node(arena, vector.z));
 }
 
 WorkResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
@@ -545,7 +468,7 @@ WorkResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                           " instead of " + dimension_text(expected_work));
     }
 
-    const NodeId value = rational_node(arena, exact_work.value);
+    const NodeId value = normalized_rational_node(arena, exact_work.value);
     const NodeId evaluated = arena.binary(Kind::Equals, work_symbol, value);
     if (arena.failed()) {
         return failed(WorkOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,

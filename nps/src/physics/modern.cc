@@ -5,6 +5,7 @@
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
 #include "nps/steps/linear.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -208,14 +209,9 @@ Unit family_unit(ModernVariable variable) {
     return unit;
 }
 
-NodeId rational_node(Arena &arena, const Rational &rational) {
-    if (rational.den == 1)
-        return arena.integer(integer_text(rational.num));
-    NodeId numerator = arena.integer(integer_text(rational.num));
-    NodeId denominator = arena.integer(integer_text(rational.den));
-    NodeId reciprocal = arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
+using measure::rational_node;
+using measure::verification;
+using measure::transformation_step;
 
 bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
     if (id == kNoNode)
@@ -254,29 +250,6 @@ bool rational_of_node(const Arena &arena, NodeId id, Rational *value) {
     value->num = numerator.num;
     value->den = denominator;
     return normalise(&value->num, &value->den);
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-Step transformation_step(const char *goal, const char *rule_id, const char *rule_name,
-                         const char *explanation, const std::string &detailed) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = ClaimType::SolutionSetPreserved;
-    return step;
 }
 
 void record_context(Derivation &derivation, const Budget &budget, const RelationShape &shape,

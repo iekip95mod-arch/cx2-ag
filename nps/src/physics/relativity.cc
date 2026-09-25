@@ -4,6 +4,7 @@
 
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -101,10 +102,9 @@ RelativityResult failed(RelativityOutcome outcome, DerivationStatus status,
     return result;
 }
 
-bool normalize_copy(const Rational &source, Rational *normalized) {
-    *normalized = source;
-    return normalise(&normalized->num, &normalized->den);
-}
+using measure::normalize_copy;
+using measure::normalized_rational_node;
+using measure::verification;
 
 bool positive(const Rational &value) {
     Rational normalized;
@@ -145,28 +145,6 @@ Unit family_unit(RelativityVariable variable) {
     unit.scale.num = 1;
     unit.scale.den = 1;
     return unit;
-}
-
-NodeId rational_node(Arena &arena, const Rational &rational) {
-    Rational normalized;
-    if (!normalize_copy(rational, &normalized))
-        return kNoNode;
-    if (normalized.den == 1)
-        return arena.integer(integer_text(normalized.num));
-    NodeId numerator = arena.integer(integer_text(normalized.num));
-    NodeId denominator = arena.integer(integer_text(normalized.den));
-    NodeId reciprocal = arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
 }
 
 Frame frame_of(const RelativityProblem &problem, RelativityVariable variable) {
@@ -746,7 +724,7 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         if (!normalize_copy(knowns[index]->quantity.value, &reads[index]))
             return failed(RelativityOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                           known_text(*knowns[index]) + " is not an exact fraction");
-        read_values[index] = rational_node(arena, reads[index]);
+        read_values[index] = normalized_rational_node(arena, reads[index]);
         answer_precision = precision_combine(answer_precision, knowns[index]->quantity.precision);
     }
     const Computed computed =
@@ -757,11 +735,11 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
 
     NodeId report_values[kMaxVariables] = {kNoNode, kNoNode, kNoNode};
     for (size_t index = 0; index < shape.report_count; ++index)
-        report_values[index] = rational_node(arena, computed.values[index]);
+        report_values[index] = normalized_rational_node(arena, computed.values[index]);
     const NodeId substituted =
         build_relation(arena, problem.relation, read_values, report_values,
-                       rational_node(arena, beta), rational_node(arena, gamma),
-                       rational_node(arena, Rational{kLightSpeed, 1}));
+                       normalized_rational_node(arena, beta), normalized_rational_node(arena, gamma),
+                       normalized_rational_node(arena, Rational{kLightSpeed, 1}));
     if (arena.failed())
         return failed(RelativityOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
                       status_name(arena.status()));

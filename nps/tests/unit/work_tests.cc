@@ -3,10 +3,12 @@
 #include <string>
 #include <vector>
 
+#include "nps/core/print.h"
 #include "nps/physics/work.h"
 #include "nps/steps/schema.h"
 #include "unit/adapter_tests.h"
 #include "../step_invariants.h"
+#include "../../src/physics/measurement_support.h"
 
 namespace nps {
 namespace {
@@ -118,6 +120,36 @@ class FailingBackend : public Backend {
 }
 
 void run_work_tests(TestSink &t) {
+    // The helpers the physics families share, each of which used to be copied into every family.
+    {
+        Arena arena;
+        const NodeId half = measure::normalized_rational_node(arena, Rational{2, 4});
+        const NodeId raw = measure::rational_node(arena, Rational{2, 4});
+        t.check(half != kNoNode && print(arena, half) == "(1 * (2^-1))" && print(arena, raw) == "(2 * (4^-1))",
+                "the normalising rational node reduces first and the plain one writes the fraction as given");
+        t.check(measure::normalized_rational_node(arena, Rational{1, 0}) == kNoNode,
+                "the normalising rational node refuses a zero denominator rather than writing it");
+        const VerificationRecord passed = measure::verification("exact", "", EvidenceStrength::StructurallyValid, true);
+        const VerificationRecord failed = measure::verification("exact", "", EvidenceStrength::StructurallyValid, false);
+        t.check(passed.outcome == VerificationOutcome::Passed && failed.outcome == VerificationOutcome::Failed &&
+                    failed.strength == strength_for(VerificationOutcome::Failed, EvidenceStrength::StructurallyValid),
+                "the boolean verification maps onto the passed and failed outcomes");
+        Budget spent;
+        spent.max_steps = 0;
+        Meter meter(spent);
+        Derivation derivation;
+        Step step;
+        step.verifications.push_back(passed);
+        const bool recorded = measure::add_check(derivation, meter, kNoStep, step, "target", "expected", "observed");
+        t.check(!recorded && derivation.size() == 0,
+                "a shared check the step budget cannot pay for records nothing");
+        Meter open{Budget()};
+        const bool transformed = measure::add_transformation(derivation, open, kNoStep, step, half, "act", raw, false);
+        const TransformationPayload *payload = derivation.transformation(0);
+        t.check(transformed && payload && payload->before == half && payload->after == raw &&
+                    payload->concrete_action == "act" && !payload->reversible,
+                "the before-action-after transformation keeps each argument where the caller put it");
+    }
     const Vector force = parsed_vector("(3, 4) kg*m/s^2");
     const Vector displacement = parsed_vector("(2, 1) m");
 

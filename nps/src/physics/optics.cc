@@ -4,6 +4,7 @@
 
 #include "nps/core/context.h"
 #include "nps/core/rational.h"
+#include "measurement_support.h"
 
 namespace nps {
 namespace {
@@ -193,37 +194,9 @@ Unit si_unit(OpticsVariable variable) {
     return unit;
 }
 
-NodeId rational_node(Arena &arena, const Rational &rational) {
-    if (rational.den == 1)
-        return arena.integer(integer_text(rational.num));
-    NodeId numerator = arena.integer(integer_text(rational.num));
-    NodeId denominator = arena.integer(integer_text(rational.den));
-    NodeId reciprocal = arena.binary(Kind::Pow, denominator, arena.integer("-1"));
-    return arena.binary(Kind::Mul, numerator, reciprocal);
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-Step transformation_step(const std::string &goal, const char *rule_id, const char *rule_name,
-                         const std::string &explanation, const std::string &detailed) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = ClaimType::SolutionSetPreserved;
-    return step;
-}
+using measure::rational_node;
+using measure::verification;
+using measure::transformation_step;
 
 // The domain rules this family states, checked against every quantity the problem carries and
 // against the value it solves for, so a refusal names the same rule either way.
