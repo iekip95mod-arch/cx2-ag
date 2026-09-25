@@ -1481,6 +1481,47 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "names");
     }
     {
+        // #329. The three read_family faults nothing had put to it, each picking a refusal's sentence.
+        Arena arena;
+
+        invariants::Pass two_symbols;
+        std::vector<std::string> several;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C * D").root, &several, &two_symbols);
+        t.check(mentions(several, "introduces 2 free symbols where a family up to a constant "
+                                  "introduces one") &&
+                    two_symbols.family_judged() == 0,
+                "a family whose after state leaves two symbols free is refused for the count it "
+                "introduced, which is read before the shape carrying them is looked at");
+
+        invariants::Pass carried_twice;
+        std::vector<std::string> still_free;
+        walk_claiming(ClaimType::FamilyUpToConstant, arena, parse(arena, "x^2").root,
+                      parse(arena, "x^2 + C + C").root, &still_free, &carried_twice);
+        t.check(mentions(still_free, "what is left under its constant still leaves free a symbol "
+                                     "the before state never had") &&
+                    carried_twice.family_judged() == 0,
+                "and an after state carrying its constant twice is refused for the symbol left "
+                "under it rather than for a disagreement, because taking one C off x^2 + C + C "
+                "leaves a family instead of the expression it was given");
+
+        invariants::Pass unfinished;
+        std::vector<std::string> unrecorded;
+        Derivation d;
+        TransformationPayload payload;
+        payload.before = parse(arena, "x^2").root;
+        payload.concrete_action = "Rewrite it";
+        d.add_transformation(kNoStep, claimed("selftest.rewrite", ClaimType::FamilyUpToConstant),
+                             std::move(payload));
+        unfinished.walk(arena, d, false, false, &unrecorded);
+        t.check(mentions(unrecorded, "claims a family up to a constant and one of its two states "
+                                     "is missing") &&
+                    unfinished.family_steps() == 1 && unfinished.family_judged() == 0,
+                "and a family claim whose transformation never recorded an after state is counted "
+                "into the population and refused for the missing state, which is what keeps the "
+                "readings under it from asking the arena for a node it does not hold");
+    }
+    {
         // The one symbol the new-symbol arm must not read as a variable. A conversion carries the
         // unit's name as the first argument of its unit() call, so cm^3 becoming m^3 introduces a
         // symbol that is a label rather than a free variable, and the gate above reported it as a
