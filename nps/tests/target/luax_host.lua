@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 35,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -286,6 +286,9 @@ local expected_modules = {
     "physics.optics.spherical-mirror.image",
     "physics.optics.double-slit.maxima",
     "physics.optics.single-slit.minima",
+    "physics.gravitation.point-masses",
+    "physics.oscillation.restoring-force",
+    "physics.wave.speed-frequency-wavelength",
     "units.chain-link-conversion",
     "units.si"
 }
@@ -862,6 +865,10 @@ do
         { "optics", { "thin lens", "image distance", "focal length", "10 cm",
                       "object distance", "15 cm" } },
         { "vector_addition", { "(1, 2) m", "(3, 4) m" } },
+        { "gravitation", { "gravitational force", "first mass", "2 kg", "second mass", "3 kg",
+                           "separation", "1 m" } },
+        { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
+        { "wave", { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
             local arguments = { unpack(calculation[2]) }
@@ -1289,6 +1296,69 @@ check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
 r = nps.vector_cross("not a vector", "(1, 2, 3) m")
 check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
       "the cross product bridge returns a structured parse refusal")
+
+-- G is carried as the exact rational 6674/10^14, so 2.0 kg and 3.0 kg a metre apart give 4.0044e-10 N exactly.
+r = nps.gravitation("gravitational force", "first mass", "2.0 kg", "second mass", "3.0 kg",
+                    "separation", "1.0 m")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified" and
+      r.unknown == "gravitational force",
+      "the gravitation bridge returns a verified solution for the force")
+check(r.result == "gravitational force = 0.00000000040 kg m/s^2" and
+      r.value == "0.00000000040" and r.exact_value == "0.00000000040044" and
+      r.unit == "kg m/s^2" and r.precision.kind == "measured" and
+      r.precision.significant_digits == 2,
+      "the gravitation bridge reports the measured force beside its exact value")
+check(type(r.equation) == "string" and type(r.substituted) == "string" and
+      type(r.assumptions) == "string" and r.assumptions:find("point mass", 1, true) ~= nil and
+      r.assumptions:find("6.674e-11", 1, true) ~= nil,
+      "the gravitation bridge carries its relation and the point-mass and constant conditions")
+local gravitation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then gravitation_rules[s.rule] = true end end
+check(gravitation_rules["physics.gravitation.definition"] and
+      gravitation_rules["physics.gravitation.check-dimensions"] and
+      gravitation_rules["physics.gravitation.substitute"] and
+      gravitation_rules["physics.gravitation.check-candidate"],
+      "the gravitation bridge retains its definition, dimension, substitution and check steps")
+r = nps.gravitation("separation", "gravitational force", "1 N", "first mass", "1 kg",
+                    "second mass", "1 kg")
+check(r.outcome == "unsupported unknown" and r.solved == false and r.result == nil and
+      r.detail:find("power -2", 1, true) ~= nil,
+      "the gravitation bridge refuses the separation it cannot isolate linearly")
+r = nps.gravitation("mass", "first mass", "1 kg", "second mass", "1 kg", "separation", "1 m")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and
+      r.detail:find("mass", 1, true) ~= nil and #r.steps == 0,
+      "the gravitation bridge returns a structured refusal for a name the law does not use")
+
+r = nps.oscillation("restoring force", "stiffness", "200 N/m", "displacement", "5 cm")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "restoring force" and
+      r.result == "restoring force = 10 kg m/s^2" and r.value == "10" and r.exact_value == "10" and
+      r.unit == "kg m/s^2" and r.precision.kind == "exact",
+      "the oscillation bridge returns the exact restoring force of a stretched spring")
+local oscillation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then oscillation_rules[s.rule] = true end end
+check(oscillation_rules["physics.oscillation.convert-units"] and
+      oscillation_rules["physics.oscillation.substitute"] and
+      oscillation_rules["physics.oscillation.check-candidate"] and
+      r.assumptions:find("small-angle", 1, true) ~= nil,
+      "the oscillation bridge retains the centimetre conversion and the linearity condition")
+r = nps.oscillation("restoring force", "stiffness", "200 N", "displacement", "5 cm")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the oscillation bridge refuses a stiffness given as a force")
+
+r = nps.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "wavelength" and
+      r.result == "wavelength = 2 m" and r.value == "2" and r.unit == "m",
+      "the wave bridge isolates the wavelength from the speed and the frequency")
+check(r.assumptions:find("non-dispersive", 1, true) ~= nil,
+      "the wave bridge carries the uniform medium condition")
+r = nps.gravitation("gravitational force", "first mass", "2 kg", "second mass", "3 kg")
+check(r.outcome == "missing known" and r.solved == false and r.result == nil,
+      "the gravitation bridge refuses a law given one known too few")
+check(not pcall(nps.wave, "wavelength", "wave speed", "340 m/s"),
+      "the wave bridge raises rather than guessing when the second known pair is absent")
+r = nps.wave("wavelength", "wave speed", "340", "frequency", "170 s^-1")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the wave bridge refuses a speed given without its unit")
 
 local exact_precision = { kind = "exact", significant_digits = 0 }
 local measured_two = { kind = "measured", significant_digits = 2 }
