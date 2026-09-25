@@ -334,6 +334,46 @@ void test_quadratic_route(TestSink &t) {
         t.check(!has(s.detail, "not linear in t"),
                 "and not as the linear solver's refusal, which is no longer the last word");
     }
+    // The other three ways the sign of a velocity is decided, each of which is a branch of its own.
+    {
+        // v0 = 5, because v is non-negative and a is non-positive. v0 = -5 would need t = -4.
+        const Solved s = run("find v0; v = 3 m/s; a = -2 m/s^2; x = 4 m");
+        t.equal(s.answer, "v0 = 5 m/s", "an initial velocity takes the sign the interval forces");
+        t.check(has(s.assumptions_after,
+                    "v is non-negative and a is non-positive, so v0 = v - a*t is not negative for "
+                    "t >= 0"),
+                "with the relation that fixes it stated");
+        t.check(has(s.actions, "v0 = -5"), "and the root it rules out named");
+    }
+    {
+        // The whole motion mirrored, where every root worth having is non-positive.
+        const Solved s = run("find v; v0 = -5 m/s; a = -3 m/s^2; x = -44 m");
+        t.equal(s.answer, "v = -17 m/s", "a motion in the negative direction keeps the negative root");
+        t.check(has(s.assumptions_after,
+                    "v0 and a are both non-positive, so v = v0 + a*t is not positive for t >= 0"),
+                "stated the other way round");
+    }
+    {
+        // The signs disagree, so nothing fixes the sign, and the square has one root anyway.
+        const Solved s = run("find v; v0 = 2 m/s; a = -1 m/s^2; x = 2 m");
+        t.equal(s.answer, "v = 0 m/s", "a square with one root needs no sign chosen");
+        // Refusing the square here would still reach 0 through t, so the route is pinned as well:
+        // one substitution means the square answered rather than a second equation covering for it.
+        t.check(count(s.rules, "kin.substitute") == 1, "in one hop rather than around the square");
+        t.check(has(s.assumptions_after,
+                    "the equation has a single root, so the sign of v is not a choice"),
+                "and says that rather than borrowing a sign rule it did not use");
+    }
+    // Measured givens on a quadratic hop, where the figures come from the givens rather than from
+    // the linear walk that has nothing to say about a root.
+    {
+        const Solved s = run("find t; x = 45.0 m; v0 = 0 m/s; a = 10.0 m/s^2");
+        t.equal(s.answer, "t = 3.00 s", "the root is reported to the figures the givens allow");
+        t.check(count(s.rules, "kin.significant-figures") == 1,
+                "and a quadratic hop still rounds once at the end");
+        t.check(has(s.actions, "Report 3 as 3.00"),
+                "to the fewest figures among the measured givens");
+    }
     // Two non-negative times satisfy the equation, and nothing in the problem says which is meant.
     // 16 = 10*t - t^2 has roots 2 and 8, both after the start of the interval.
     {

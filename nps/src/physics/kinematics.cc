@@ -549,6 +549,7 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
         Rational root;
         if (!rational_of_node(s.arena, probe.solutions[i], &root)) {
             *reason = "a root came back in a form this route cannot read as an exact value";
+            hop->solve_outcome = SolveOutcome::Refused;
             hop->refusal_status = DerivationStatus::Unsupported;
             return Probe::Refused;
         }
@@ -557,6 +558,9 @@ Probe offer(Search &s, const std::vector<std::string> &names, const std::vector<
     const RootChoice chosen = choose_physical_root(s.arena, target, names, values, roots);
     if (!chosen.decided) {
         *reason = chosen.why;
+        // The algebra solved it and the physics did not, so the hop is refused rather than left
+        // reading as solved with a refusal reason beside it.
+        hop->solve_outcome = SolveOutcome::Refused;
         hop->refusal_status = DerivationStatus::Unsupported;
         return Probe::Refused;
     }
@@ -1372,6 +1376,15 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
             }
         }
         derivation.adopt_roots_since(solve_start, plan_id);
+        // The search decided which rule would answer this equation and the record has to be of that
+        // rule. A divergence means the two runs saw different things, which is a fault to report
+        // rather than a record to publish.
+        if (worked.engine != hop.engine) {
+            result.outcome = KinematicsOutcome::VerificationFailed;
+            result.detail = "the route search and the recorded solve used different rules";
+            result.status = DerivationStatus::VerificationFailed;
+            return result;
+        }
         result.cost.replayed += solved.cost.replayed;
         // Charged to our meter, not the result alone, so the next hop's remainder knows this spend.
         const bool afforded = charge(ctx.meter, solved.cost);
@@ -1470,9 +1483,7 @@ KinematicsResult solve_body(Context &ctx, const KinematicsProblem &problem, cons
                                        picked.assumption,
                 EvidenceStrength::StructurallyValid, true));
             TransformationPayload p;
-            p.before = worked.solutions.size() == 1
-                           ? arena.binary(Kind::Equals, hop_symbol, worked.solutions[picked.index])
-                           : numeric;
+            p.before = numeric;
             p.after = arena.binary(Kind::Equals, hop_symbol, worked.solutions[picked.index]);
             std::string action = "Keep ";
             action += kept;
