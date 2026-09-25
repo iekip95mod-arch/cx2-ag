@@ -34,6 +34,7 @@ local function check(ok, what)
         failures = failures + 1
         print("FAIL: " .. what)
     end
+    return ok
 end
 
 local function evidence(requirement, ok, what)
@@ -4045,7 +4046,7 @@ local function writeEvidence()
     local expected = {
         "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
         "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "PLAT-006", "PLAT-012",
+        "UI-018", "PLAT-006", "PLAT-012",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -5048,7 +5049,9 @@ do
             if type(item) == "table" and item[1] == "Read Full Text" then read_text = item[2] end
         end
     end
-    check(type(read_text) == "function", "long dynamic text has a discoverable full-text reading action")
+    -- UI-018 is claimed only if every reachability, focus, footer and resize check below held.
+    local ui018 = check(type(read_text) == "function",
+                        "long dynamic text has a discoverable full-text reading action")
     local saved_width = platform.window.width
     for _, width in ipairs({ 320, 180 }) do
         platform.window.width = function() return width end
@@ -5075,9 +5078,9 @@ do
                 end
                 env.on.arrowDown()
             end
-            check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
+            ui018 = check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
                   " (tail=" .. tostring(tail) .. ", fits=" .. tostring(fits) ..
-                  ", status=" .. tostring(env.steps.status) .. ")")
+                  ", status=" .. tostring(env.steps.status) .. ")") and ui018
             env.on.escapeKey()
         end
     end
@@ -5108,22 +5111,22 @@ do
           "an interior caret leaves horizontal math-editor movement with the native widget")
     env.on.help()
     local seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and fits,
-          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and fits,
+          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling") and ui018
     env.on.escapeKey()
-    check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
-          "closing the text reader preserves the entry and returns its focus")
+    ui018 = check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
+          "closing the text reader preserves the entry and returns its focus") and ui018
 
     env.addME(input_text, answer_text)
     local focused = env.histME2[#env.histME2]
     env.theView:setFocus(focused)
     env.on.help()
     seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-          "a selected history entry exposes both complete expressions without clipped math boxes")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+          "a selected history entry exposes both complete expressions without clipped math boxes") and ui018
     env.on.escapeKey()
-    check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
-          "closing the history reader restores the selected native editor")
+    ui018 = check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
+          "closing the history reader restores the selected native editor") and ui018
 
     local manifest = {}
     for key, value in pairs(fake_manifest) do manifest[key] = value end
@@ -5156,18 +5159,18 @@ do
               "abbreviated walkthrough text names its reader shortcut at " .. width)
         env.on.charIn("t")
         seen, fits = scan_reader(160)
-        check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
+        ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
               and seen:find("VARIABLE_TAIL", 1, true) and seen:find("MANIFEST_TAIL", 1, true)
               and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true) and fits,
-              "full request, result, variable, module and step text remain reachable at " .. width)
+              "full request, result, variable, module and step text remain reachable at " .. width) and ui018
         env.on.escapeKey()
-        check(env.steps.active and env.steps.view == "list",
-              "the reader returns to the same walkthrough without changing its view")
+        ui018 = check(env.steps.active and env.steps.view == "list",
+              "the reader returns to the same walkthrough without changing its view") and ui018
         env.on.enterKey()
         env.steps.detail = 2
         seen, fits = scan_reader(160)
-        check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-              "existing step detail scrolls the complete explanation and oversized formula at " .. width)
+        ui018 = check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+              "existing step detail scrolls the complete explanation and oversized formula at " .. width) and ui018
         env.on.escapeKey()
     end
     platform.window.width = saved_width
@@ -5196,11 +5199,15 @@ do
     for _, call in ipairs(draw_calls) do
         if call.y >= 190 and call.y < 226 then footer_fits = footer_fits and call.y + 12 <= 226 end
     end
-    check(footer_fits, "guided preview lines stop before the footer controls")
+    ui018 = check(footer_fits, "guided preview lines stop before the footer controls") and ui018
     env.on.charIn("t")
     seen, fits = scan_reader(160)
-    check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
-          "abbreviated guided labels and problem previews retain complete readable text")
+    ui018 = check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
+          "abbreviated guided labels and problem previews retain complete readable text") and ui018
+    evidence("UI-018", ui018,
+             "long input, answers, variables, modules and step text stay reachable through a full-text "
+             .. "reader and scrolling at 320 and 180 pixels, closing a reader restores focus and view, "
+             .. "and guided previews stop before the footer controls")
     env.on.escapeKey()
     env.PHYSICS_FIXTURES[1].run = function()
         error("short error\n" .. string.rep("additional failure context ", 40) .. "RAW_ERROR_TAIL", 0)
