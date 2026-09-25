@@ -56,6 +56,7 @@ local requiredSolvers = {
 	{ "unit_conversion", "units.chain-link-conversion" },
 	{ "density", "physics.density.mass-volume" },
 	{ "vector_addition", "physics.vectors.cartesian-addition.two-dimension" },
+	{ "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
 	{ "relative_motion", "physics.kinematics.relative-motion.components.two-dimension" },
 	{ "work", "physics.work.constant-force-dot-product" },
 	{ "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
@@ -2607,6 +2608,15 @@ PHYSICS_FIXTURES = {
 		mode = "vector_addition",
 		run = function()
 			return nps_nspire.vector_addition("(0.00120, 0.0020) km", "5 i + 5 j m")
+		end,
+	},
+	{
+		label = "Find the turning effect of a force on a lever",
+		problem = "A force pushes on the end of a lever arm. The turning effect points along the " ..
+		          "axis it turns about, so the answer is a direction as well as a size.",
+		mode = "vector_cross",
+		run = function()
+			return nps_nspire.vector_cross("20.0 i + 0.0 j + 0.0 k cm", "0.0 i + 15.0 j + 0.0 k N")
 		end,
 	},
 	{
