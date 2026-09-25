@@ -3639,6 +3639,8 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
+        { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()
