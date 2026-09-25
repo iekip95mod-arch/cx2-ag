@@ -6,6 +6,7 @@
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
+#include "../step_invariants.h"
 
 namespace nps {
 namespace {
@@ -287,6 +288,8 @@ struct CrossCheck {
     std::string outcome;
     std::string strength;
     std::string status;
+    bool declared = false;
+    std::vector<std::string> broken;
 };
 
 CrossCheck cross_check(const std::string &reply, bool backend_helped_earlier) {
@@ -331,6 +334,9 @@ CrossCheck cross_check(const std::string &reply, bool backend_helped_earlier) {
             out.strength = evidence_strength_name(s.verifications[v].strength);
         }
     }
+    out.declared = rule_schema("calculus.differentiate.giac-cross-check") != nullptr;
+    invariants::Pass pass;
+    pass.walk(arena, d, false, false, &out.broken);
     return out;
 }
 
@@ -391,6 +397,26 @@ void test_ver004_giac_cross_check(TestSink &t) {
                "agreement is recorded as inconclusive and the derivation reports solved and "
                "corroborated, which the requirement separates both from an independent proof and "
                "from a check that never ran");
+
+    // #199. The schema names this rule, and what that is worth is whether VER-016 accepts each of
+    // the four records the check can write rather than whether the id is spelled somewhere.
+    const auto ver016 = [](const std::vector<std::string> &broken) {
+        std::string joined;
+        for (size_t i = 0; i < broken.size(); ++i) {
+            if (broken[i].find("VER-016") != std::string::npos)
+                joined += broken[i] + " | ";
+        }
+        return joined;
+    };
+    t.check(agreed.declared, "VER-016: the cross-check rule declares a proof-obligation schema");
+    t.equal(ver016(agreed.broken), std::string(),
+            "VER-016: and an independent agreement conforms to it");
+    t.equal(ver016(not_independent.broken), std::string(),
+            "VER-016: and so does the identical agreement recorded as corroboration, which only a "
+            "method the schema says may corroborate is allowed to write");
+    t.equal(ver016(disagreed.broken), std::string(), "VER-016: and so does a disagreement");
+    t.equal(ver016(unavailable.broken), std::string(),
+            "VER-016: and so does a backend that would not answer");
 }
 
 // PERF-013's third end. The requirement names three ends to reach after a stop, and for a while
