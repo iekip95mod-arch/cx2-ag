@@ -429,6 +429,46 @@ void run_relative_motion_tests(TestSink &t) {
                 "a zero relative velocity has no nearest cardinal and asks the backend nothing");
     }
     {
+        // The gap issue 416 names for this family. The bearing folds the answer through the
+        // component converter, which records a context of its own, so the identity solve's context
+        // was overwritten by the last engine to run rather than by the family that solved it.
+        SequenceBackend bearing_backend({"-95/2", "-349/18", "51.3047", "0", "51.3047",
+                                         "atan2(349/18,95/2)", "0", "atan2(349/18,95/2)*180/pi",
+                                         "0", "22.2"});
+        IdentityRun reported(identity(RelativeMotionUnknown::MediumRelativeToReference), Budget(),
+                             &bearing_backend);
+        t.equal(relative_motion_outcome_name(reported.result.outcome), "solved",
+                "the control for the lines below, so the bearing really did run");
+        t.check(reported.result.bearing.has_bearing,
+                "and the converter really was reached, which is what overwrote the context");
+        t.equal(reported.derivation.context.problem_family_id,
+                "physics.kinematics.relative-motion.components.two-dimension",
+                "a solved identity names this family rather than the component converter that "
+                "wrote the context last");
+        t.equal(reported.derivation.context.problem_family_envelope_version, "1",
+                "and records the envelope version the catalog declares");
+        // Naming the family again is not the same as keeping what the solve recorded. Rebuilding a
+        // fresh context here would name the family and silently drop these, so they are asserted
+        // rather than the family id alone.
+        t.check(reported.derivation.context.active_assumptions.size() == 2,
+                "and keeps the frame and axis assumptions the inner solve recorded rather than "
+                "replacing them with a thinner context");
+        t.equal(reported.derivation.context.angle_convention, reported.result.bearing.convention,
+                "while the bearing adds the cardinal its angle is measured from");
+
+        // The standalone entry point, which has no solve in front of it to be overwritten.
+        SequenceBackend alone({"0", "atan2(3,4)", "0", "atan2(3,4)*180/pi", "0"});
+        Arena bearing_arena;
+        Derivation bearing_derivation;
+        const RelativeBearing west = relative_motion_bearing(
+            bearing_arena, bearing_derivation, parsed_vector("(-4, -3) km/h", "ground"),
+            AngleUnit::Degrees, alone);
+        t.check(west.has_bearing, "the control, so the standalone bearing really did convert");
+        t.equal(bearing_derivation.context.problem_family_id,
+                "physics.kinematics.relative-motion.components.two-dimension",
+                "and a bearing asked for on its own names this family too");
+    }
+    {
         Run solved(problem(parsed_vector("(10, -2) m/s"), parsed_vector("(4, 3) m/s")));
         t.evidence("PHYS-001", relative_motion_outcome_name(solved.result.outcome), "solved",
                    "two framed velocity vectors produce an exact relative velocity");
