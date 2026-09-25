@@ -244,6 +244,15 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
+-- The whole key set rather than the four values, because the fault this guards against was a fifth
+-- key the bridge invented and wrote on one branch only, which read as false in every state.
+do
+    local backend_keys = {}
+    for key in pairs(manifest.symbolic_backend) do backend_keys[#backend_keys + 1] = key end
+    table.sort(backend_keys)
+    check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
+          "and carries exactly the four fields SymbolicBackendCapability defines")
+end
 check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
@@ -1784,12 +1793,13 @@ check(r.outcome == "invalid input", "a problem with no unknown is refused")
 check(type(r.steps) == "table" and #r.steps == 0, "with an empty steps table")
 check(r.answer_only == false and r.result == nil, "invalid kinematics is not answer-only success")
 
-local quadratic_problem = "find t; x = 4 m; v0 = 4 m/s; a = -2 m/s^2"
+-- A discriminant of 377 stops the local rules at the envelope, leaving a candidate for the backend.
+local quadratic_problem = "find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2"
 script("[[2]]")
 r = nps.kinematics(quadratic_problem)
 check(r.outcome == "no applicable equation" and r.status == "unsupported" and
       r.answer_only == true,
-      "a locally refused one-root kinematics equation can return a Giac answer")
+      "a kinematics equation refused at the exact-root envelope can return a Giac answer")
 check(r.result == "t = 2 s" and r.value == "2" and r.unit == "s" and r.giac_tag == "exact",
       "the answer-only kinematics result carries its quantity, unit and Giac tag")
 check(r.has_result == true, "backend-only kinematics publishes has_result")
@@ -1797,6 +1807,21 @@ check(type(r.steps) == "table" and #r.steps == 0 and r.step_count == 0,
       "answer-only kinematics carries no derivation")
 check(r.detail:find("fully specified and dimensionally valid", 1, true) ~= nil,
       "and records why that exact equation was offered")
+
+-- Issue 412: the bridge carries the degree-two record, root selection included.
+local before_quadratic_solve = giac_calls
+r = nps.kinematics_local("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2")
+check(r.outcome == "solved" and r.result == "t = 4 s" and r.has_result == true,
+      "the bridge solves a kinematics unknown at exponent two")
+check(giac_calls == before_quadratic_solve and r.answer_only == false,
+      "from the local rules alone, with no backend answer behind it")
+local selected, formula = false, false
+for _, step in ipairs(r.steps) do
+    if step.rule == "kin.select-physical-root" then selected = true end
+    if step.rule == "eq.quadratic.formula" then formula = true end
+end
+check(formula, "and the record carries the quadratic formula the answer came from")
+check(selected, "and the step that says which root the problem asked for")
 
 for _, sample in ipairs({
     {"3*x^2-12=0", "[-2,2]", true},
@@ -2332,23 +2357,42 @@ check(collectgarbage("count") - before <= 4096, "the collector runs after a pars
 -- the session. Asked at the moment of the read rather than after it: the metatable records the state
 -- it can see and then raises, and the host cannot answer afterwards because LuaJIT unwinds through
 -- C++ and runs the destructor on the way out.
+-- Every entry point is offered the probe in each argument position rather than a list of the ones
+-- known to take a table, so an entry point added later is swept the day it is written.
 do
-    local table_arguments = {
+    local names = {}
+    for name, value in pairs(nps) do
+        if type(value) == "function" then names[#names + 1] = name end
+    end
+    table.sort(names)
+    local readers = {}
+    for _, name in ipairs(names) do
+        for position = 1, 3 do
+            local running = nil
+            local probe = setmetatable({}, {
+                __index = function()
+                    running = collectgarbage("isrunning")
+                    error("the field read that this entry point starts with")
+                end,
+            })
+            local arguments = { "x", "x", "x" }
+            arguments[position] = probe
+            pcall(nps[name], arguments[1], arguments[2], arguments[3])
+            if running ~= nil then
+                readers[name] = true
+                check(running == true,
+                      name .. " reads its table argument " .. position ..
+                          " before it stops the collector, saw " .. tostring(running))
+            end
+        end
+    end
+    -- A sweep that reached no reader would pass by asserting nothing, so the known ones must appear.
+    for _, name in ipairs({
         "catch_up", "relative_motion", "relative_motion_local", "work", "work_local",
-        "planar_kinematics", "magnitude_angle_to_components", "components_to_magnitude_angle",
-    }
-    for _, name in ipairs(table_arguments) do
-        local running = nil
-        local probe = setmetatable({}, {
-            __index = function()
-                running = collectgarbage("isrunning")
-                error("the field read that this entry point starts with")
-            end,
-        })
-        pcall(nps[name], probe)
-        check(running == true,
-              name .. " reads its table argument before it stops the collector, saw " ..
-                  tostring(running))
+        "planar_kinematics", "forces", "magnitude_angle_to_components",
+        "components_to_magnitude_angle",
+    }) do
+        check(readers[name] == true, "the table argument sweep reached " .. name)
     end
 end
 
@@ -2408,10 +2452,18 @@ check(type(failed_manifest.installed_modules) == "table" and
       #failed_manifest.installed_modules == 0,
       "the integrity-failed manifest exposes no installed solver or content module")
 check(failed_manifest.symbolic_backend.name == "Giac" and
-      failed_manifest.symbolic_backend.available == false and
       failed_manifest.symbolic_backend.interface_id == "unavailable" and
       failed_manifest.symbolic_backend.deployment == "integrity-rejected",
       "the integrity-failed manifest marks the bundled backend unavailable")
+-- Whether the backend is usable is what integrity_status answers, so the rejected manifest redacts
+-- the two identity fields and adds no key the verified one lacks.
+do
+    local failed_keys = {}
+    for key in pairs(failed_manifest.symbolic_backend) do failed_keys[#failed_keys + 1] = key end
+    table.sort(failed_keys)
+    check(table.concat(failed_keys, ",") == "deployment,interface_id,name,version",
+          "and redacts rather than adding an availability flag the manifest has no field for")
+end
 local v4_file = assert(io.open("lua/nps_v4.lua", "rb"))
 local v4_source = v4_file:read("*a")
 v4_file:close()

@@ -77,8 +77,9 @@ bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *
 bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
                         const char *rule_name, const std::string &goal,
                         const std::string &explanation, const std::string &detailed,
-                        const VerificationRecord &record, NodeId before, const std::string &action,
-                        NodeId after) {
+                        const char *obligation_id, const std::string &obligation,
+                        VerificationRecord record, ClaimType claim, NodeId before,
+                        const std::string &action, NodeId after) {
     if (!meter.rewrite() || !meter.step())
         return false;
     Step step;
@@ -88,8 +89,10 @@ bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, con
     step.rule_name = rule_name;
     step.explanation_short = explanation;
     step.explanation_detailed = detailed;
-    step.claim = ClaimType::EquivalentExpression;
-    step.verifications.push_back(record);
+    step.claim = claim;
+    step.proof_obligations.push_back({obligation_id, obligation});
+    record.evidence_id = obligation_id;
+    step.verifications.push_back(std::move(record));
     TransformationPayload payload;
     payload.before = before;
     payload.after = after;
@@ -496,13 +499,15 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                             "summed, and the weight is the one force that is always present. It "
                             "acts vertically, so on an incline it splits into a component down the "
                             "slope and a component pressing into the surface.",
+                            "obl.forces.weight-components",
+                            "weight is mass times gravity and its components are its exact incline projections",
                             verification("exact rational product",
                                          "W = " + newtons(weight.value) + " with components " +
                                              newtons(weight_along.value) + " along and " +
                                              newtons(weight_across.value) + " across",
                                          EvidenceStrength::DimensionallyValid,
                                          VerificationOutcome::Passed),
-                            weight_expression,
+                            ClaimType::EquivalentExpression, weight_expression,
                             "W = " + rational_text(mass) + " * " + rational_text(gravity) + " = " +
                                 newtons(weight.value),
                             rational_node(arena, weight.value))) {
@@ -532,6 +537,12 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         Kind::Equals,
         arena.binary(Kind::Add, arena.symbol("N"), rational_node(arena, weight_across.value)),
         arena.integer("0"));
+    const NodeId isolated_normal =
+        arena.binary(Kind::Equals, arena.symbol("N"), rational_node(arena, normal.value));
+    if (arena.failed()) {
+        return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
+                      status_name(arena.status()));
+    }
     if (!add_transformation(derivation, meter, plan_id, "physics.forces.normal-force",
                             "Normal force from the across-axis sum",
                             "Sum the across axis and solve for the normal force",
@@ -539,13 +550,15 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                             "The across axis is the one with no acceleration on it while the body "
                             "keeps contact. That makes its sum an equation with one unknown, and "
                             "the normal force falls out of it before friction needs it.",
+                            "obl.forces.normal-from-balance",
+                            "the normal force makes the exact across-axis sum zero",
                             verification("exact across-axis sum",
                                          "N = " + newtons(normal.value),
                                          EvidenceStrength::DimensionallyValid,
                                          VerificationOutcome::Passed),
-                            result.across_equation,
+                            ClaimType::SolutionSetPreserved, result.across_equation,
                             "N = " + newtons(normal.value) + " from " + result.across_equation_text,
-                            rational_node(arena, normal.value))) {
+                            isolated_normal)) {
         return ForcesResult();
     }
 
@@ -616,6 +629,14 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     if (problem.friction == FrictionModel::Kinetic) {
         friction = problem.motion == MotionSense::UpTheAxis ? negated(maximum_static.value)
                                                             : maximum_static.value;
+        NodeId friction_expression = arena.binary(Kind::Mul, rational_node(arena, coefficient),
+                                                  rational_node(arena, normal.value));
+        if (problem.motion == MotionSense::UpTheAxis)
+            friction_expression = arena.unary(Kind::Neg, friction_expression);
+        if (arena.failed()) {
+            return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
+                          status_name(arena.status()));
+        }
         if (!add_transformation(
                 derivation, meter, plan_id, "physics.forces.kinetic-friction", "Kinetic friction",
                 "Evaluate the kinetic friction from the normal force",
@@ -623,12 +644,13 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 "Kinetic friction has a value the surfaces fix rather than one the balance "
                 "chooses, and it points against the sliding. That is the whole difference from "
                 "the static case below, where the friction is whatever the equilibrium needs.",
+                "obl.forces.kinetic-friction",
+                "kinetic friction has magnitude mu_k N and points opposite the declared motion",
                 verification("exact rational product",
                              "f = " + newtons(friction) + " opposing motion " +
                                  motion_sense_name(problem.motion),
                              EvidenceStrength::DimensionallyValid, VerificationOutcome::Passed),
-                arena.binary(Kind::Mul, rational_node(arena, coefficient),
-                             rational_node(arena, normal.value)),
+                ClaimType::EquivalentExpression, friction_expression,
                 "f = mu_k N = " + newtons(friction), rational_node(arena, friction))) {
             return ForcesResult();
         }
@@ -712,20 +734,35 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     // The requested unknown is the one symbol left in a linear equation, so solving is one
     // rearrangement rather than a search.
     Exact answer;
+    Exact isolated_answer;
     std::string unit_text = "N";
+    NodeId solve_equation = kNoNode;
+    const char *solve_symbol = "";
     switch (problem.unknown) {
         case ForcesUnknown::Acceleration: {
             Exact quotient;
             quotient.ok = rational_div(along_total.value, mass, &quotient.value);
             answer = quotient;
+            isolated_answer = answer;
             unit_text = "m/s^2";
+            solve_equation = result.along_equation;
+            solve_symbol = "a";
             break;
         }
         case ForcesUnknown::AppliedForce:
             answer = sub(required, along_total);
+            isolated_answer = answer;
+            solve_equation = arena.binary(
+                Kind::Equals,
+                arena.binary(Kind::Add, rational_node(arena, along_total.value), arena.symbol("F")),
+                rational_node(arena, required.value));
+            solve_symbol = "F";
             break;
         case ForcesUnknown::NormalForce:
             answer = normal;
+            isolated_answer = answer;
+            solve_equation = result.across_equation;
+            solve_symbol = "N";
             break;
         case ForcesUnknown::FrictionForce:
             if (problem.friction == FrictionModel::None) {
@@ -733,30 +770,44 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                               "a frictionless surface has no friction force to solve for");
             }
             answer = exact(friction);
+            isolated_answer = sub(required, along_known);
+            solve_equation = arena.binary(
+                Kind::Equals,
+                arena.binary(Kind::Add, rational_node(arena, along_known.value), arena.symbol("f")),
+                rational_node(arena, required.value));
+            solve_symbol = "f";
             break;
     }
-    if (!answer.ok) {
+    if (!answer.ok || !isolated_answer.ok) {
         return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
                       "solving for the requested unknown exceeds exact arithmetic");
+    }
+    const NodeId isolated_unknown =
+        arena.binary(Kind::Equals, arena.symbol(solve_symbol),
+                     rational_node(arena, isolated_answer.value));
+    if (arena.failed()) {
+        return failed(ForcesOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached,
+                      status_name(arena.status()));
     }
 
     if (!add_transformation(
             derivation, meter, plan_id, "physics.forces.solve-unknown",
             "Solve the equation of motion",
-            "Solve the along-axis equation for the " +
+            "Solve the force-balance equation for the " +
                 std::string(forces_unknown_name(problem.unknown)),
             "The unknown appears linearly, so one rearrangement isolates it",
-            "The along-axis sum is Newton's second law written out, and every term in it is "
-            "known except the requested one. Isolating that term is ordinary rearrangement, and "
-            "the residual check below puts the answer back into the same sum.",
+            "The force balance has one unknown. Isolating it is ordinary rearrangement, and the "
+            "residual check below puts the answer back into the same sum.",
+            "obl.forces.unknown-isolated",
+            "exact rearrangement isolates the requested unknown from its force-balance equation",
             verification("exact rearrangement",
                          std::string(forces_unknown_name(problem.unknown)) + " = " +
-                             rational_text(answer.value) + " " + unit_text,
+                             rational_text(isolated_answer.value) + " " + unit_text,
                          EvidenceStrength::DimensionallyValid, VerificationOutcome::Passed),
-            result.along_equation,
+            ClaimType::SolutionSetPreserved, solve_equation,
             "Isolate the " + std::string(forces_unknown_name(problem.unknown)) + " to get " +
-                rational_text(answer.value) + " " + unit_text,
-            rational_node(arena, answer.value))) {
+                rational_text(isolated_answer.value) + " " + unit_text,
+            isolated_unknown)) {
         return ForcesResult();
     }
 
@@ -771,15 +822,12 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     // the inventory and the answer disagree, and then no value is offered.
     // Rebuilt from the published inventory rather than from the running total the answer came out
     // of, so an entry that disagrees with the sum shows up here instead of cancelling itself.
+    // Neither branch can overflow: required was checked and the product rebuilds the along total.
     Exact target;
     if (problem.unknown == ForcesUnknown::Acceleration) {
         target = mul(exact(mass), answer);
     } else {
         target = required;
-    }
-    if (!target.ok) {
-        return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
-                      "evaluating the force-balance residual exceeds exact arithmetic");
     }
     const ForceBalance balance = forces_along_balance(result.inventory, target.value);
     if (!balance.exact) {

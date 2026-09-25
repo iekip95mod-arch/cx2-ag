@@ -1,0 +1,109 @@
+problem: one event at x = 299792458 m and t = 1 s, read from a ship at beta = 3/5
+variable: Lorentz transformation
+outcome: solved
+result: xprime = 149896229 m in ship; tprime = 0.5 s in ship; gamma 1.25
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.relativity.lorentz-transformation
+  envelope version: <not recorded>
+  normalized problem: [(xprime = (gamma * (x + (-(beta * (c * t)))))), ((c * tprime) = (gamma * ((c * t) + (-(beta * x)))))]
+  requested method: x' = gamma (x - beta c t), c t' = gamma (c t - beta x), exact rational substitution between two named frames
+  active assumption: the axes are parallel and the origins coincide at t = t' = 0, so the transformation carries no offset
+  active assumption: ship moves at beta = 0.6 c along the positive x axis of station, with parallel axes and origins coinciding at t = 0
+  active assumption: both frames are inertial, so no acceleration enters the transformation
+  angle convention: <not recorded>
+  branch convention: real domain
+  unit policy: read velocities as fractions of c, times in seconds, lengths in metres and energies in MeV, and round only the reported answer
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Relate ship and station through x' = gamma (x - beta c t), c t' = gamma (c t - beta x)
+    rule: physics.relativity.plan, Lorentz transformation
+    claim: no claim
+    explanation: Use x' = gamma (x - beta c t), c t' = gamma (c t - beta x) between the two declared inertial frames
+    detail: ship moves at beta = 0.6 c along the positive x axis of station, with parallel axes and origins coinciding at t = 0
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply x' = gamma (x - beta c t), c t' = gamma (c t - beta x)
+    applicability: the two frames are named and distinct
+    applicability: the boost speed is below the speed of light
+    fact: event position = 299792458 m
+    fact: event time = 1 s
+    fact: boost beta = 0.6 c of ship relative to station
+    alternative: a Galilean relative-motion model
+    rationale: x' = gamma (x - beta c t), c t' = gamma (c t - beta x) is exact in the declared fraction-of-c units, and the Galilean model it replaces is wrong at this speed rather than merely imprecise
+    verification: frame declaration, passed, ship relative to station
+    verification: exact comparison against the speed of light, passed, |beta| = 0.6 against the light speed 1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check that both frames are named
+      rule: physics.relativity.check-frames, Frame declaration
+      claim: definition
+      explanation: A relativistic quantity is only defined once the frame reading it is named
+      proof obligation: obl.relativity.frames-distinct, the answer names two distinct inertial frames
+      target claim: the boost names two distinct inertial frames
+      check method: compare the declared frame names
+      expected: two nonempty and different names
+      observed: ship relative to station
+      verification: frame declaration, passed, ship relative to station
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check that the boost is below the speed of light
+      rule: physics.relativity.check-boost, Speed limit
+      claim: definition
+      explanation: No massive frame reaches or passes c, so |beta| stays below 1
+      proof obligation: obl.relativity.speed-below-light, the boost speed is strictly below the speed of light
+      target claim: |beta| < 1
+      check method: compare the exact boost fraction against one
+      expected: the magnitude is strictly below one
+      observed: |beta| = 0.6 against the light speed 1
+      verification: exact comparison against the speed of light, passed, |beta| = 0.6 against the light speed 1
+      verified: yes
+    1.3 check
+      phase: solve
+      goal: Compute the Lorentz factor
+      rule: physics.relativity.lorentz-factor, Lorentz factor
+      claim: definition
+      explanation: Apply gamma = 1 / sqrt(1 - beta^2)
+      detail: The factor depends on beta squared, so a boost along the negative x axis gives the same factor as the matching boost along the positive one. This family reports the factor only when it is an exact fraction, since a decimal nothing checked is not evidence.
+      proof obligation: obl.relativity.factor-identity, the reported factor satisfies gamma^2 (1 - beta^2) = 1
+      target claim: gamma^2 (1 - beta^2) = 1
+      check method: square the exact factor and multiply by 1 - beta^2
+      expected: the product is exactly one
+      observed: gamma = 1.25 with gamma^2 (1 - beta^2) = 1
+      verification: exact rational identity, passed, gamma = 1.25 with gamma^2 (1 - beta^2) = 1
+      verified: yes
+    1.4 transformation
+      phase: solve
+      goal: Apply x' = gamma (x - beta c t), c t' = gamma (c t - beta x)
+      rule: physics.relativity.apply, Lorentz transformation
+      claim: solution set preserved
+      explanation: Substitute the exact declared values into the relation
+      detail: Each reported quantity names the frame it belongs to. ship moves at beta = 0.6 c along the positive x axis of station, with parallel axes and origins coinciding at t = 0, and the axes are parallel and the origins coincide at t = t' = 0, so the transformation carries no offset.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute the declared givens into x' = gamma (x - beta c t), c t' = gamma (c t - beta x)
+      before: [(xprime = (gamma * (x + (-(beta * (c * t)))))), ((c * tprime) = (gamma * ((c * t) + (-(beta * x)))))]
+      after: [(149896229 = ((5 * (4^-1)) * (299792458 + (-((3 * (5^-1)) * (299792458 * 1)))))), ((299792458 * (1 * (2^-1))) = ((5 * (4^-1)) * ((299792458 * 1) + (-((3 * (5^-1)) * 299792458)))))]
+      reversible: yes
+      verification: typed known-quantity lookup, passed, every given was substituted in its declared unit
+      verified: yes
+    1.5 check
+      phase: check
+      goal: Check the relativistic invariant
+      rule: physics.relativity.check-invariant, Invariant check
+      claim: implication
+      explanation: Check the answer against a quantity both frames have to agree on
+      detail: This check does not repeat the relation that produced the answer. It compares a quantity the two frames must agree on, so an answer that came out of a wrong transformation fails here instead of agreeing with itself.
+      proof obligation: obl.relativity.invariant-holds, the reported values satisfy the frame invariant
+      target claim: (c t)^2 - x^2 is the same in both frames
+      check method: evaluate the invariant on both frames' exact values
+      expected: the two frames agree exactly
+      observed: 0 against 0
+      verification: exact invariant comparison, passed, 0 against 0
+      verified: yes

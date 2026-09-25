@@ -1206,6 +1206,8 @@ else()
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
     target_include_directories(nps_core PUBLIC include)
+    # The family census the coverage join reads, host only so the calculator build carries none of it.
+    target_compile_definitions(nps_core PUBLIC NPS_FAMILY_CENSUS=1)
 
     # Section 5.2's item 2, the host test harness.
     add_executable(nps_host ${TEST_SOURCES} "${NPS_GIAC_SRC}/sha256.c")
@@ -1599,10 +1601,12 @@ if(NOT CMAKE_CROSSCOMPILING)
     # It appends down the same chain the host appenders use, because they all append to one file and
     # a fixture is what keeps two of them out of it at once. One test means one link rather than one
     # per record, so the chain no longer changes shape when a record appears.
+    # 77 is what the sweep answers with nothing to sweep, and a skipped setup still hands on its fixture.
     set_tests_properties(device_evidence PROPERTIES
         ENVIRONMENT "NPS_EVIDENCE=${CMAKE_BINARY_DIR}/evidence.txt"
         FIXTURES_REQUIRED nps_evidence_coverage
-        FIXTURES_SETUP nps_evidence_device)
+        FIXTURES_SETUP nps_evidence_device
+        SKIP_RETURN_CODE 77)
     set(NPS_EVIDENCE_TAIL nps_evidence_device)
 
     # These two arrived with their scripts at 12621ad and nothing has ever referenced them, so
@@ -1639,8 +1643,19 @@ if(NOT CMAKE_CROSSCOMPILING)
                  "${NPS_DEVICE_IMAGE}")
         set_tests_properties(report_size PROPERTIES ENVIRONMENT "NDL_SDK=${NPS_NDL_SDK}")
     else()
-        message(STATUS "nps: no ARM image under ${NPS_DEVICE_BUILD_DIR}, so report-size.sh goes "
-                       "untested here")
+        # Registered either way, because an absent row is never read where a skipped one is.
+        set(report_size_absent)
+        if(NOT NPS_DEVICE_IMAGE)
+            list(APPEND report_size_absent "no ARM image under ${NPS_DEVICE_BUILD_DIR}")
+        endif()
+        if(NOT EXISTS "${NPS_NDL_SDK}")
+            list(APPEND report_size_absent "no ndl SDK at ${NPS_NDL_SDK}")
+        endif()
+        list(JOIN report_size_absent " and " report_size_absent)
+        add_test(NAME report_size COMMAND ${CMAKE_COMMAND} -E echo
+                 "report-size: nothing to size, ${report_size_absent}")
+        set_tests_properties(report_size PROPERTIES
+                             SKIP_REGULAR_EXPRESSION "nothing to size")
     endif()
 
     # Unit replaces the evidence, V4 appends to it, then traceability reads it.

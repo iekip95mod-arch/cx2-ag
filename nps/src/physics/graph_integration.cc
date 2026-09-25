@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "nps/core/context.h"
 #include "nps/core/evaluate.h"
 #include "nps/core/parser.h"
 #include "nps/steps/integrate.h"
@@ -48,6 +49,27 @@ Dimension result_dimension(GraphIntegrationReading reading) {
     return reading == GraphIntegrationReading::AccelerationToVelocity ? dim(1, -1) : dim(1, 0);
 }
 
+void record_context(Derivation &derivation, const Budget &budget,
+                    const GraphIntegrationProblem &problem, DerivationStatus status) {
+    ContextInputs inputs;
+    inputs.application_version = application_version();
+    inputs.problem_family_id = "physics.kinematics.motion-graphs.piecewise-area";
+    inputs.requested_method =
+        "stitch each segment's overlap with the query interval, integrate it by rule and sum the "
+        "signed differences";
+    inputs.original_expression = derivation.request.original_expression;
+    inputs.active_assumptions.push_back(std::string("reading ") +
+                                        graph_integration_reading_name(problem.reading));
+    inputs.active_assumptions.push_back(
+        "each segment's curve is continuous on its own sub-interval");
+    inputs.branch_convention = "real domain, area below the axis subtracts";
+    inputs.unit_policy = "read bounds in SI seconds and each curve in its reading's SI unit";
+    inputs.detail_projection = "standard";
+    inputs.resource_policy = budget_policy(budget);
+    inputs.derivation_status = status;
+    derivation.context = make_context(inputs);
+}
+
 }  // namespace
 
 const char *graph_integration_reading_name(GraphIntegrationReading reading) {
@@ -71,9 +93,11 @@ const char *graph_integration_outcome_name(GraphIntegrationOutcome outcome) {
     return "unknown";
 }
 
-GraphIntegrationResult solve_graph_integration(Arena &arena, Derivation &derivation,
-                                                const GraphIntegrationProblem &problem,
-                                                const Budget &budget, Backend *giac) {
+namespace {
+
+GraphIntegrationResult solve_body(Arena &arena, Derivation &derivation,
+                                  const GraphIntegrationProblem &problem, const Budget &budget,
+                                  Backend *giac) {
     GraphIntegrationResult result;
     result.reading = problem.reading;
     Meter meter(budget);
@@ -199,6 +223,17 @@ GraphIntegrationResult solve_graph_integration(Arena &arena, Derivation &derivat
     result.outcome = GraphIntegrationOutcome::Solved;
     result.change = made_quantity(total, result_dimension(problem.reading));
     result.cost = meter.cost();
+    return result;
+}
+
+}  // namespace
+
+// Written after every exit because the nested integral engine stamps a context of its own.
+GraphIntegrationResult solve_graph_integration(Arena &arena, Derivation &derivation,
+                                                const GraphIntegrationProblem &problem,
+                                                const Budget &budget, Backend *giac) {
+    GraphIntegrationResult result = solve_body(arena, derivation, problem, budget, giac);
+    record_context(derivation, budget, problem, result.status);
     return result;
 }
 

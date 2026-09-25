@@ -369,10 +369,12 @@ void check_golden_invariants(TestSink &sink) {
     // corroboration and is worded as such, because VER-009 forbids a spot check standing in for a
     // symbolic proof. The declined count is printed beside them so an exclusion that grew
     // would be visible rather than quiet.
+    // Family counts pinned above zero, not to each other, since a decline is reported beside them.
     const invariants::Claim *equivalence = g_pass.find("VER-002");
     sink.evidence("VER-002",
                   equivalence != nullptr && equivalence->broken == 0 &&
-                      g_pass.equivalence_exact() > 0 && g_pass.equivalence_sampled() > 0,
+                      g_pass.equivalence_exact() > 0 && g_pass.equivalence_sampled() > 0 &&
+                      g_pass.family_steps() > 0 && g_pass.family_judged() > 0,
                   std::to_string(g_pass.equivalence_exact()) +
                       " fixture steps claiming an equivalent expression were settled exactly, both "
                       "sides closed and equal, and " +

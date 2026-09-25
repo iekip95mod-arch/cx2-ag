@@ -1,0 +1,190 @@
+problem: 3 i + 4 j m dot 5 i + 0 j m
+variable: scalar product
+outcome: solved
+result: 15 m^2; the angle between them is less than a right angle; 53.13010235415598 degrees
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.vectors.cartesian-scalar-product
+  envelope version: <not recorded>
+  normalized problem: dot(framed_vector(vector(3, 4), 1, lab, dimension(1, 0, 0, 0)), framed_vector(vector(5, 0), 1, lab, dimension(1, 0, 0, 0)))
+  requested method: convert components to SI, sum the component products, read the angle from its sign, and measure it as atan2(|a x b|, a . b) when a backend is supplied
+  active assumption: first vector frame is lab
+  active assumption: second vector frame is lab
+  active assumption: the two readings of the scalar product name one quantity
+  angle convention: degrees
+  branch convention: <not recorded>
+  unit policy: exact SI conversion and component arithmetic, final-only precision
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Dot the two vectors and place the angle between them
+    rule: vec.dot.angle-plan, Cartesian scalar product
+    claim: no claim
+    explanation: Check compatibility, convert to SI, then sum the matching component products
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Cartesian scalar product
+    applicability: both vectors have the same number of components
+    applicability: both vectors use the same frame
+    applicability: the product of the two vectors' dimensions fits the dimension table
+    applicability: neither vector is the zero vector
+    fact: first vector: (3 i + 4 j) m
+    fact: second vector: 5 i m
+    rationale: the sum of the matching component products is the same quantity as the magnitude product times the cosine of the angle between them, and the component route is the one the given data supports exactly
+    verification: rank comparison, passed, ranks 2 and 2
+    verification: frame identity, passed, frame lab and frame lab
+    verification: dimensional multiplication, passed, L and L
+    verification: component comparison, passed, neither operand is the zero vector
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check vector ranks
+      rule: vec.dot.check-rank, Scalar product precondition
+      claim: definition
+      explanation: Every component of one vector needs a matching component in the other, so the two ranks have to agree
+      proof obligation: obl.scalar-product.ranks-match, both input vectors have the same number of components
+      target claim: both vectors have the same rank
+      check method: rank comparison
+      expected: equal ranks
+      observed: ranks 2 and 2
+      verification: rank comparison, passed, ranks 2 and 2
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check vector frames
+      rule: vec.dot.check-frame, Scalar product precondition
+      claim: definition
+      explanation: Frames must match unless a basis transformation is explicit
+      proof obligation: obl.scalar-product.frames-match, both input vectors use the same frame
+      target claim: both vectors use the same frame
+      check method: frame identity
+      expected: identical named frames
+      observed: frame lab and frame lab
+      verification: frame identity, passed, frame lab and frame lab
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the product dimension
+      rule: vec.dot.check-dimension, Scalar product precondition
+      claim: definition
+      explanation: Unlike a sum, the two operand dimensions need not match: the product dimension is their product, such as a force dotted with a displacement giving an energy
+      proof obligation: obl.scalar-product.dimension-product, the product of the two operand dimensions fits the dimension table
+      target claim: the product dimension fits
+      check method: dimensional multiplication
+      expected: a representable product dimension
+      observed: L and L
+      verification: dimensional multiplication, passed, L and L
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check both vectors point somewhere
+      rule: vec.dot.check-nonzero, Scalar product precondition
+      claim: definition
+      explanation: The zero vector has no direction, so there is no angle between it and anything else
+      proof obligation: obl.scalar-product.nonzero, neither operand is the zero vector
+      target claim: both operands have a direction
+      check method: component comparison
+      expected: a non-zero component on each side
+      observed: neither operand is the zero vector
+      verification: component comparison, passed, neither operand is the zero vector
+      verified: yes
+    1.5 transformation
+      phase: solve
+      goal: Write the scalar product both ways
+      rule: vec.dot.definition, Scalar product definition
+      claim: definition
+      explanation: a . b is a b cos(phi) and it is also the sum of the matching component products
+      detail: Reach for this whenever a question multiplies two vectors and wants a number rather than a vector back: work from a force and a displacement, or the angle between two directions. Chapter 3 gives the same quantity two readings. The geometric one, a b cos(phi), is the one to picture, because it says the scalar product measures how much of one vector lies along the other. The component one, ax bx + ay by + az bz, is the one to compute with, because it needs no angle and no square root. Which reading you use is decided by which data the question gave you, not by which is more correct.
+      assumption before: the two readings of the scalar product name one quantity
+      proof obligation: obl.scalar-product.definition-after-checks, the scalar product definition is applied only after its conditions pass
+      action: Apply a . b = a b cos(phi) = ax bx + ay by + az bz
+      before: dot(framed_vector(vector(3, 4), 1, lab, dimension(1, 0, 0, 0)), framed_vector(vector(5, 0), 1, lab, dimension(1, 0, 0, 0)))
+      after: (dot(a, b) = ((ax * bx) + (ay * by)))
+      reversible: no
+      verification: checked physical-law applicability, passed, the ranks, frames and dimensions passed
+      verified: yes
+    1.6 transformation
+      phase: solve
+      goal: Put the two declared vectors into the component form
+      rule: vec.dot.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each component symbol by the number the problem gave
+      detail: The component form is the one the given data supports, so it is the one the numbers go into. Pairing the components up while they are still named is what stops an x being multiplied by a y, which is the one mistake this arithmetic invites.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute a = (3 i + 4 j) m, b = 5 i m
+      before: (dot(a, b) = ((ax * bx) + (ay * by)))
+      after: (dot(a, b) = ((3 * 5) + (4 * 0)))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, a = (3 i + 4 j) m, b = 5 i m
+      verified: yes
+    1.7 transformation
+      phase: solve
+      goal: Add the component products up
+      rule: vec.dot.component-sum, Component sum
+      claim: equivalent expression
+      explanation: Multiply each pair of matching components and add the results
+      detail: Each pair of matching components is multiplied and the products are added. The axes are perpendicular, so no pair of different axes contributes anything, which is exactly why the sum is this short. What comes out is one number rather than a vector, and that is what makes this the scalar product.
+      proof obligation: obl.scalar-product.sum-is-the-definition, the value written down is the component sum the definition names
+      action: 3*5 + 4*0 = 15
+      before: (dot(a, b) = ((3 * 5) + (4 * 0)))
+      after: (dot(a, b) = 15)
+      reversible: yes
+      verification: nps vector_dot, passed, 15
+      verified: yes
+    1.8 check
+      phase: check
+      goal: Check that the order does not matter
+      rule: vec.dot.check-commutative, Scalar product check
+      claim: definition
+      explanation: Each term is a product of two numbers, so swapping the operands cannot change the sum
+      proof obligation: obl.scalar-product.commutative, dotting the operands in the opposite order gives the same value
+      target claim: the reversed dot product equals this one
+      check method: exact reversed dot product
+      expected: exact equality
+      observed: b . a equals a . b exactly
+      verification: exact reversed dot product, passed, b . a equals a . b exactly
+      verified: yes
+    1.9 check
+      phase: check
+      goal: Check the value against the geometric reading
+      rule: vec.dot.check-magnitude-bound, Scalar product check
+      claim: definition
+      explanation: a b cos(phi) can never exceed a b in size, so the square of the product can never exceed the product of the two self-products
+      proof obligation: obl.scalar-product.within-magnitude-bound, the square of the scalar product is at most the product of the two self-products
+      target claim: the component value agrees with the geometric reading
+      check method: exact Cauchy-Schwarz comparison
+      expected: (a . b)^2 at most (a . a)(b . b)
+      observed: 225 against 625
+      verification: exact Cauchy-Schwarz comparison, passed, 225 against 625
+      verified: yes
+    1.10 check
+      phase: check
+      goal: Place the angle between the two vectors
+      rule: vec.dot.interpret-angle, Scalar product reading
+      claim: definition
+      explanation: The magnitudes are both positive, so the sign of the scalar product is the sign of cos(phi) and nothing else
+      proof obligation: obl.scalar-product.angle-from-sign, the sign of the scalar product places the angle against a right angle
+      target claim: the angle is placed against a right angle
+      check method: exact sign comparison
+      expected: positive is acute, zero is perpendicular, negative is obtuse
+      observed: acute
+      verification: exact sign comparison, passed, 15, so the angle between them is less than a right angle
+      verified: yes
+    1.11 check
+      phase: check
+      goal: Measure the angle between the two vectors
+      rule: vec.dot.measure-angle, Angle from atan2
+      claim: definition
+      explanation: Take atan2 of the exact cross-product magnitude against the exact scalar product
+      detail: Reach for this when the question wants a number of degrees rather than which side of a right angle the vectors fall on. The inverse cosine route divides by two magnitudes, and a magnitude is a square root that is almost never exact, so it cannot be taken here. Lagrange's identity gives the same angle without one: the slack in the Cauchy-Schwarz comparison above is the square of the cross-product magnitude, so atan2 of its root against the scalar product is the angle, and both of its arguments were already worked out exactly. The check is that the cosine of the answer, times the magnitude product, is the scalar product again.
+      proof obligation: obl.scalar-product.angle-satisfies-definition, the reported angle satisfies a b cos(phi) = a . b
+      target claim: the angle between the two vectors is measured
+      check method: Giac atan2 against the exact Cauchy-Schwarz slack
+      expected: phi = atan2(|a x b|, a . b) with a b cos(phi) = a . b
+      observed: 53.13010235415598 degrees
+      verification: Giac atan2 against the exact Cauchy-Schwarz slack, passed, 53.13010235415598 degrees satisfies a b cos(phi) = a . b
+      verified: yes

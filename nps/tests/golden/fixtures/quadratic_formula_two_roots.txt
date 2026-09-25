@@ -1,0 +1,142 @@
+problem: 3x^2 + 10x - 88 = 0
+variable: x
+outcome: solved
+result: 4 and (-(22 * (3^(-1))))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.quadratic.formula.one-unknown
+  envelope version: <not recorded>
+  normalized problem: ((((3 * (x^2)) + (10 * x)) + (-88)) = 0)
+  requested method: read the coefficients, take the discriminant and split on its roots
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Solve for x
+    rule: eq.quadratic.formula, Read the coefficients and apply the quadratic formula
+    claim: no claim
+    explanation: Write the equation as a*x^2 + b*x + c = 0, then read off its roots
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Read the coefficients and apply the quadratic formula
+    applicability: the equation is a polynomial of degree two in x over the rationals
+    applicability: the discriminant has an exact rational square root or is negative
+    fact: one unknown, x
+    fact: degree two in x with a term of degree one
+    alternative: isolating the square, which this equation has no form for because a term of degree one leaves a bare x behind
+    rationale: the coefficients are exact rationals, so the discriminant is exact, and its sign says how many real values of x there are before any of them is written down
+    verification: structural degree bound and exact interpolation, passed, no power of x above the second occurs, and the coefficient of x^2 is 3
+    verification: exact rational square root, passed, the discriminant is a rational perfect square
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: solve
+      goal: Write the equation as a*x^2 + b*x + c = 0
+      rule: eq.quadratic.standard-form, Standard form
+      claim: solution set preserved
+      explanation: Move everything to one side so the three coefficients are on show
+      detail: The formula is about a, b and c, so they have to be visible before it can be applied. Moving every term to one side changes how the equation is written and not what solves it.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Collect on the left: a = 3, b = 10, c = (-88)
+      before: ((((3 * (x^2)) + (10 * x)) + (-88)) = 0)
+      after: ((((3 * (x^2)) + (10 * x)) + (-88)) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the coefficients were read from the equation itself and put back in the same order
+      verified: yes
+      1.1.1 check
+        phase: check
+        goal: Work out the discriminant
+        rule: eq.quadratic.discriminant, Discriminant
+        claim: no claim
+        explanation: b^2 - 4*a*c is 1156
+        detail: Reach for this before writing any root down. The formula takes the square root of this one number, so its sign decides whether there are two real values, one, or none, and nothing about the roots has to be guessed at to find out.
+        proof obligation: obl.quadratic.discriminant-decides, the sign of the discriminant decides how many real roots the equation has
+        target claim: the discriminant of the equation is 1156
+        check method: b^2 - 4*a*c in exact rationals
+        expected: a discriminant with an exact rational square root
+        observed: 1156 has the exact square root 34
+        verification: exact rational arithmetic, passed, b^2 - 4*a*c came out 1156, whose exact square root is 34
+        verified: nothing claimed
+      1.1.2 branch
+        phase: solve
+        goal: Take the positive square root of the discriminant
+        rule: eq.quadratic.formula-case, Quadratic formula case
+        claim: solution set narrowed
+        explanation: x = 4 is one of the two values the formula gives
+        detail: The formula takes the square root of the discriminant with either sign, and a positive discriminant has one of each, so both cases are written to keep every solution.
+        proof obligation: obl.quadratic.formula-case-is-a-root, this case makes a*x^2 + b*x + c zero at the coefficients that were read
+        condition: (x = 4)
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: root-coefficient reconstruction
+        feasibility: feasible
+        resolution: solved
+        resolution evidence: substitution into the original equation
+        verification: exact evaluation of the collected polynomial, passed, a*x^2 + b*x + c came out zero at 4
+        verified: yes
+        1.1.2.1 check
+          phase: check
+          goal: Check this case
+          rule: eq.quadratic.check-by-substitution, Check by substitution
+          claim: solution set preserved
+          explanation: Put 4 back into the equation as it was typed
+          detail: Substituting into the original rather than into the collected form is what makes this a check: the collected form came from the step being checked, so agreeing with it would prove nothing about the answer.
+          proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+          target claim: x = 4 satisfies the equation
+          check method: substitute the case into the original equation
+          expected: left side equals right side
+          observed: both sides came out equal
+          verification: substitution, passed, both sides came out equal
+          verified: yes
+      1.1.3 branch
+        phase: solve
+        goal: Take the negative square root of the discriminant
+        rule: eq.quadratic.formula-case, Quadratic formula case
+        claim: solution set narrowed
+        explanation: x = (-(22 * (3^(-1)))) is one of the two values the formula gives
+        detail: The formula takes the square root of the discriminant with either sign, and a positive discriminant has one of each, so both cases are written to keep every solution.
+        proof obligation: obl.quadratic.formula-case-is-a-root, this case makes a*x^2 + b*x + c zero at the coefficients that were read
+        condition: (x = (-(22 * (3^(-1)))))
+        siblings exhaustive: yes
+        siblings exclusive: yes
+        siblings domain consistent: yes
+        exhaustive evidence: root-coefficient reconstruction
+        feasibility: feasible
+        resolution: solved
+        resolution evidence: substitution into the original equation
+        verification: exact evaluation of the collected polynomial, passed, a*x^2 + b*x + c came out zero at (-(22 * (3^(-1))))
+        verified: yes
+        1.1.3.1 check
+          phase: check
+          goal: Check this case
+          rule: eq.quadratic.check-by-substitution, Check by substitution
+          claim: solution set preserved
+          explanation: Put (-(22 * (3^(-1)))) back into the equation as it was typed
+          detail: Substituting into the original rather than into the collected form is what makes this a check: the collected form came from the step being checked, so agreeing with it would prove nothing about the answer.
+          proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+          target claim: x = (-(22 * (3^(-1)))) satisfies the equation
+          check method: substitute the case into the original equation
+          expected: left side equals right side
+          observed: both sides came out equal
+          verification: substitution, passed, both sides came out equal
+          verified: yes
+      1.1.4 check
+        phase: check
+        goal: Check that no case is missing
+        rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+        claim: solution set preserved
+        explanation: The cases multiply back out to the equation that was split
+        detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+        proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+        target claim: the cases recorded are every real solution of the equation
+        check method: rebuild the quadratic from the recorded cases and compare it
+        expected: the rebuilt quadratic is the one that was split
+        observed: the rebuilt quadratic is the one that was split
+        verification: root-coefficient reconstruction, passed, the 2 recorded cases rebuild x^2 + (10 * (3^(-1)))*x + (-(88 * (3^(-1)))) = 0
+        verified: yes

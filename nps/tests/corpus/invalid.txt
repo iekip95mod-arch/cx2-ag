@@ -589,7 +589,7 @@ case invalid.integral.divisor-cancelling-to-zero
   input 1/(y-y)
   variable x
   expect unsupported form
-  detail the integrand is undefined here, so there is nothing to integrate
+  detail the integrand divides by zero, which has no value to integrate
 
 case invalid.integral.divisor-cancelling-under-a-coefficient
   family invalid
@@ -597,7 +597,7 @@ case invalid.integral.divisor-cancelling-under-a-coefficient
   input x/(2*y - y - y)
   variable x
   expect unsupported form
-  detail the integrand is undefined here, so there is nothing to integrate
+  detail the integrand divides by zero, which has no value to integrate
 
 case invalid.derivative.divisor-cancelling-a-call
   family invalid
@@ -605,7 +605,7 @@ case invalid.derivative.divisor-cancelling-a-call
   input x/(sin(y) - sin(y))
   variable x
   expect unsupported form
-  detail the expression is undefined here, so there is nothing to differentiate
+  detail the expression divides by zero, which has no value to differentiate
 
 case invalid.linear.divisor-cancelling-to-zero
   family invalid
@@ -613,7 +613,7 @@ case invalid.linear.divisor-cancelling-to-zero
   input x/(y-y) = 1
   unknown x
   expect refused
-  detail the equation is undefined here, so there is nothing to solve
+  detail the equation divides by zero, which has no value to solve for
 
 # A denominator that is not zero on arrival and is zero once the rules have run. The entry guard
 # cannot catch this one, because at entry the sum is unexpanded and looks like any other; it is the

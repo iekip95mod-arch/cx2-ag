@@ -46,10 +46,11 @@ size_t checks_of_kind(const Derivation &derivation, const std::string &rule_pref
     return count;
 }
 
-const CheckPayload *check_payload_for(const Derivation &derivation, const std::string &rule_id) {
+const CheckPayload *check_payload_for(const Derivation &derivation, const std::string &rule_name) {
     for (size_t index = 0; index < derivation.size(); ++index) {
         const StepId id = static_cast<StepId>(index);
-        if (derivation.at(id).rule_id == rule_id)
+        if (derivation.at(id).rule_id == "physics.ranking.criterion" &&
+            derivation.at(id).rule_name == rule_name)
             return derivation.check(id);
     }
     return nullptr;
@@ -98,8 +99,10 @@ void run_ranking_tests(TestSink &t) {
         t.equal(ranking_outcome_name(result.outcome), "solved", "problem 6b solves");
         t.equal(order_summary(result, problem), "path 4 > path 1=path 2 > path 3",
                 "problem 6b: 4, then 1 and 2 tied, then 3");
-        t.check(checks_of_kind(derivation, "physics.ranking.criterion.") == 1,
+        t.check(checks_of_kind(derivation, "physics.ranking.criterion") == 1,
                 "problem 6b records one criterion step");
+        t.check(result.cost.steps == derivation.size() && result.cost.rewrites > 0,
+                "ranking reports its comparison and derivation work");
     }
     {
         // Problem 7's key version, parts (a) and (b): three footballs kicked from ground level, all
@@ -160,8 +163,21 @@ void run_ranking_tests(TestSink &t) {
         t.equal(ranking_outcome_name(result.outcome), "solved", "problem 7d solves");
         t.equal(order_summary(result, problem), "football 3 > football 2 > football 1",
                 "problem 7d: the vertical component ties so the horizontal one decides");
-        t.check(checks_of_kind(derivation, "physics.ranking.criterion.") == 2,
+        t.check(checks_of_kind(derivation, "physics.ranking.criterion") == 2,
                 "problem 7d records a justification step for each criterion");
+        const Step &vertical = derivation.at(0);
+        const Step &horizontal = derivation.at(1);
+        t.equal(vertical.rule_id, "physics.ranking.criterion",
+                "the vertical criterion uses the stable ranking rule");
+        t.equal(horizontal.rule_id, "physics.ranking.criterion",
+                "the horizontal criterion uses the same stable ranking rule");
+        t.equal(vertical.rule_name, "initial vertical velocity",
+                "the stable rule retains the vertical criterion name");
+        t.equal(horizontal.rule_name, "initial horizontal velocity",
+                "the stable rule retains the horizontal criterion name");
+        t.check(derivation.check(0)->target_claim.find("initial vertical velocity") != std::string::npos &&
+                    derivation.check(1)->target_claim.find("initial horizontal velocity") != std::string::npos,
+                "the stable rule retains each criterion in its check payload");
     }
     {
         // The test paper's version of problem 7 is not solved: final speed on landing depends on the
@@ -206,7 +222,7 @@ void run_ranking_tests(TestSink &t) {
         t.equal(order_summary(result, problem), "football 3 > football 2 > football 1",
                 "the deciding component alone determines the order");
 
-        const CheckPayload *secondary = check_payload_for(derivation, "physics.ranking.criterion.secondary component");
+        const CheckPayload *secondary = check_payload_for(derivation, "secondary component");
         t.check(secondary != nullptr, "the secondary criterion records its own justification step");
         if (secondary != nullptr) {
             t.equal(secondary->observed_result, "unknown for football 1 and football 2",
@@ -228,6 +244,110 @@ void run_ranking_tests(TestSink &t) {
         const RankingResult result = solve_ranking(derivation, model, problem);
         t.equal(ranking_outcome_name(result.outcome), "too few situations",
                 "a single situation cannot be ranked against anything");
+    }
+    {
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+        problem.situations.push_back(situation("path 2", ranking_known(2)));
+
+        Budget budget;
+        budget.max_rewrites = 0;
+        Derivation derivation;
+        const RankingResult stopped = solve_ranking(derivation, model, problem, budget);
+        t.equal(ranking_outcome_name(stopped.outcome), "resource exceeded",
+                "comparison work respects the rewrite limit");
+        t.equal(stopped.detail, "rewrite limit", "the exhausted comparison budget is named");
+        t.check(stopped.status == DerivationStatus::ResourceLimitReached && stopped.order.empty() &&
+                    derivation.size() == 0,
+                "a comparison halt reports no order or partial derivation");
+
+        budget = Budget();
+        budget.max_steps = 0;
+        const RankingResult step_stopped = solve_ranking(derivation, model, problem, budget);
+        t.equal(ranking_outcome_name(step_stopped.outcome), "resource exceeded",
+                "ranking steps respect the step limit");
+        t.equal(step_stopped.detail, "step limit", "the exhausted step budget is named");
+        t.check(step_stopped.status == DerivationStatus::ResourceLimitReached &&
+                    step_stopped.order.empty() && derivation.size() == 0,
+                "a step halt reports no order or partial derivation");
+
+        budget.max_steps = 1;
+        const RankingResult partial = solve_ranking(derivation, model, problem, budget);
+        t.equal(ranking_outcome_name(partial.outcome), "resource exceeded",
+                "a later step budget halt refuses an otherwise computed order");
+        t.check(partial.cost.steps == 2 && partial.order.empty() && derivation.size() == 0,
+                "a step halt rewinds a previously recorded ranking check");
+
+        budget = Budget();
+        budget.poll = [](void *) { return true; };
+        const RankingResult cancelled = solve_ranking(derivation, model, problem, budget);
+        t.equal(ranking_outcome_name(cancelled.outcome), "cancelled",
+                "ranking polls for cancellation on entry");
+        t.check(cancelled.status == DerivationStatus::NotRecorded && cancelled.order.empty() &&
+                    derivation.size() == 0,
+                "an entry cancellation reports no order or partial derivation");
+
+        problem.situations.clear();
+        for (int index = 0; index < 12; ++index)
+            problem.situations.push_back(situation("path", ranking_known(index)));
+        size_t polls = 0;
+        budget.poll = [](void *context) { return ++*static_cast<size_t *>(context) == 14; };
+        budget.poll_context = &polls;
+        const RankingResult interrupted = solve_ranking(derivation, model, problem, budget);
+        t.equal(ranking_outcome_name(interrupted.outcome), "cancelled",
+                "ranking polls during pairwise comparison work");
+        t.check(polls == 14 && interrupted.cost.rewrites >= 64 && interrupted.order.empty() &&
+                    derivation.size() == 0,
+                "cancellation during comparisons stops without publishing an order");
+    }
+    {
+        // Issue 416's shape here, where the family recorded no context of its own at all.
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+        problem.situations.push_back(situation("path 2", ranking_known(2)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "a solved ranking names this family rather than leaving the field to a nested "
+                "engine");
+        t.equal(derivation.context.problem_family_envelope_version, "1",
+                "and records the envelope version the catalog declares");
+        t.check(derivation.context.derivation_status == result.status,
+                "the context binds to the outcome the ranking reached");
+        t.check(derivation.context.requested_method.find("criteria") != std::string::npos,
+                "the context states the method this family ran");
+
+        RankingProblem undecidable;
+        undecidable.situations.push_back(situation("path 1", ranking_unknown()));
+        undecidable.situations.push_back(situation("path 2", ranking_known(2)));
+        Derivation refused_derivation;
+        const RankingResult refused = solve_ranking(refused_derivation, model, undecidable);
+        t.equal(ranking_outcome_name(refused.outcome), "indeterminate order",
+                "the control on the line below, so the refusal really is a refusal");
+        t.equal(refused_derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "and a refused ranking names the family too, since a refusal is a walkthrough as "
+                "much as an answer is");
+        std::string assumptions;
+        for (const std::string &one : derivation.context.active_assumptions)
+            assumptions += one + " | ";
+        const CheckPayload *ordering = check_payload_for(derivation, "distance covered");
+        t.evidence("PHYS-025",
+                   assumptions.find("priority order") != std::string::npos &&
+                       !derivation.context.requested_method.empty() &&
+                       ordering != nullptr && !ordering->check_method.empty() &&
+                       derivation.context.problem_family_id ==
+                           "physics.ranking.comparative-order",
+                   "the ranking family records its priority-order condition, the comparison rule it "
+                   "applied and the justification step for each criterion");
     }
 }
 
