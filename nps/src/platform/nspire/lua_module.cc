@@ -3313,29 +3313,29 @@ bool declared_quantity(std::string_view text, const char *unit_text, const Dimen
     return true;
 }
 
-constexpr size_t kModernRelationCount = 3;
-constexpr size_t kModernVariableCount = 6;
-
+// Each name function answers "invalid ..." past its last enumerator, which is where these walks stop.
 bool modern_relation(std::string_view name, ModernRelation *relation) {
-    for (size_t i = 0; i < kModernRelationCount; ++i) {
+    for (uint8_t i = 0;; ++i) {
         const auto candidate = static_cast<ModernRelation>(i);
+        if (std::string_view(modern_relation_name(candidate)) == "invalid relation")
+            return false;
         if (name == modern_relation_name(candidate)) {
             *relation = candidate;
             return true;
         }
     }
-    return false;
 }
 
 bool modern_variable(std::string_view name, ModernVariable *variable) {
-    for (size_t i = 0; i < kModernVariableCount; ++i) {
+    for (uint8_t i = 0;; ++i) {
         const auto candidate = static_cast<ModernVariable>(i);
+        if (std::string_view(modern_variable_name(candidate)) == "invalid variable")
+            return false;
         if (name == modern_variable_name(candidate)) {
             *variable = candidate;
             return true;
         }
     }
-    return false;
 }
 
 // Every modern relation reads one or two knowns, so the second pair is optional.
@@ -3406,29 +3406,28 @@ int l_modern(lua_State *L) {
     return 1;
 }
 
-constexpr size_t kRelativityRelationCount = 5;
-constexpr size_t kRelativityVariableCount = 14;
-
 bool relativity_relation(std::string_view name, RelativityRelation *relation) {
-    for (size_t i = 0; i < kRelativityRelationCount; ++i) {
+    for (uint8_t i = 0;; ++i) {
         const auto candidate = static_cast<RelativityRelation>(i);
+        if (std::string_view(relativity_relation_name(candidate)) == "invalid relation")
+            return false;
         if (name == relativity_relation_name(candidate)) {
             *relation = candidate;
             return true;
         }
     }
-    return false;
 }
 
 bool relativity_variable(std::string_view name, RelativityVariable *variable) {
-    for (size_t i = 0; i < kRelativityVariableCount; ++i) {
+    for (uint8_t i = 0;; ++i) {
         const auto candidate = static_cast<RelativityVariable>(i);
+        if (std::string_view(relativity_variable_name(candidate)) == "invalid variable")
+            return false;
         if (name == relativity_variable_name(candidate)) {
             *variable = candidate;
             return true;
         }
     }
-    return false;
 }
 
 // Every relativity relation reads one or two knowns and names both frames and the boost.
@@ -3448,6 +3447,15 @@ int l_relativity(lua_State *L) {
     bool parsed = relativity_relation(relation_text, &problem.relation);
     if (!parsed)
         why = "unknown relativity relation " + std::string(relation_text);
+    // The same bound string_field puts on a name read from a table.
+    if (parsed && problem.rest_frame.name.size() > Limits().max_input_bytes) {
+        parsed = false;
+        why = "rest frame is too long";
+    }
+    if (parsed && problem.moving_frame.name.size() > Limits().max_input_bytes) {
+        parsed = false;
+        why = "moving frame is too long";
+    }
     Dimension speed;
     if (parsed && !declared_quantity(boost_text, "c", speed, &problem.boost, &why))
         parsed = false;

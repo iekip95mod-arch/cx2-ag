@@ -116,9 +116,9 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-25, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4347), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4350 to 4352), `modern` and `relativity` (lua_module.cc:4353 and 4354),
-`vector_addition` (lua_module.cc:4355), `vector_cross` (lua_module.cc:4356),
+`optics`, `unit_conversion` (lua_module.cc:4355), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4358 to 4360), `modern` and `relativity` (lua_module.cc:4361 and 4362),
+`vector_addition` (lua_module.cc:4363), `vector_cross` (lua_module.cc:4364),
 `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
@@ -127,7 +127,7 @@ dialogs.
 reads the variable names against the model's own term names (lua_module.cc:3210). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`modern` (lua_module.cc:3342) and `relativity` (lua_module.cc:3435) read their relation and variable
+`modern` (lua_module.cc:3342) and `relativity` (lua_module.cc:3434) read their relation and variable
 names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
 exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
 nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3300 attaches the declared unit

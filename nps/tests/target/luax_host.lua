@@ -1472,6 +1472,13 @@ do
     r = nps.relativity("Time dilation", "station", "ship", "0.6 c", "rest energy", "4 s")
     check(r.solved == false and r.result == nil,
           "a known the relation does not read is refused")
+    local long_frame = string.rep("f", 5000)
+    r = nps.relativity("Time dilation", long_frame, "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and r.detail == "rest frame is too long" and #r.steps == 0,
+          "a rest frame name past the input bound is refused as a table-read name would be")
+    r = nps.relativity("Time dilation", "station", long_frame, "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and r.detail == "moving frame is too long",
+          "and so is a moving frame name past the same bound")
     r = nps.relativity("Time travel", "station", "ship", "0.6 c", "proper time", "4 s")
     check(r.outcome == "invalid input" and #r.steps == 0 and
           r.detail == "unknown relativity relation Time travel",
