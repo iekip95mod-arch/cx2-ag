@@ -151,8 +151,9 @@ makes both of them reachable.
 nps/lua/nps_v4.lua:2752 leaves it unset for the sliding puck. nps/src/physics/planar_kinematics.cc:246
 reads that flag and reports either physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:40 and required of the loaded module at nps/lua/nps_v4.lua:66, so a
-build missing either one refuses to start rather than offering a menu entry that cannot run.
+nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a menu
+entry that cannot run.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this

@@ -430,13 +430,8 @@ fake_planar_kinematics = {
     displacement = { result = "(6 i - 12 j) m", exact_x = "6", exact_y = "-12", unit = "m",
                      frame = "lab", stage = "interval" },
     final_velocity = { result = "(3 i - 16 j) m/s", exact_x = "3", exact_y = "-16", stage = "state" },
-    nodes = 24, step_count = 4, rewrites = 3, giac_calls = 1,
+    nodes = 24, step_count = 3, rewrites = 3, giac_calls = 1,
     steps = {
-        { kind = "plan", name = "Projectile constant-acceleration plan",
-          goal = "Choose a route for the projectile specialization",
-          short = "Per-axis constant acceleration under one shared time",
-          claim = "no claim", rule = "physics.planar-kinematics.projectile-plan",
-          verified = true, failed = false, depth = 0 },
         { kind = "transformation", name = "Horizontal displacement",
           goal = "Solve the unaccelerated horizontal axis", short = "Apply the constant-velocity law",
           claim = "definition", rule = "physics.planar-kinematics.component-i",
@@ -453,35 +448,19 @@ fake_planar_kinematics = {
     },
 }
 
--- The general planar family, which differs from the record above in the horizontal axis and in
--- the plan rule. Global for the same 200-locals reason.
+-- The general planar family. Only the values luax asserts against the real bridge differ from the
+-- record above. Global for the same 200-locals reason.
 fake_planar_kinematics_general = {
     outcome = "solved", detail = "", solved = true, answer_only = false,
     status = "solved and verified", result = "(10 i - 12 j) m",
     displacement = { result = "(10 i - 12 j) m", exact_x = "10", exact_y = "-12", unit = "m",
                      frame = "lab", stage = "interval" },
     final_velocity = { result = "(7 i - 16 j) m/s", exact_x = "7", exact_y = "-16", stage = "state" },
-    nodes = 24, step_count = 4, rewrites = 3, giac_calls = 1,
+    nodes = 24, step_count = 3, rewrites = 3, giac_calls = 1,
     steps = {
-        { kind = "plan", name = "Planar constant-acceleration plan",
-          goal = "Choose a route for two accelerated axes",
-          short = "Per-axis constant acceleration under one shared time",
-          claim = "no claim", rule = "physics.planar-kinematics.plan",
-          verified = true, failed = false, depth = 0 },
-        { kind = "transformation", name = "Horizontal displacement",
-          goal = "Solve the accelerated horizontal axis",
-          short = "Apply the constant-acceleration law",
-          claim = "definition", rule = "physics.planar-kinematics.component-i",
-          verified = true, failed = false, depth = 0 },
-        { kind = "transformation", name = "Vertical displacement",
-          goal = "Solve the accelerated vertical axis", short = "Apply the constant-acceleration law",
-          claim = "definition", rule = "physics.planar-kinematics.component-j",
-          verified = true, failed = false, depth = 0 },
-        { kind = "check", name = "Shared time identity",
-          goal = "Confirm both axes solve for the same elapsed time",
-          short = "Check the shared-time identity with Giac",
-          claim = "verified", rule = "physics.planar-kinematics.check-shared-time",
-          verified = true, failed = false, depth = 0 },
+        fake_planar_kinematics.steps[1],
+        fake_planar_kinematics.steps[2],
+        fake_planar_kinematics.steps[3],
     },
 }
 
