@@ -122,10 +122,7 @@ struct FamilyWithNoRun {
     const char *why;
 };
 
-const std::vector<FamilyWithNoRun> kFamiliesNoRunStamps = {
-    {"physics.kinematics.motion-graphs.piecewise-area",
-     "src/steps/graph_integration.cc calls make_context nowhere"},
-};
+const std::vector<FamilyWithNoRun> kFamiliesNoRunStamps = {};
 
 struct Outcome {
     bool join_ran = false;
