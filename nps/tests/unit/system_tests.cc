@@ -287,6 +287,10 @@ void test_budgets(TestSink &t) {
     t.equal(outcome(cancelled), "cancelled", "a cancelled solve says it was cancelled");
     t.equal(status(cancelled), "cancelled", "with the cancelled status");
     t.check(cancelled.result.solutions.empty(), "and offers nothing");
+    const Solved cancelled_substitution =
+        run("[x + y = 3, x - y = 1]", "[x, y]", cancelling, NumericMode::Exact, SystemMethod::Substitution);
+    t.equal(outcome(cancelled_substitution), "cancelled", "a cancelled substitution says it was cancelled");
+    t.check(cancelled_substitution.result.solutions.empty(), "and offers nothing either");
 
     Budget short_budget;
     short_budget.max_steps = 3;

@@ -2461,6 +2461,7 @@ int system_into(lua_State *L) {
     Derivation d;
     d.request.original_expression.assign(text, size);
     d.request.numeric_mode = mode;
+    // l_walkthrough only dispatches here once the command parsed as Ready.
     const Command command = parse_command(arena, d.request.original_expression, "x");
     const SystemResult result =
         solve_linear_system(arena, d, command.expression, command.variable, interactive_budget(),
