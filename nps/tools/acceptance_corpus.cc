@@ -1294,7 +1294,7 @@ int main(int argc, char **argv) {
                 "rules that carry a domain restriction record it (" +
                 count_text(restrictions_recorded) + " restrictions over " +
                 count_text(restrictions_required) + " cases that require one)"));
-        // VER-010's observed kinds over the corpus, joined against the registered rules in coverage.
+        // VER-010's observed kinds over the corpus, for coverage.cc to join.
         for (const auto &entry : g_pass.rule_kinds()) {
             for (nps_tools::RuleCaseKind kind : entry.second)
                 rows.push_back(nps_tools::rule_case_row(

@@ -121,9 +121,8 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
     }
 }
 
-// VER-010 asks for four kinds of case per rule, and this many registered rule and kind pairs have
-// none today. A gap closed or opened has to move this number in the same change, so it only shrinks.
-constexpr size_t kRuleCaseGaps = 724;
+// Rule and kind pairs with no case, pinned so a change that moves the count updates it.
+constexpr size_t kRuleCaseGaps = 732;
 
 struct RuleCaseJoin {
     size_t rows = 0;
@@ -133,8 +132,7 @@ struct RuleCaseJoin {
     size_t per_kind[nps_tools::kRuleCaseKindCount] = {};
 };
 
-// Every registered rule against the rule case rows the test runs wrote. A row that names no
-// registered rule, an unknown kind or a failed case is a fault, and a missing kind is a gap.
+// Every registered rule against the rule case rows. A bad row is a fault, a missing kind a gap.
 RuleCaseJoin join_rule_cases(const std::string &evidence_path, const std::vector<Family> &families,
                              std::ostream &report) {
     RuleCaseJoin out;
@@ -563,8 +561,7 @@ int selftest() {
         std::cout << "coverage selftest: " << (absent_faults ? "ok   " : "FAIL ")
                   << "an evidence file that cannot be read is a fault rather than an empty join\n";
 
-        // The whole run passes at the recorded gap count and fails one rule either side of it, or
-        // at that count with one failed case beside it.
+        // The whole run passes only at the recorded gap count with no failed case.
         const size_t full_rules = (all_gaps - kRuleCaseGaps) / nps_tools::kRuleCaseKindCount;
         const struct {
             size_t rules;

@@ -563,9 +563,8 @@ void test_rule_cases(TestSink &t) {
         Arena arena;
         Derivation d;
         const QuadraticResult r = solve(arena, d, source, "x");
-        for (const char *rule : kRules)
-            t.rule_case(rule, RuleCaseKind::Negative, d, r.status == DerivationStatus::Unsupported,
-                        std::string(rule) + " is refused for " + source);
+        t.rule_case(kRules[0], RuleCaseKind::Negative, d, r.status == DerivationStatus::Unsupported,
+                    std::string("the square root strategy refuses ") + source);
     }
     {
         // A zero square has one root, so the split has a single case.

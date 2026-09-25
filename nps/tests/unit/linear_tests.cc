@@ -59,14 +59,12 @@ void test_rule_cases(TestSink &t) {
 
     const Derivation squared = derive("x^2 = 4");
     const Derivation denominator = derive("1/x = 2");
-    for (const char *rule : kRules) {
-        t.rule_case(rule, RuleCaseKind::Negative, squared,
-                    squared.context.derivation_status == DerivationStatus::Unsupported,
-                    std::string(rule) + " is refused for a squared unknown, a degree-two neighbour");
-        t.rule_case(rule, RuleCaseKind::Negative, denominator,
-                    denominator.context.derivation_status == DerivationStatus::Unsupported,
-                    std::string(rule) + " is refused for an unknown in a denominator");
-    }
+    t.rule_case(kRules[0], RuleCaseKind::Negative, squared,
+                squared.context.derivation_status == DerivationStatus::Unsupported,
+                "the linear strategy refuses a squared unknown, a degree-two neighbour");
+    t.rule_case(kRules[0], RuleCaseKind::Negative, denominator,
+                denominator.context.derivation_status == DerivationStatus::Unsupported,
+                "the linear strategy refuses an unknown in a denominator");
 
     // The widest coefficient an int64 holds, divided out and substituted back.
     const Derivation widest = derive("9223372036854775807x = 9223372036854775807");
@@ -80,8 +78,7 @@ void test_rule_cases(TestSink &t) {
                 zeros.context.derivation_status == DerivationStatus::SolvedAndVerified,
                 "a zero coefficient and a zero constant are read as every value");
 
-    // The quotient that no longer fits once the sides are collected, which #14 found reported as
-    // an equation of the wrong shape.
+    // A quotient past int64 once the sides are collected, which #14 found reported as a shape.
     const Derivation quotient = derive("x + 4611686018427387904*(-2) = 0");
     for (size_t i = 0; i < 2; ++i)
         t.rule_case(kRules[i], RuleCaseKind::Regression, quotient,
@@ -89,14 +86,12 @@ void test_rule_cases(TestSink &t) {
                     std::string(kRules[i]) +
                         " runs before a quotient past int64 is refused as a resource limit, #14");
 
-    // The validator itself, one contradicting derivation per kind. Each builds a sink of its own so
-    // the refusal is read rather than counted as a failure of this suite.
+    // The validator itself, each case in its own sink so a refusal is read, not counted.
     const Derivation solved = derive("2x + 5 = 13");
     Budget tight;
     tight.max_steps = 1;
     const Derivation halted = derive("2x + 5 = 13", tight);
-    // A rule whose own check failed under a status that still claims an answer, built by hand
-    // because no engine writes that pair.
+    // Built by hand, because no engine records a failed check under an answering status.
     Derivation contradicted;
     {
         Step step;
@@ -108,6 +103,8 @@ void test_rule_cases(TestSink &t) {
         contradicted.add_transformation(kNoStep, std::move(step), TransformationPayload());
         contradicted.context.derivation_status = DerivationStatus::SolvedAndVerified;
     }
+    t.rule_case("eq.divide-both-sides", RuleCaseKind::Negative, contradicted, true,
+                "a division whose substitution check failed is recorded as failed");
     const struct {
         const char *rule;
         RuleCaseKind kind;
@@ -132,8 +129,14 @@ void test_rule_cases(TestSink &t) {
          "a negative case does not hold for a rule simply absent from an answered derivation"},
         {"eq.divide-both-sides", RuleCaseKind::Negative, &solved, "a", false,
          "nor for a rule that ran and passed"},
-        {"eq.divide-both-sides", RuleCaseKind::Negative, &halted, "a", false,
+        {"eq.linear.inverse-operations", RuleCaseKind::Negative, &halted, "a", false,
          "nor for a derivation stopped by its budget, which is not a refusal"},
+        {"eq.divide-both-sides", RuleCaseKind::Negative, &squared, "a", false,
+         "nor for a rule the strategy's refusal never reached"},
+        {"matrix.det-row-swap", RuleCaseKind::Negative, &squared, "a", false,
+         "nor for a rule of another family entirely"},
+        {"eq.linear.inverse-operations", RuleCaseKind::Negative, &squared, "a", true,
+         "while the strategy whose preconditions refused does hold it"},
         {"eq.divide-both-sides", RuleCaseKind::Boundary, &squared, "a", false,
          "a boundary case has to reach the rule"},
         {"eq.divide-both-sides", RuleCaseKind::Regression, &solved, "no issue named", false,
@@ -146,7 +149,7 @@ void test_rule_cases(TestSink &t) {
     for (const auto &c : validator) {
         TestSink probe;
         probe.rule_case(c.rule, c.kind, *c.derivation, true, c.what);
-        // The check and the recorded row each have to carry the verdict, since either reaches a gate.
+        // The check and the recorded row each carry the verdict, since either reaches a gate.
         const bool agreed = probe.failures.empty() == c.holds && probe.rule_cases.size() == 1 &&
                             probe.rule_cases[0].passed == c.holds;
         t.check(agreed, std::string("rule case validator: ") + c.about);

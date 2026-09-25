@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "nps/steps/derivation.h"
+#include "nps/steps/schema.h"
 
 #include "../../tools/rule_cases.h"
 
@@ -41,8 +42,7 @@ struct Evidence {
     bool passed = false;
 };
 
-// VER-010's link from a check to the rule it is a case of. Rows the invariant pass observes and rows
-// a test declares share this shape, so coverage.cc joins both against the registered rules alike.
+// VER-010's link from a check to the rule it is a case of, observed or declared alike.
 struct RuleCase {
     std::string rule_id;
     nps_tools::RuleCaseKind kind = nps_tools::RuleCaseKind::Positive;
@@ -51,8 +51,7 @@ struct RuleCase {
     bool passed = false;
 };
 
-// Whether a derivation is what a declared case of this kind claims about the rule. A declaration the
-// record contradicts fails, so a tag cannot stand on a check that never reached the rule.
+// Whether the derivation is what a declared case of this kind claims about the rule.
 inline bool rule_case_holds(const Derivation &derivation, const std::string &rule_id,
                             nps_tools::RuleCaseKind kind, const std::string &what) {
     bool reached = false;
@@ -71,11 +70,17 @@ inline bool rule_case_holds(const Derivation &derivation, const std::string &rul
                          status != DerivationStatus::Cancelled &&
                          status != DerivationStatus::ResourceLimitReached &&
                          status != DerivationStatus::DependencyUnavailable;
+    // Only a strategy answers for a refusal before any step, since its preconditions refused.
+    bool strategy = false;
+    if (const RuleSchema *schema = rule_schema(rule_id)) {
+        for (size_t o = 0; o < schema->obligation_count; ++o)
+            strategy = strategy || std::string(schema->obligations[o].id).rfind("pre.", 0) == 0;
+    }
     switch (kind) {
         case nps_tools::RuleCaseKind::Positive:
             return reached && !failed && answered;
         case nps_tools::RuleCaseKind::Negative:
-            return reached ? failed : refused;
+            return reached ? failed : refused && strategy;
         case nps_tools::RuleCaseKind::Boundary:
             return reached;
         case nps_tools::RuleCaseKind::Regression:
@@ -133,8 +138,7 @@ struct TestSink {
         record_evidence(requirement, got == want, what);
     }
 
-    // A check that also stands as a VER-010 case of one registered rule. It fails when the
-    // derivation is not what the kind says of that rule, whatever the condition says.
+    // A check that is also a VER-010 case, failing when the derivation contradicts the kind.
     void rule_case(const char *rule_id, nps_tools::RuleCaseKind kind, const Derivation &derivation,
                    bool cond, const std::string &what) {
         const bool holds = rule_case_holds(derivation, rule_id, kind, what);
