@@ -224,7 +224,7 @@ place is not evidence for the other.
 
 ## What the host build does not cover
 
-<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt -->
+<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt, nps/tools/device_evidence.cc -->
 
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
