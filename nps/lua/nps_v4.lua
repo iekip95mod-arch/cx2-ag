@@ -64,6 +64,7 @@ local requiredSolvers = {
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -102,7 +103,7 @@ local function manifestCompatibility(manifest)
 	if type(manifest.installed_modules) ~= "table" then
 		return "StepCAS manifest malformed (installed_modules)"
 	end
-	if #manifest.installed_modules > 32 then return "StepCAS manifest malformed (too many modules)" end
+	if #manifest.installed_modules > 128 then return "StepCAS manifest malformed (too many modules)" end
 	local installed = {}
 	for index, entry in ipairs(manifest.installed_modules) do
 		if type(entry) ~= "table" or type(entry.id) ~= "string" then
@@ -2741,6 +2742,24 @@ PHYSICS_FIXTURES = {
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+				projectile = true,
+			})
+		end,
+	},
+	{
+		label = "Find where a ball goes in a steady sideways wind",
+		problem = "A ball is thrown up and forward while a steady wind pushes it sideways the " ..
+		          "whole way and gravity pulls it down. It rises, slows, and is falling again " ..
+		          "by the time two seconds are up. Find where it has got to and how fast it is going.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "ball",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
