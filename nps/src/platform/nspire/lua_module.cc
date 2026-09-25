@@ -3930,6 +3930,45 @@ int l_components_to_magnitude_angle(lua_State *L) {
     return set_vector_components_result(L, arena, derivation, result);
 }
 
+#ifndef NPS_DOCUMENTS_DIRECTORY
+#define NPS_DOCUMENTS_DIRECTORY "/documents/ndl/"
+#endif
+
+constexpr size_t kExportNameLimit = 32;
+constexpr size_t kExportTextLimit = 64 * 1024;
+
+// UI-011. The shell has no io library, so the module writes the text the shell composed.
+int l_export_text(lua_State *L) {
+    const char *name = scalar_string_argument(L, 1);
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 2, &size);
+    const std::string_view stem(name);
+    bool plain = !stem.empty() && stem.size() <= kExportNameLimit;
+    for (const char c : stem)
+        plain = plain && ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_');
+    const char *refusal = !plain ? "export name must be 1 to 32 lower case letters, digits, - or _"
+                          : size > kExportTextLimit ? "export text is larger than 64 KiB"
+                                                    : nullptr;
+    if (refusal == nullptr) {
+        const std::string path = std::string(NPS_DOCUMENTS_DIRECTORY) + name + ".txt.tns";
+        FILE *f = std::fopen(path.c_str(), "wb");
+        if (f == nullptr) {
+            refusal = "could not open the export file";
+        } else {
+            const bool written = std::fwrite(text, 1, size, f) == size;
+            const bool closed = std::fclose(f) == 0;
+            if (written && closed) {
+                lua_pushstring(L, path.c_str());
+                return 1;
+            }
+            refusal = "could not write the whole export file";
+        }
+    }
+    lua_pushnil(L);
+    lua_pushstring(L, refusal);
+    return 2;
+}
+
 int l_integrate(lua_State *L) { return integrate_into(L, true); }
 
 int l_integrate_local(lua_State *L) { return integrate_into(L, false); }
@@ -3994,6 +4033,7 @@ const luaL_Reg lib[] = {
     {"canonical", l_canonical},
     {"math_display", l_math_display},
     {"giac", l_giac},
+    {"export_text", l_export_text},
     {"walkthrough", l_walkthrough},
     {"ui_panel", l_ui_panel},
     {"ui_icon", l_ui_icon},

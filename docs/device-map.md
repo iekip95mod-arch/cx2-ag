@@ -116,10 +116,15 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
-dialogs.
+`optics`, `unit_conversion` (lua_module.cc:4065), `vector_addition` (lua_module.cc:4068),
+`vector_cross` (lua_module.cc:4069), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4036), and a set of platform entry points for
+memory, tracing, integrity and the OS dialogs.
+
+`export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
+library. `source`: read on 2026-09-25, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:3941, and
+nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -164,7 +169,7 @@ with only `planar_kinematics` wired, so no open issue tracks the other two. When
 paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
-manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:105 and every StepCAS surface stays
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
 off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
@@ -183,8 +188,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156, measureMath
-sets the expression at :3190, and the history editor sets its expression at :1437.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3176, measureMath
+sets the expression at :3210, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
