@@ -162,6 +162,11 @@ void test_collect(TestSink &t) {
         t.equal(outcome(r), "outside envelope", "a product of different angles needs product-to-sum, which is refused");
         t.check(r.result.detail.find("product") != std::string::npos, "and the refusal says so");
     }
+    {
+        const Run r = run("sin(x)^2 + cos(y)^2", TrigGoal::Collect);
+        t.check(!has_rule(r, "trig.pythagorean") && r.equivalent && status(r) == "solved and verified",
+                "squares of different angles are not collapsed by the Pythagorean identity");
+    }
     t.equal(outcome(run("sin(x)^3", TrigGoal::Collect)), "outside envelope", "a power above two is refused");
     t.equal(outcome(run("cos(2x)", TrigGoal::Collect)), "already in form", "a linear form is already collected");
 }
