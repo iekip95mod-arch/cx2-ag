@@ -170,7 +170,7 @@ bool angle_dependent(const Arena &arena, NodeId id, NodeId variable) {
     return arena.any_node(id, [&arena, variable](NodeId current) {
         if (arena.at(current).kind != Kind::Call ||
             (variable != kNoNode && !depends_on(arena, current, variable))) return false;
-        const std::string name = arena.text(current);
+        const std::string &name = arena.text(current);
         return std::find(std::begin(names), std::end(names), name) != std::end(names);
     });
 }
