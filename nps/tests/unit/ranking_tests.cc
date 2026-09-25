@@ -338,6 +338,18 @@ void run_ranking_tests(TestSink &t) {
         t.equal(refused_derivation.context.problem_family_id, "physics.ranking.comparative-order",
                 "and a refused ranking names the family too, since a refusal is a walkthrough as "
                 "much as an answer is");
+        std::string assumptions;
+        for (const std::string &one : derivation.context.active_assumptions)
+            assumptions += one + " | ";
+        const CheckPayload *ordering = check_payload_for(derivation, "distance covered");
+        t.evidence("PHYS-025",
+                   assumptions.find("priority order") != std::string::npos &&
+                       !derivation.context.requested_method.empty() &&
+                       ordering != nullptr && !ordering->check_method.empty() &&
+                       derivation.context.problem_family_id ==
+                           "physics.ranking.comparative-order",
+                   "the ranking family records its priority-order condition, the comparison rule it "
+                   "applied and the justification step for each criterion");
     }
 }
 

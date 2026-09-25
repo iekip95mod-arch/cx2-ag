@@ -171,6 +171,21 @@ void run_relativity_tests(TestSink &t) {
                        contains_text(solved.rules, "physics.relativity.check-invariant"),
                    "the relativity family records its plan, frame, speed, factor, relation and "
                    "invariant steps");
+        // One tag covers all five relativity families, because they share this group and this rule
+        // set and differ only in the relation apply selects.
+        t.evidence("PHYS-025",
+                   contains_text(solved.assumptions,
+                                 "both frames are inertial, so no acceleration enters the "
+                                 "transformation") &&
+                       contains_text(solved.assumptions, "along the positive x axis of station") &&
+                       contains_text(solved.rules, "physics.relativity.check-frames") &&
+                       contains_text(solved.rules, "physics.relativity.check-boost") &&
+                       contains_text(solved.rules, "physics.relativity.lorentz-factor") &&
+                       contains_text(solved.rules, "physics.relativity.apply") &&
+                       contains_text(solved.rules, "physics.relativity.check-invariant") &&
+                       !solved.result.convention.empty(),
+                   "the relativity family records its inertial-frame condition, the boost direction "
+                   "convention, the governing relation and the invariant it is checked against");
     }
     {
         // A boost along the negative x axis carries the same factor, because gamma reads beta^2.

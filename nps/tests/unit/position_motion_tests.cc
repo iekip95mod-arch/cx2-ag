@@ -355,6 +355,19 @@ void run_position_motion_tests(TestSink &t) {
                 "with the same envelope version on both routes");
         t.check(!with.derivation.context.requested_method.empty(),
                 "the context states the method this family ran rather than a nested engine's");
+        std::string assumptions;
+        for (const std::string &one : without.derivation.context.active_assumptions)
+            assumptions += one + " | ";
+        t.evidence("PHYS-025",
+                   assumptions.find("function of t alone") != std::string::npos &&
+                       assumptions.find("share one clock") != std::string::npos &&
+                       without.derivation.context.problem_family_id ==
+                           "physics.motion.position-vector" &&
+                       !without.derivation.context.requested_method.empty() &&
+                       !without.derivation.context.unit_policy.empty() &&
+                       without.derivation.size() > 0,
+                   "the position-vector family records its one-variable component condition, the "
+                   "shared clock, the method it ran and the unit policy it reported under");
     }
 }
 
