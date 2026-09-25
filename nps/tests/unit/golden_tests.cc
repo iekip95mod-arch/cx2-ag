@@ -570,8 +570,8 @@ RelativityProblem relativity_problem(RelativityRelation relation, int64_t beta_n
                                      int64_t beta_den) {
     RelativityProblem input;
     input.relation = relation;
-    input.rest_frame_name = "station";
-    input.moving_frame_name = "ship";
+    input.rest_frame = {"station"};
+    input.moving_frame = {"ship"};
     input.boost = relativity_boost(beta_num, beta_den);
     return input;
 }
@@ -589,7 +589,7 @@ std::string relativity_record(const RelativityProblem &problem, const std::strin
                   result.outputs[i].value_text;
         if (!result.outputs[i].unit_text.empty())
             answer += " " + result.outputs[i].unit_text;
-        answer += " in " + result.outputs[i].frame;
+        answer += " in " + result.outputs[i].frame.name;
     }
     if (result.has_factor)
         answer += (answer.empty() ? "" : "; ") + std::string("gamma ") + result.factor_text;
