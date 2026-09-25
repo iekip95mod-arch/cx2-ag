@@ -1025,6 +1025,16 @@ const ObligationSchema kScalarProductBound[] = {
 const EvidenceAlternative kExactSignComparison[] = {
     {"exact sign comparison", EvidenceStrength::CandidateChecked},
 };
+// The slack in the comparison above is the square of the cross-product magnitude, so the angle is
+// atan2 of two exact numbers rather than an inverse cosine no exact rational route reaches.
+const EvidenceAlternative kBackendAngleIdentity[] = {
+    {"Giac atan2 against the exact Cauchy-Schwarz slack",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kScalarProductMeasuredAngle[] = {
+    {"obl.scalar-product.angle-satisfies-definition",
+     "the reported angle satisfies a b cos(phi) = a . b", kBackendAngleIdentity, 1},
+};
 const ObligationSchema kScalarProductAngle[] = {
     {"obl.scalar-product.angle-from-sign",
      "the sign of the scalar product places the angle against a right angle", kExactSignComparison,
@@ -1706,6 +1716,8 @@ const RuleSchema kRules[] = {
     {"vec.dot.check-magnitude-bound", ClaimType::Definition, kScalarProductBound, 1,
      FailureBehavior::WithholdResult},
     {"vec.dot.interpret-angle", ClaimType::Definition, kScalarProductAngle, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.measure-angle", ClaimType::Definition, kScalarProductMeasuredAngle, 1,
      FailureBehavior::WithholdResult},
     // The reporting step raises the half-place obligation and nothing else: the value it reports is
     // one the steps above already verified.

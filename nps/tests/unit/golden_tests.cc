@@ -284,7 +284,7 @@ std::string vector_cross_record(const char *first_text, const char *second_text,
 }
 
 std::string scalar_product_record(const char *first_text, const char *second_text, bool angle,
-                                  const Budget &budget) {
+                                  const Budget &budget, Backend *giac = nullptr) {
     ScalarProductProblem problem;
     std::string why;
     if (!parse_vector(first_text, &problem.first, &why) ||
@@ -293,11 +293,14 @@ std::string scalar_product_record(const char *first_text, const char *second_tex
     problem.angle = angle;
     Arena arena;
     Derivation derivation;
-    const ScalarProductResult result = solve_scalar_product(arena, derivation, problem, budget);
+    const ScalarProductResult result =
+        solve_scalar_product(arena, derivation, problem, budget, giac);
     const std::string problem_text = std::string(first_text) + " dot " + second_text;
     std::string answer = result.value_text;
     if (!result.angle_text.empty())
         answer += "; " + result.angle_text;
+    if (!result.numeric_angle_text.empty())
+        answer += "; " + result.numeric_angle_text;
     return header(problem_text, "scalar product", scalar_product_outcome_name(result.outcome),
                   answer, result.detail) +
            render_derivation(arena, derivation);
@@ -940,6 +943,13 @@ void run_golden_tests(TestSink &t) {
     // asks and it registers a precondition the product plan has no shape for.
     check_golden(t, "scalar_product_obtuse_angle",
                  scalar_product_record("2 i + 0 j m", "-1 i + 1 j m", true, Budget()));
+    // The measured angle, because the number is the other half of the same chapter 3 question and
+    // it is the only route in this family that reaches a backend at all.
+    {
+        GoldenSequenceBackend giac({"atan(4/3)", "0", "53.13010235415598"});
+        check_golden(t, "scalar_product_measured_angle",
+                     scalar_product_record("3 i + 4 j m", "5 i + 0 j m", true, Budget(), &giac));
+    }
     check_golden(t, "relative_motion_mixed_units", relative_motion_record(Budget()));
     check_golden(t, "unit_conversion_powered_chain",
                  unit_conversion_record("2.50 cm^3", "m^3", Budget()));
