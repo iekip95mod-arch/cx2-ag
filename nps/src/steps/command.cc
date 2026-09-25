@@ -23,6 +23,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "linsolve") return CommandKind::LinearSystem;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
 }
@@ -46,6 +47,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::LinearSystem: return "linear system";
         case CommandKind::Unhandled: return "command";
     }
     return "command";
@@ -121,6 +123,17 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
             return command;
         }
         command.expression = arguments[0];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
+    if (command.kind == CommandKind::LinearSystem) {
+        if (arguments.size() != 2) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "linear systems require a list of equations and a list of unknowns";
+            return command;
+        }
+        command.expression = arguments[0];
+        command.variable = arguments[1];
         command.status = CommandStatus::Ready;
         return command;
     }

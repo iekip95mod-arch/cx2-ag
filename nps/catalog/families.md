@@ -1439,6 +1439,45 @@ rule matrix.det-row-add-multiple fixture
 rule matrix.det-diagonal-product fixture
 rule matrix.det-correction fixture
 
+family id algebra.linear-system.elimination
+reference_curriculum_set_ids none, this family answers PRD ALG-013 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-013
+topic_and_level Systems of linear equations solved by Gauss-Jordan elimination on the augmented matrix
+family_envelope_version 1
+accepted_expression_grammar one top-level linsolve call with a list of equations and a list of distinct unknown identifiers. Each side uses integer literals, the listed unknowns, sums, products with at most one factor holding an unknown, negation and integer powers of constants, including reciprocal powers for division
+accepted_input_forms linsolve menu command in Exact mode, for example linsolve([x + y = 3, x - y = 1], [x, y])
+domains_and_parameter_assumptions one through four equations in one through five unknowns, so the augmented matrix fits the 4 by 6 envelope the matrix row checker verifies. Every coefficient and every intermediate cell must fit the shared exact Rational representation
+supported_branches_and_degenerate_cases a unique solution, no solution shown by a reduced row reading zero equals one, and infinitely many solutions written with the free unknowns as their own parameters. Equations with no unknown in them are zero rows or contradictions rather than refusals. Dependent and duplicate equations and zero first pivots are handled by row swaps
+exact_special_function_and_numerical_result_policy exact rational solutions only. Decimal mode, decimal literals, symbolic coefficients and functions of the unknowns are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/system.cc
+required_assumptions none, linearity, exact coefficients and the matrix envelope are checked before a plan is recorded
+test_group_ids system, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.system.rows-represent, obl.matrix.row-equivalent, obl.matrix.trace-complete, obl.matrix.rref-form, obl.system.contradiction, obl.system.rows-read, obl.system.candidate-satisfies
+strategy_ids plan.system-elimination
+supported_methods the augmented matrix is checked against an exact evaluation of every equation as typed, then reduced natively by row swaps, nonzero row scaling and addition of a multiple of another row. Each operation is verified by the same exact row checker as the matrix families, and the final matrix is checked to be in reduced row echelon form before the solution is read from it
+unsupported_near_neighbors nonlinear systems, symbolic or decimal coefficients, more than four equations or five unknowns, a repeated unknown and items that are not equations. Solving by substitution is a separate method
+solution_soundness_status a unique solution is substituted into every original equation and must satisfy each exactly. A family is substituted at three choices of its free unknowns, which corroborates rather than proves it. No solution rests on the verified row trace ending in a contradiction row
+solution_completeness_status Gauss-Jordan elimination over every column reaches reduced row echelon form, so the solution set read from it is the whole solution set of the system. Cancellation and Meter limits retain the verified prefix without a final result. Arena failure discards unusable records
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch implemented, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.linear-system.elimination
+release_status in development, unreleased
+rule plan.system-elimination fixture
+rule system.augmented-matrix fixture
+rule matrix.row-swap fixture
+rule matrix.row-scale fixture
+rule matrix.row-add-multiple fixture
+rule matrix.rref-conclusion fixture
+rule system.inconsistent-row fixture
+rule system.read-solution fixture
+rule system.check-by-substitution fixture
+rule system.check-family-by-sampling fixture
+
 family id calculus.tangent-line.single-variable
 topic_and_level Tangent lines to a supported expression at a rational point, PRD section 9 CALC-010
 family_envelope_version 1

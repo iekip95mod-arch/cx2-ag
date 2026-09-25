@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -264,6 +264,7 @@ local expected_modules = {
     "matrix.ref.rational",
     "matrix.rref.rational",
     "matrix.det.rational",
+    "algebra.linear-system.elimination",
     "calculus.derivative.single-variable",
     "calculus.integral.indefinite.single-variable",
     "calculus.integral.definite.single-variable",
@@ -663,6 +664,50 @@ do
           not cancelled.solved and not cancelled.has_result and cancelled.result == nil,
           "a cancelled determinant request withholds the scalar answer")
     check(giac_calls == 0, "determinant refusal and cancellation do not evaluate a fallback")
+end
+do
+    giac_calls = 0
+    local text = "linsolve([x + y = 3, x - y = 1], [x, y])"
+    local record = nps.walkthrough(text, "unused + variable", "exact")
+    local rules = {}
+    for _, step in ipairs(type(record) == "table" and record.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-013", type(record) == "table" and record.mode == "linear system" and record.solved and
+             record.has_result and record.outcome == "solved" and record.solution_set == "unique" and
+             record.result == "[(x = 2), (y = 1)]" and record.status == "solved and verified" and
+             record.request_expression == text and not record.answer_only and
+             rules["system.augmented-matrix"] and rules["matrix.row-add-multiple"] and
+             rules["matrix.rref-conclusion"] and rules["system.check-by-substitution"],
+             "a linear system reaches the native elimination walkthrough through the bridge")
+    local none = nps.walkthrough("linsolve([x + y = 1, 2x + 2y = 3], [x, y])", "x", "exact")
+    check(type(none) == "table" and none.outcome == "no solution" and none.solution_set == "empty" and
+          none.has_result and not none.solved and none.result == nil and none.status == "solved and verified",
+          "an inconsistent system reports an empty solution set as a verified answer")
+    local family = nps.walkthrough("linsolve([x + y + z = 2, x - y = 0], [x, y, z])", "x", "exact")
+    check(type(family) == "table" and family.outcome == "solution family" and family.solution_set == "family" and
+          family.solved and type(family.result) == "string" and family.result:find("(z = z)", 1, true) ~= nil,
+          "an underdetermined system reports a family with its free unknown as the parameter")
+    for _, text in ipairs({"linsolve([x*y = 1, x + y = 2], [x, y])", "linsolve([a*x = 1], [x])",
+                           "linsolve([x + y, x = 1], [x, y])", "linsolve([x = 1], [x, x])"}) do
+        local refused = nps.walkthrough(text, "x", "exact")
+        check(type(refused) == "table" and refused.mode == "linear system" and not refused.solved and
+              not refused.has_result and refused.result == nil and refused.solution_set == nil and
+              refused.request_expression == text and #refused.steps == 0,
+              "a system outside the envelope is a native refusal with no steps: " .. text)
+    end
+    local arity = nps.walkthrough("linsolve([x = 1])", "x", "exact")
+    check(type(arity) == "table" and arity.outcome == "unsupported form" and arity.result == nil,
+          "linsolve without its list of unknowns is refused")
+    local decimal = nps.walkthrough(text, "x", "decimal")
+    check(type(decimal) == "table" and decimal.outcome == "unsupported form" and
+          decimal.numeric_mode == "decimal" and decimal.result == nil,
+          "a linear system in decimal mode is an explicit refusal")
+    nps.test_escape_pressed(true)
+    local cancelled = nps.walkthrough(text, "x", "exact")
+    nps.test_escape_pressed(false)
+    check(type(cancelled) == "table" and cancelled.outcome == "cancelled" and not cancelled.solved and
+          not cancelled.has_result and cancelled.result == nil,
+          "a cancelled linear system withholds its answer")
+    check(giac_calls == 0, "linear systems never ask Giac")
 end
 for _, text in ipairs({"diff(x,x,2)", "int(x,x,0)", "solve(x=1,x,y)", "simplify(x,x)",
                        "factor(x,2)", "rearrange(x=1)", "diff(x,x+1)", "solve(x=1,2)",

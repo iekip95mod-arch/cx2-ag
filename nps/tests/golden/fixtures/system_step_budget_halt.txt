@@ -1,0 +1,19 @@
+problem: [x + y = 3, x - y = 1]
+variable: [x, y]
+outcome: resource exceeded
+detail: step limit
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.linear-system.elimination
+  envelope version: 1
+  normalized problem: [((x + y) = 3), ((x + (-y)) = 1)]
+  requested method: elimination
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=1 branches<=64 backend<=32
+  derivation status: resource limit reached
+steps
+  none

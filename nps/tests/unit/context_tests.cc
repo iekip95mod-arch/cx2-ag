@@ -40,6 +40,7 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "matrix.ref.rational"},
     {"solver", "matrix.rref.rational"},
     {"solver", "matrix.det.rational"},
+    {"solver", "algebra.linear-system.elimination"},
     {"solver", "calculus.derivative.single-variable"},
     {"solver", "calculus.integral.indefinite.single-variable"},
     {"solver", "calculus.integral.definite.single-variable"},

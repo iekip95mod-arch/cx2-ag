@@ -1577,6 +1577,51 @@ const ObligationSchema kMatrixDeterminantResult[] = {
     {"obl.matrix.det-correction", "the original determinant equals the diagonal product divided by the nonzero accumulated factor", kMatrixDeterminantCorrection, 1},
 };
 
+// algebra.linear-system.elimination
+const EvidenceAlternative kSystemAnalysis[] = {
+    {"exact linear system analysis", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSystemStrategy[] = {
+    {"pre.system.linear-rational",
+     "every equation is linear in the unknowns with exact rational coefficients, in at most 4 equations and 5 unknowns",
+     kSystemAnalysis, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const EvidenceAlternative kSystemRowEvaluation[] = {
+    {"exact evaluation at affinely independent points", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSystemRowsRepresent[] = {
+    {"obl.system.rows-represent", "each matrix row has the coefficients and right-hand side of its equation",
+     kSystemRowEvaluation, 1},
+};
+const EvidenceAlternative kSystemRowReading[] = {
+    {"exact reduced row reading", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSystemContradiction[] = {
+    {"obl.system.contradiction",
+     "a row of the reduced matrix has every coefficient zero and a nonzero right-hand side",
+     kSystemRowReading, 1},
+};
+const ObligationSchema kSystemRowsRead[] = {
+    {"obl.system.rows-read", "each solution equation is the reduced row of its leading unknown",
+     kSystemRowReading, 1},
+};
+const EvidenceAlternative kSystemSubstitution[] = {
+    {"substitution", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kSystemCandidateSatisfies[] = {
+    {"obl.system.candidate-satisfies", "the solution satisfies every equation of the system as typed",
+     kSystemSubstitution, 1},
+};
+const EvidenceAlternative kSystemSampledSubstitution[] = {
+    {"substitution at sampled free values", EvidenceStrength::NumericallyCorroborated},
+};
+const ObligationSchema kSystemFamilySatisfies[] = {
+    {"obl.system.candidate-satisfies", "the solution satisfies every equation of the system as typed",
+     kSystemSampledSubstitution, 1},
+};
+
 // One entry per rule and strategy. Ordered by family so a reader can find the block a rule belongs
 // to, and looked up linearly, which costs nothing beside the work a step already did.
 const RuleSchema kRules[] = {
@@ -2247,6 +2292,18 @@ const RuleSchema kRules[] = {
     {"matrix.det-diagonal-product", ClaimType::EquivalentExpression, kMatrixDeterminantProduct, 3,
      FailureBehavior::WithholdResult},
     {"matrix.det-correction", ClaimType::EquivalentExpression, kMatrixDeterminantResult, 1,
+     FailureBehavior::WithholdResult},
+    {"plan.system-elimination", ClaimType::NoClaim, kSystemStrategy, 2,
+     FailureBehavior::WithholdResult},
+    {"system.augmented-matrix", ClaimType::SolutionSetPreserved, kSystemRowsRepresent, 1,
+     FailureBehavior::WithholdResult},
+    {"system.inconsistent-row", ClaimType::SolutionSetPreserved, kSystemContradiction, 1,
+     FailureBehavior::WithholdResult},
+    {"system.read-solution", ClaimType::SolutionSetPreserved, kSystemRowsRead, 1,
+     FailureBehavior::CannotFail},
+    {"system.check-by-substitution", ClaimType::SolutionSetPreserved, kSystemCandidateSatisfies, 1,
+     FailureBehavior::WithholdResult},
+    {"system.check-family-by-sampling", ClaimType::SolutionSetPreserved, kSystemFamilySatisfies, 1,
      FailureBehavior::WithholdResult},
 };
 
