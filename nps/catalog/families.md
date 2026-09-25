@@ -1347,7 +1347,7 @@ test_group_ids rational expression, command
 proof_obligation_ids obl.plan.preconditions-hold, obl.rational.excluded-values, obl.rational.same-values, obl.rational.exact-cancellation, obl.rational.exact-division, obl.rational.cover-up
 strategy_ids plan.rational-partial-fractions
 supported_methods the expression is reduced to one fraction as algebra.rational-expression.single-variable does. An improper fraction is divided with an exact check that the quotient times the denominator plus the remainder is the numerator. Each coefficient comes from the cover-up rule and is checked by exact evaluation at its root, and the sum is checked against the expression as typed
-unsupported_near_neighbors a repeated factor and a factor with no rational root, such as an irreducible quadratic, are refused before anything is recorded, and so is a denominator whose coefficients are too large to search
+unsupported_near_neighbors a repeated factor and a factor with no rational root, such as an irreducible quadratic, are refused before anything is recorded, and so is a denominator whose coefficients are too large to search. Issue #526 tracks both kinds of factor
 solution_soundness_status every division, cover-up coefficient and the final sum are checked exactly
 solution_completeness_status the decomposition has one term for every linear factor of the reduced denominator. Cancellation and Meter limits retain the verified prefix without a final result
 corpus_case_ids the golden fixtures naming this family
