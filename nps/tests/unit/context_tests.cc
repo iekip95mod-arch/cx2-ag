@@ -61,6 +61,9 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "physics.optics.spherical-mirror.image"},
     {"solver", "physics.optics.double-slit.maxima"},
     {"solver", "physics.optics.single-slit.minima"},
+    {"solver", "physics.gravitation.point-masses"},
+    {"solver", "physics.oscillation.restoring-force"},
+    {"solver", "physics.wave.speed-frequency-wavelength"},
     {"solver", "units.chain-link-conversion"},
     {"content", "units.si"},
 };

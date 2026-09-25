@@ -114,12 +114,17 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-09-25, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4120), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4123 to 4125), `vector_addition` (lua_module.cc:4126), `vector_cross`
+(lua_module.cc:4127), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
+
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3226, which
+reads the variable names against the model's own term names (lua_module.cc:3212). Any engine built on
+`RelationModel` can be exposed the same way with a one-line binding.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -138,10 +143,14 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
-`catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
-`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
-`work`.
+`source`: read on 2026-09-25, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`catch_up`, `density`, `forces`, `gravitation`, `kinematics`, `magnitude_angle_to_components`,
+`optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`,
+`vector_cross`, `wave` and `work`.
+
+The shell refuses a manifest listing more than 64 modules (nps_v4.lua:108). It was 32 until the
+relation families took the real manifest to 34, and nothing on the host held the real count against
+that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65.
 
 `planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this

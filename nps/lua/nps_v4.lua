@@ -63,6 +63,9 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "gravitation", "physics.gravitation.point-masses" },
+	{ "oscillation", "physics.oscillation.restoring-force" },
+	{ "wave", "physics.wave.speed-frequency-wavelength" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 }
 
@@ -102,7 +105,7 @@ local function manifestCompatibility(manifest)
 	if type(manifest.installed_modules) ~= "table" then
 		return "StepCAS manifest malformed (installed_modules)"
 	end
-	if #manifest.installed_modules > 32 then return "StepCAS manifest malformed (too many modules)" end
+	if #manifest.installed_modules > 64 then return "StepCAS manifest malformed (too many modules)" end
 	local installed = {}
 	for index, entry in ipairs(manifest.installed_modules) do
 		if type(entry) ~= "table" or type(entry.id) ~= "string" then
@@ -2744,6 +2747,35 @@ PHYSICS_FIXTURES = {
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
+		end,
+	},
+	{
+		label = "Find how hard two masses pull together",
+		problem = "Everything with mass pulls on everything else. Two bags of 2 and 3 kilograms " ..
+		          "a metre apart do too, but so weakly that nobody ever feels it.",
+		mode = "gravitation",
+		run = function()
+			return nps_nspire.gravitation("gravitational force", "first mass", "2.0 kg",
+			                              "second mass", "3.0 kg", "separation", "1.0 m")
+		end,
+	},
+	{
+		label = "Find how hard a stretched spring pulls back",
+		problem = "A spring needs 200 newtons for every metre it is stretched. Pull it 5 " ..
+		          "centimetres and it pulls back. How hard?",
+		mode = "oscillation",
+		run = function()
+			return nps_nspire.oscillation("restoring force", "stiffness", "200 N/m",
+			                              "displacement", "5 cm")
+		end,
+	},
+	{
+		label = "Find how far apart the crests of a sound are",
+		problem = "A note shakes the air 170 times a second and the sound moves at 340 metres " ..
+		          "per second. How far apart are its crests?",
+		mode = "wave",
+		run = function()
+			return nps_nspire.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
 		end,
 	},
 }
