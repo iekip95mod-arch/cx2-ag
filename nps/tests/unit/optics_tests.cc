@@ -136,8 +136,14 @@ void run_optics_tests(TestSink &t) {
         t.evidence("PHYS-022", optics_outcome_name(reflected.result.outcome),
                    "total internal reflection",
                    "an incident sine past the critical sine refuses with total internal reflection");
-        t.check(reflected.result.value == kNoNode && reflected.result.value_text.empty(),
-                "a totally reflected ray offers no transmitted sine");
+        t.equal(reflected.result.detail,
+                "the transmitted sine would be 1.6, above the critical sine 0.5",
+                "the refusal reports the sine Snell's law would have needed and the critical sine "
+                "the ray passed");
+        t.check(reflected.result.outcome == OpticsOutcome::TotalInternalReflection &&
+                    reflected.result.value == kNoNode && reflected.result.value_text.empty(),
+                "a totally reflected ray withholds the transmitted sine under the reflection "
+                "conclusion rather than under a domain refusal");
         t.check(contains(reflected.rules, "physics.optics.total-internal-reflection") &&
                     reflected.result.critical_sine_text == "0.5",
                 "the refusal records the critical-sine rule and the sine that was passed");
@@ -175,6 +181,52 @@ void run_optics_tests(TestSink &t) {
     }
 
     {
+        const Run incident_index =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::IndexIncident,
+                        {known(OpticsVariable::SineIncident, "0.3"),
+                         known(OpticsVariable::IndexTransmitted, "1"),
+                         known(OpticsVariable::SineTransmitted, "0.6")}));
+        t.equal(optics_outcome_name(incident_index.result.outcome), "solved",
+                "Snell's law isolates the incident index");
+        t.equal(incident_index.result.value_text, "2", "the incident index is exactly 1*0.6/0.3");
+        t.check(!incident_index.result.has_critical_sine &&
+                    incident_index.result.critical_sine_text.empty(),
+                "a solve for the incident index reports no critical sine, because the ratio it "
+                "would be read from is the answer");
+        t.equal(incident_index.unverified, "",
+                "every recorded incident index claim has passing evidence");
+    }
+
+    {
+        const Run incident_sine =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::SineIncident,
+                        {known(OpticsVariable::IndexIncident, "2"),
+                         known(OpticsVariable::IndexTransmitted, "1"),
+                         known(OpticsVariable::SineTransmitted, "0.6")}));
+        t.equal(optics_outcome_name(incident_sine.result.outcome), "solved",
+                "Snell's law isolates the incident sine");
+        t.equal(incident_sine.result.value_text, "0.3", "the incident sine is exactly 1*0.6/2");
+        t.check(incident_sine.result.has_critical_sine &&
+                    incident_sine.result.critical_sine_text == "0.5",
+                "a solve for the incident sine still reports the critical sine n2/n1");
+    }
+
+    {
+        const Run transmitted_index =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::IndexTransmitted,
+                        {known(OpticsVariable::IndexIncident, "2"),
+                         known(OpticsVariable::SineIncident, "0.3"),
+                         known(OpticsVariable::SineTransmitted, "0.6")}));
+        t.equal(optics_outcome_name(transmitted_index.result.outcome), "solved",
+                "Snell's law isolates the transmitted index");
+        t.equal(transmitted_index.result.value_text, "1",
+                "the transmitted index is exactly 2*0.3/0.6");
+        t.check(!transmitted_index.result.has_critical_sine &&
+                    transmitted_index.result.critical_sine_text.empty(),
+                "a solve for the transmitted index reports no critical sine");
+    }
+
+    {
         const Run fractional_order =
             run(problem(OpticsRelation::DoubleSlit, OpticsVariable::FringeOrder,
                         {known(OpticsVariable::SlitSpacing, "1 mm"),
@@ -203,6 +255,32 @@ void run_optics_tests(TestSink &t) {
     }
 
     {
+        const Run focal = run(problem(OpticsRelation::ThinLens, OpticsVariable::FocalLength,
+                                      {known(OpticsVariable::ObjectDistance, "15 cm"),
+                                       known(OpticsVariable::ImageDistance, "30 cm")}));
+        t.equal(optics_outcome_name(focal.result.outcome), "solved",
+                "the thin lens equation isolates the focal length");
+        t.equal(focal.result.value_text, "0.1",
+                "an object at 15 cm imaged at 30 cm needs a 10 cm lens");
+        t.equal(focal.result.unit_text, "m", "the focal length is reported in SI metres");
+        t.check(focal.result.has_magnification && focal.result.magnification_text == "-2",
+                "a focal length answer still carries the magnification of the pair it came from");
+        t.equal(focal.unverified, "", "every recorded focal length claim has passing evidence");
+    }
+
+    {
+        const Run object = run(problem(OpticsRelation::ThinLens, OpticsVariable::ObjectDistance,
+                                       {known(OpticsVariable::FocalLength, "10 cm"),
+                                        known(OpticsVariable::ImageDistance, "30 cm")}));
+        t.equal(optics_outcome_name(object.result.outcome), "solved",
+                "the thin lens equation isolates the object distance");
+        t.equal(object.result.value_text, "0.15",
+                "a 10 cm lens imaging at 30 cm had its object 15 cm in front of it");
+        t.check(object.result.has_magnification && object.result.magnification_text == "-2",
+                "an object distance answer carries the same inverted magnification");
+    }
+
+    {
         const Run virtual_image =
             run(problem(OpticsRelation::SphericalMirror, OpticsVariable::ImageDistance,
                         {known(OpticsVariable::FocalLength, "10 cm"),
@@ -215,6 +293,22 @@ void run_optics_tests(TestSink &t) {
                 "the virtual mirror image is upright and magnified");
         t.equal(virtual_image.context_family, "physics.optics.spherical-mirror.image",
                 "the mirror relation keeps its own family identity");
+    }
+
+    {
+        const Run mirror_focal =
+            run(problem(OpticsRelation::SphericalMirror, OpticsVariable::FocalLength,
+                        {known(OpticsVariable::ObjectDistance, "20 cm"),
+                         known(OpticsVariable::ImageDistance, "20 cm")}));
+        t.equal(optics_outcome_name(mirror_focal.result.outcome), "solved",
+                "the mirror equation isolates the focal length");
+        t.equal(mirror_focal.result.value_text, "0.1",
+                "an object and its image both at 20 cm sit at the centre of curvature of a 10 cm "
+                "mirror");
+        t.check(mirror_focal.result.magnification_text == "-1",
+                "an object at the centre of curvature images inverted at the same size");
+        t.equal(mirror_focal.context_family, "physics.optics.spherical-mirror.image",
+                "the mirror keeps its family identity when it is asked for the focal length");
     }
 
     {
@@ -244,6 +338,20 @@ void run_optics_tests(TestSink &t) {
     }
 
     {
+        const Run spacing = run(problem(OpticsRelation::DoubleSlit, OpticsVariable::SlitSpacing,
+                                        {known(OpticsVariable::SineFringe, "0.001"),
+                                         known(OpticsVariable::FringeOrder, "2"),
+                                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(spacing.result.outcome), "solved",
+                "the two-slit relation isolates the slit spacing");
+        t.equal(spacing.result.value_text, "0.001",
+                "the spacing that puts the second 500 nm fringe at a sine of 0.001");
+        t.equal(spacing.result.unit_text, "m", "the slit spacing is reported in SI metres");
+        t.equal(spacing.unverified, "",
+                "every recorded slit spacing claim has passing evidence");
+    }
+
+    {
         const Run central = run(problem(OpticsRelation::SingleSlit, OpticsVariable::Wavelength,
                                         {known(OpticsVariable::SlitSpacing, "1 mm"),
                                          known(OpticsVariable::FringeOrder, "0"),
@@ -254,6 +362,19 @@ void run_optics_tests(TestSink &t) {
                 "the single-slit refusal names the rule it applied");
         t.check(contains(central.rules, "physics.optics.check-domain"),
                 "the domain check is the record that refuses it");
+    }
+
+    {
+        const Run width = run(problem(OpticsRelation::SingleSlit, OpticsVariable::SlitSpacing,
+                                      {known(OpticsVariable::SineFringe, "0.0005"),
+                                       known(OpticsVariable::FringeOrder, "1"),
+                                       known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(width.result.outcome), "solved",
+                "the single-slit relation isolates the slit width");
+        t.equal(width.result.value_text, "0.001",
+                "the width that puts the first 500 nm minimum at a sine of 0.0005");
+        t.equal(width.context_family, "physics.optics.single-slit.minima",
+                "the single-slit relation keeps its own family identity");
     }
 
     {
