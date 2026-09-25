@@ -635,7 +635,7 @@ for _, text in ipairs({"ref([[1,2],[3,4]])", "rref([[1]])"}) do
 end
 check(giac_calls == 0, "matrix tracing never falls back to string evaluation")
 giac_calls = 0
-for _, text in ipairs({"texpand(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
+for _, text in ipairs({"unclaimedop(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")

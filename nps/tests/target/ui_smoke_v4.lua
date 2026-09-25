@@ -4553,8 +4553,8 @@ do
     check(env.steps.active and env.steps.result.solved == false and #evaluated == 0,
           "an unsupported signature keeps its refusal instead of running a different operation")
     if env.steps.active then env.on.escapeKey() end
-    enter("texpand(x/(x+1))")
-    check(evaluated[#evaluated] == "texpand(x/(x+1))" and not env.steps.active,
+    enter("unclaimedop(x/(x+1))")
+    check(evaluated[#evaluated] == "unclaimedop(x/(x+1))" and not env.steps.active,
           "an unhandled operation reaches CAS once with every argument retained")
     local finished = #profile_finishes
     env.on.paint(gc)

@@ -164,7 +164,7 @@ void run_command_tests(TestSink &t) {
                     command.variable_name == "x",
                 std::string("list commas preserve the complete command operand: ") + operand);
     }
-    for (const char *text : {"texpand(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
+    for (const char *text : {"unclaimedop(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
                              "solve(x=1,x)+2", "factorial(5)+1", "solve"}) {
         Arena arena;
         t.check(parse_command(arena, text, "x").status == CommandStatus::Unhandled,
