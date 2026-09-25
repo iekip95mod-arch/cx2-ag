@@ -1,7 +1,7 @@
 problem: convergence(3^n/n^2,n,1)
 verdict: diverges
 test: series.ratio-test
-sum: 
+sum: none
 context
   application version: nps 0.2
   capability manifest: <current>

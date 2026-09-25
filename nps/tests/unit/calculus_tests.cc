@@ -771,9 +771,9 @@ void run_calculus_tests(TestSink &t) {
     {
         Arena arena;
         Derivation derivation;
-        const CalculusResult ceiling = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(x,x,19)", "x"));
+        const CalculusResult ceiling = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(exp(x),x,19)", "x"));
         t.check(ceiling.outcome == CalculusOutcome::Evaluated && ceiling.status == DerivationStatus::SolvedAndVerified,
-                "order 19 is inside the factorial ceiling: " + ceiling.detail);
+                "order 19 of a transcendental is inside the factorial ceiling and the default budget: " + ceiling.detail);
     }
     for (const auto &malformed : {std::pair{"taylor(x^2,x,0,-1)", CommandStatus::Invalid},
                                   std::pair{"taylor(x^2,x,0,1/2)", CommandStatus::Invalid},
@@ -858,7 +858,8 @@ void run_calculus_tests(TestSink &t) {
                 std::string(fixture.text));
         if (*fixture.golden)
             check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nverdict: " +
-                         series_verdict_name(result.verdict) + "\ntest: " + result.test + "\nsum: " + sum + "\n" + rendered);
+                         series_verdict_name(result.verdict) + "\ntest: " + result.test + "\nsum: " +
+                         (sum.empty() ? std::string("none") : sum) + "\n" + rendered);
     }
     struct SeriesRefusal {
         const char *text;

@@ -1,7 +1,7 @@
 problem: convergence(n/2^n,n,1)
 verdict: converges absolutely
 test: series.ratio-test
-sum: 
+sum: none
 context
   application version: nps 0.2
   capability manifest: <current>
