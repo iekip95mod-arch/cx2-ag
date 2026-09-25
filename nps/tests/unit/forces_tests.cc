@@ -624,10 +624,7 @@ void run_forces_tests(TestSink &t) {
                 "the unperturbed inventory still passes, so the row above is about the entry");
     }
     {
-        // Every exact-arithmetic refusal in the family, one row each, driven by a rational the
-        // narrowing back to int64 cannot hold. Each is paired with the same arrangement at a
-        // magnitude that fits, because an outcome check on its own passes just as well for an
-        // arrangement that never solved at any size.
+        // Every exact-arithmetic refusal here, one row each, paired with a magnitude that fits.
         const int64_t wide = int64_t{1} << 61;
         const int64_t narrow = int64_t{1} << 59;
 
@@ -652,8 +649,7 @@ void run_forces_tests(TestSink &t) {
         overflow_row(t, weight, weight_fits, "resolving the weight exceeds exact arithmetic",
                      "a mass and a field strength whose product is out of range");
 
-        // The across component lands on the most negative int64 exactly, which stores, so the sum
-        // that negates it is the step that cannot be represented.
+        // The across component is the most negative int64, so negating it is the step that fails.
         ForcesProblem across = base(ForcesUnknown::Acceleration);
         across.assume_equilibrium = false;
         across.surface = SurfaceKind::Incline;
@@ -690,8 +686,7 @@ void run_forces_tests(TestSink &t) {
                      "evaluating the friction limit exceeds exact arithmetic",
                      "a coefficient and a normal force whose product is out of range");
 
-        // The along total lands on the most negative int64 exactly, so the equilibrium friction
-        // that negates it is the step that cannot be represented.
+        // The along total is the most negative int64, so negating it is the step that fails.
         ForcesProblem needed = base(ForcesUnknown::NormalForce);
         needed.surface = SurfaceKind::Incline;
         needed.incline_sin = Rational{4, 5};
