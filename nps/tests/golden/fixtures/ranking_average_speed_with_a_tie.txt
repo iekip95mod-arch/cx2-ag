@@ -1,0 +1,38 @@
+problem: rank three paths by average speed over the same interval
+variable: average speed
+outcome: solved
+result: average speed: path 1=path 3 > path 2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.ranking.comparative-order
+  envelope version: 1
+  requested method: order the situations by the ranking criteria in priority order, the first untied criterion deciding each pair, for average speed
+  active assumption: the criteria are given in priority order and every situation is measured on each of them
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 check
+    phase: ranking
+    rule: physics.ranking.criterion, distance covered
+    claim: no claim
+    explanation: distance covered differs across situations
+    target claim: average speed ranked by distance covered
+    check method: qualitative comparison
+    expected: varies between situations
+    observed: differs between path 1 and path 2
+    verified: nothing claimed
+  2 check
+    phase: ranking
+    rule: physics.ranking.order, ranking order
+    claim: no claim
+    explanation: average speed: path 1=path 3 > path 2
+    target claim: order of average speed
+    check method: lexicographic comparison of ranking criteria
+    expected: greatest first, with ties grouped together
+    observed: average speed: path 1=path 3 > path 2
+    verified: nothing claimed

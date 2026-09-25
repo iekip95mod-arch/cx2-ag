@@ -6,7 +6,7 @@ context
   application version: nps 0.2
   capability manifest: <current>
   problem family: physics.kinematics.relative-motion.components.two-dimension
-  envelope version: <not recorded>
+  envelope version: 1
   normalized problem: relative_motion_problem(drone, wind, framed_vector(vector(36, -18), (5 * (18^-1)), ground, dimension(1, 0, -1, 0), 2), framed_vector(vector(3, 1), 1, ground, dimension(1, 0, -1, 0), 2), east-north)
   requested method: validate two velocity vectors, convert to SI, subtract matching components, verify, and interpret direction
   active assumption: both velocities use frame ground

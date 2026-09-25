@@ -46,8 +46,8 @@ struct RankingSituation {
 // A quantity ranked across several named situations by one or more criteria, tried in priority
 // order. The first criterion that is not tied between two situations decides their order, the way
 // problem 7(d)'s initial speed ties on the vertical component and is decided by the horizontal one.
+// The family id is the engine's own, because nothing ever set or read the field that was here.
 struct RankingModel {
-    const char *family_id = "";
     const char *quantity_name = "";
     std::vector<RankingCriterion> criteria;
 };
@@ -60,6 +60,7 @@ enum class RankingOutcome : uint8_t {
     // from InvalidProblem: the problem is well formed, the answer is that it cannot be determined.
     IndeterminateOrder,
     ResourceExceeded,
+    Cancelled,
 };
 
 const char *ranking_outcome_name(RankingOutcome outcome);
@@ -79,6 +80,7 @@ struct RankingResult {
     std::vector<RankingTier> order;  // populated only when outcome == Solved
     std::string detail;
     DerivationStatus status = DerivationStatus::NotRecorded;
+    Cost cost;
 };
 
 RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,

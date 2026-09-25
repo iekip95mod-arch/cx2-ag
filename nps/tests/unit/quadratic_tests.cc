@@ -548,9 +548,160 @@ void test_split_gates_fail_when_a_case_goes_missing(TestSink &t) {
     }
 }
 
+QuadraticResult by_formula(Arena &arena, Derivation &d, const char *equation, const char *name,
+                           const Budget &budget = Budget()) {
+    ParseResult parsed = parse(arena, equation);
+    if (!parsed.ok())
+        return QuadraticResult();
+    return solve_quadratic(arena, d, parsed.root, arena.symbol(name), budget);
+}
+
+std::string rule_ids(const Derivation &d) {
+    std::string out;
+    for (size_t i = 0; i < d.size(); ++i) {
+        const Step &s = d.at(static_cast<StepId>(i));
+        if (!s.rule_id.empty())
+            out += (out.empty() ? "" : " ") + s.rule_id;
+    }
+    return out;
+}
+
+bool says(const std::string &text, const char *piece) {
+    return text.find(piece) != std::string::npos;
+}
+
+// The half of degree two the square-root rule cannot reach. Issue 412.
+void test_quadratic_formula(TestSink &t) {
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "3x^2 + 10x - 88 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "solved",
+                "an equation with a term of degree one is solved rather than refused");
+        t.equal(roots(arena, r), "4 (-(22 * (3^(-1))))",
+                "and both roots come back exact, in the order the formula takes its signs");
+        t.equal(derivation_status_name(r.status), "solved and verified",
+                "with every check in the split passing");
+        const std::string rules = rule_ids(d);
+        t.check(says(rules, "eq.quadratic.formula") && says(rules, "eq.quadratic.standard-form") &&
+                    says(rules, "eq.quadratic.discriminant") &&
+                    says(rules, "eq.quadratic.formula-case") &&
+                    says(rules, "eq.quadratic.cases-reconstruct-the-original"),
+                "the plan, the collection, the discriminant, the cases and the completeness check "
+                "are all recorded");
+        t.check(says(rules, "eq.quadratic.check-by-substitution"),
+                "and each case is put back into the equation as it was typed");
+    }
+    {
+        // Read the other way round, so the leading coefficient is negative and the signs swap order.
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "88 = 3x^2 + 10x", "x");
+        t.equal(roots(arena, r), "(-(22 * (3^(-1)))) 4",
+                "an equation with terms on both sides reaches the same pair of roots");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^2 + 2x + 1 = 0", "x");
+        t.equal(roots(arena, r), "(-1)",
+                "a discriminant of zero records one root rather than the same one twice");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^2 + x + 1 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "no real solution",
+                "a negative discriminant is an answer rather than a refusal");
+        t.equal(derivation_status_name(r.status), "solved and verified",
+                "and it carries the evidence for the empty solution set");
+        t.check(says(rule_ids(d), "eq.quadratic.reject-negative-discriminant"),
+                "with the rejection recorded as a case of its own");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^2 + x - 1 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "outside the declared envelope",
+                "a discriminant with no exact root is inside the family and outside the envelope");
+        t.check(says(r.detail, "5"), "and the refusal names the discriminant it stopped at");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "2x + 1 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "not a pure quadratic in the unknown",
+                "an equation of degree one is handed back rather than divided by a zero leading "
+                "coefficient");
+        t.check(says(r.detail, "linear rule"), "naming the rule that does solve it");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^3 + x = 0", "x");
+        t.check(says(r.detail, "above the second power"),
+                "degree three is refused for being too high rather than read as degree two");
+        t.check(d.size() == 0, "and nothing is recorded before the refusal");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^2 + y*x = 1", "x");
+        t.check(says(r.detail, "rational coefficients"),
+                "a symbolic coefficient is refused rather than evaluated to something");
+    }
+    {
+        // A pure square is this rule's b equal to zero, so it still solves.
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, "x^2 = 4", "x");
+        t.equal(roots(arena, r), "2 (-2)", "a pure square is the formula's b equal to zero");
+    }
+    // Shapes with no bounded degree, where reading three values would be sampling. Issue 412.
+    for (const char *shape : {"8*2^x = x^2 + 7x + 8", "2^x = x + 1", "x^2 = 2^x",
+                              "sin(x) + x^2 = 0", "sqrt(x) = x^2", "1/x + x = 2",
+                              "abs(x) = x^2", "x^x = 4"}) {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_formula(arena, d, shape, "x");
+        t.check(r.outcome != QuadraticOutcome::Solved && r.solutions.empty() && d.size() == 0,
+                std::string("a shape that is not a polynomial is refused with nothing recorded: ") +
+                    shape);
+        t.check(says(r.detail, "polynomial of degree two"),
+                std::string("and the refusal says that is what it needed: ") + shape);
+    }
+    {
+        // The controls, so the refusals above are about the shape rather than about any power.
+        Arena arena;
+        Derivation d;
+        t.equal(roots(arena, by_formula(arena, d, "x^2 + x = 2^2 + 2", "x")), "2 (-3)",
+                "a constant raised to a constant is still a constant");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        t.equal(roots(arena, by_formula(arena, d, "x^2/2 + x/2 = 3", "x")), "2 (-3)",
+                "and division by a constant, which is a power of minus one, still reads");
+    }
+    {
+        // The completeness predicate on its own, with a linear term in it.
+        std::string why;
+        const std::vector<Rational> both{Rational{4, 1}, Rational{-22, 3}};
+        t.check(cases_reconstruct_the_monic(both, Rational{10, 3}, Rational{-88, 3}, &why) ==
+                    Reconstruction::Rebuilt,
+                "two roots rebuild the monic quadratic they came from");
+        const std::vector<Rational> one{Rational{4, 1}};
+        t.check(cases_reconstruct_the_monic(one, Rational{10, 3}, Rational{-88, 3}, &why) ==
+                    Reconstruction::Missing,
+                "and a split that dropped a root does not");
+        t.check(says(why, "degree one"), "saying which coefficient disagreed");
+    }
+}
+
 }  // namespace
 
 void run_quadratic_tests(TestSink &sink) {
+    test_quadratic_formula(sink);
     for (const char *source : {"x^2=[4]", "x^2+0*[1]=4", "[[4]]=x^2", "x^2=f([4])"}) {
         Arena arena;
         const NodeId equation = parse(arena, source).root;

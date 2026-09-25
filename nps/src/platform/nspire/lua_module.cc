@@ -592,9 +592,9 @@ bool dependency_failure_tag(const std::string &tag) {
 }
 
 // A cancellation leads, because the learner asking to stop is the one terminal condition that is
-// not a statement about the backend. It is read before the dependency and comparison cases for the
-// same reason section 15 keeps the four apart: a stop nobody recorded reads as a check that merely
-// could not run, and the two are different facts.
+// not a statement about the backend. It is read first because PRD PERF-009 forbids a cancel that
+// leaves a mislabeled derivation, and AGENTS.md keeps cancellation distinct: a stop nobody recorded
+// reads as a check that merely could not run, and the two are different facts.
 DerivationStatus cross_checked_status(DerivationStatus local, const CrossCheck &check) {
     if (check.cancelled)
         return DerivationStatus::Cancelled;
@@ -1127,8 +1127,9 @@ int l_capability_manifest(lua_State *L) {
     lua_newtable(L);
     set_field(L, "name", manifest.symbolic_backend.name);
     set_field(L, "version", manifest.symbolic_backend.version);
+    // No availability key: SymbolicBackendCapability has no such field and integrity_status already
+    // answers that question, so an invented one would have read false in every state.
     if (integrity_failed) {
-        set_field(L, "available", false);
         set_field(L, "interface_id", "unavailable");
         set_field(L, "deployment", "integrity-rejected");
     } else {
@@ -1399,16 +1400,11 @@ int parse_failed(lua_State *L, const ParseResult &r) {
 }
 
 // canonicalize answers kNoNode for a form it does not handle as well as for a limit it hit, and the
-// arena is the only thing that knows which. Naming the limit unconditionally sent a reader to
-// shorten an expression whose size was never the problem.
+// arena is the only thing that knows which. Both the reading and its wording live in core, where a
+// starved arena can be built on purpose and no caller here can reach either arm.
 int canonical_refused(lua_State *L, const Arena &arena) {
     lua_pushnil(L);
-    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported) {
-        lua_pushliteral(L, "this expression has no canonical form in StepCAS");
-        return 2;
-    }
-    std::string msg = "the expression outgrew the limits while being put in canonical form: ";
-    msg += status_name(arena.status());
+    const std::string msg = canonical_refusal_message(arena);
     lua_pushlstring(L, msg.data(), msg.size());
     return 2;
 }
