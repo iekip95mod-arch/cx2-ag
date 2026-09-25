@@ -403,6 +403,15 @@ int analyse(const std::string &prd, const std::string &evidence_path,
               "asks for three more links this report does not carry: implementation components, "
               "device evidence and release status. Nothing here should be read as coverage of "
               "those.\n\n";
+    // Issue 423 asked whether a family gap should fail the run. It should not, and the report says
+    // why where a reader of a green suite will see it.
+    report << "This run fails on faults, which are an unknown requirement id, failing evidence, a "
+              "catalog test group that did not run and a module scope it cannot read. A family "
+              "missing from an `Every <domain> module shall` requirement is a gap rather than a "
+              "fault: the requirement's row says unmet and names the family, it is not counted as "
+              "evidenced, and like every other unmet requirement it is left for the release gate in "
+              "PRD sections 20 and 28 rather than failing the run. This run found "
+           << count_text(outcome.universal_family_gaps) << " such gaps.\n\n";
 
     size_t evidenced = 0;
     size_t prioritised = 0;
@@ -762,6 +771,9 @@ int selftest() {
         {gap_report.find("unmet, missing family evidence: physics.probe.unevidenced") !=
              std::string::npos,
          "that gap is still written into the report row"},
+        {gap_report.find("is a gap rather than a fault") != std::string::npos &&
+             gap_report.find("This run found 1 such gaps.") != std::string::npos,
+         "and the report says the gap is not enforced by the run, and how many there are"},
         {malformed_status == 1 && malformed.universal_scope_faults == 1 &&
              malformed.universal_family_gaps == 0,
          "a PRD scope the tool cannot parse is a fault that fails the run"},
