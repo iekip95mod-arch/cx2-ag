@@ -193,11 +193,17 @@ const EvidenceAlternative kInnerFormAnalysis[] = {
     {"registered inner-form analysis", EvidenceStrength::StructurallyValid},
 };
 
+const ObligationSchema kSubstitutionDifferential[] = {
+    {"obl.integrate.substitution-differential",
+     "the rest of the integrand is a constant multiple of the derivative of the inner function", kRuleInvariant, 1},
+};
+
 const ObligationSchema kIntegrateStrategy[] = {
     {"pre.integrate.registered-rules", "every form in the integrand has an antiderivative rule",
      kAntiderivativeDispatch, 1},
     {"pre.integrate.linear-inner-forms",
-     "every function argument and every power base is the variable or linear in it",
+     "every function argument and every power base is the variable, linear in it, or the inner function of a "
+     "recorded substitution",
      kInnerFormAnalysis, 1},
     {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
      kRegisteredPreconditions, 1},
@@ -1688,6 +1694,12 @@ const RuleSchema kRules[] = {
     {"i.logarithm-parts", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
     {"i.power", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
+     FailureBehavior::CannotFail},
+    {"i.substitution", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
+     FailureBehavior::CannotFail},
+    {"i.substitution-rewrite", ClaimType::Definition, kSubstitutionDifferential, 1,
+     FailureBehavior::CannotFail},
+    {"i.parts", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
     {"i.reciprocal", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},

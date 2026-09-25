@@ -1,13 +1,13 @@
-problem: x^2
+problem: 2x*cos(x^2)
 variable: x
 outcome: integrated
-result: (((x^3) * (3^-1)) + C)
+result: (sin((x^2)) + C)
 context
   application version: nps 0.2
   capability manifest: <current>
   problem family: calculus.integral.indefinite.single-variable
   envelope version: <not recorded>
-  normalized problem: (x^2)
+  normalized problem: ((2 * x) * cos((x^2)))
   requested method: integrate by rule
   angle convention: radians
   branch convention: real domain, principal values
@@ -18,7 +18,7 @@ context
 steps
   1 plan
     phase: plan
-    goal: Integrate (x^2) with respect to x
+    goal: Integrate ((2 * x) * cos((x^2))) with respect to x
     rule: calculus.integrate.rules, Integrate by rule
     claim: no claim
     explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
@@ -34,18 +34,46 @@ steps
     verified: nothing claimed
     1.1 transformation
       phase: integrate
-      goal: Integrate (x^2)
-      rule: i.power, Power rule
+      goal: Integrate ((2 * x) * cos((x^2)))
+      rule: i.substitution, Integration by substitution
       claim: equivalent expression
-      explanation: Raise the exponent by one and divide by the new exponent
-      detail: Reach for this when the variable is raised to a fixed whole number and that number is not minus one. It runs the power rule backwards: the exponent goes up by one and the whole thing is divided by that new exponent. Minus one is the one exponent this cannot do, because raising it by one gives zero and nothing may be divided by zero. That case is the natural logarithm instead.
+      explanation: Name the inner function u, integrate in u, then put the inner function back
+      detail: Let u = (x^2). Then du = (2 * x) dx, and the rest of the integrand is exactly that, so the integral is written in u alone. The antiderivative in u is then written back in terms of x.
       proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-      action: Raise x to power 3 and divide by 3
-      before: int((x^2), x)
-      after: ((x^3) * (3^-1))
+      action: Let u = (x^2), so du = (2 * x) dx
+      before: int(((2 * x) * cos((x^2))), x)
+      after: sin((x^2))
       reversible: no
-      verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer other than minus one
+      verification: rule-local invariant, passed, the rest of the integrand divided by the derivative of the inner function has no occurrence of the variable
       verified: yes
+      1.1.1 transformation
+        phase: integrate
+        goal: Rewrite the integral in u
+        rule: i.substitution-rewrite, Rewrite the integral in the new variable
+        claim: definition
+        explanation: Replace the inner function by u and its derivative times dx by du
+        detail: Every x in the integrand is accounted for by u and du, so the new integral has u as its only variable.
+        proof obligation: obl.integrate.substitution-differential, the rest of the integrand is a constant multiple of the derivative of the inner function
+        action: Write the integral as int(cos(u), u)
+        before: int(((2 * x) * cos((x^2))), x)
+        after: int(cos(u), u)
+        reversible: no
+        verification: rule-local invariant, passed, the rest of the integrand over (2 * x) is the constant 1
+        verified: yes
+      1.1.2 transformation
+        phase: integrate
+        goal: Integrate cos(u)
+        rule: i.function, Trigonometric integral
+        claim: equivalent expression
+        explanation: Use the known antiderivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these has an antiderivative worth learning, and it is read off by asking what differentiates to the function in front of you. Once the argument is anything but the variable, a substitution is needed first.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Use sin(u)
+        before: int(cos(u), u)
+        after: sin(u)
+        reversible: no
+        verification: rule-local invariant, passed, the argument is the variable itself, so no substitution is needed
+        verified: yes
     1.2 transformation
       phase: integrate
       goal: State the general antiderivative
@@ -55,8 +83,8 @@ steps
       detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
       proof obligation: obl.calculus.family-adds-a-constant, the after state is the antiderivative found plus one constant free nowhere before it
       action: Add the constant C
-      before: ((x^3) * (3^-1))
-      after: (((x^3) * (3^-1)) + C)
+      before: sin((x^2))
+      after: (sin((x^2)) + C)
       reversible: no
       verification: rule-local invariant, passed, the derivative of a constant is zero
       verified: yes
@@ -68,9 +96,9 @@ steps
       explanation: Differentiate the result and compare it with the integrand
       detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
       proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
-      target claim: the derivative of (((x^3) * (3^-1)) + C) is (x^2)
+      target claim: the derivative of (sin((x^2)) + C) is ((2 * x) * cos((x^2)))
       check method: differentiate the result by rule and compare canonical forms
-      expected: (x^2)
-      observed: (x^2)
+      expected: (2 * x * cos((x^2)))
+      observed: (2 * x * cos((x^2)))
       verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
       verified: yes

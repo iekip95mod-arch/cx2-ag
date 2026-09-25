@@ -63,6 +63,9 @@ RearrangeResult rearrange(Arena &arena, Derivation &derivation, NodeId equation,
 RearrangeResult rearrange(Arena &arena, Derivation &derivation, NodeId equation, NodeId variable,
                           const Budget &budget, Backend *giac, size_t frame_bytes);
 
+// Every occurrence of the symbol replaced by the replacement, rebuilding only what changed.
+NodeId substitute_symbol(Arena &arena, NodeId id, NodeId symbol, NodeId replacement);
+
 }  // namespace nps
 
 #endif
