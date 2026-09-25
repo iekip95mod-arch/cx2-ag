@@ -28,6 +28,7 @@
 #include "nps/physics/work.h"
 #include "nps/steps/linear.h"
 #include "nps/steps/quadratic.h"
+#include "nps/steps/rational_expression.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
 #include "nps/core/parser.h"
@@ -143,6 +144,18 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
         answer += print(arena, result.solutions[i]);
     }
     return header(equation, name, quadratic_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string rational_record(const char *expression, RationalGoal goal, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const RationalResult result = rational_expression(arena, derivation, parsed.root, arena.symbol("x"), goal, budget);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(expression, "x", rational_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -998,6 +1011,18 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "rearrange_even_power_refused", rearrange_record("y = x^2", "x", Budget()));
     check_golden(t, "rearrange_repeated_variable", rearrange_record("y = x + x", "x", Budget()));
     check_golden(t, "rearrange_step_budget_halt", rearrange_record("v = u + a*t", "t", one_step()));
+    check_golden(t, "rational_cancel_one", rational_record("x/x", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_cancel_factor", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_common_denominator",
+                 rational_record("x/(x^2-4) - 1/(x-2)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_multiply", rational_record("(x+1)/(x-2) * (x-2)/(x+3)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_not_rational", rational_record("sqrt(x)/x", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_cancelled", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, cancelling()));
+    check_golden(t, "partial_fractions_linear", rational_record("(3x+5)/(x^2+4x+3)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_improper", rational_record("(x^3+x)/(x^2-1)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_after_cancelling",
+                 rational_record("(x-1)/((x-1)*(x+2)*(x+3))", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_irreducible", rational_record("1/(x^2+1)", RationalGoal::PartialFractions, Budget()));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));

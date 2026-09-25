@@ -4553,8 +4553,8 @@ do
     check(env.steps.active and env.steps.result.solved == false and #evaluated == 0,
           "an unsupported signature keeps its refusal instead of running a different operation")
     if env.steps.active then env.on.escapeKey() end
-    enter("normal(x/(x+1))")
-    check(evaluated[#evaluated] == "normal(x/(x+1))" and not env.steps.active,
+    enter("unclaimedop(x/(x+1))")
+    check(evaluated[#evaluated] == "unclaimedop(x/(x+1))" and not env.steps.active,
           "an unhandled operation reaches CAS once with every argument retained")
     local finished = #profile_finishes
     env.on.paint(gc)
@@ -4860,6 +4860,40 @@ if os.getenv("NPS_COMMAND_MODULE") then
         check(env.steps.active and record and record.mode == "determinant" and not record.solved and
               record.result == nil and #record.steps == 0 and evaluated == before_evaluation,
               "a nonsquare determinant stays a native refusal in the walkthrough viewer")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Normal Form") and env.fctEditor:getExpression() == "normal(",
+          "the existing normal form menu inserts the native walkthrough command")
+    env.fctEditor:addString("(x^2-1)/(x-1))")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation,
+              "the normal form menu dispatches once without a CAS fallback")
+        check(env.steps.active and record and record.mode == "normal" and record.solved and
+              record.result == "(x + 1)" and record.status == "solved and verified",
+              "the normal form menu opens the verified cancellation walkthrough")
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Partial Fractions") and env.fctEditor:getExpression() == "partfrac(",
+          "the existing partial fractions menu inserts the native walkthrough command")
+    env.fctEditor:addString("1/(x^2-1))")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
+              record and record.mode == "partial fractions" and record.solved and
+              record.status == "solved and verified",
+              "the partial fractions menu opens the verified cover-up walkthrough without a CAS fallback")
         if env.steps.active then env.on.escapeKey() end
     end
 

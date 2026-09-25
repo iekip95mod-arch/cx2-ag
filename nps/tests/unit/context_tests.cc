@@ -36,6 +36,8 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "algebra.quadratic.pure-square.one-unknown"},
     {"solver", "algebra.formula-rearrangement.single-occurrence"},
     {"solver", "algebra.polynomial-rewrite.single-expression"},
+    {"solver", "algebra.rational-expression.single-variable"},
+    {"solver", "algebra.partial-fractions.linear-factors"},
     {"solver", "number.integer-method.literal"},
     {"solver", "matrix.ref.rational"},
     {"solver", "matrix.rref.rational"},

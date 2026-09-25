@@ -23,6 +23,8 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "normal") return CommandKind::Normal;
+    if (name == "partfrac") return CommandKind::PartialFractions;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
 }
@@ -46,6 +48,8 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::Normal: return "normal";
+        case CommandKind::PartialFractions: return "partial fractions";
         case CommandKind::Unhandled: return "command";
     }
     return "command";

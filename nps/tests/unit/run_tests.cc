@@ -877,6 +877,8 @@ int main_body() {
     run_linear_tests(sink);
     sink.begin_group("quadratic");
     run_quadratic_tests(sink);
+    sink.begin_group("rational expression");
+    run_rational_expression_tests(sink);
     sink.begin_group("rearrange");
     run_rearrange_tests(sink);
     sink.begin_group("rewrite");

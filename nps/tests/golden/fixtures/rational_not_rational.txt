@@ -1,0 +1,19 @@
+problem: sqrt(x)/x
+variable: x
+outcome: not rational
+detail: the expression is not a quotient of polynomials in the variable
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.rational-expression.single-variable
+  envelope version: 1
+  normalized problem: (sqrt(x) * (x^(-1)))
+  requested method: normal
+  angle convention: not applicable
+  branch convention: real domain, excluded values kept
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none
