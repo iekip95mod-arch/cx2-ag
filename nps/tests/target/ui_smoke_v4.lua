@@ -2643,10 +2643,13 @@ do
                       steps_truncated = false }
     local module_differentiate = nps_split.differentiate
     nps_split.differentiate = function() return refusal end
-    local entries = #steps.histText
+    -- The row before, rather than the count: the shell keeps 50 entries and drops the oldest past
+    -- that, so once the suite has filled the history a count cannot tell one row from none.
+    local previous = steps.histText[#steps.histText]
     type_line("!d " .. string.rep("x*", 300) .. "x")
     on.enterKey()
-    check(steps.active == true and steps.result == refusal and #steps.histText == entries + 1 and
+    check(steps.active == true and steps.result == refusal and
+          steps.histText[#steps.histText - 1] == previous and
           steps.histText[#steps.histText][2]:find("resource", 1, true) ~= nil,
           "a typed resource refusal opens the viewer and records the halt, not an invalid record: " ..
               tostring(steps.status))
@@ -2676,6 +2679,55 @@ do
     nps_split.differentiate = module_differentiate
     fctEditor.editor:setText("")
     fctEditor:fixContent()
+end
+
+-- No fixture asks for a rank three magnitude and direction yet, so the record is scripted onto one
+-- that exists. The field values copy what luax_host.lua:1681-1691 asserts the bridge emits for
+-- x = 1, y = 2, z = 3, so the shell is read against the strings it will really be handed.
+do
+local polar_fixture = nil
+for index, fixture in ipairs(PHYSICS_FIXTURES) do
+    if fixture.mode == "vector_addition" then polar_fixture = index end
+end
+local polar_solver = nps_split.vector_addition
+local polar_focus_before = physicsBrowser.focus
+local polar_record = function(rank, polar_angle)
+    return {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", has_polar = true,
+        polar = { magnitude = "sqrt(14)", angle = "atan2(2,1)", polar_angle = polar_angle,
+                  rank = rank, frame = "lab", unit = "m", angle_unit = "radians" },
+        nodes = 12, step_count = 1, rewrites = 0, giac_calls = 6,
+        steps = {
+            { kind = "plan", name = "Spherical direction",
+              goal = "Reconstruct a magnitude and direction from components",
+              short = "Read the direction back off the components", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
+        },
+    }
+end
+nps_split.vector_addition = function() return polar_record(3, "atan2(sqrt(5),3)") end
+openPhysicsFixtures()
+physicsBrowser.focus = polar_fixture
+on.enterKey()
+painted()
+check(steps.result.display_result ==
+      "sqrt(14) m at polar atan2(sqrt(5),3) radians from z, azimuth atan2(2,1) radians",
+      "a rank three direction names both angles and the axis the polar one is measured from")
+check(steps.histText[#steps.histText][2]:find("polar atan2(sqrt(5),3)", 1, true) ~= nil and
+      steps.histText[#steps.histText][2]:find("azimuth atan2(2,1)", 1, true) ~= nil,
+      "and carries both angles into the document history")
+on.escapeKey()
+nps_split.vector_addition = function() return polar_record(2, nil) end
+openPhysicsFixtures()
+physicsBrowser.focus = polar_fixture
+on.enterKey()
+painted()
+check(steps.result.display_result == "sqrt(14) m at atan2(2,1) radians",
+      "while a rank two direction keeps the one angle it has, with no axis to name")
+on.escapeKey()
+nps_split.vector_addition = polar_solver
+physicsBrowser.focus = polar_focus_before
 end
 
 -- Save and restore carry the history and the reading choices, and a restore validates its input.

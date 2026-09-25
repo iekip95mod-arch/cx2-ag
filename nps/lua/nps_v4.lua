@@ -3619,6 +3619,12 @@ local function physicsFixtureAnswer(r)
 		local p = r.polar
 		if type(p.magnitude) == "string" and type(p.angle) == "string" and
 		   type(p.unit) == "string" and type(p.angle_unit) == "string" then
+			-- A rank three direction needs both angles and the axis each is measured from, in the
+			-- wording golden_tests.cc:646 already uses, since the azimuth alone names another vector.
+			if type(p.polar_angle) == "string" then
+				return p.magnitude .. " " .. p.unit .. " at polar " .. p.polar_angle .. " " ..
+				       p.angle_unit .. " from z, azimuth " .. p.angle .. " " .. p.angle_unit
+			end
 			return p.magnitude .. " " .. p.unit .. " at " .. p.angle .. " " .. p.angle_unit
 		end
 	end

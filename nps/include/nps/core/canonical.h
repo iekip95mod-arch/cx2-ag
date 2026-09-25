@@ -32,6 +32,10 @@ NodeId canonicalize(Arena &arena, NodeId id);
 enum class CanonicalRefusal { Unsupported, ResourceLimit };
 CanonicalRefusal canonical_refusal(const Arena &arena);
 
+// The wording each of those two answers gets, here rather than at the bridge, because an arena can
+// be starved on purpose here and no input to the bridge entry point reaches either arm.
+std::string canonical_refusal_message(const Arena &arena);
+
 // Ordering over canonical nodes. Exposed because the rule engine needs the same order the canonical
 // form was built with, and two orders that disagree would make equality depend on who asked.
 bool canonical_less(const Arena &arena, NodeId a, NodeId b);
