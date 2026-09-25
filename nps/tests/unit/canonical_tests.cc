@@ -907,6 +907,29 @@ void run_canonical_tests(TestSink &t) {
                 "a failed arena names the limit it hit");
     }
 
+    // The two strings a reader is handed, exercised here because the bridge entry point cannot reach
+    // either arm: the parser builds no invalid node, and 4096 input bytes cannot fill 4096 nodes.
+    {
+        Arena clean;
+        ParseResult r = parse(clean, "x");
+        t.check(canonicalize(clean, clean.nary(Kind::Pow, {r.root})) == kNoNode,
+                "the unsupported shape refuses before its wording is read");
+        t.equal(canonical_refusal_message(clean),
+                "this expression has no canonical form in StepCAS",
+                "an unsupported refusal tells the reader the form has none");
+
+        Limits limits;
+        limits.max_nodes = 8;
+        Arena starved(limits);
+        for (size_t i = 0; i < limits.max_nodes + 4 && !starved.failed(); ++i)
+            starved.integer(std::to_string(i));
+        t.check(starved.failed(), "the starved arena has failed before its wording is read");
+        t.equal(canonical_refusal_message(starved),
+                std::string("the expression outgrew the limits while being put in canonical form: ") +
+                    status_name(starved.status()),
+                "a limit refusal names the limit and the status that caused it");
+    }
+
     {
         Arena arena;
         ParseResult r = parse(arena, "(0 * x) * (y * 0^-1)");

@@ -1400,16 +1400,11 @@ int parse_failed(lua_State *L, const ParseResult &r) {
 }
 
 // canonicalize answers kNoNode for a form it does not handle as well as for a limit it hit, and the
-// arena is the only thing that knows which. Naming the limit unconditionally sent a reader to
-// shorten an expression whose size was never the problem.
+// arena is the only thing that knows which. Both the reading and its wording live in core, where a
+// starved arena can be built on purpose and no caller here can reach either arm.
 int canonical_refused(lua_State *L, const Arena &arena) {
     lua_pushnil(L);
-    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported) {
-        lua_pushliteral(L, "this expression has no canonical form in StepCAS");
-        return 2;
-    }
-    std::string msg = "the expression outgrew the limits while being put in canonical form: ";
-    msg += status_name(arena.status());
+    const std::string msg = canonical_refusal_message(arena);
     lua_pushlstring(L, msg.data(), msg.size());
     return 2;
 }

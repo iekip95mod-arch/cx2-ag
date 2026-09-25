@@ -731,6 +731,15 @@ CanonicalRefusal canonical_refusal(const Arena &arena) {
     return CanonicalRefusal::Unsupported;
 }
 
+std::string canonical_refusal_message(const Arena &arena) {
+    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported)
+        return "this expression has no canonical form in StepCAS";
+    // The status is carried because naming the limit without naming which one sent a reader to
+    // shorten an expression whose size was never the problem.
+    return std::string("the expression outgrew the limits while being put in canonical form: ") +
+           status_name(arena.status());
+}
+
 NodeId canonicalize(Arena &arena, NodeId id) {
     if (!transformable(arena, id))
         return kNoNode;
