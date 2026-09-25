@@ -132,6 +132,30 @@ const ObligationSchema kFormulaStrategy[] = {
      kRegisteredPreconditions, 1},
 };
 
+// algebra.quadratic.factoring.one-unknown. The pair is found before the plan, so it is a precondition.
+const EvidenceAlternative kIntegerFactorPair[] = {
+    {"exact integer factor pair", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFactoringStrategy[] = {
+    {"pre.quadratic.degree-two", "the equation is a polynomial of degree two in the unknown over "
+     "the rationals", kDegreeBoundAndInterpolation, 1},
+    {"pre.quadratic.integer-factor-pair",
+     "two integers multiply to a*c and add to b once the equation is cleared of fractions",
+     kIntegerFactorPair, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+
+const EvidenceAlternative kFactorEvaluation[] = {
+    {"exact evaluation of the factor", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFactorIsZero[] = {
+    {"obl.quadratic.factor-is-zero", "this case makes its factor zero, so it makes the product zero",
+     kFactorEvaluation, 1},
+};
+
 const EvidenceAlternative kDiscriminantArithmetic[] = {
     {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
 };
@@ -1620,6 +1644,14 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"eq.quadratic.reject-negative-discriminant", ClaimType::SolutionSetPreserved,
      kRejectedCaseIsInfeasible, 1, FailureBehavior::CannotFail},
+
+    // algebra.quadratic.factoring.one-unknown. The factor and each zero case can come back false.
+    {"eq.quadratic.factoring", ClaimType::NoClaim, kFactoringStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.factor", ClaimType::SolutionSetPreserved, kFactorMultipliesBack, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.zero-product-case", ClaimType::SolutionSetNarrowed, kFactorIsZero, 1,
+     FailureBehavior::WithholdResult},
 
     // calculus.differentiate. Every rule below records its invariant unconditionally, which is what
     // CannotFail says: the rule matched the form or it was never reached, so there is no run in

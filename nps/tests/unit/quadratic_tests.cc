@@ -698,10 +698,125 @@ void test_quadratic_formula(TestSink &t) {
     }
 }
 
+QuadraticResult by_factoring(Arena &arena, Derivation &d, const char *equation, const char *name,
+                             const Budget &budget = Budget()) {
+    ParseResult parsed = parse(arena, equation);
+    if (!parsed.ok())
+        return QuadraticResult();
+    return solve_by_factoring(arena, d, parsed.root, arena.symbol(name), budget);
+}
+
+bool cancel_at_once(void *) { return true; }
+
+// ALG-004's factoring method, beside the formula above.
+void test_quadratic_factoring(TestSink &t) {
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, "x^2 - 5x + 6 = 0", "x");
+        t.equal(quadratic_outcome_name(r.outcome), "solved", "x^2 - 5x + 6 = 0 is solved by factoring");
+        t.equal(roots(arena, r), "2 3", "and the two factors give 2 and 3");
+        t.equal(derivation_status_name(r.status), "solved and verified",
+                "with the factor, both zero cases and the completeness check passing");
+        const std::string rules = rule_ids(d);
+        t.check(says(rules, "eq.quadratic.factoring") && says(rules, "eq.quadratic.standard-form") &&
+                    says(rules, "eq.quadratic.factor") &&
+                    says(rules, "eq.quadratic.zero-product-case") &&
+                    says(rules, "eq.quadratic.check-by-substitution") &&
+                    says(rules, "eq.quadratic.cases-reconstruct-the-original") &&
+                    !says(rules, "eq.quadratic.discriminant"),
+                "the plan, standard form, factor, zero cases, substitutions and completeness are "
+                "recorded, and no formula step is");
+        t.equal(d.context.problem_family_id, "algebra.quadratic.factoring.one-unknown",
+                "the context names the factoring family");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        audit.walk(arena, d, false, true, &broken);
+        t.check(broken.empty(), "every factoring step conforms to its rule schema" +
+                                    (broken.empty() ? std::string() : " " + broken.front()));
+        Arena formula_arena;
+        Derivation formula_d;
+        const QuadraticResult formula = by_formula(formula_arena, formula_d, "x^2 - 5x + 6 = 0", "x");
+        t.evidence("ALG-004",
+                   r.status == DerivationStatus::SolvedAndVerified &&
+                       formula.status == DerivationStatus::SolvedAndVerified &&
+                       roots(arena, r) == "2 3" && roots(formula_arena, formula) == "3 2",
+                   "a quadratic is solved natively both by factoring and by the quadratic formula, "
+                   "each verified, and the two methods find the same roots");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, "2x^2 + 7x + 3 = 0", "x");
+        t.equal(roots(arena, r), "(-3) (-(1 * (2^(-1))))",
+                "a leading coefficient other than one factors through a*c = 6");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, "x^2/2 - x/2 - 1 = 0", "x");
+        t.equal(roots(arena, r), "(-1) 2",
+                "fractional coefficients are cleared before the pair is looked for");
+        t.equal(derivation_status_name(r.status), "solved and verified",
+                "and the roots check against the equation as it was typed");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, "x^2 - 6x + 9 = 0", "x");
+        t.equal(roots(arena, r), "3", "a perfect square gives its repeated root once");
+        t.equal(derivation_status_name(r.status), "solved and verified",
+                "and the single case rebuilds the square it came from");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, "x^2 + 3x = 0", "x");
+        t.equal(roots(arena, r), "(-3) 0", "no constant term factors out the unknown itself");
+    }
+    for (const char *equation : {"x^2 + x - 1 = 0", "x^2 + x + 1 = 0", "x^2 = 2"}) {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, equation, "x");
+        t.check(r.outcome == QuadraticOutcome::OutsideEnvelope && r.solutions.empty() &&
+                    d.size() == 0 && says(r.detail, "does not factor over the rationals") &&
+                    says(r.detail, "quadratic formula"),
+                std::string("a quadratic with no integer factor pair is refused before any step and "
+                            "names the formula: ") + equation);
+    }
+    for (const char *equation : {"2x + 1 = 0", "x^3 = x"}) {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = by_factoring(arena, d, equation, "x");
+        t.check(r.outcome == QuadraticOutcome::NotPureQuadratic && d.size() == 0,
+                std::string("an equation that is not degree two is left to another rule: ") +
+                    equation);
+    }
+    {
+        Arena arena;
+        Derivation d;
+        Budget budget;
+        budget.poll = cancel_at_once;
+        const QuadraticResult r = by_factoring(arena, d, "x^2 - 5x + 6 = 0", "x", budget);
+        t.check(r.outcome == QuadraticOutcome::Cancelled && r.solutions.empty(),
+                "a cancelled factoring solve offers no roots");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        Budget budget;
+        budget.max_steps = 2;
+        const QuadraticResult r = by_factoring(arena, d, "x^2 - 5x + 6 = 0", "x", budget);
+        t.check(r.outcome == QuadraticOutcome::ResourceExceeded && r.solutions.empty(),
+                "a step budget that runs out offers no roots");
+    }
+}
+
 }  // namespace
 
 void run_quadratic_tests(TestSink &sink) {
     test_quadratic_formula(sink);
+    test_quadratic_factoring(sink);
     for (const char *source : {"x^2=[4]", "x^2+0*[1]=4", "[[4]]=x^2", "x^2=f([4])"}) {
         Arena arena;
         const NodeId equation = parse(arena, source).root;

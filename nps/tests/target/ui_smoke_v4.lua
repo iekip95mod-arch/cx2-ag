@@ -4682,7 +4682,7 @@ if os.getenv("NPS_COMMAND_MODULE") then
     end
     local env = loadIsolated(module)
     env.on.paint(gc)
-    for _, command in ipairs({ "solve(2*x+5=13,x)", "solve(x^2=9,x)", "diff(x^2,x)",
+    for _, command in ipairs({ "solve(2*x+5=13,x)", "solve(x^2=9,x)", "solve(x^2-5*x+6=0,x)", "diff(x^2,x)",
                                "int(x^2,x)", "simplify(x+x)", "factor(x^2-1)",
                                "expand((x+1)^2)", "rearrange(V=I*R,I)" }) do
         local before = dispatched
