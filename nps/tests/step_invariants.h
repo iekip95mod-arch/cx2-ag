@@ -12,6 +12,8 @@
 #include "nps/steps/derivation.h"
 #include "nps/steps/schema.h"
 
+#include "../tools/rule_cases.h"
+
 namespace nps {
 namespace invariants {
 
@@ -636,6 +638,11 @@ class Pass {
             if (!step.rule_id.empty()) {
                 ++rules_seen_;
                 const RuleSchema *schema = rule_schema(step.rule_id);
+                // VER-010's two kinds a record can say of itself. The other two are declared.
+                if (step.has_failed_verification())
+                    rule_kinds_[step.rule_id].insert(nps_tools::RuleCaseKind::Negative);
+                else if (status_carries_answer(derivation.context.derivation_status))
+                    rule_kinds_[step.rule_id].insert(nps_tools::RuleCaseKind::Positive);
                 if (schema == nullptr) {
                     ++undeclared_;
                     observe(step, derivation.context.derivation_status);
@@ -767,6 +774,11 @@ class Pass {
     size_t planned_strategies() const { return planned_strategies_; }
 
     size_t rules_seen() const { return rules_seen_; }
+
+    // Which of VER-010's kinds each rule was seen in, over every derivation this pass walked.
+    const std::map<std::string, std::set<nps_tools::RuleCaseKind> > &rule_kinds() const {
+        return rule_kinds_;
+    }
     size_t undeclared_rules() const { return undeclared_; }
     size_t nameless_steps() const { return nameless_; }
 
@@ -874,6 +886,7 @@ class Pass {
         family_unevaluated_ = 0;
         equivalence_unevaluated_ = 0;
         observed_.clear();
+        rule_kinds_.clear();
     }
 
   private:
@@ -1276,6 +1289,7 @@ class Pass {
     size_t methodless_ = 0;
     size_t planned_strategies_ = 0;
     size_t rules_seen_ = 0;
+    std::map<std::string, std::set<nps_tools::RuleCaseKind> > rule_kinds_;
     size_t undeclared_ = 0;
     size_t nameless_ = 0;
     size_t implications_ = 0;

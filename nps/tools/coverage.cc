@@ -11,6 +11,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -19,11 +20,13 @@
 
 #include "catalog.h"
 #include "evidence.h"
+#include "rule_cases.h"
 
 using nps_tools::append_evidence;
 using nps_tools::count_text;
 using nps_tools::Family;
 using nps_tools::read_catalog;
+using nps_tools::RuleCaseKind;
 using nps_tools::trimmed;
 
 namespace {
@@ -116,6 +119,119 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
         if (s.rfind(before_key, 0) == 0)
             carried->insert(trimmed(s.substr(before_key.size())));
     }
+}
+
+// VER-010 asks for four kinds of case per rule, and this many registered rule and kind pairs have
+// none today. A gap closed or opened has to move this number in the same change, so it only shrinks.
+constexpr size_t kRuleCaseGaps = 724;
+
+struct RuleCaseJoin {
+    size_t rows = 0;
+    size_t faults = 0;
+    size_t complete = 0;
+    size_t gaps = 0;
+    size_t per_kind[nps_tools::kRuleCaseKindCount] = {};
+};
+
+// Every registered rule against the rule case rows the test runs wrote. A row that names no
+// registered rule, an unknown kind or a failed case is a fault, and a missing kind is a gap.
+RuleCaseJoin join_rule_cases(const std::string &evidence_path, const std::vector<Family> &families,
+                             std::ostream &report) {
+    RuleCaseJoin out;
+    std::map<std::string, std::set<RuleCaseKind> > kinds;
+    std::map<std::string, std::set<std::string> > sources;
+    std::ifstream in(evidence_path.c_str());
+    if (!in) {
+        ++out.faults;
+        std::cout << "coverage: no evidence file to read rule cases from at " << evidence_path
+                  << "\n";
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.rfind("rule_case\t", 0) != 0)
+            continue;
+        std::vector<std::string> fields;
+        size_t start = 0;
+        for (size_t tab = line.find('\t'); tab != std::string::npos; tab = line.find('\t', start)) {
+            fields.push_back(line.substr(start, tab - start));
+            start = tab + 1;
+        }
+        fields.push_back(line.substr(start));
+        ++out.rows;
+        RuleCaseKind kind = RuleCaseKind::Positive;
+        if (fields.size() != 6) {
+            ++out.faults;
+            std::cout << "coverage: a rule case row has " << count_text(fields.size())
+                      << " fields rather than 6: " << line << "\n";
+            continue;
+        }
+        if (nps::rule_schema(fields[1]) == nullptr) {
+            ++out.faults;
+            std::cout << "coverage: a rule case names " << fields[1]
+                      << ", which is not a registered rule\n";
+            continue;
+        }
+        if (!nps_tools::rule_case_kind_from_name(fields[2], &kind)) {
+            ++out.faults;
+            std::cout << "coverage: a rule case of " << fields[1] << " names the unknown kind "
+                      << fields[2] << "\n";
+            continue;
+        }
+        if (fields[3] != "pass") {
+            ++out.faults;
+            std::cout << "coverage: the " << fields[2] << " case of " << fields[1]
+                      << " did not pass: " << fields[5] << "\n";
+            continue;
+        }
+        kinds[fields[1]].insert(kind);
+        sources[fields[1]].insert(fields[4]);
+    }
+
+    report << "\n## Rule case kinds\n\n";
+    report << "VER-010 asks every solver rule for positive, negative, boundary and regression "
+              "cases. Positive and negative are read off derivations by the invariant pass over the "
+              "golden fixtures and the acceptance corpus. Boundary and regression are declared by a "
+              "unit test whose derivation has to reach the rule, and a regression has to name its "
+              "issue. A dash is a kind no passing case supplies.\n\n";
+    report << "| Rule | Family | Positive | Negative | Boundary | Regression | Sources |\n"
+              "|---|---|---|---|---|---|---|\n";
+    const size_t declared = nps::declared_rule_count();
+    for (size_t i = 0; i < declared; ++i) {
+        const std::string id = nps::declared_rule(i).rule_id;
+        std::string family;
+        for (const Family &f : families) {
+            for (const nps_tools::Rule &r : f.rules) {
+                if (r.id == id)
+                    family += (family.empty() ? "" : ", ") + f.id;
+            }
+        }
+        if (family.empty())
+            family = "-";
+        const std::set<RuleCaseKind> &have = kinds[id];
+        report << "| " << id << " | " << family << " |";
+        for (size_t k = 0; k < nps_tools::kRuleCaseKindCount; ++k) {
+            const bool present = have.count(static_cast<RuleCaseKind>(k)) != 0;
+            if (present)
+                ++out.per_kind[k];
+            else
+                ++out.gaps;
+            report << " " << (present ? "yes" : "-") << " |";
+        }
+        if (have.size() == nps_tools::kRuleCaseKindCount)
+            ++out.complete;
+        std::string joined;
+        for (const std::string &source : sources[id])
+            joined += (joined.empty() ? "" : ", ") + source;
+        report << " " << (joined.empty() ? std::string("-") : joined) << " |\n";
+    }
+    report << "\n" << count_text(out.complete) << " of " << count_text(declared)
+           << " registered rules have all four kinds. Positive " << count_text(out.per_kind[0])
+           << ", negative " << count_text(out.per_kind[1]) << ", boundary "
+           << count_text(out.per_kind[2]) << ", regression " << count_text(out.per_kind[3]) << ", "
+           << count_text(out.gaps) << " rule and kind pairs with no case, from "
+           << count_text(out.rows) << " rule case rows. VER-010 is unmet until that last count is "
+              "zero, so no evidence row is written for it.\n";
+    return out;
 }
 
 }  // namespace
@@ -393,6 +509,97 @@ int selftest() {
                   << "per-family strategy_ids answer " << (answer.empty() ? "empty" : answer)
                   << " is distinguished from the complete schema union\n";
     }
+    // VER-010's join, on staged rows. Each fault is one row added to an otherwise clean file.
+    {
+        const std::string rule = nps::declared_rule(0).rule_id;
+        const std::string other = nps::declared_rule(1).rule_id;
+        const std::string clean =
+            nps_tools::rule_case_row(rule, RuleCaseKind::Positive, true, "staged", "a") + "\n" +
+            nps_tools::rule_case_row(rule, RuleCaseKind::Negative, true, "staged", "b") + "\n" +
+            nps_tools::rule_case_row(rule, RuleCaseKind::Boundary, true, "staged", "c") + "\n" +
+            nps_tools::rule_case_row(rule, RuleCaseKind::Regression, true, "staged", "#1") + "\n" +
+            nps_tools::rule_case_row(other, RuleCaseKind::Positive, true, "staged", "d") + "\n" +
+            "evidence\tVER-010\tpass\tstaged\tan evidence row is not a rule case\n";
+        const size_t all_gaps = nps::declared_rule_count() * nps_tools::kRuleCaseKindCount;
+        const struct {
+            std::string extra;
+            size_t faults;
+            size_t complete;
+            size_t gaps;
+            const char *what;
+        } join_cases[] = {
+            {"", 0, 1, all_gaps - 5, "a clean file completes the rule with four passing kinds"},
+            {"rule_case\tno.such.rule\tpositive\tpass\tstaged\te\n", 1, 1, all_gaps - 5,
+             "a row naming no registered rule is a fault"},
+            {"rule_case\t" + other + "\tbordering\tpass\tstaged\te\n", 1, 1, all_gaps - 5,
+             "a row naming an unknown kind is a fault"},
+            {nps_tools::rule_case_row(other, RuleCaseKind::Boundary, false, "staged", "e") + "\n", 1,
+             1, all_gaps - 5, "a failed case is a fault and supplies no kind"},
+            {"rule_case\t" + other + "\tboundary\tpass\tstaged\n", 1, 1, all_gaps - 5,
+             "a row missing a field is a fault"},
+            {nps_tools::rule_case_row(other, RuleCaseKind::Boundary, true, "staged", "e") + "\n", 0,
+             1, all_gaps - 6, "a passing boundary case closes one gap"},
+        };
+        for (const auto &c : join_cases) {
+            const std::string staged_evidence = std::string(made) + "/rule-cases.txt";
+            std::ofstream staged(staged_evidence.c_str());
+            staged << "group\tstaged\n" << clean << c.extra;
+            staged.close();
+            std::ostringstream staged_report;
+            const RuleCaseJoin got = join_rule_cases(staged_evidence, {}, staged_report);
+            const bool as_expected = got.faults == c.faults && got.complete == c.complete &&
+                                     got.gaps == c.gaps;
+            if (!as_expected)
+                ++failures;
+            std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ") << c.what
+                      << "\n";
+        }
+        std::ostringstream missing_report;
+        const RuleCaseJoin missing =
+            join_rule_cases(std::string(made) + "/absent.txt", {}, missing_report);
+        const bool absent_faults = missing.faults == 1 && missing.gaps == all_gaps;
+        if (!absent_faults)
+            ++failures;
+        std::cout << "coverage selftest: " << (absent_faults ? "ok   " : "FAIL ")
+                  << "an evidence file that cannot be read is a fault rather than an empty join\n";
+
+        // The whole run passes at the recorded gap count and fails one rule either side of it, or
+        // at that count with one failed case beside it.
+        const size_t full_rules = (all_gaps - kRuleCaseGaps) / nps_tools::kRuleCaseKindCount;
+        const struct {
+            size_t rules;
+            bool failed_row;
+        } runs[] = {{full_rules, false}, {full_rules - 1, false}, {full_rules + 1, false},
+                    {full_rules, true}};
+        for (const auto &run : runs) {
+            const size_t rules = run.rules;
+            const std::string staged_evidence = std::string(made) + "/gap-count.txt";
+            std::ofstream staged(staged_evidence.c_str());
+            staged << "group\tacceptance corpus\n";
+            for (size_t r = 0; r < rules; ++r) {
+                for (size_t k = 0; k < nps_tools::kRuleCaseKindCount; ++k)
+                    staged << nps_tools::rule_case_row(nps::declared_rule(r).rule_id,
+                                                       static_cast<RuleCaseKind>(k), true, "staged",
+                                                       "#1")
+                           << "\n";
+            }
+            if (run.failed_row)
+                staged << nps_tools::rule_case_row(nps::declared_rule(0).rule_id,
+                                                   RuleCaseKind::Boundary, false, "staged", "e")
+                       << "\n";
+            staged.close();
+            const bool passed = coverage(metadata_path, fixtures_dir, report_path,
+                                         staged_evidence.c_str()) == 0;
+            const bool as_expected = passed == (rules == full_rules && !run.failed_row);
+            if (!as_expected)
+                ++failures;
+            std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                      << count_text(rules) << " complete rules "
+                      << (rules == full_rules ? "match" : "move") << " the recorded gap count"
+                      << (run.failed_row ? ", beside a failed case" : "") << "\n";
+        }
+    }
+
     std::cout << "coverage selftest: " << count_text(static_cast<size_t>(failures)) << " failed\n";
     return failures == 0 ? 0 : 1;
 }
@@ -741,6 +948,21 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
         report << "No field names are absent from the catalog-wide union.\n";
     report << "\n" << count_text(field_count - absent) << " of " << count_text(field_count)
            << " section 27 field names occur in at least one family.\n";
+
+    // The rule case rows come from the evidence file, so a run that was not handed one says so.
+    RuleCaseJoin cases;
+    bool gap_count_moved = false;
+    if (evidence_path != nullptr) {
+        cases = join_rule_cases(evidence_path, families, report);
+        gap_count_moved = cases.gaps != kRuleCaseGaps;
+        if (gap_count_moved)
+            std::cout << "coverage: " << count_text(cases.gaps)
+                      << " rule and kind pairs have no case where kRuleCaseGaps records "
+                      << count_text(kRuleCaseGaps) << ", so update it with the cases that moved it\n";
+    } else {
+        report << "\n## Rule case kinds\n\nNo evidence file was named, so VER-010 was not "
+                  "joined in this run.\n";
+    }
     report.close();
 
     // An append that was asked for and did not happen leaves the requirement looking unclaimed for a
@@ -779,10 +1001,14 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
               << count_text(unevidenced) << " unevidenced claims, " << count_text(obligation_faults)
               << " obligation faults, " << count_text(uncatalogued)
               << " uncatalogued families, " << count_text(schemaless)
-              << " rules with no proof-obligation schema, report in " << report_path << "\n";
+              << " rules with no proof-obligation schema, " << count_text(cases.complete)
+              << " of " << count_text(nps::declared_rule_count())
+              << " registered rules with all four case kinds, " << count_text(cases.gaps)
+              << " missing case kinds, " << count_text(cases.faults)
+              << " rule case faults, report in " << report_path << "\n";
     return undeclared == 0 && unevidenced == 0 && uncatalogued == 0 && obligation_faults == 0 &&
                    schemaless == 0 && envelope_gaps == 0 && assumption_faults == 0 &&
-                   !evidence_refused
+                   cases.faults == 0 && !gap_count_moved && !evidence_refused
                ? 0
                : 1;
 }

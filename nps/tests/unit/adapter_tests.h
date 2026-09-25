@@ -9,6 +9,8 @@
 
 #include "nps/steps/derivation.h"
 
+#include "../../tools/rule_cases.h"
+
 namespace nps {
 
 // Every verification the derivation recorded, outcome and detail together and in order. A harness
@@ -39,6 +41,49 @@ struct Evidence {
     bool passed = false;
 };
 
+// VER-010's link from a check to the rule it is a case of. Rows the invariant pass observes and rows
+// a test declares share this shape, so coverage.cc joins both against the registered rules alike.
+struct RuleCase {
+    std::string rule_id;
+    nps_tools::RuleCaseKind kind = nps_tools::RuleCaseKind::Positive;
+    std::string group;
+    std::string what;
+    bool passed = false;
+};
+
+// Whether a derivation is what a declared case of this kind claims about the rule. A declaration the
+// record contradicts fails, so a tag cannot stand on a check that never reached the rule.
+inline bool rule_case_holds(const Derivation &derivation, const std::string &rule_id,
+                            nps_tools::RuleCaseKind kind, const std::string &what) {
+    bool reached = false;
+    bool failed = false;
+    for (size_t i = 0; i < derivation.size(); ++i) {
+        const Step &step = derivation.at(static_cast<StepId>(i));
+        if (step.rule_id != rule_id)
+            continue;
+        reached = true;
+        failed = failed || step.has_failed_verification();
+    }
+    const DerivationStatus status = derivation.context.derivation_status;
+    const bool answered = status_carries_answer(status);
+    // Running out of room or being stopped says nothing about whether the rule applies.
+    const bool refused = !answered && status != DerivationStatus::NotRecorded &&
+                         status != DerivationStatus::Cancelled &&
+                         status != DerivationStatus::ResourceLimitReached &&
+                         status != DerivationStatus::DependencyUnavailable;
+    switch (kind) {
+        case nps_tools::RuleCaseKind::Positive:
+            return reached && !failed && answered;
+        case nps_tools::RuleCaseKind::Negative:
+            return reached ? failed : refused;
+        case nps_tools::RuleCaseKind::Boundary:
+            return reached;
+        case nps_tools::RuleCaseKind::Regression:
+            return reached && nps_tools::names_an_issue(what);
+    }
+    return false;
+}
+
 struct TestSink {
     int checks = 0;
     std::vector<std::string> failures;
@@ -52,6 +97,7 @@ struct TestSink {
     // How many times each check sentence ran, keyed by group. A group whose total differs between
     // two platforms parted somewhere inside it, and only a per-sentence tally says where.
     std::map<std::pair<std::string, std::string>, int> label_counts;
+    std::vector<RuleCase> rule_cases;
     std::string group;
 
     // Called once per group by the runner, so a test body cannot label its evidence wrongly.
@@ -85,6 +131,30 @@ struct TestSink {
                   const std::string &what) {
         equal(got, want, what);
         record_evidence(requirement, got == want, what);
+    }
+
+    // A check that also stands as a VER-010 case of one registered rule. It fails when the
+    // derivation is not what the kind says of that rule, whatever the condition says.
+    void rule_case(const char *rule_id, nps_tools::RuleCaseKind kind, const Derivation &derivation,
+                   bool cond, const std::string &what) {
+        const bool holds = rule_case_holds(derivation, rule_id, kind, what);
+        check(cond && holds, holds ? what
+                                   : std::string("the derivation is not a ") +
+                                         nps_tools::rule_case_kind_name(kind) + " case of " +
+                                         rule_id + ": " + what);
+        record_rule_case(rule_id, kind, cond && holds, what);
+    }
+
+    // A kind the invariant pass read off records rather than one a test declared.
+    void record_rule_case(const std::string &rule_id, nps_tools::RuleCaseKind kind, bool passed,
+                          const std::string &what) {
+        RuleCase c;
+        c.rule_id = rule_id;
+        c.kind = kind;
+        c.group = group;
+        c.what = what;
+        c.passed = passed;
+        rule_cases.push_back(c);
     }
 
   private:

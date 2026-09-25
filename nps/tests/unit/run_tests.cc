@@ -839,6 +839,9 @@ void write_evidence(const TestSink &s) {
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());
+    for (const RuleCase &c : s.rule_cases)
+        fprintf(f, "%s\n",
+                nps_tools::rule_case_row(c.rule_id, c.kind, c.passed, c.group, c.what).c_str());
     fclose(f);
 }
 

@@ -43,6 +43,116 @@ Solved run(const std::string &equation, const char *unknown) {
 
 bool always_cancel(void *) { return true; }
 
+Derivation derive(const char *equation, const Budget &budget = Budget()) {
+    Arena arena;
+    Derivation d;
+    solve_linear(arena, d, parse(arena, equation).root, arena.symbol("x"), budget);
+    return d;
+}
+
+// VER-010 for this family. Each case is also held to what its kind says about the derivation.
+void test_rule_cases(TestSink &t) {
+    using nps_tools::RuleCaseKind;
+    const char *const kRules[] = {"eq.linear.inverse-operations", "eq.collect-like-terms",
+                                  "eq.divide-both-sides", "eq.linear.check-by-substitution",
+                                  "eq.linear.inspect-collected-coefficient"};
+
+    const Derivation squared = derive("x^2 = 4");
+    const Derivation denominator = derive("1/x = 2");
+    for (const char *rule : kRules) {
+        t.rule_case(rule, RuleCaseKind::Negative, squared,
+                    squared.context.derivation_status == DerivationStatus::Unsupported,
+                    std::string(rule) + " is refused for a squared unknown, a degree-two neighbour");
+        t.rule_case(rule, RuleCaseKind::Negative, denominator,
+                    denominator.context.derivation_status == DerivationStatus::Unsupported,
+                    std::string(rule) + " is refused for an unknown in a denominator");
+    }
+
+    // The widest coefficient an int64 holds, divided out and substituted back.
+    const Derivation widest = derive("9223372036854775807x = 9223372036854775807");
+    for (size_t i = 0; i < 4; ++i)
+        t.rule_case(kRules[i], RuleCaseKind::Boundary, widest,
+                    widest.context.derivation_status == DerivationStatus::SolvedAndVerified,
+                    std::string(kRules[i]) + " solves at the widest int64 coefficient");
+    // A zero coefficient against a zero constant sits between no solution and every value.
+    const Derivation zeros = derive("0x = 0");
+    t.rule_case("eq.linear.inspect-collected-coefficient", RuleCaseKind::Boundary, zeros,
+                zeros.context.derivation_status == DerivationStatus::SolvedAndVerified,
+                "a zero coefficient and a zero constant are read as every value");
+
+    // The quotient that no longer fits once the sides are collected, which #14 found reported as
+    // an equation of the wrong shape.
+    const Derivation quotient = derive("x + 4611686018427387904*(-2) = 0");
+    for (size_t i = 0; i < 2; ++i)
+        t.rule_case(kRules[i], RuleCaseKind::Regression, quotient,
+                    quotient.context.derivation_status == DerivationStatus::ResourceLimitReached,
+                    std::string(kRules[i]) +
+                        " runs before a quotient past int64 is refused as a resource limit, #14");
+
+    // The validator itself, one contradicting derivation per kind. Each builds a sink of its own so
+    // the refusal is read rather than counted as a failure of this suite.
+    const Derivation solved = derive("2x + 5 = 13");
+    Budget tight;
+    tight.max_steps = 1;
+    const Derivation halted = derive("2x + 5 = 13", tight);
+    // A rule whose own check failed under a status that still claims an answer, built by hand
+    // because no engine writes that pair.
+    Derivation contradicted;
+    {
+        Step step;
+        step.rule_id = "eq.divide-both-sides";
+        VerificationRecord failed_check;
+        failed_check.method = "substitution";
+        failed_check.outcome = VerificationOutcome::Failed;
+        step.verifications.push_back(failed_check);
+        contradicted.add_transformation(kNoStep, std::move(step), TransformationPayload());
+        contradicted.context.derivation_status = DerivationStatus::SolvedAndVerified;
+    }
+    const struct {
+        const char *rule;
+        RuleCaseKind kind;
+        const Derivation *derivation;
+        const char *what;
+        bool holds;
+        const char *about;
+    } validator[] = {
+        {"eq.divide-both-sides", RuleCaseKind::Positive, &solved, "a", true,
+         "a positive case holds where the rule ran under an answer"},
+        {"eq.divide-both-sides", RuleCaseKind::Positive, &squared, "a", false,
+         "and not where it never ran"},
+        {"eq.linear.inspect-collected-coefficient", RuleCaseKind::Positive, &solved, "a", false,
+         "nor where another rule carried the answer"},
+        {"eq.linear.inverse-operations", RuleCaseKind::Positive, &quotient, "a", false,
+         "nor where it ran and the derivation carries no answer"},
+        {"eq.divide-both-sides", RuleCaseKind::Positive, &contradicted, "a", false,
+         "nor where its own check failed"},
+        {"eq.divide-both-sides", RuleCaseKind::Negative, &contradicted, "a", true,
+         "a negative case holds where the rule ran and its own check failed"},
+        {"eq.linear.inspect-collected-coefficient", RuleCaseKind::Negative, &solved, "a", false,
+         "a negative case does not hold for a rule simply absent from an answered derivation"},
+        {"eq.divide-both-sides", RuleCaseKind::Negative, &solved, "a", false,
+         "nor for a rule that ran and passed"},
+        {"eq.divide-both-sides", RuleCaseKind::Negative, &halted, "a", false,
+         "nor for a derivation stopped by its budget, which is not a refusal"},
+        {"eq.divide-both-sides", RuleCaseKind::Boundary, &squared, "a", false,
+         "a boundary case has to reach the rule"},
+        {"eq.divide-both-sides", RuleCaseKind::Regression, &solved, "no issue named", false,
+         "a regression case has to name its issue"},
+        {"eq.divide-both-sides", RuleCaseKind::Regression, &squared, "#14", false,
+         "and has to reach the rule"},
+        {"eq.divide-both-sides", RuleCaseKind::Regression, &solved, "#14", true,
+         "and holds when it does both"},
+    };
+    for (const auto &c : validator) {
+        TestSink probe;
+        probe.rule_case(c.rule, c.kind, *c.derivation, true, c.what);
+        // The check and the recorded row each have to carry the verdict, since either reaches a gate.
+        const bool agreed = probe.failures.empty() == c.holds && probe.rule_cases.size() == 1 &&
+                            probe.rule_cases[0].passed == c.holds;
+        t.check(agreed, std::string("rule case validator: ") + c.about);
+    }
+}
+
 bool cancel_after_exact_solve(void *context) {
     return static_cast<Derivation *>(context)->size() == 4;
 }
@@ -50,6 +160,7 @@ bool cancel_after_exact_solve(void *context) {
 }  // namespace
 
 void run_linear_tests(TestSink &t) {
+    test_rule_cases(t);
     for (const bool replay : {false, true}) {
         Arena arena;
         const NodeId equation = parse(arena, "2*x=1").root;

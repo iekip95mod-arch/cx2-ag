@@ -550,7 +550,62 @@ void test_split_gates_fail_when_a_case_goes_missing(TestSink &t) {
 
 }  // namespace
 
+// VER-010 for this family. Each case is also held to what its kind says about the derivation.
+void test_rule_cases(TestSink &t) {
+    using nps_tools::RuleCaseKind;
+    const char *const kRules[] = {"eq.quadratic.square-root",
+                                  "eq.quadratic.isolate-the-square",
+                                  "eq.quadratic.square-root-case",
+                                  "eq.quadratic.check-by-substitution",
+                                  "eq.quadratic.cases-reconstruct-the-original",
+                                  "eq.quadratic.reject-negative-square"};
+    for (const char *source : {"x^2 + x = 6", "x^2 = 5"}) {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, source, "x");
+        for (const char *rule : kRules)
+            t.rule_case(rule, RuleCaseKind::Negative, d, r.status == DerivationStatus::Unsupported,
+                        std::string(rule) + " is refused for " + source);
+    }
+    {
+        // A zero square has one root, so the split has a single case.
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "x^2 = 0", "x");
+        for (size_t i = 0; i < 5; ++i)
+            t.rule_case(kRules[i], RuleCaseKind::Boundary, d,
+                        r.status == DerivationStatus::SolvedAndVerified && r.solutions.size() == 1,
+                        std::string(kRules[i]) + " keeps a repeated root as one case");
+    }
+    {
+        Arena arena;
+        Derivation d;
+        const QuadraticResult r = solve(arena, d, "x^2 + 9223372036854775807 = 0", "x");
+        t.rule_case("eq.quadratic.reject-negative-square", RuleCaseKind::Boundary, d,
+                    r.status == DerivationStatus::SolvedAndVerified && r.solutions.empty(),
+                    "a square isolated at minus the int64 maximum is rejected as having no real "
+                    "root");
+    }
+    {
+        // The split a branch budget of one interrupts, which #17 found could keep half of.
+        Arena arena;
+        Derivation d;
+        Budget one;
+        one.max_branches = 1;
+        const QuadraticResult r = solve(arena, d, "x^2 = 4", "x", one);
+        size_t branches = 0;
+        for (size_t i = 0; i < d.size(); ++i)
+            branches += d.branch(static_cast<StepId>(i)) != nullptr ? 1 : 0;
+        for (size_t i = 0; i < 2; ++i)
+            t.rule_case(kRules[i], RuleCaseKind::Regression, d,
+                        r.status == DerivationStatus::ResourceLimitReached && branches == 0,
+                        std::string(kRules[i]) +
+                            " stays in the prefix of a halted split that keeps no case, #17");
+    }
+}
+
 void run_quadratic_tests(TestSink &sink) {
+    test_rule_cases(sink);
     for (const char *source : {"x^2=[4]", "x^2+0*[1]=4", "[[4]]=x^2", "x^2=f([4])"}) {
         Arena arena;
         const NodeId equation = parse(arena, source).root;
