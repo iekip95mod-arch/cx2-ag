@@ -163,6 +163,11 @@ nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three an
 with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
 
+Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
+off. The build fails first, at nps/src/core/capability_manifest.cc:64, if the compiled manifest outgrows
+that ceiling, so a new family raises both numbers together.
+
 ## What renders on screen
 
 <!-- covers: nps/lua/nps_v4.lua -->
