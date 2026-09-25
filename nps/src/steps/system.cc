@@ -1,6 +1,8 @@
 #include "nps/steps/system.h"
 
+#include <algorithm>
 #include <array>
+#include <functional>
 
 #include "nps/core/canonical.h"
 #include "nps/core/context.h"
@@ -156,6 +158,60 @@ LinearRowRead read_affine(const Arena &arena, NodeId id, std::span<const NodeId>
     }
 }
 
+// One equation of the substitution method, kept as the node shown to the learner and its row.
+struct Pending {
+    NodeId node = kNoNode;
+    std::array<Rational, kColumns> row{};
+};
+
+bool all_zero_coefficients(const std::array<Rational, kColumns> &row, size_t unknowns) {
+    for (size_t i = 0; i < unknowns; ++i) {
+        if (!is_zero(row[i]))
+            return false;
+    }
+    return true;
+}
+
+NodeId scaled_unknown(Arena &arena, const Rational &coefficient, NodeId unknown) {
+    if (rational_equal(coefficient, Rational{1, 1}))
+        return unknown;
+    return arena.binary(Kind::Mul, canonical_rational(arena, coefficient), unknown);
+}
+
+NodeId sum_node(Arena &arena, std::vector<NodeId> terms) {
+    if (terms.empty())
+        return arena.integer("0");
+    return terms.size() == 1 ? terms[0] : arena.nary(Kind::Add, terms);
+}
+
+// c1 x1 + ... + cn xn = b, leaving out the unknowns whose coefficient is zero.
+NodeId row_equation(Arena &arena, const std::vector<NodeId> &unknowns, const std::array<Rational, kColumns> &row) {
+    std::vector<NodeId> terms;
+    for (size_t i = 0; i < unknowns.size(); ++i) {
+        if (!is_zero(row[i]))
+            terms.push_back(scaled_unknown(arena, row[i], unknowns[i]));
+    }
+    return arena.binary(Kind::Equals, sum_node(arena, terms), canonical_rational(arena, row[unknowns.size()]));
+}
+
+// u = c + d1 x1 + ... for an expression whose constant sits in the last slot.
+NodeId value_equation(Arena &arena, const std::vector<NodeId> &unknowns, size_t unknown,
+                      const std::array<Rational, kColumns> &value) {
+    std::vector<NodeId> terms;
+    const size_t n = unknowns.size();
+    bool has_unknown = false;
+    for (size_t i = 0; i < n; ++i)
+        has_unknown = has_unknown || !is_zero(value[i]);
+    if (!is_zero(value[n]) || !has_unknown)
+        terms.push_back(canonical_rational(arena, value[n]));
+    for (size_t i = 0; i < n; ++i) {
+        if (!is_zero(value[i]))
+            terms.push_back(scaled_unknown(arena, value[i], unknowns[i]));
+    }
+    return arena.binary(Kind::Equals, unknowns[unknown], sum_node(arena, terms));
+}
+
+
 struct Run {
     Arena &arena;
     Derivation &derivation;
@@ -164,6 +220,7 @@ struct Run {
     std::vector<NodeId> rows;
     Meter meter;
     size_t mark;
+    SystemMethod method = SystemMethod::Elimination;
     StepId plan = kNoStep;
     std::array<Rational, kCells> cells{};
     NodeId matrix = kNoNode;
@@ -307,8 +364,9 @@ struct Run {
         result.cost = meter.cost();
         ContextInputs context;
         context.application_version = application_version();
-        context.problem_family_id = "algebra.linear-system.elimination";
-        context.requested_method = "elimination";
+        context.problem_family_id = method == SystemMethod::Substitution ? "algebra.linear-system.substitution"
+                                                                          : "algebra.linear-system.elimination";
+        context.requested_method = system_method_name(method);
         context.normalized_problem_model = equations;
         context.original_expression = derivation.request.original_expression;
         context.normalized_expression = equations < arena.node_count() ? print(arena, equations) : std::string();
@@ -324,6 +382,319 @@ struct Run {
     }
 
     SystemResult stopped() { return finish(failure, detail); }
+
+    // The origin, each unit point and one point off every axis. Two affine functions that agree at
+    // the first n + 1 are the same function, and the last catches a form that is not affine at all.
+    std::array<Rational, kSystemMaxUnknowns> point(size_t index) const {
+        std::array<Rational, kSystemMaxUnknowns> values{};
+        for (size_t i = 0; i < n(); ++i) {
+            const int64_t off_axis = static_cast<int64_t>(2 * i + 3);
+            values[i] = Rational{index == n() + 1 ? off_axis : index == i + 1 ? 1 : 0, 1};
+        }
+        return values;
+    }
+
+    bool difference(NodeId equation, std::span<const Rational> values, Rational *out) const {
+        const ChildView sides = arena.children(equation);
+        Rational left, right;
+        return evaluate_rational(arena, sides[0], assignment(values), &left) &&
+               evaluate_rational(arena, sides[1], assignment(values), &right) &&
+               rational_sub(left, right, out);
+    }
+
+    VerificationRecord identity(const char *obligation, std::string passed_detail,
+                                const std::function<VerificationOutcome(std::span<const Rational>)> &agrees) const {
+        VerificationRecord record{"exact evaluation at affinely independent points", VerificationOutcome::Passed,
+                                  EvidenceStrength::StructurallyValid, std::move(passed_detail), obligation};
+        for (size_t index = 0; index <= n() + 1; ++index) {
+            const auto values = point(index);
+            const VerificationOutcome outcome = agrees(std::span<const Rational>(values.data(), n()));
+            if (outcome == VerificationOutcome::Passed)
+                continue;
+            record.outcome = outcome;
+            record.strength = strength_for(outcome, EvidenceStrength::StructurallyValid);
+            record.detail = outcome == VerificationOutcome::Failed ? "the two equations disagree at a checked point"
+                                                                   : "an equation could not be evaluated in exact arithmetic";
+            break;
+        }
+        return record;
+    }
+
+    bool record_move(Step step, NodeId before, NodeId after, const VerificationRecord &verification,
+                     std::string action) {
+        step.verifications.push_back(verification);
+        TransformationPayload change;
+        change.before = before;
+        change.after = after;
+        change.reversible = true;
+        change.concrete_action = std::move(action);
+        derivation.add_transformation(plan, std::move(step), std::move(change));
+        if (!running())
+            return false;
+        if (verification.outcome != VerificationOutcome::Passed)
+            return refuse(verification.outcome == VerificationOutcome::Failed ? SystemOutcome::VerificationFailed
+                                                                              : SystemOutcome::ResourceExceeded,
+                          verification.detail);
+        return true;
+    }
+
+    SystemResult substitute() {
+        std::vector<Pending> pending;
+        for (size_t row = 0; row < m(); ++row) {
+            Pending equation;
+            equation.node = rows[row];
+            for (size_t column = 0; column < columns(); ++column)
+                equation.row[column] = cell(row, column);
+            pending.push_back(equation);
+        }
+        struct Solved {
+            size_t unknown;
+            std::array<Rational, kColumns> value;
+            NodeId node;
+        };
+        std::vector<Solved> solved;
+        while (true) {
+            for (size_t k = 0; k < pending.size();) {
+                if (!all_zero_coefficients(pending[k].row, n())) {
+                    ++k;
+                    continue;
+                }
+                if (!meter.step()) {
+                    running();
+                    return stopped();
+                }
+                const bool contradiction = !is_zero(pending[k].row[n()]);
+                Step step;
+                step.phase = contradiction ? "Read the solution" : "Substitute";
+                step.goal = contradiction ? "Read the equation with no unknown left in it" : "Drop an equation that always holds";
+                step.rule_id = contradiction ? "system.contradiction" : "system.identity-equation";
+                step.rule_name = contradiction ? "Read a false equation" : "Drop an equation that always holds";
+                step.claim = ClaimType::SolutionSetPreserved;
+                step.explanation_short = print(arena, pending[k].node) +
+                    (contradiction ? " is false for every value, so the system has no solution."
+                                   : " holds for every value, so it says nothing about the unknowns.");
+                step.explanation_detailed = "Every unknown cancelled from this equation.";
+                const char *obligation = contradiction ? "obl.system.false-equation" : "obl.system.identity";
+                step.proof_obligations.push_back({obligation, contradiction
+                    ? "an equation with no unknown left has two different numbers for its sides"
+                    : "an equation with no unknown left has equal sides"});
+                Rational value;
+                const auto origin = point(0);
+                const bool read = difference(pending[k].node, std::span<const Rational>(origin.data(), n()), &value);
+                const bool agrees = read && (contradiction ? !is_zero(value) : is_zero(value));
+                step.verifications.push_back({"exact reduced row reading",
+                    agrees ? VerificationOutcome::Passed : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive,
+                    agrees ? EvidenceStrength::StructurallyValid : read ? EvidenceStrength::Failed : EvidenceStrength::Unsupported,
+                    agrees ? "the equation has no unknown and its two sides are " + std::string(contradiction ? "different numbers" : "equal")
+                           : "the equation does not read as its row says", obligation});
+                CheckPayload check;
+                check.target_claim = contradiction ? "The system has no solution" : "The equation holds for every value";
+                check.check_method = "exact reduced row reading";
+                check.expected_relation = contradiction ? "the two sides are different numbers" : "the two sides are equal";
+                check.observed_result = print(arena, pending[k].node);
+                derivation.add_check(plan, std::move(step), std::move(check));
+                if (!running())
+                    return stopped();
+                if (!agrees)
+                    return finish(read ? SystemOutcome::VerificationFailed : SystemOutcome::ResourceExceeded,
+                                  "the equation with no unknown does not read as its row says");
+                if (contradiction)
+                    return finish(SystemOutcome::NoSolution,
+                                  "substitution left an equation that is false for every value, so no values satisfy every equation");
+                pending.erase(pending.begin() + static_cast<std::ptrdiff_t>(k));
+            }
+            if (pending.empty())
+                break;
+
+            const Pending source = pending[0];
+            pending.erase(pending.begin());
+            size_t u = 0;
+            while (is_zero(source.row[u]))
+                ++u;
+            const Rational a = source.row[u];
+            std::array<Rational, kColumns> value{};
+            for (size_t j = 0; j < n(); ++j) {
+                if (j != u && (!rational_div(source.row[j], a, &value[j]) ||
+                               !rational_mul(value[j], Rational{-1, 1}, &value[j]))) {
+                    out_of_arithmetic();
+                    return stopped();
+                }
+            }
+            if (!rational_div(source.row[n()], a, &value[n()])) {
+                out_of_arithmetic();
+                return stopped();
+            }
+            const NodeId isolated = value_equation(arena, unknowns, u, value);
+            if (!running() || !meter.step()) {
+                running();
+                return stopped();
+            }
+            const VerificationRecord isolation = identity("obl.system.isolated-equivalent",
+                "the equation equals the isolated form multiplied by the coefficient at every checked point",
+                [&](std::span<const Rational> values) {
+                    Rational before, after, scaled;
+                    if (!difference(source.node, values, &before) || !difference(isolated, values, &after) ||
+                        !rational_mul(after, a, &scaled))
+                        return VerificationOutcome::Inconclusive;
+                    return rational_equal(before, scaled) ? VerificationOutcome::Passed : VerificationOutcome::Failed;
+                });
+            Step isolate;
+            isolate.phase = "Substitute";
+            isolate.goal = "Solve one equation for " + unknown_name(u);
+            isolate.rule_id = "system.isolate-unknown";
+            isolate.rule_name = "Solve one equation for one unknown";
+            isolate.claim = ClaimType::SolutionSetPreserved;
+            isolate.explanation_short = "Move every other term to the right and divide by the coefficient of " + unknown_name(u) + ".";
+            isolate.explanation_detailed = "Dividing by a nonzero coefficient keeps the equation's solutions.";
+            isolate.proof_obligations.push_back({"obl.system.isolated-equivalent",
+                "the isolated equation has the solutions of the equation it came from"});
+            if (!record_move(std::move(isolate), source.node, isolated, isolation,
+                             "Solve " + print(arena, source.node) + " for " + unknown_name(u) + ": " + print(arena, isolated) + "."))
+                return stopped();
+
+            for (Pending &target : pending) {
+                if (is_zero(target.row[u]))
+                    continue;
+                std::array<Rational, kColumns> next = target.row;
+                const Rational weight = target.row[u];
+                for (size_t j = 0; j < n(); ++j) {
+                    Rational term;
+                    if (j != u && (!rational_mul(weight, value[j], &term) || !rational_add(next[j], term, &next[j]))) {
+                        out_of_arithmetic();
+                        return stopped();
+                    }
+                }
+                Rational constant;
+                if (!rational_mul(weight, value[n()], &constant) || !rational_sub(next[n()], constant, &next[n()])) {
+                    out_of_arithmetic();
+                    return stopped();
+                }
+                next[u] = Rational{0, 1};
+                const NodeId replaced = row_equation(arena, unknowns, next);
+                if (!running() || !meter.step()) {
+                    running();
+                    return stopped();
+                }
+                const NodeId before_node = target.node;
+                const VerificationRecord substitution = identity("obl.system.substituted-equivalent",
+                    "the new equation agrees with the old one after the substitution at every checked point",
+                    [&](std::span<const Rational> values) {
+                        std::array<Rational, kSystemMaxUnknowns> moved{};
+                        std::copy(values.begin(), values.end(), moved.begin());
+                        Rational before, after;
+                        if (!evaluate_rational(arena, arena.children(isolated)[1], assignment(values), &moved[u]) ||
+                            !difference(before_node, std::span<const Rational>(moved.data(), n()), &before) ||
+                            !difference(replaced, values, &after))
+                            return VerificationOutcome::Inconclusive;
+                        return rational_equal(before, after) ? VerificationOutcome::Passed : VerificationOutcome::Failed;
+                    });
+                Step step;
+                step.phase = "Substitute";
+                step.goal = "Replace " + unknown_name(u) + " in another equation";
+                step.rule_id = "system.substitute";
+                step.rule_name = "Substitute into another equation";
+                step.claim = ClaimType::SolutionSetPreserved;
+                step.explanation_short = "Put " + print(arena, arena.children(isolated)[1]) + " in place of " +
+                    unknown_name(u) + " and collect the terms.";
+                step.explanation_detailed = "Every solution of the system satisfies the isolated equation, so replacing the unknown keeps the solutions.";
+                step.proof_obligations.push_back({"obl.system.substituted-equivalent",
+                    "the new equation is the old one with the isolated unknown replaced"});
+                if (!record_move(std::move(step), target.node, replaced, substitution,
+                                 "Replace " + unknown_name(u) + " in " + print(arena, target.node) + " to get " +
+                                     print(arena, replaced) + "."))
+                    return stopped();
+                target.node = replaced;
+                target.row = next;
+            }
+            solved.push_back({u, value, isolated});
+        }
+
+        std::vector<bool> is_free(n(), true);
+        for (const Solved &entry : solved)
+            is_free[entry.unknown] = false;
+        std::vector<NodeId> solutions(n(), kNoNode);
+        for (size_t i = 0; i < n(); ++i) {
+            if (is_free[i])
+                solutions[i] = arena.binary(Kind::Equals, unknowns[i], unknowns[i]);
+        }
+        // Back substitution runs from the last unknown solved, whose value uses only free unknowns.
+        for (size_t index = solved.size(); index-- > 0;) {
+            Solved &entry = solved[index];
+            std::array<Rational, kColumns> final_value{};
+            final_value[n()] = entry.value[n()];
+            bool uses_solved = false;
+            for (size_t j = 0; j < n(); ++j) {
+                if (is_zero(entry.value[j]))
+                    continue;
+                if (is_free[j]) {
+                    if (!rational_add(final_value[j], entry.value[j], &final_value[j])) {
+                        out_of_arithmetic();
+                        return stopped();
+                    }
+                    continue;
+                }
+                uses_solved = true;
+                const Solved *later = nullptr;
+                for (const Solved &candidate : solved) {
+                    if (candidate.unknown == j)
+                        later = &candidate;
+                }
+                for (size_t c = 0; c <= n(); ++c) {
+                    Rational term;
+                    if (!rational_mul(entry.value[j], later->value[c], &term) ||
+                        !rational_add(final_value[c], term, &final_value[c])) {
+                        out_of_arithmetic();
+                        return stopped();
+                    }
+                }
+            }
+            entry.value = final_value;
+            if (!uses_solved) {
+                solutions[entry.unknown] = entry.node;
+                continue;
+            }
+            const NodeId resolved = value_equation(arena, unknowns, entry.unknown, final_value);
+            if (!running() || !meter.step()) {
+                running();
+                return stopped();
+            }
+            const NodeId before_node = entry.node;
+            const VerificationRecord back = identity("obl.system.back-substituted",
+                "the value agrees with the isolated equation once the later values are put in, at every checked point",
+                [&](std::span<const Rational> values) {
+                    std::array<Rational, kSystemMaxUnknowns> moved{};
+                    std::copy(values.begin(), values.end(), moved.begin());
+                    for (const Solved &candidate : solved) {
+                        if (candidate.unknown != entry.unknown && solutions[candidate.unknown] != kNoNode &&
+                            !is_free[candidate.unknown] &&
+                            !evaluate_rational(arena, arena.children(solutions[candidate.unknown])[1], assignment(values),
+                                               &moved[candidate.unknown]))
+                            return VerificationOutcome::Inconclusive;
+                    }
+                    Rational before, after;
+                    if (!evaluate_rational(arena, arena.children(before_node)[1],
+                                           assignment(std::span<const Rational>(moved.data(), n())), &before) ||
+                        !evaluate_rational(arena, arena.children(resolved)[1], assignment(values), &after))
+                        return VerificationOutcome::Inconclusive;
+                    return rational_equal(before, after) ? VerificationOutcome::Passed : VerificationOutcome::Failed;
+                });
+            Step step;
+            step.phase = "Back substitute";
+            step.goal = "Write " + unknown_name(entry.unknown) + " without the unknowns already found";
+            step.rule_id = "system.back-substitute";
+            step.rule_name = "Substitute the values already found";
+            step.claim = ClaimType::SolutionSetPreserved;
+            step.explanation_short = "Put the values found later into the equation for " + unknown_name(entry.unknown) + ".";
+            step.explanation_detailed = "Work back from the last unknown solved, so each value uses only numbers and free unknowns.";
+            step.proof_obligations.push_back({"obl.system.back-substituted",
+                "the value is the isolated equation with the later values put in"});
+            if (!record_move(std::move(step), entry.node, resolved, back,
+                             "Put the later values into " + print(arena, entry.node) + " to get " + print(arena, resolved) + "."))
+                return stopped();
+            solutions[entry.unknown] = resolved;
+        }
+        return conclude(solutions, is_free);
+    }
 
     // The offered answer goes back into every equation as it was typed. A family is sampled at
     // several values of its free unknowns, which corroborates it and does not prove it.
@@ -416,6 +787,10 @@ const char *read_refusal(LinearRowRead read) {
 
 }  // namespace
 
+const char *system_method_name(SystemMethod method) {
+    return method == SystemMethod::Substitution ? "substitution" : "elimination";
+}
+
 const char *system_outcome_name(SystemOutcome outcome) {
     switch (outcome) {
         case SystemOutcome::Solved: return "solved";
@@ -456,8 +831,9 @@ LinearRowRead read_linear_row(const Arena &arena, NodeId equation, std::span<con
 }
 
 SystemResult solve_linear_system(Arena &arena, Derivation &derivation, NodeId equations,
-                                 NodeId unknowns, const Budget &budget) {
+                                 NodeId unknowns, const Budget &budget, SystemMethod method) {
     Run run(arena, derivation, equations, budget);
+    run.method = method;
     if (!run.running())
         return run.stopped();
     if (equations >= arena.node_count() || unknowns >= arena.node_count())
@@ -511,11 +887,16 @@ SystemResult solve_linear_system(Arena &arena, Derivation &derivation, NodeId eq
     Step step;
     step.phase = "Plan";
     step.goal = "Solve " + print(arena, equations) + " for " + print(arena, unknowns);
-    step.rule_id = "plan.system-elimination";
-    step.rule_name = "Eliminate on the augmented matrix";
-    step.explanation_short = "Write the system as an augmented matrix and reduce it by row operations.";
-    step.explanation_detailed = "Each row is one equation and each column one unknown, with the right-hand sides last. "
-        "Row operations change the equations without changing their common solutions.";
+    const bool substitution = method == SystemMethod::Substitution;
+    step.rule_id = substitution ? "plan.system-substitution" : "plan.system-elimination";
+    step.rule_name = substitution ? "Solve for one unknown and substitute" : "Eliminate on the augmented matrix";
+    step.explanation_short = substitution
+        ? "Solve one equation for one unknown, put that into the others, and repeat."
+        : "Write the system as an augmented matrix and reduce it by row operations.";
+    step.explanation_detailed = substitution
+        ? "Each round leaves one fewer unknown in the remaining equations. Then the values are put back in reverse order."
+        : "Each row is one equation and each column one unknown, with the right-hand sides last. "
+          "Row operations change the equations without changing their common solutions.";
     PlanPayload payload;
     payload.strategy_id = step.rule_id;
     payload.selected_strategy = step.rule_name;
@@ -528,6 +909,8 @@ SystemResult solve_linear_system(Arena &arena, Derivation &derivation, NodeId eq
     run.plan = derivation.add_plan(kNoStep, std::move(step), std::move(payload));
     if (!run.running())
         return run.stopped();
+    if (substitution)
+        return run.substitute();
 
     // The rows were read by this engine, so they are checked against an independent evaluation of
     // every equation as typed, at the origin, each unit point and one point off every axis.

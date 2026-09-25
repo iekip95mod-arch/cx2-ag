@@ -30,6 +30,10 @@ enum class SystemOutcome : uint8_t {
 
 const char *system_outcome_name(SystemOutcome outcome);
 
+enum class SystemMethod : uint8_t { Elimination, Substitution };
+
+const char *system_method_name(SystemMethod method);
+
 struct SystemResult {
     SystemOutcome outcome = SystemOutcome::OutsideEnvelope;
     // One equation per unknown in the order the unknowns were given. Empty for no solution.
@@ -47,10 +51,11 @@ enum class LinearRowRead : uint8_t { Read, NotLinear, OtherSymbol, Inexact, Over
 LinearRowRead read_linear_row(const Arena &arena, NodeId equation, std::span<const NodeId> unknowns,
                               Meter &meter, std::span<Rational> row);
 
-// ALG-013. Solves a list of linear equations in a list of unknowns by Gauss-Jordan elimination on the
-// augmented matrix, and checks every answer in the equations as they were typed.
+// ALG-013. Solves a list of linear equations in a list of unknowns, by Gauss-Jordan elimination on the
+// augmented matrix or by substitution, and checks every answer in the equations as they were typed.
 SystemResult solve_linear_system(Arena &arena, Derivation &derivation, NodeId equations,
-                                 NodeId unknowns, const Budget &budget = Budget());
+                                 NodeId unknowns, const Budget &budget = Budget(),
+                                 SystemMethod method = SystemMethod::Elimination);
 
 }  // namespace nps
 

@@ -19,6 +19,8 @@ struct Command {
     int direction = 0;
     std::string operand_text;
     std::string variable_name;
+    // A method a command names as an extra argument, such as linsolve's substitution.
+    std::string method;
     std::string detail;
 };
 

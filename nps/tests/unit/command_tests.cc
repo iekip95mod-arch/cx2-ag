@@ -119,7 +119,15 @@ void run_command_tests(TestSink &t) {
                     command.variable != kNoNode && arena.at(command.variable).kind == Kind::List,
                 "linsolve dispatches its list of equations and its list of unknowns");
     }
-    for (const char *text : {"linsolve([x = 1])", "linsolve([x = 1], [x], 2)", "linsolve()"}) {
+    for (const char *method : {"elimination", "substitution"}) {
+        Arena arena;
+        const Command command =
+            parse_command(arena, std::string("linsolve([x = 1], [x], ") + method + ")", "x");
+        t.check(command.status == CommandStatus::Ready && command.method == method,
+                std::string("linsolve carries the named method: ") + method);
+    }
+    for (const char *text : {"linsolve([x = 1])", "linsolve([x = 1], [x], 2)", "linsolve([x = 1], [x], graphing)",
+                             "linsolve([x = 1], [x], substitution, 1)", "linsolve()"}) {
         Arena arena;
         const Command command = parse_command(arena, text, "x");
         t.check(command.status == CommandStatus::Unsupported && !command.detail.empty(),

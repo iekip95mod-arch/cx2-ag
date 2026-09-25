@@ -20,7 +20,7 @@ struct Solved {
 };
 
 Solved run(const char *equations, const char *unknowns, const Budget &budget = Budget(),
-           NumericMode mode = NumericMode::Exact) {
+           NumericMode mode = NumericMode::Exact, SystemMethod method = SystemMethod::Elimination) {
     Solved out;
     Arena arena;
     Derivation d;
@@ -31,7 +31,7 @@ Solved run(const char *equations, const char *unknowns, const Budget &budget = B
         out.answer = "the test's own input did not parse";
         return out;
     }
-    out.result = solve_linear_system(arena, d, system.root, names.root, budget);
+    out.result = solve_linear_system(arena, d, system.root, names.root, budget, method);
     for (size_t i = 0; i < out.result.solutions.size(); ++i) {
         if (i)
             out.answer += ", ";
@@ -212,6 +212,70 @@ void test_refusals(TestSink &t) {
             "outside envelope", "a decimal numeric mode is refused rather than rounded");
 }
 
+Solved by_substitution(const char *equations, const char *unknowns, const Budget &budget = Budget()) {
+    return run(equations, unknowns, budget, NumericMode::Exact, SystemMethod::Substitution);
+}
+
+void test_substitution(TestSink &t) {
+    {
+        const Solved s = by_substitution("[x + y = 3, x - y = 1]", "[x, y]");
+        t.equal(outcome(s), "solved", "substitution solves a two by two system");
+        t.equal(s.answer, "(x = 2), (y = 1)", "with the same answer elimination gives");
+        t.check(has_rule(s, "plan.system-substitution") && has_rule(s, "system.isolate-unknown") &&
+                    has_rule(s, "system.substitute") && has_rule(s, "system.back-substitute"),
+                "by solving for one unknown, substituting it and working back");
+        t.check(!has_rule(s, "system.augmented-matrix") && !has_rule(s, "matrix.row-add-multiple"),
+                "and without writing a matrix");
+        t.equal(s.last_strength, "candidate checked", "then checks the answer in every original equation");
+        t.equal(status(s), "solved and verified", "and every step is verified");
+        t.check(s.broken.empty(), "the substitution record passes the invariant pass" + first_broken(s));
+        t.evidence("ALG-013", s.result.outcome == SystemOutcome::Solved && s.answer == "(x = 2), (y = 1)",
+                   "a linear system is solved with explicit substitution steps and checked in every equation");
+    }
+    {
+        const Solved s = by_substitution("[x + y + z = 6, 2y + 5z = -4, 2x + 5y - z = 27]", "[x, y, z]");
+        t.equal(s.answer, "(x = 5), (y = 3), (z = -2)", "substitution solves a three by three system exactly");
+        t.equal(status(s), "solved and verified", "and verifies it");
+        t.check(s.broken.empty(), "the three by three substitution passes the invariant pass" + first_broken(s));
+    }
+    {
+        const Solved s = by_substitution("[2x + 4y = 1, x - y = 0]", "[x, y]");
+        t.equal(s.answer, "(x = (1 * (6^-1))), (y = (1 * (6^-1)))", "substitution keeps fractions exact");
+    }
+    {
+        const Solved s = by_substitution("[y = 2, x + y = 5]", "[x, y]");
+        t.equal(s.answer, "(x = 3), (y = 2)", "an equation missing the first unknown is solved for the one it has");
+    }
+    {
+        const Solved s = by_substitution("[x + y = 1, 2x + 2y = 3]", "[x, y]");
+        t.equal(outcome(s), "no solution", "substitution finds that parallel equations have no solution");
+        t.check(has_rule(s, "system.contradiction") && s.result.solutions.empty(),
+                "from an equation that is false for every value");
+        t.check(s.broken.empty(), "the contradiction record passes the invariant pass" + first_broken(s));
+    }
+    {
+        const Solved s = by_substitution("[x + y = 2, 2x + 2y = 4, x - y = 0]", "[x, y]");
+        t.equal(s.answer, "(x = 1), (y = 1)", "a dependent equation is dropped once it holds for every value");
+        t.check(has_rule(s, "system.identity-equation"), "and the drop is recorded");
+    }
+    {
+        const Solved s = by_substitution("[x + y + z = 2, x - y = 0]", "[x, y, z]");
+        const Solved e = run("[x + y + z = 2, x - y = 0]", "[x, y, z]");
+        t.equal(outcome(s), "solution family", "substitution leaves a family when unknowns stay free");
+        t.equal(s.answer, e.answer, "and writes the same family elimination does");
+        t.equal(s.last_strength, "numerically corroborated", "checked by sampling the free unknown");
+        t.check(s.broken.empty(), "the family record passes the invariant pass" + first_broken(s));
+    }
+    {
+        Budget short_budget;
+        short_budget.max_steps = 3;
+        const Solved halted = by_substitution("[x + y = 3, x - y = 1]", "[x, y]", short_budget);
+        t.equal(outcome(halted), "resource exceeded", "a substitution that runs out of steps says so");
+        t.check(halted.result.solutions.empty() && halted.broken.empty(),
+                "and keeps only a verified prefix" + first_broken(halted));
+    }
+}
+
 bool cancel_now(void *) {
     return true;
 }
@@ -241,6 +305,7 @@ void run_system_tests(TestSink &sink) {
     test_no_solution(sink);
     test_family(sink);
     test_refusals(sink);
+    test_substitution(sink);
     test_budgets(sink);
 }
 

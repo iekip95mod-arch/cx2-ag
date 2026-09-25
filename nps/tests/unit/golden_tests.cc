@@ -147,7 +147,8 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
            render_derivation(arena, derivation);
 }
 
-std::string system_record(const char *equations, const char *unknowns, const Budget &budget) {
+std::string system_record(const char *equations, const char *unknowns, const Budget &budget,
+                          SystemMethod method = SystemMethod::Elimination) {
     Arena arena;
     ParseResult parsed = parse(arena, equations);
     ParseResult names = parse(arena, unknowns);
@@ -155,7 +156,7 @@ std::string system_record(const char *equations, const char *unknowns, const Bud
         return std::string("the fixture's own input did not parse");
 
     Derivation derivation;
-    SystemResult result = solve_linear_system(arena, derivation, parsed.root, names.root, budget);
+    SystemResult result = solve_linear_system(arena, derivation, parsed.root, names.root, budget, method);
     const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
     return header(equations, unknowns, system_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
@@ -1023,6 +1024,15 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "system_step_budget_halt",
                  system_record("[x + y = 3, x - y = 1]", "[x, y]", one_step()));
     check_golden(t, "system_cancelled", system_record("[x + y = 3, x - y = 1]", "[x, y]", cancelling()));
+    check_golden(t, "system_substitution_unique",
+                 system_record("[x + y + z = 6, 2y + 5z = -4, 2x + 5y - z = 27]", "[x, y, z]", Budget(),
+                               SystemMethod::Substitution));
+    check_golden(t, "system_substitution_no_solution",
+                 system_record("[x + y = 1, 2x + 2y = 3]", "[x, y]", Budget(), SystemMethod::Substitution));
+    check_golden(t, "system_substitution_family",
+                 system_record("[x + y + z = 2, x - y = 0]", "[x, y, z]", Budget(), SystemMethod::Substitution));
+    check_golden(t, "system_substitution_dependent",
+                 system_record("[x + y = 2, 2x + 2y = 4, x - y = 0]", "[x, y]", Budget(), SystemMethod::Substitution));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));

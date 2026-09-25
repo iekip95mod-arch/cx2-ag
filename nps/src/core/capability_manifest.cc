@@ -31,6 +31,7 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "matrix.rref.rational"},
     {"solver", "matrix.det.rational"},
     {"solver", "algebra.linear-system.elimination"},
+    {"solver", "algebra.linear-system.substitution"},
     {"solver", "calculus.derivative.single-variable"},
     {"solver", "calculus.integral.indefinite.single-variable"},
     {"solver", "calculus.integral.definite.single-variable"},

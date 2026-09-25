@@ -1607,6 +1607,25 @@ const ObligationSchema kSystemRowsRead[] = {
     {"obl.system.rows-read", "each solution equation is the reduced row of its leading unknown",
      kSystemRowReading, 1},
 };
+const ObligationSchema kSystemIsolated[] = {
+    {"obl.system.isolated-equivalent", "the isolated equation has the solutions of the equation it came from",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemSubstituted[] = {
+    {"obl.system.substituted-equivalent", "the new equation is the old one with the isolated unknown replaced",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemBackSubstituted[] = {
+    {"obl.system.back-substituted", "the value is the isolated equation with the later values put in",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemFalseEquation[] = {
+    {"obl.system.false-equation", "an equation with no unknown left has two different numbers for its sides",
+     kSystemRowReading, 1},
+};
+const ObligationSchema kSystemIdentity[] = {
+    {"obl.system.identity", "an equation with no unknown left has equal sides", kSystemRowReading, 1},
+};
 const EvidenceAlternative kSystemSubstitution[] = {
     {"substitution", EvidenceStrength::CandidateChecked},
 };
@@ -2304,6 +2323,18 @@ const RuleSchema kRules[] = {
     {"system.check-by-substitution", ClaimType::SolutionSetPreserved, kSystemCandidateSatisfies, 1,
      FailureBehavior::WithholdResult},
     {"system.check-family-by-sampling", ClaimType::SolutionSetPreserved, kSystemFamilySatisfies, 1,
+     FailureBehavior::WithholdResult},
+    {"plan.system-substitution", ClaimType::NoClaim, kSystemStrategy, 2,
+     FailureBehavior::WithholdResult},
+    {"system.isolate-unknown", ClaimType::SolutionSetPreserved, kSystemIsolated, 1,
+     FailureBehavior::WithholdResult},
+    {"system.substitute", ClaimType::SolutionSetPreserved, kSystemSubstituted, 1,
+     FailureBehavior::WithholdResult},
+    {"system.back-substitute", ClaimType::SolutionSetPreserved, kSystemBackSubstituted, 1,
+     FailureBehavior::WithholdResult},
+    {"system.contradiction", ClaimType::SolutionSetPreserved, kSystemFalseEquation, 1,
+     FailureBehavior::WithholdResult},
+    {"system.identity-equation", ClaimType::SolutionSetPreserved, kSystemIdentity, 1,
      FailureBehavior::WithholdResult},
 };
 

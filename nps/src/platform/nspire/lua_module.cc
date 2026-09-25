@@ -2463,7 +2463,8 @@ int system_into(lua_State *L) {
     d.request.numeric_mode = mode;
     const Command command = parse_command(arena, d.request.original_expression, "x");
     const SystemResult result =
-        solve_linear_system(arena, d, command.expression, command.variable, interactive_budget());
+        solve_linear_system(arena, d, command.expression, command.variable, interactive_budget(),
+                            command.method == "substitution" ? SystemMethod::Substitution : SystemMethod::Elimination);
     std::string normalized;
     std::string normalization_detail;
     if (!prepare_normalized_expression(arena, d.context, &normalized, &normalization_detail))
@@ -2488,6 +2489,8 @@ int system_into(lua_State *L) {
     set_expression_context(L, d.context);
     if (!printed.empty())
         set_field(L, "result", printed);
+    set_field(L, "method", system_method_name(command.method == "substitution" ? SystemMethod::Substitution
+                                                                              : SystemMethod::Elimination));
     if (has_result)
         set_field(L, "solution_set", result.outcome == SystemOutcome::Solved ? "unique" :
                                      result.outcome == SystemOutcome::Family ? "family" : "empty");

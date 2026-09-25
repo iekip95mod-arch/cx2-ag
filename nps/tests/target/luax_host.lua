@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -265,6 +265,7 @@ local expected_modules = {
     "matrix.rref.rational",
     "matrix.det.rational",
     "algebra.linear-system.elimination",
+    "algebra.linear-system.substitution",
     "calculus.derivative.single-variable",
     "calculus.integral.indefinite.single-variable",
     "calculus.integral.definite.single-variable",
@@ -678,6 +679,20 @@ do
              rules["system.augmented-matrix"] and rules["matrix.row-add-multiple"] and
              rules["matrix.rref-conclusion"] and rules["system.check-by-substitution"],
              "a linear system reaches the native elimination walkthrough through the bridge")
+    check(record.method == "elimination", "elimination is the method when none is named")
+    local sub_text = "linsolve([x + y = 3, x - y = 1], [x, y], substitution)"
+    local sub = nps.walkthrough(sub_text, "x", "exact")
+    local sub_rules = {}
+    for _, step in ipairs(type(sub) == "table" and sub.steps or {}) do sub_rules[step.rule] = true end
+    evidence("ALG-013", type(sub) == "table" and sub.mode == "linear system" and sub.method == "substitution" and
+             sub.solved and sub.result == "[(x = 2), (y = 1)]" and sub.status == "solved and verified" and
+             sub.request_expression == sub_text and sub_rules["system.isolate-unknown"] and
+             sub_rules["system.substitute"] and sub_rules["system.check-by-substitution"] and
+             not sub_rules["system.augmented-matrix"],
+             "a named substitution method reaches the native substitution walkthrough through the bridge")
+    local unknown_method = nps.walkthrough("linsolve([x = 1], [x], graphing)", "x", "exact")
+    check(type(unknown_method) == "table" and unknown_method.outcome == "unsupported form" and
+          unknown_method.result == nil, "a method other than elimination or substitution is refused")
     local none = nps.walkthrough("linsolve([x + y = 1, 2x + 2y = 3], [x, y])", "x", "exact")
     check(type(none) == "table" and none.outcome == "no solution" and none.solution_set == "empty" and
           none.has_result and not none.solved and none.result == nil and none.status == "solved and verified",
