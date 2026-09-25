@@ -2265,6 +2265,7 @@ menu = {
        	 { "Open Shell  *",	function() menustring( "*" ) end },
        	 { "Open Script Editor",	function() menustring( "+\"\"" ) end },
 		 { "Read Full Text", function() readFullText() end },
+		 { "Read Definitions", function() readDefinitions() end },
        	 "-",
        	 { "Save Variables  write(\"a.tns\",0",	function() menustring( "write(\"a.tns\",0" ) end },
        	 { "Read Variables  eval(read(\"a.tns\"))",	function() menustring( "eval(read(\"a.tns\"))" ) end },
@@ -2794,6 +2795,7 @@ function stepRequest(expr)
 		if letter == "v" then return { mode = "variable", text = rest } end
 		if letter == "g" then return { mode = "plain", text = rest } end
 		if letter == "!" then return { mode = "reopen", text = rest } end
+		if letter == "u" then return { mode = "unitdef", text = rest } end
 		if letter == "m" then return { mode = "manifest", text = rest } end
 		if letter == "h" then return { mode = "progression", text = rest } end
 		-- Diagnostic. The typed adapter path only exists in this build and cannot be exercised on
@@ -3783,6 +3785,10 @@ function runSteps(mode, text)
 		if choice == "off" or choice == "full" then return stepsSetProgression("full") end
 		return "hint mode: use !h on or !h off (currently " .. steps.progression .. ")"
 	end
+	if mode == "unitdef" then
+		steps.status = unitDefinitionText(text)
+		return steps.status
+	end
 	if mode == "reopen" then
 		if not steps.result then return "no steps yet" end
 		openSteps()
@@ -3812,7 +3818,7 @@ function runSteps(mode, text)
 	end
 	if mode == "help" then
 		return "!d !i !s expr, !k find v; v0 = 5 m/s; ..., bare !d !i !s !k sets the mode, " ..
-		       "!g plain Giac, !v name, !h on|off, !! last steps, !m manifest, !t typed check. " ..
+		       "!g plain Giac, !v name, !h on|off, !u unit, !! last steps, !m manifest, !t typed check. " ..
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end
@@ -4586,6 +4592,59 @@ function readFullText()
 	updateOverlayEditors()
 end
 
+-- UI-009. Built from the registration and the unit table, never from prose kept beside them.
+function definitionParagraphs(r, index)
+	local paragraphs = {}
+	local s = projectedStep(r, index)
+	if not s then return { "No revealed step is selected." } end
+	paragraphs[#paragraphs + 1] = "Definitions for step " .. tostring(index) .. ": " .. tostring(s.name)
+	if type(s.rule) ~= "string" or s.rule == "" then
+		paragraphs[#paragraphs + 1] = "This step names no rule."
+	elseif not nps_nspire.rule_definition then
+		paragraphs[#paragraphs + 1] = "Rule: " .. s.rule .. ", no definitions in this build"
+	else
+		local rule, why = nps_nspire.rule_definition(s.rule)
+		if type(rule) ~= "table" then
+			paragraphs[#paragraphs + 1] = "Rule: " .. s.rule .. ", no registered definition (" .. tostring(why) .. ")"
+		else
+			paragraphs[#paragraphs + 1] = "Rule: " .. rule.rule
+			paragraphs[#paragraphs + 1] = "Claim: " .. rule.claim
+			for _, obligation in ipairs(rule.obligations) do
+				paragraphs[#paragraphs + 1] = "Obligation: " .. obligation.id .. ", " .. obligation.text
+				for _, evidence in ipairs(obligation.evidence) do
+					paragraphs[#paragraphs + 1] = "Checked by: " .. evidence.method .. ", " .. evidence.strength ..
+					                             (evidence.may_corroborate and ", may only corroborate" or "")
+				end
+			end
+			paragraphs[#paragraphs + 1] = "If unmet: " .. rule.on_failure
+		end
+	end
+	paragraphs[#paragraphs + 1] = "Variable: " .. tostring(steps.variable) .. ", the symbol this walkthrough works in"
+	return paragraphs
+end
+
+function readDefinitions()
+	if templatePicker.active then templatePicker.close() end
+	if textReader.active or not steps.active or not steps.result then return end
+	if not hasSteps or answerWithoutSteps(steps.result) then return end
+	textReader.paragraphs = definitionParagraphs(steps.result, steps.focus)
+	textReader.layout = nil
+	textReader.stepScroll = 0
+	textReader.active = true
+	textReader.focus = theView and theView:getFocus()
+	updateOverlayEditors()
+end
+
+-- A unit spelled as typed, answered from the unit table and the quantity names beside it.
+function unitDefinitionText(text)
+	if not hasSteps or not nps_nspire.unit_definition then return "no unit definitions in this build" end
+	if text == "" then return "name a unit, as in !u m/s^2" end
+	local unit, why = nps_nspire.unit_definition(text)
+	if type(unit) ~= "table" then return "unit refused: " .. tostring(why) end
+	return unit.unit .. ": " .. (unit.quantity or "no named quantity") .. ", dimension " .. unit.dimension ..
+	       ", SI " .. unit.si_unit .. ", scale " .. unit.scale
+end
+
 local function closeTextReader()
 	textReader.active = false
 	textReader.paragraphs = {}
@@ -4949,6 +5008,7 @@ on.charIn = guarded(function(ch)
 	if templatePicker.active then return end
 	if textReader.active then return end
 	if (steps.active or physicsBrowser.active) and (ch == "t" or ch == "T") then return readFullText() end
+	if steps.active and (ch == "d" or ch == "D") then return readDefinitions() end
 	if not steps.active and not physicsBrowser.active then return baseOn.charIn(ch) end
 end)
 

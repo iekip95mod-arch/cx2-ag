@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 187, "every palette entry survives the regrouping: " .. entries .. " of 187")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4125,7 +4125,7 @@ local function writeEvidence()
     local emitted = after:sub(#before + 1)
     local expected = {
         "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
-        "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
+        "STEP-020", "UI-003", "UI-009", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
         "PLAT-006", "PLAT-012",
     }
     local complete = after:sub(1, #before) == before
@@ -5982,6 +5982,90 @@ do
     check(calls == 0, "row presentation and hint navigation perform no symbolic computation")
     platform.window.width = saved_width
     env.resizeGC(gc)
+    end)()
+end
+
+-- UI-009 through the real bridge: definitions come from the focused step's registered rule.
+if os.getenv("NPS_COMMAND_MODULE") then
+    (function()
+    local module = copyModule()
+    local open_native = assert(package.loadlib(os.getenv("NPS_COMMAND_MODULE"), "luaopen_nps_split"))
+    local fixture, loaded = nps_split, package.loaded.nps_split
+    nps_split, package.loaded.nps_split = nil, nil
+    local native = open_native()
+    nps_split, package.loaded.nps_split = fixture, loaded
+    local looked_up = {}
+    module.walkthrough = function(...) return native.walkthrough(...) end
+    module.rule_definition = function(id)
+        looked_up[#looked_up + 1] = id
+        return native.rule_definition(id)
+    end
+    module.unit_definition = function(text) return native.unit_definition(text) end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local function joined(list) return table.concat(list, "\n") end
+
+    enter("solve(2*x+5=13,x)")
+    local r = env.steps.result
+    check(env.steps.active and r.solved and #r.steps == 4 and r.steps[4].rule == "eq.linear.check-by-substitution",
+          "control: a real linear walkthrough ends in its substitution check")
+    local check_step = joined(env.definitionParagraphs(r, 4))
+    evidence("UI-009", check_step:find("Rule: eq.linear.check-by-substitution", 1, true) ~= nil and
+             check_step:find("Obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation",
+                             1, true) ~= nil and
+             check_step:find("Checked by: substitution, candidate checked", 1, true) ~= nil and
+             check_step:find("If unmet: withhold the result", 1, true) ~= nil,
+             "the definitions for a step come from its rule's registration")
+    local plan = joined(env.definitionParagraphs(r, 1))
+    check(plan:find("Rule: eq.linear.inverse-operations", 1, true) ~= nil and
+          plan:find("Claim: no claim", 1, true) ~= nil and
+          plan:find("Variable: x, the symbol this walkthrough works in", 1, true) ~= nil,
+          "a plan step's definitions name its strategy and the variable")
+
+    env.steps.focus = 4
+    drawn = {}
+    env.on.charIn("d")
+    for _ = 1, 4 do env.on.paint(gc) end
+    drawn = {}
+    env.on.paint(gc)
+    local shown = table.concat(drawn, "\n")
+    evidence("UI-009", looked_up[#looked_up] == "eq.linear.check-by-substitution" and
+             shown:find("candidate checked", 1, true) ~= nil,
+             "D in the walkthrough opens the focused step's definitions")
+    env.on.escapeKey()
+
+    local reader
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Read Definitions" then reader = item[2] end
+        end
+    end
+    local before = #looked_up
+    env.steps.focus = 2
+    reader()
+    check(#looked_up == before + 1 and looked_up[#looked_up] == "eq.collect-like-terms",
+          "the Actions menu opens the same definitions reader")
+    env.on.escapeKey()
+    env.on.escapeKey()
+
+    env.stepsSetProgression("hint")
+    enter("solve(2*x+5=13,x)")
+    local hidden = joined(env.definitionParagraphs(env.steps.result, 4))
+    check(env.steps.revealed == 1 and hidden == "No revealed step is selected.",
+          "hint mode gives no definitions for a step it has not revealed")
+    env.on.escapeKey()
+    env.stepsSetProgression("full")
+
+    enter("!u N")
+    evidence("UI-009", env.steps.status == "N: force, dimension L M T^-2, SI kg m/s^2, scale 1",
+             "!u names the quantity a unit measures from the unit table")
+    enter("!u parsec")
+    check(env.steps.status == "unit refused: unknown unit parsec", "!u refuses a unit it does not know")
     end)()
 end
 
