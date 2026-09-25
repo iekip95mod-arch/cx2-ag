@@ -68,6 +68,7 @@ set(CORE_SOURCES
     src/steps/integer.cc
     src/steps/matrix_row.cc
     src/steps/matrix_form.cc
+    src/steps/rational_expression.cc
     src/steps/matrix.cc
     src/steps/differentiate.cc
     src/steps/integrate.cc
@@ -116,6 +117,7 @@ set(TEST_SOURCES
     tests/unit/integer_tests.cc
     tests/unit/matrix_row_tests.cc
     tests/unit/matrix_form_tests.cc
+    tests/unit/rational_expression_tests.cc
     tests/unit/matrix_tests.cc
     tests/unit/differentiate_tests.cc
     tests/unit/integrate_tests.cc

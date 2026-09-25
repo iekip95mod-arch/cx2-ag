@@ -253,13 +253,14 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
     "algebra.quadratic.pure-square.one-unknown",
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
+    "algebra.rational-expression.single-variable",
     "number.integer-method.literal",
     "matrix.ref.rational",
     "matrix.rref.rational",
@@ -633,10 +634,29 @@ for _, text in ipairs({"ref([[1,2],[3,4]])", "rref([[1]])"}) do
 end
 check(giac_calls == 0, "matrix tracing never falls back to string evaluation")
 giac_calls = 0
-for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
+for _, text in ipairs({"texpand(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+do
+    giac_calls = 0
+    local record = nps.walkthrough("normal((x^2-1)/(x-1))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(record) == "table" and record.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-005", type(record) == "table" and record.mode == "normal" and record.solved and
+             record.result == "(x + 1)" and record.status == "solved and verified" and
+             type(record.assumptions) == "string" and record.assumptions ~= "" and
+             rules["rat.excluded-values"] and rules["rat.cancel-common-factor"] and rules["rat.check-equivalent"],
+             "a rational expression is reduced natively through the bridge and keeps its excluded value")
+    local sum = nps.walkthrough("normal(1/t + 1/(t+1), t)", "x", "exact")
+    check(type(sum) == "table" and sum.solved and sum.result == "(((2 * t) + 1) * (((t^2) + t)^-1))",
+          "normal takes the variable as its second argument")
+    local refused = nps.walkthrough("normal(sqrt(x)/x)", "x", "exact")
+    check(type(refused) == "table" and refused.mode == "normal" and not refused.solved and
+          refused.result == nil and refused.outcome == "not rational" and #refused.steps == 0,
+          "a form that is not rational is a native refusal with no steps")
+    check(giac_calls == 0, "normal never asks Giac")
+end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and
