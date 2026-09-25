@@ -3,6 +3,9 @@
 
 #include <string>
 #include <vector>
+#if NPS_FAMILY_CENSUS
+#include <set>
+#endif
 
 #include "nps/core/ast.h"
 #include "nps/steps/derivation.h"
@@ -36,6 +39,13 @@ struct ContextInputs {
 
 // Any input left empty becomes explicitly unknown rather than staying blank.
 SolutionContext make_context(const ContextInputs &inputs);
+
+#if NPS_FAMILY_CENSUS
+// The host test build only, so the device target carries neither the storage nor the call. Every
+// family id in the codebase is stamped through make_context, which is why the census sits there
+// rather than in a test that each engine would have to remember to call.
+const std::set<std::string> &family_census();
+#endif
 
 // PERF-007. The version is the schema: field order, count and kind are fixed per version.
 const uint32_t kContextFormatVersion = 3;

@@ -14,6 +14,7 @@
 #include "nps/core/budgets.h"
 #include "nps/core/capability_manifest.h"
 #include "nps/core/canonical.h"
+#include "nps/core/context.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/steps/linear.h"
@@ -835,6 +836,10 @@ void write_evidence(const TestSink &s) {
     }
     for (const std::string &g : s.groups_run)
         fprintf(f, "group\t%s\n", g.c_str());
+    // Every family id this run stamped, which is what lets the coverage join ask after a family
+    // rather than after a test group that some other family already claims.
+    for (const std::string &family : family_census())
+        fprintf(f, "family\t%s\n", family.c_str());
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());

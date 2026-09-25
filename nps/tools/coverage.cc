@@ -104,11 +104,26 @@ const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {};
 // One line decides whether a family with no catalog block fails the run or only reports.
 const bool kAwaitingCatalogIsFatal = true;
 
+// A family id the run stamps that no engine implements, with what stamps it instead. The context
+// serializer is tested on invented ids, and an invented id is not coverage anybody owes a block.
+struct FamilyWithNoEngine {
+    const char *family;
+    const char *what;
+};
+
+const std::vector<FamilyWithNoEngine> kFamiliesWithNoEngine = {
+    {"calculus.derivative", "tests/unit/context_tests.cc, a staged context for the serializer"},
+    {"calculus.integral", "tests/unit/context_tests.cc, a staged context for the serializer"},
+    {"linear.one-unknown", "tests/unit/context_tests.cc, a staged context for the serializer"},
+};
+
 struct Outcome {
     bool join_ran = false;
     size_t uncatalogued = 0;
     size_t awaiting_catalog = 0;
     size_t stale_exemptions = 0;
+    bool family_census_ran = false;
+    size_t uncatalogued_families = 0;
 };
 
 // Every group the test run reported, in the rows evidence.h writes.
@@ -124,6 +139,23 @@ void read_groups_run(const std::string &path, std::set<std::string> *groups) {
         const std::string name = trimmed(line.substr(key.size()));
         if (!name.empty())
             groups->insert(name);
+    }
+}
+
+// Every family id the run stamped, which the host test build records at make_context. A group join
+// cannot see a second family under a group another family already claims, and this can.
+void read_families_stamped(const std::string &path, std::set<std::string> *families) {
+    std::ifstream in(path.c_str());
+    if (!in)
+        return;
+    const std::string key = "family\t";
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.rfind(key, 0) != 0)
+            continue;
+        const std::string name = trimmed(line.substr(key.size()));
+        if (!name.empty())
+            families->insert(name);
     }
 }
 
@@ -176,7 +208,8 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
 
 int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
              const std::string &report_path, const char *evidence_path, Outcome *out = nullptr,
-             const std::vector<AwaitingGroup> &awaiting = kGroupsAwaitingCatalog);
+             const std::vector<AwaitingGroup> &awaiting = kGroupsAwaitingCatalog,
+             const std::vector<FamilyWithNoEngine> &no_engine = kFamiliesWithNoEngine);
 
 // Staged catalogs test reader conventions and reporting without changing the release catalog.
 int selftest() {
@@ -479,6 +512,8 @@ int selftest() {
     // Staged, because a check that needs the real table non-empty dies the day it is emptied.
     const std::vector<AwaitingGroup> staged_awaiting = {
         {"staged awaiting", "src/physics/staged.cc, stamping no id of its own"}};
+    const std::vector<FamilyWithNoEngine> staged_no_engine = {
+        {"staged.exempt", "tests/staged.cc, a staged context"}};
     for (size_t i = 0; i < sizeof(group_cases) / sizeof(group_cases[0]); ++i) {
         {
             std::ofstream staged(group_catalog.c_str());
@@ -499,14 +534,16 @@ int selftest() {
         const bool joins = group_cases[i].ran == nullptr || group_cases[i].ran[0] != '\0';
         {
             std::ofstream staged(group_evidence.c_str());
-            if (group_cases[i].ran != nullptr && group_cases[i].ran[0] != '\0')
+            if (group_cases[i].ran != nullptr && group_cases[i].ran[0] != '\0') {
                 staged << "group\tacceptance corpus\ngroup\t" << group_cases[i].ran << "\n";
+                staged << "family\tstaged.complete\nfamily\tstaged.exempt\n";
+            }
         }
         std::filesystem::remove(group_report);
         Outcome counted;
         const int status = coverage(group_catalog, fixtures_dir, group_report,
                                     joins ? group_evidence.c_str() : nullptr, &counted,
-                                    staged_awaiting);
+                                    staged_awaiting, staged_no_engine);
         const bool wrote = std::filesystem::exists(group_report);
         const bool as_expected =
             status == group_cases[i].status && wrote == (group_cases[i].ran != nullptr) &&
@@ -544,13 +581,70 @@ int selftest() {
                                    : "and the report says outright that none is awaiting one")
                   << "\n";
     }
+    // The family join, which is the half a group join cannot answer: a second family under a group
+    // some other family already claims is invisible to the group side by construction.
+    {
+        std::ofstream staged(group_catalog.c_str());
+        staged << "family id staged.complete\n";
+        for (const char *field : kSection27Fields) {
+            if (std::string(field) == "id")
+                continue;
+            if (std::string(field) == "rule_ids") {
+                staged << "rule eq.divide-both-sides fixture\n";
+                continue;
+            }
+            staged << field << " none, this field is unused in the staged catalog\n";
+        }
+        staged << "test_group_ids staged group\n";
+    }
+    const struct {
+        const char *families;
+        int status;
+        size_t missing;
+        bool census_ran;
+        size_t stale;
+        const char *what;
+    } family_cases[] = {
+        {"family\tstaged.complete\nfamily\tstaged.exempt\n", 0, 0, true, 0,
+         "a family the run stamps and the catalog describes is coverage the catalog knows about"},
+        {"family\tstaged.complete\nfamily\tstaged.exempt\nfamily\tstaged.second\n", 1, 1, true, 0,
+         "a second family sharing that group is caught even though the group is already claimed"},
+        {"family\tstaged.exempt\nfamily\tstaged.complete\n", 0, 0, true, 0,
+         "a family excused as stamped by no engine is not held against the catalog"},
+        {"family\tstaged.complete\n", 1, 0, true, 1,
+         "and an excuse this run stamps nowhere is a stale exemption rather than a line nobody "
+         "reads"},
+        {"", 1, 0, false, 0,
+         "and an evidence file naming no family at all refuses rather than reporting none missing"},
+    };
+    for (size_t i = 0; i < sizeof(family_cases) / sizeof(family_cases[0]); ++i) {
+        {
+            std::ofstream staged(group_evidence.c_str());
+            staged << "group\tacceptance corpus\ngroup\tstaged group\n"
+                   << family_cases[i].families;
+        }
+        std::filesystem::remove(group_report);
+        Outcome counted;
+        const int status = coverage(group_catalog, fixtures_dir, group_report,
+                                    group_evidence.c_str(), &counted, staged_awaiting,
+                                    staged_no_engine);
+        const bool as_expected = status == family_cases[i].status &&
+                                 counted.uncatalogued_families == family_cases[i].missing &&
+                                 counted.family_census_ran == family_cases[i].census_ran &&
+                                 counted.stale_exemptions == family_cases[i].stale;
+        if (!as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                  << family_cases[i].what << "\n";
+    }
     std::cout << "coverage selftest: " << count_text(static_cast<size_t>(failures)) << " failed\n";
     return failures == 0 ? 0 : 1;
 }
 
 int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
              const std::string &report_path, const char *evidence_path, Outcome *out,
-             const std::vector<AwaitingGroup> &awaiting_table) {
+             const std::vector<AwaitingGroup> &awaiting_table,
+             const std::vector<FamilyWithNoEngine> &no_engine_table) {
     std::vector<Family> families;
     std::string fault;
     if (!read_catalog(catalog_path, &families, &fault) || families.empty()) {
@@ -636,6 +730,8 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     size_t stale_exemptions = 0;
     // Kept so the report carries a row per deferral, which used to reach stdout alone.
     std::vector<const AwaitingGroup *> awaiting_rows;
+    size_t uncatalogued_families = 0;
+    bool family_census_ran = false;
     const bool join_ran = evidence_path != nullptr;
     if (join_ran) {
         std::set<std::string> groups_run;
@@ -693,6 +789,57 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
             ++uncatalogued;
             std::cout << "coverage: the test group " << group
                       << " ran and no catalogued family names it\n";
+        }
+
+        // The family-granular half. The group join above cannot see a second family sharing a group
+        // another family already claims, which is how the general two-dimension kinematics family
+        // stayed invisible while its group was claimed by the projectile one.
+        std::set<std::string> stamped;
+        read_families_stamped(evidence_path, &stamped);
+        family_census_ran = !stamped.empty();
+        if (!family_census_ran) {
+            std::cout << "coverage: no stamped families read from " << evidence_path
+                      << ", so the family join did not run, which is not the same as nothing "
+                         "missing\n";
+            if (out != nullptr) {
+                out->join_ran = true;
+                out->stale_exemptions = stale_exemptions;
+            }
+            return 1;
+        }
+        std::set<std::string> catalogued;
+        for (size_t i = 0; i < families.size(); ++i)
+            catalogued.insert(families[i].id);
+        // Both ways an excuse goes stale. The catalog outgrowing it is the group table's reading,
+        // and an excuse nothing stamps any more is the one a family table can also reach.
+        for (const auto &entry : no_engine_table) {
+            if (catalogued.count(entry.family)) {
+                ++stale_exemptions;
+                std::cout << "coverage: the family " << entry.family
+                          << " is excused as stamped by no engine and a catalog block describes "
+                             "it\n";
+                continue;
+            }
+            if (stamped.count(entry.family))
+                continue;
+            ++stale_exemptions;
+            std::cout << "coverage: the family " << entry.family
+                      << " is excused as stamped by " << entry.what
+                      << " and this run stamps it nowhere\n";
+        }
+        for (const std::string &family : stamped) {
+            if (catalogued.count(family))
+                continue;
+            bool excused = false;
+            for (const auto &entry : no_engine_table) {
+                if (family == entry.family)
+                    excused = true;
+            }
+            if (excused)
+                continue;
+            ++uncatalogued_families;
+            std::cout << "coverage: the family " << family
+                      << " is stamped by a run and no catalog block describes it\n";
         }
     }
 
@@ -969,6 +1116,13 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
                   "empty.\n";
     } else if (awaiting_rows.empty()) {
         report << "No test group is awaiting a catalog block.\n";
+        report << "\nThe family census is the other half of this question, and it "
+               << (!join_ran ? "did not run either"
+                             : family_census_ran
+                                   ? "reported " + count_text(uncatalogued_families) +
+                                         " stamped families with no catalog block"
+                                   : "did not run, so no family was checked")
+               << ".\n";
     } else {
         report << "| Test group | What it exercises |\n|---|---|\n";
         for (const AwaitingGroup *row : awaiting_rows)
@@ -1018,7 +1172,9 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
               << " obligation faults, " << count_text(uncatalogued)
               << " uncatalogued families, "
               << (join_ran ? count_text(awaiting_catalog) + " test groups awaiting a catalog block, " +
-                                 count_text(stale_exemptions) + " stale group exemptions, "
+                                 count_text(stale_exemptions) + " stale group exemptions, " +
+                                 count_text(uncatalogued_families) +
+                                 " stamped families with no catalog block, "
                            : std::string("the test group join did not run with no evidence file, "))
               << count_text(schemaless)
               << " rules with no proof-obligation schema, report in " << report_path << "\n";
@@ -1027,11 +1183,13 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
         out->uncatalogued = uncatalogued;
         out->awaiting_catalog = awaiting_catalog;
         out->stale_exemptions = stale_exemptions;
+        out->family_census_ran = family_census_ran;
+        out->uncatalogued_families = uncatalogued_families;
     }
     return undeclared == 0 && unevidenced == 0 && uncatalogued == 0 && obligation_faults == 0 &&
                    schemaless == 0 && envelope_gaps == 0 && assumption_faults == 0 &&
                    stale_exemptions == 0 && (!kAwaitingCatalogIsFatal || awaiting_catalog == 0) &&
-                   !evidence_refused
+                   uncatalogued_families == 0 && !evidence_refused
                ? 0
                : 1;
 }
