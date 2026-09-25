@@ -2749,13 +2749,14 @@ PHYSICS_FIXTURES = {
 		end,
 	},
 	{
-		label = "Find where something drifts when both directions speed up",
-		problem = "A puck slides across a tilted table, gaining speed sideways as well as down. " ..
-		          "Find where it gets to and how fast it is going after two seconds.",
+		label = "Find where a ball goes in a steady sideways wind",
+		problem = "A ball is thrown up and forward while a steady wind pushes it sideways the " ..
+		          "whole way and gravity pulls it down. It rises, slows, and is falling again " ..
+		          "by the time two seconds are up. Find where it has got to and how fast it is going.",
 		mode = "planar_kinematics",
 		run = function()
 			return nps_nspire.planar_kinematics({
-				body_name = "puck",
+				body_name = "ball",
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",

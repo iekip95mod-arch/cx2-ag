@@ -147,13 +147,14 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:CITE_PROJECTILE sends projectile true for the thrown
-ball and nps/lua/nps_v4.lua:CITE_GENERAL leaves it unset for the ball in a sideways wind.
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:CITE_MANIFEST and required of the loaded module at
-nps/lua/nps_v4.lua:CITE_REQUIRED, so a build missing either one refuses to start rather than offering a
+nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
 `position_motion` and `ranking` still have working

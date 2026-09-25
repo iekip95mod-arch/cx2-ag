@@ -1571,7 +1571,7 @@ end
 do
     local general_index = nil
     for index, fixture in ipairs(PHYSICS_FIXTURES) do
-        if fixture.mode == "planar_kinematics" and fixture.label:find("both directions", 1, true) then
+        if fixture.mode == "planar_kinematics" and fixture.label:find("sideways wind", 1, true) then
             general_index = index
         end
     end
@@ -1587,7 +1587,7 @@ do
           steps.result.mode == "planar_kinematics" and type(last_args[1]) == "table",
           "the general planar fixture calls the native bridge exactly once")
     local general_input = last_args[1]
-    check(general_input.body_name == "puck" and general_input.acceleration.x == "2" and
+    check(general_input.body_name == "ball" and general_input.acceleration.x == "2" and
           general_input.acceleration.y == "-10" and general_input.elapsed_time == "2 s" and
           general_input.projectile == nil,
           "the general fixture sends a horizontal acceleration and leaves the projectile flag unset")
