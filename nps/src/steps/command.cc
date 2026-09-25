@@ -23,6 +23,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "linsolve") return CommandKind::LinearSystem;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
 }
@@ -46,6 +47,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::LinearSystem: return "linear system";
         case CommandKind::Unhandled: return "command";
     }
     return "command";
@@ -121,6 +123,27 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
             return command;
         }
         command.expression = arguments[0];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
+    if (command.kind == CommandKind::LinearSystem) {
+        if (arguments.size() != 2 && arguments.size() != 3) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "linear systems require a list of equations, a list of unknowns and an optional method";
+            return command;
+        }
+        if (arguments.size() == 3) {
+            const NodeId method = arguments[2];
+            if (arena.at(method).kind != Kind::Symbol ||
+                (arena.text(method) != "elimination" && arena.text(method) != "substitution")) {
+                command.status = CommandStatus::Unsupported;
+                command.detail = "the method has to be elimination or substitution";
+                return command;
+            }
+            command.method = arena.text(method);
+        }
+        command.expression = arguments[0];
+        command.variable = arguments[1];
         command.status = CommandStatus::Ready;
         return command;
     }

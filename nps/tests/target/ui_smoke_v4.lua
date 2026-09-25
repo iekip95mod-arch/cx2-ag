@@ -4864,6 +4864,36 @@ if os.getenv("NPS_COMMAND_MODULE") then
     end
 
     env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Solve Linear System") and env.fctEditor:getExpression() == "linsolve(",
+          "the existing linear system menu inserts the native walkthrough command")
+    env.fctEditor:addString("[x + y = 3, x - y = 1], [x, y])")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation,
+              "the linear system menu dispatches once without a CAS fallback")
+        local reduced = false
+        for _, step in ipairs(record and record.steps or {}) do
+            reduced = reduced or step.rule == "matrix.row-add-multiple"
+        end
+        check(env.steps.active and record and record.mode == "linear system" and record.solved and
+              record.result == "[(x = 2), (y = 1)]" and record.status == "solved and verified" and reduced,
+              "the linear system menu opens the verified elimination walkthrough")
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+        env.fctEditor.editor:setExpression("\\0el {linsolve([x*y = 1, x + y = 2], [x, y])}")
+        env.on.enterKey()
+        record = env.steps.result
+        check(env.steps.active and record and record.mode == "linear system" and not record.solved and
+              record.result == nil and #record.steps == 0 and evaluated == before_evaluation,
+              "a nonlinear system stays a native refusal in the walkthrough viewer")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
     check(select_integer_menu("Factorial"), "the large exact result starts from the factorial menu")
     env.fctEditor:addString("100)")
     local before_dispatch, before_evaluation = dispatched, evaluated

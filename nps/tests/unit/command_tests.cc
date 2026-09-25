@@ -110,6 +110,29 @@ void run_command_tests(TestSink &t) {
                     !command.detail.empty(),
                 std::string("determinant signature refusals cannot fall through to CAS: ") + text);
     }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "linsolve([x + y = 3, x - y = 1], [x, y])", "z");
+        t.check(command.status == CommandStatus::Ready &&
+                    command_kind_name(command.kind) == std::string("linear system") &&
+                    command.expression != kNoNode && arena.at(command.expression).kind == Kind::List &&
+                    command.variable != kNoNode && arena.at(command.variable).kind == Kind::List,
+                "linsolve dispatches its list of equations and its list of unknowns");
+    }
+    for (const char *method : {"elimination", "substitution"}) {
+        Arena arena;
+        const Command command =
+            parse_command(arena, std::string("linsolve([x = 1], [x], ") + method + ")", "x");
+        t.check(command.status == CommandStatus::Ready && command.method == method,
+                std::string("linsolve carries the named method: ") + method);
+    }
+    for (const char *text : {"linsolve([x = 1])", "linsolve([x = 1], [x], 2)", "linsolve([x = 1], [x], graphing)",
+                             "linsolve([x = 1], [x], substitution, 1)", "linsolve()"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Unsupported && !command.detail.empty(),
+                std::string("a linsolve without exactly two arguments is refused rather than sent to CAS: ") + text);
+    }
     const char *commands[] = {"solve(2*x+5=13,x)", "diff(sin(x^2),x)", "int(x^2,x)",
                               "diff(x^3,x,1)", "int(x^2,x,0,1)", "limit((x^2-1)/(x-1),x,1)",
                               "limit(1/x,x,0,1)", "limit(1/x,x,0,-1)",

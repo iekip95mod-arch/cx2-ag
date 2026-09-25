@@ -1,0 +1,75 @@
+problem: [x + y = 1, 2x + 2y = 3]
+variable: [x, y]
+outcome: no solution
+detail: substitution left an equation that is false for every value, so no values satisfy every equation
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.linear-system.substitution
+  envelope version: 1
+  normalized problem: [((x + y) = 1), (((2 * x) + (2 * y)) = 3)]
+  requested method: substitution
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Solve [((x + y) = 1), (((2 * x) + (2 * y)) = 3)] for [x, y]
+    rule: plan.system-substitution, Solve for one unknown and substitute
+    claim: no claim
+    explanation: Solve one equation for one unknown, put that into the others, and repeat.
+    detail: Each round leaves one fewer unknown in the remaining equations. Then the values are put back in reverse order.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Solve for one unknown and substitute
+    applicability: every equation is linear in the unknowns with exact rational coefficients, in at most 4 equations and 5 unknowns
+    fact: [((x + y) = 1), (((2 * x) + (2 * y)) = 3)]
+    rationale: Every equation is linear in the unknowns with exact rational coefficients.
+    verification: exact linear system analysis, passed, Solve [((x + y) = 1), (((2 * x) + (2 * y)) = 3)] for [x, y]
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Substitute
+      goal: Solve one equation for x
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of x.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve ((x + y) = 1) for x: (x = (1 + (-1 * y))).
+      before: ((x + y) = 1)
+      after: (x = (1 + (-1 * y)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.2 transformation
+      phase: Substitute
+      goal: Replace x in another equation
+      rule: system.substitute, Substitute into another equation
+      claim: solution set preserved
+      explanation: Put (1 + (-1 * y)) in place of x and collect the terms.
+      detail: Every solution of the system satisfies the isolated equation, so replacing the unknown keeps the solutions.
+      proof obligation: obl.system.substituted-equivalent, the new equation is the old one with the isolated unknown replaced
+      action: Replace x in (((2 * x) + (2 * y)) = 3) to get (0 = 1).
+      before: (((2 * x) + (2 * y)) = 3)
+      after: (0 = 1)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the new equation agrees with the old one after the substitution at every checked point
+      verified: yes
+    1.3 check
+      phase: Read the solution
+      goal: Read the equation with no unknown left in it
+      rule: system.contradiction, Read a false equation
+      claim: solution set preserved
+      explanation: (0 = 1) is false for every value, so the system has no solution.
+      detail: Every unknown cancelled from this equation.
+      proof obligation: obl.system.false-equation, an equation with no unknown left has two different numbers for its sides
+      target claim: The system has no solution
+      check method: exact reduced row reading
+      expected: the two sides are different numbers
+      observed: (0 = 1)
+      verification: exact reduced row reading, passed, the equation has no unknown and its two sides are different numbers
+      verified: yes
