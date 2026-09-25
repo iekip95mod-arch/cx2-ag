@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, ParamSlope };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
@@ -17,6 +17,8 @@ struct Command {
     NodeId upper = kNoNode;
     NodeId point = kNoNode;
     int direction = 0;
+    // The second component of a parametric curve, y(t) beside expression's x(t).
+    NodeId companion = kNoNode;
     std::string operand_text;
     std::string variable_name;
     std::string detail;

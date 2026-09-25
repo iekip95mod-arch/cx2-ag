@@ -1,0 +1,128 @@
+problem: paramslope(t^2,t^3,t,2)
+result: 3
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.parametric-slope.single-parameter
+  envelope version: 1
+  normalized problem: paramslope((t^2), (t^3), t, 2)
+  requested method: paramslope
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Differentiate (t^2) with respect to t
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to t
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: differentiate
+      goal: Differentiate (t^2)
+      rule: d.power, Power rule
+      claim: equivalent expression
+      explanation: Bring the exponent down and reduce it by one
+      detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the power rule with exponent 2
+      before: d((t^2), t)
+      after: (2 * (t^1))
+      reversible: no
+      verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+      verified: yes
+  2 transformation
+    phase: calculus
+    goal: Evaluate dx/dt at the parameter value
+    rule: param.dx-dt, Evaluate dx/dt at the parameter value
+    claim: definition
+    explanation: The rate dx/dt at this parameter value
+    detail: Each coordinate of a parametric curve is a function of the parameter. Its derivative says how fast that coordinate changes as the parameter moves, and substituting the parameter value reads that rate at the one point asked about.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute the parameter value into dx/dt
+    before: (2 * (t^1))
+    after: 4
+    reversible: no
+    verification: rule-local invariant, passed, The rate dx/dt at this parameter value
+    verified: yes
+  3 plan
+    phase: plan
+    goal: Differentiate (t^3) with respect to t
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to t
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    3.1 transformation
+      phase: differentiate
+      goal: Differentiate (t^3)
+      rule: d.power, Power rule
+      claim: equivalent expression
+      explanation: Bring the exponent down and reduce it by one
+      detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the power rule with exponent 3
+      before: d((t^3), t)
+      after: (3 * (t^2))
+      reversible: no
+      verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+      verified: yes
+  4 transformation
+    phase: calculus
+    goal: Evaluate dy/dt at the parameter value
+    rule: param.dy-dt, Evaluate dy/dt at the parameter value
+    claim: definition
+    explanation: The rate dy/dt at this parameter value
+    detail: Each coordinate of a parametric curve is a function of the parameter. Its derivative says how fast that coordinate changes as the parameter moves, and substituting the parameter value reads that rate at the one point asked about.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute the parameter value into dy/dt
+    before: (3 * (t^2))
+    after: 12
+    reversible: no
+    verification: rule-local invariant, passed, The rate dy/dt at this parameter value
+    verified: yes
+  5 transformation
+    phase: calculus
+    goal: Divide dy/dt by dx/dt
+    rule: param.slope, Divide dy/dt by dx/dt
+    claim: definition
+    explanation: The slope dy/dx is dy/dt over dx/dt wherever dx/dt is not zero
+    detail: By the chain rule dy/dt is dy/dx times dx/dt, so dy/dx is dy/dt divided by dx/dt. That division is only defined where dx/dt is not zero, which is why the condition is recorded on this step.
+    domain restriction: dx/dt != 0 at t = 2
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Divide the two rates
+    before: (12 * (4^-1))
+    after: 3
+    reversible: no
+    verification: rule-local invariant, passed, The slope dy/dx is dy/dt over dx/dt wherever dx/dt is not zero
+    verified: yes
+  6 check
+    phase: check
+    goal: Check the slope against the two rates
+    rule: param.check-slope, Parametric slope times dx/dt
+    claim: equivalent expression
+    explanation: Multiply the slope by dx/dt, which has to give dy/dt back
+    proof obligation: obl.calculus.parametric-slope, the slope times dx/dt equals dy/dt at the parameter value
+    target claim: dy/dx times dx/dt is dy/dt at the parameter value
+    check method: exact product of the slope and dx/dt against dy/dt
+    expected: dy/dt at the parameter value
+    observed: 12
+    verification: exact product of the slope and dx/dt against dy/dt, passed, the slope times dx/dt is dy/dt
+    verified: yes

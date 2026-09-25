@@ -246,6 +246,14 @@ const ObligationSchema kTangentAgreement[] = {
      kTangentAgreementEvidence, 1},
 };
 
+const EvidenceAlternative kParametricSlopeEvidence[] = {
+    {"exact product of the slope and dx/dt against dy/dt", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kParametricSlopeAgreement[] = {
+    {"obl.calculus.parametric-slope", "the slope times dx/dt equals dy/dt at the parameter value",
+     kParametricSlopeEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -1669,6 +1677,12 @@ const RuleSchema kRules[] = {
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
+    // calculus.parametric-slope, CALC-013
+    {"param.dx-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
+    {"param.dy-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
+    {"param.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"param.check-slope", ClaimType::EquivalentExpression, kParametricSlopeAgreement, 1,
+     FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,

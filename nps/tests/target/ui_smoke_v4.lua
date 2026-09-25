@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 188, "every palette entry survives the regrouping: " .. entries .. " of 188")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -6931,7 +6931,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 22 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 23 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6946,12 +6946,16 @@ do
     check(state.labels[21] == "Tangent line at a point" and state.labels[22] == "Linearization at a point" and
           state.descriptions[22]:find("approximation", 1, true) ~= nil,
           "the tangent templates are offered and the linearization says it approximates")
+    -- CALC-013, #509. The parametric slope follows them and asks for both coordinates.
+    check(state.labels[23] == "Parametric slope at a parameter value" and
+          state.descriptions[23]:find("x(t) and y(t)", 1, true) ~= nil,
+          "the parametric slope template is offered with guidance naming both coordinates")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 22, "up from the first template reaches the final template")
+    check(state.selected == 23, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()
@@ -6970,6 +6974,15 @@ do
     env.on.escapeKey()
     check(state.editor:getExpression() == "(7)/()" and state.editor.editor.visible and calls.giac == solves,
           "dismissing the picker preserves input without invoking the solver")
+    do
+        local slot_env, slot_state = fixture()
+        slot_state.open()
+        slot_env.on.arrowUp()
+        slot_env.on.enterKey()
+        slot_state.editor:addString("t^2")
+        check(slot_state.editor:getExpression() == "paramslope(t^2,,t,0)",
+              "choosing the parametric slope template leaves the cursor in its first slot")
+    end
     state.open()
     env.steps.result = fake_result
     env.openSteps()

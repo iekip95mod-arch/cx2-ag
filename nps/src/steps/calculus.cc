@@ -248,6 +248,8 @@ struct Calculation {
         if (linear_family())
             return arena.call(command_kind_name(command.kind),
                               {expression, command.variable, command.point});
+        if (command.kind == CommandKind::ParamSlope)
+            return arena.call("paramslope", {expression, command.companion, command.variable, command.point});
         if (command.kind == CommandKind::DefiniteIntegral)
             return arena.call("int", {expression, command.variable, command.lower, command.upper});
         std::vector<NodeId> arguments{expression, command.variable, command.point};
@@ -257,7 +259,8 @@ struct Calculation {
 
     StepId step(const char *rule, const std::string &title, NodeId before, NodeId after,
                 const std::string &action, const std::string &reason, bool pending = false,
-                ClaimType claim = ClaimType::EquivalentExpression) {
+                ClaimType claim = ClaimType::EquivalentExpression,
+                const std::string &restriction = std::string()) {
         if (before == kNoNode || (!pending && after == kNoNode) || arena.failed() || !meter.step()) return kNoStep;
         Step entry;
         entry.phase = "calculus";
@@ -266,6 +269,7 @@ struct Calculation {
         entry.goal = title;
         entry.claim = claim;
         entry.explanation_short = reason;
+        if (!restriction.empty()) entry.domain_restrictions.push_back(restriction);
         const std::string id = rule;
         if (id == "defint.interval")
             entry.explanation_detailed = "Before using endpoint subtraction, check every point between the bounds. A pole inside the interval makes ordinary antiderivative subtraction invalid even when both endpoints are finite.";
@@ -283,6 +287,10 @@ struct Calculation {
             entry.explanation_detailed = "The point-slope form passes through the point with the derivative as its slope. That is an exact description of the line itself and says nothing yet about how far it stays near the curve.";
         else if (id == "tangent.linearization")
             entry.explanation_detailed = "The linearization is the tangent line read as an approximation of the function near the point. It is not an equality. The two agree at the point and drift apart as the variable moves away from it.";
+        else if (id == "param.dx-dt" || id == "param.dy-dt")
+            entry.explanation_detailed = "Each coordinate of a parametric curve is a function of the parameter. Its derivative says how fast that coordinate changes as the parameter moves, and substituting the parameter value reads that rate at the one point asked about.";
+        else if (id == "param.slope")
+            entry.explanation_detailed = "By the chain rule dy/dt is dy/dx times dx/dt, so dy/dx is dy/dt divided by dx/dt. That division is only defined where dx/dt is not zero, which is why the condition is recorded on this step.";
         else if (id == "limit.continuity")
             entry.explanation_detailed = "Direct substitution determines a limit only when the expression is continuous at the approach point. Check denominators and real function domains before substituting.";
         else if (id == "limit.real-domain")
@@ -768,30 +776,7 @@ struct Calculation {
             return;
         const DiffResult differentiated =
             differentiate(arena, derivation, command.expression, command.variable, meter, identity_backend);
-        if (differentiated.outcome != DiffOutcome::Differentiated || differentiated.derivative == kNoNode) {
-            switch (differentiated.outcome) {
-                case DiffOutcome::Cancelled:
-                    result.outcome = CalculusOutcome::Cancelled;
-                    result.status = DerivationStatus::Cancelled;
-                    break;
-                case DiffOutcome::ResourceExceeded:
-                    result.outcome = CalculusOutcome::ResourceExceeded;
-                    result.status = DerivationStatus::ResourceLimitReached;
-                    break;
-                case DiffOutcome::Refused:
-                    result.outcome = CalculusOutcome::Refused;
-                    result.status = DerivationStatus::Unsupported;
-                    break;
-                default:
-                    result.outcome = CalculusOutcome::UnsupportedForm;
-                    result.status = DerivationStatus::Unsupported;
-                    break;
-            }
-            result.detail = differentiated.detail.empty()
-                ? "the native differentiation engine has no rule for this expression"
-                : differentiated.detail;
-            return;
-        }
+        if (!derivative_ready(differentiated)) return;
         const NodeId slope = folded(substitute(differentiated.derivative, command.point));
         Rational gradient;
         if (slope == kNoNode || !evaluate_rational(arena, slope, {}, &gradient)) {
@@ -832,6 +817,138 @@ struct Calculation {
         if (!verify_line(line, height, gradient, point)) return;
         result.outcome = CalculusOutcome::Evaluated;
         result.value = line;
+    }
+
+    // A differentiation that did not finish becomes this family's outcome with its kind kept apart.
+    bool derivative_ready(const DiffResult &differentiated) {
+        if (differentiated.outcome == DiffOutcome::Differentiated && differentiated.derivative != kNoNode)
+            return true;
+        switch (differentiated.outcome) {
+            case DiffOutcome::Cancelled:
+                result.outcome = CalculusOutcome::Cancelled;
+                result.status = DerivationStatus::Cancelled;
+                break;
+            case DiffOutcome::ResourceExceeded:
+                result.outcome = CalculusOutcome::ResourceExceeded;
+                result.status = DerivationStatus::ResourceLimitReached;
+                break;
+            case DiffOutcome::Refused:
+                result.outcome = CalculusOutcome::Refused;
+                result.status = DerivationStatus::Unsupported;
+                break;
+            default:
+                result.outcome = CalculusOutcome::UnsupportedForm;
+                result.status = DerivationStatus::Unsupported;
+                break;
+        }
+        result.detail = differentiated.detail.empty()
+            ? "the native differentiation engine has no rule for this expression"
+            : differentiated.detail;
+        return false;
+    }
+
+    // One coordinate's rate at the parameter value, recorded as a definition, or a refusal naming it.
+    NodeId parametric_rate(NodeId component, const char *rule, const char *name, Rational *rate) {
+        const DiffResult differentiated =
+            differentiate(arena, derivation, component, command.variable, meter, identity_backend);
+        if (!derivative_ready(differentiated)) return kNoNode;
+        const NodeId value = folded(substitute(differentiated.derivative, command.point));
+        if (value == kNoNode || !evaluate_rational(arena, value, {}, rate)) {
+            if (!work()) return kNoNode;
+            const std::string why = std::string(name) + " has no exact value at that parameter value";
+            result.outcome = CalculusOutcome::UnsupportedForm;
+            result.status = DerivationStatus::Unsupported;
+            result.detail = why;
+            return kNoNode;
+        }
+        const std::string title = std::string("Evaluate ") + name + " at the parameter value";
+        if (step(rule, title, differentiated.derivative, value,
+                 std::string("Substitute the parameter value into ") + name,
+                 std::string("The rate ") + name + " at this parameter value",
+                 false, ClaimType::Definition) == kNoStep)
+            return kNoNode;
+        return value;
+    }
+
+    // CALC-013's parametric slope, dy/dt over dx/dt, which only exists where dx/dt is not zero.
+    void parametric_slope() {
+        Rational point;
+        if (!evaluate_rational(arena, command.point, {}, &point)) {
+            refuse(Form::Unsupported, degree_ceiling, "the parameter value must be an exact number");
+            return;
+        }
+        Rational dx_rate;
+        Rational dy_rate;
+        const NodeId dx = parametric_rate(command.expression, "param.dx-dt", "dx/dt", &dx_rate);
+        if (dx == kNoNode) return;
+        const NodeId dy = parametric_rate(command.companion, "param.dy-dt", "dy/dt", &dy_rate);
+        if (dy == kNoNode) return;
+        if (dx_rate.num == 0) {
+            refuse(Form::Unsupported, degree_ceiling,
+                   dy_rate.num != 0
+                       ? "dx/dt is zero and dy/dt is not at that parameter value, so the tangent there "
+                         "is vertical and dy/dx is undefined"
+                       : "dx/dt and dy/dt are both zero at that parameter value, so their ratio is 0/0 "
+                         "and the curve may have a singular point there, which this family does not "
+                         "resolve");
+            return;
+        }
+        const NodeId ratio = arena.binary(Kind::Mul, dy, arena.binary(Kind::Pow, dx, arena.integer("-1")));
+        const NodeId slope = folded(ratio);
+        Rational gradient;
+        if (slope == kNoNode || !evaluate_rational(arena, slope, {}, &gradient)) {
+            if (!work()) return;
+            refuse(Form::Unsupported, coefficient_ceiling, "the slope has no exact value");
+            return;
+        }
+        const std::string condition =
+            "dx/dt != 0 at " + command.variable_name + " = " + print(arena, command.point);
+        if (step("param.slope", "Divide dy/dt by dx/dt", ratio, slope, "Divide the two rates",
+                 "The slope dy/dx is dy/dt over dx/dt wherever dx/dt is not zero", false,
+                 ClaimType::Definition, condition) == kNoStep)
+            return;
+        if (!verify_parametric_slope(gradient, dx_rate, dy_rate)) return;
+        result.outcome = CalculusOutcome::Evaluated;
+        result.value = slope;
+        result.slope = slope;
+    }
+
+    // The final check. The slope times dx/dt must give dy/dt back, which a wrong division fails.
+    bool verify_parametric_slope(const Rational &gradient, const Rational &dx_rate,
+                                 const Rational &dy_rate) {
+        Rational product;
+        const bool read = rational_mul(gradient, dx_rate, &product);
+        const bool matched = read && compare(product, dy_rate) == 0;
+        if (!meter.step() || arena.failed()) return false;
+        Step check;
+        check.phase = "check";
+        check.goal = "Check the slope against the two rates";
+        check.rule_id = "param.check-slope";
+        check.rule_name = "Parametric slope times dx/dt";
+        check.claim = ClaimType::EquivalentExpression;
+        check.explanation_short = "Multiply the slope by dx/dt, which has to give dy/dt back";
+        check.proof_obligations.push_back(
+            {"obl.calculus.parametric-slope", "the slope times dx/dt equals dy/dt at the parameter value"});
+        VerificationRecord evidence;
+        evidence.method = "exact product of the slope and dx/dt against dy/dt";
+        evidence.outcome = matched ? VerificationOutcome::Passed
+                         : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive;
+        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::CandidateChecked);
+        evidence.detail = matched ? "the slope times dx/dt is dy/dt"
+                        : read ? "the slope times dx/dt is not dy/dt"
+                               : "the product did not fit in exact arithmetic";
+        check.verifications.push_back(std::move(evidence));
+        CheckPayload payload;
+        payload.target_claim = "dy/dx times dx/dt is dy/dt at the parameter value";
+        payload.check_method = "exact product of the slope and dx/dt against dy/dt";
+        payload.expected_relation = "dy/dt at the parameter value";
+        payload.observed_result = read ? print(arena, number(arena, product)) : "not exactly evaluable";
+        derivation.add_check(kNoStep, std::move(check), std::move(payload));
+        if (matched) return true;
+        result.outcome = CalculusOutcome::VerificationFailed;
+        result.status = DerivationStatus::VerificationFailed;
+        result.detail = "the slope failed its check against the two rates, so the answer is withheld";
+        return false;
     }
 
     // The final check the family is required to have. The assembled line is evaluated exactly at the
@@ -938,7 +1055,7 @@ struct Calculation {
     }
 
     void cross_check(Backend &backend) {
-        if (linear_family()) return;
+        if (linear_family() || command.kind == CommandKind::ParamSlope) return;
         if (arena.failed() || meter.stopped() || result.infinity != 0 || result.does_not_exist ||
             (result.value == kNoNode && result.status != DerivationStatus::Unsupported &&
              result.status != DerivationStatus::PartiallySolved)) return;
@@ -1023,6 +1140,7 @@ struct Calculation {
         context.problem_family_id =
             command.kind == CommandKind::Tangent ? "calculus.tangent-line.single-variable"
           : command.kind == CommandKind::Linearize ? "calculus.linearization.single-variable"
+          : command.kind == CommandKind::ParamSlope ? "calculus.parametric-slope.single-parameter"
           : command.kind == CommandKind::Limit ? "calculus.limit.single-variable"
                                                : "calculus.integral.definite.single-variable";
         context.requested_method = command_kind_name(command.kind);
@@ -1068,6 +1186,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         ((command.kind == CommandKind::DefiniteIntegral && present(command.lower) && present(command.upper)) ||
          ((command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) &&
           present(command.point)) ||
+         (command.kind == CommandKind::ParamSlope && present(command.point) &&
+          present(command.companion)) ||
          (command.kind == CommandKind::Limit && present(command.point) && command.direction >= -1 && command.direction <= 1));
     if (!complete) {
         calculation.result.outcome = CalculusOutcome::InvalidInput;
@@ -1080,6 +1200,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
         else if (command.kind == CommandKind::Limit) calculation.limit();
         else if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize)
             calculation.tangent();
+        else if (command.kind == CommandKind::ParamSlope)
+            calculation.parametric_slope();
     }
     if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact)
         calculation.cross_check(*backend);

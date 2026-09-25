@@ -2698,7 +2698,9 @@ int calculus_into(lua_State *L) {
         set_field(L, "limit_exists", !result.does_not_exist);
     // The tangent family reports what the line was built from and whether the relation it states is
     // an equality. A linearization is an approximation away from the point and says so here.
-    if (result.slope != kNoNode) set_field(L, "tangent_slope", print(arena, result.slope));
+    if (result.slope != kNoNode)
+        set_field(L, command.kind == CommandKind::ParamSlope ? "parametric_slope" : "tangent_slope",
+                  print(arena, result.slope));
     if (result.point_value != kNoNode)
         set_field(L, "tangent_point_value", print(arena, result.point_value));
     if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) {
@@ -2760,7 +2762,8 @@ int l_walkthrough(lua_State *L) {
             return 1;
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
-            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
+            kind != CommandKind::ParamSlope) {
         lua_settop(L, 3);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2770,7 +2773,8 @@ int l_walkthrough(lua_State *L) {
         }
     }
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
-        kind == CommandKind::Tangent || kind == CommandKind::Linearize)
+        kind == CommandKind::Tangent || kind == CommandKind::Linearize ||
+        kind == CommandKind::ParamSlope)
         return calculus_into(L);
     int count;
     if (kind == CommandKind::Solve)
