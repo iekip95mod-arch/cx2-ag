@@ -116,10 +116,14 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4112), `vector_addition` (lua_module.cc:4115),
+`vector_cross` (lua_module.cc:4116), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
+
+`source`: read on 2026-09-25, `judge_attempt` is registered at lua_module.cc:4082 and defined at
+lua_module.cc:1819. It takes the state, the attempt, the later route states and the variable, and
+returns a verdict table without reading or writing any derivation.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -156,6 +160,10 @@ physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
 nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
 nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
+
+`judge_attempt` is reachable from the entry line rather than from a menu: `source`, nps/lua/nps_v4.lua:2797
+routes `!a` to the attempt mode and attemptFeedback at nps/lua/nps_v4.lua:3790 calls the binding with
+the last revealed state and the rest of the route.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -251,8 +259,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1332 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 723 and `nps_nspire_module` at line 929,
+`source`: nps/CMakeLists.txt:1334 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 725 and `nps_nspire_module` at line 931,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines

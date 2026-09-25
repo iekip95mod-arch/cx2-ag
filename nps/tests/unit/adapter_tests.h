@@ -107,6 +107,7 @@ void run_linear_tests(TestSink &sink);
 void run_quadratic_tests(TestSink &sink);
 void run_rearrange_tests(TestSink &sink);
 void run_rewrite_tests(TestSink &sink);
+void run_attempt_tests(TestSink &sink);
 void run_differentiate_tests(TestSink &sink);
 void run_integrate_tests(TestSink &sink);
 void run_units_tests(TestSink &sink);

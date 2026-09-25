@@ -4124,8 +4124,8 @@ local function writeEvidence()
     combined:close()
     local emitted = after:sub(#before + 1)
     local expected = {
-        "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
-        "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
+        "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-013",
+        "STEP-014", "STEP-016", "STEP-020", "VER-019", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
         "PLAT-006", "PLAT-012",
     }
     local complete = after:sub(1, #before) == before
@@ -4736,6 +4736,114 @@ do
             end
         end
     end
+    end)()
+end
+
+-- STEP-013, STEP-014 and VER-019 through the real bridge: the attempt is judged against the state
+-- the reader has reached, and judging it reveals nothing and passes nothing.
+if os.getenv("NPS_COMMAND_MODULE") then
+    (function()
+    local module = copyModule()
+    local open_native = assert(package.loadlib(os.getenv("NPS_COMMAND_MODULE"), "luaopen_nps_split"))
+    local fixture, loaded = nps_split, package.loaded.nps_split
+    nps_split, package.loaded.nps_split = nil, nil
+    local native = open_native()
+    nps_split, package.loaded.nps_split = fixture, loaded
+    local judged = {}
+    module.walkthrough = function(...) return native.walkthrough(...) end
+    module.judge_attempt = function(...)
+        judged[#judged + 1] = { ... }
+        return native.judge_attempt(...)
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local start = "(((2 * x) + 5) = 13)"
+
+    enter("!a 2*x = 8")
+    check(#judged == 0 and env.steps.status == "attempt needs a walkthrough to compare against",
+          "an attempt before any walkthrough is refused without calling the judge")
+
+    enter("solve(2*x+5=13,x)")
+    check(env.steps.active and env.steps.result.solved and env.steps.walkthrough == "full",
+          "control: a real linear walkthrough opens in full mode")
+    env.on.escapeKey()
+    local route = env.attemptRoute(env.steps.result)
+    check(route.start == start and #route == 2 and route[1].after == "(((2 * x) + -8) = 0)" and
+          route[2].after == "(x = 4)", "the attempt route is the chain of whole states the solve records")
+
+    enter("!a 2*x = 8")
+    local last = judged[#judged]
+    check(#judged == 1 and last[1] == start and last[2] == "2*x = 8" and #last[3] == 2 and
+          last[4] == "x", "in full mode an attempt is judged against the problem as posed")
+    evidence("STEP-013", env.steps.status == "attempt: equivalent, valid but not this walkthrough's route " ..
+             "(both have the one solution 4)",
+             "an equivalent attempt off the route is reported as valid and not this route")
+    enter("!a 2*x - 8 = 0")
+    evidence("STEP-014", env.steps.status:find("attempt: equivalent, useful, reaches state 1 of 2", 1, true) == 1,
+             "an attempt on the route is reported as useful and says how far it reaches")
+    enter("!a 2*x = 10")
+    evidence("STEP-013", env.steps.status ==
+             "attempt: NOT EQUIVALENT (the attempt's solution is 5 and the state's is 4)",
+             "an attempt that changes the solution is refuted with the two solutions")
+    enter("!a 2*x ==")
+    check(env.steps.status:find("attempt refused: attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused by name")
+
+    env.stepsSetProgression("hint")
+    enter("solve(2*x+5=13,x)")
+    check(env.steps.active and env.steps.walkthrough == "hint" and env.steps.revealed == 1,
+          "control: the same walkthrough in hint mode shows only its plan")
+    local statuses = {}
+    for i, step in ipairs(env.steps.result.steps) do statuses[i] = tostring(step.verified) .. tostring(step.failed) end
+    env.on.escapeKey()
+    enter("!a 2*x - 8 = 0")
+    last = judged[#judged]
+    check(last[1] == start and #last[3] == 2,
+          "before any step is revealed the attempt is judged against the problem as posed")
+    evidence("VER-019", env.steps.revealed == 1 and env.steps.status:find("useful, reaches state 1 of 2", 1, true),
+             "a useful attempt in hint mode reveals no step")
+    enter("!!")
+    env.on.tabKey()
+    check(env.steps.revealed == 2, "control: tab reveals the first transformation")
+    env.on.escapeKey()
+    enter("!a 2*x - 8 = 0")
+    last = judged[#judged]
+    check(last[1] == "(((2 * x) + -8) = 0)" and #last[3] == 1 and last[3][1] == "(x = 4)",
+          "after a reveal the attempt is judged against the revealed state and the rest of the route")
+    evidence("STEP-014", env.steps.status:find("attempt: equivalent, but no progress", 1, true) == 1,
+             "repeating the revealed state is valid and makes no progress")
+    enter("!a x = 4")
+    check(env.steps.status:find("useful, reaches state 1 of 1", 1, true) ~= nil and env.steps.revealed == 2,
+          "the answer is useful from the revealed state and still reveals nothing")
+    local unchanged = true
+    for i, step in ipairs(env.steps.result.steps) do
+        if statuses[i] ~= tostring(step.verified) .. tostring(step.failed) then unchanged = false end
+    end
+    evidence("VER-019", unchanged and #statuses == #env.steps.result.steps,
+             "judging attempts leaves every step's verification as the solve recorded it")
+
+    local failed = {}
+    for key, value in pairs(env.steps.result) do failed[key] = value end
+    failed.steps = {}
+    for i, step in ipairs(env.steps.result.steps) do
+        local copy = {}
+        for key, value in pairs(step) do copy[key] = value end
+        failed.steps[i] = copy
+    end
+    local check_step = failed.steps[#failed.steps]
+    check_step.verified, check_step.failed = false, true
+    failed.status = "verification failed"
+    env.steps.result = failed
+    enter("!a x = 4")
+    evidence("VER-019", env.steps.status:find("attempt: equivalent", 1, true) == 1 and
+             check_step.failed == true and check_step.verified == false and
+             failed.status == "verification failed" and env.steps.revealed == 2,
+             "an equivalent attempt leaves a failed check failed and the derivation's status as it was")
+    env.stepsSetProgression("full")
     end)()
 end
 

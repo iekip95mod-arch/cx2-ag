@@ -881,6 +881,8 @@ int main_body() {
     run_rearrange_tests(sink);
     sink.begin_group("rewrite");
     run_rewrite_tests(sink);
+    sink.begin_group("attempt");
+    run_attempt_tests(sink);
     sink.begin_group("command");
     run_command_tests(sink);
     sink.begin_group("calculus");

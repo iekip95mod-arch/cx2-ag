@@ -2794,6 +2794,7 @@ function stepRequest(expr)
 		if letter == "v" then return { mode = "variable", text = rest } end
 		if letter == "g" then return { mode = "plain", text = rest } end
 		if letter == "!" then return { mode = "reopen", text = rest } end
+		if letter == "a" then return { mode = "attempt", text = rest } end
 		if letter == "m" then return { mode = "manifest", text = rest } end
 		if letter == "h" then return { mode = "progression", text = rest } end
 		-- Diagnostic. The typed adapter path only exists in this build and cannot be exercised on
@@ -3756,6 +3757,74 @@ local function invalidExpressionContext(r, text)
 	       type(r.normalized_expression) ~= "string" or r.normalized_expression == ""
 end
 
+-- The whole states a walkthrough passes through, which are the transformations whose before is the
+-- state the previous one left. A transformation of a part of the expression is not a state.
+function attemptRoute(r)
+	local chain, state = {}, nil
+	for i, s in ipairs(r.steps or {}) do
+		if s.kind == "transformation" and type(s.before) == "string" and type(s.after) == "string" then
+			if state == nil then
+				state = s.before
+				chain.start = s.before
+			end
+			if s.before == state then
+				chain[#chain + 1] = { step = i, after = s.after }
+				state = s.after
+			end
+		end
+	end
+	return chain
+end
+
+local ATTEMPT_EQUIVALENCE = {
+	["equivalent"] = "equivalent",
+	["corroborated"] = "agrees at samples, not proved",
+	["not equivalent"] = "NOT EQUIVALENT",
+	["not comparable"] = "cannot be judged here",
+	["cancelled"] = "judging cancelled",
+	["resource exceeded"] = "too large to judge",
+}
+
+-- STEP-013 and STEP-014. Judged against the last state the reader has seen, and it reveals nothing
+-- and rechecks nothing, so an attempt cannot turn a failed check into a passed one (VER-019).
+function attemptFeedback(text)
+	local r = steps.result
+	if not hasSteps or not nps_nspire.judge_attempt then return "no attempt checker in this build" end
+	if type(r) ~= "table" or answerWithoutSteps(r) or canonicalStepCount(r) == 0 then
+		steps.status = "attempt needs a walkthrough to compare against"
+		return steps.status
+	end
+	if text == "" then return "nothing to judge" end
+	local chain = attemptRoute(r)
+	if chain.start == nil then
+		steps.status = "attempt: this walkthrough records no whole states to compare against"
+		return steps.status
+	end
+	local hint = steps.walkthrough == "hint"
+	local limit = exposedStepCount(r)
+	local current, route = chain.start, {}
+	for _, link in ipairs(chain) do
+		if hint and link.step <= limit then current = link.after else route[#route + 1] = link.after end
+	end
+	local verdict, why = nps_nspire.judge_attempt(current, text, route, steps.variable)
+	if type(verdict) ~= "table" then
+		steps.status = "attempt refused: " .. tostring(why)
+		return steps.status
+	end
+	local line = "attempt: " .. (ATTEMPT_EQUIVALENCE[verdict.equivalence] or verdict.equivalence)
+	if verdict.usefulness == "advances" then
+		line = line .. ", useful, reaches state " .. tostring(verdict.reaches) .. " of " .. tostring(#route)
+	elseif verdict.usefulness == "no progress" then
+		line = line .. ", but no progress"
+	elseif verdict.usefulness == "valid not on route" then
+		line = line .. ", valid but not this walkthrough's route"
+	end
+	if verdict.detail and verdict.detail ~= "" then line = line .. " (" .. verdict.detail .. ")" end
+	steps.attempt = { text = text, against = current, verdict = verdict }
+	steps.status = line
+	return line
+end
+
 -- A solve opens the derivation and returns either its answer or a hint-safe history placeholder.
 function runSteps(mode, text)
 	if mode == "variable" then
@@ -3783,6 +3852,7 @@ function runSteps(mode, text)
 		if choice == "off" or choice == "full" then return stepsSetProgression("full") end
 		return "hint mode: use !h on or !h off (currently " .. steps.progression .. ")"
 	end
+	if mode == "attempt" then return attemptFeedback(text) end
 	if mode == "reopen" then
 		if not steps.result then return "no steps yet" end
 		openSteps()
@@ -3812,7 +3882,7 @@ function runSteps(mode, text)
 	end
 	if mode == "help" then
 		return "!d !i !s expr, !k find v; v0 = 5 m/s; ..., bare !d !i !s !k sets the mode, " ..
-		       "!g plain Giac, !v name, !h on|off, !! last steps, !m manifest, !t typed check. " ..
+		       "!g plain Giac, !v name, !h on|off, !a your next step, !! last steps, !m manifest, !t typed check. " ..
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end

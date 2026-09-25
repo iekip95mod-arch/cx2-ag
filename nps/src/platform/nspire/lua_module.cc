@@ -27,6 +27,7 @@
 #include "nps/core/canonical.h"
 #include "nps/core/evaluate.h"
 #include "nps/steps/derivation.h"
+#include "nps/steps/attempt.h"
 #include "nps/steps/command.h"
 #include "nps/steps/calculus.h"
 #include "nps/ui/canvas.h"
@@ -1810,6 +1811,91 @@ int l_canonical(lua_State *L) {
 
     std::string out = print(arena, c);
     lua_pushlstring(L, out.data(), out.size());
+    return 1;
+}
+
+// STEP-013 and STEP-014. The state, the attempt, the later route states as an array of strings and
+// the variable. Nothing here reads or writes a derivation, which is what keeps VER-019 structural.
+int l_judge_attempt(lua_State *L) {
+    const char *current_text = scalar_string_argument(L, 1);
+    const char *attempt_text = scalar_string_argument(L, 2);
+    // Raw reads, all checked before any native object exists, so a refusal longjmps past nothing.
+    int count = 0;
+    if (!lua_isnoneornil(L, 3)) {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        for (;; ++count) {
+            lua_rawgeti(L, 3, count + 1);
+            const int type = lua_type(L, -1);
+            size_t size = 0;
+            const char *text = type == LUA_TSTRING ? lua_tolstring(L, -1, &size) : nullptr;
+            lua_pop(L, 1);
+            if (type == LUA_TNIL)
+                break;
+            if (type != LUA_TSTRING)
+                return luaL_error(L, "judge_attempt route state %d is not a string", count + 1);
+            if (std::memchr(text, '\0', size) != nullptr)
+                return luaL_error(L, "judge_attempt route state %d has an embedded NUL", count + 1);
+            if (count >= static_cast<int>(Budget{}.max_steps))
+                return luaL_error(L, "judge_attempt takes at most %d route states",
+                                  static_cast<int>(Budget{}.max_steps));
+        }
+    }
+    std::string variable;
+    if (!variable_argument(L, 4, &variable))
+        return 2;
+
+    std::vector<std::string> route;
+    route.reserve(static_cast<size_t>(count));
+    for (int index = 1; index <= count; ++index) {
+        lua_rawgeti(L, 3, index);
+        size_t size = 0;
+        const char *text = lua_tolstring(L, -1, &size);
+        route.push_back(std::string(text, size));
+        lua_pop(L, 1);
+    }
+
+    AttemptVerdict verdict;
+    ParseResult refused;
+    const char *refused_part = nullptr;
+    {
+        Arena arena;
+        const ParseResult current = parse(arena, current_text);
+        const ParseResult attempt = parse(arena, attempt_text);
+        std::vector<NodeId> states;
+        if (!current.ok()) {
+            refused = current;
+            refused_part = "state";
+        } else if (!attempt.ok()) {
+            refused = attempt;
+            refused_part = "attempt";
+        }
+        for (size_t i = 0; refused_part == nullptr && i < route.size(); ++i) {
+            const ParseResult state = parse(arena, route[i]);
+            if (!state.ok()) {
+                refused = state;
+                refused_part = "route state";
+            }
+            states.push_back(state.root);
+        }
+        if (refused_part == nullptr) {
+            verdict = judge_attempt(arena, current.root, attempt.root, arena.symbol(variable), states,
+                                    interactive_budget());
+        }
+    }
+    if (refused_part != nullptr) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "%s: %s at character %d", refused_part, status_name(refused.status),
+                        static_cast<int>(refused.offset) + 1);
+        return 2;
+    }
+
+    lua_newtable(L);
+    set_field(L, "equivalence", attempt_equivalence_name(verdict.equivalence));
+    set_field(L, "strength", evidence_strength_name(verdict.strength));
+    set_field(L, "method", verdict.method);
+    set_field(L, "detail", verdict.detail);
+    set_field(L, "usefulness", attempt_usefulness_name(verdict.usefulness));
+    set_field(L, "reaches", static_cast<int>(verdict.reaches));
     return 1;
 }
 
@@ -3993,6 +4079,7 @@ const luaL_Reg lib[] = {
     {"os_number_input", l_os_number_input},
     {"canonical", l_canonical},
     {"math_display", l_math_display},
+    {"judge_attempt", l_judge_attempt},
     {"giac", l_giac},
     {"walkthrough", l_walkthrough},
     {"ui_panel", l_ui_panel},

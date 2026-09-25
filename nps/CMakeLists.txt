@@ -64,6 +64,7 @@ set(CORE_SOURCES
     src/steps/quadratic.cc
     src/steps/rearrange.cc
     src/steps/rewrite.cc
+    src/steps/attempt.cc
     src/steps/command.cc
     src/steps/integer.cc
     src/steps/matrix_row.cc
@@ -112,6 +113,7 @@ set(TEST_SOURCES
     tests/unit/quadratic_tests.cc
     tests/unit/rearrange_tests.cc
     tests/unit/rewrite_tests.cc
+    tests/unit/attempt_tests.cc
     tests/unit/command_tests.cc
     tests/unit/integer_tests.cc
     tests/unit/matrix_row_tests.cc
