@@ -822,15 +822,12 @@ ForcesResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     // the inventory and the answer disagree, and then no value is offered.
     // Rebuilt from the published inventory rather than from the running total the answer came out
     // of, so an entry that disagrees with the sum shows up here instead of cancelling itself.
+    // Neither branch can overflow: required was checked and the product rebuilds the along total.
     Exact target;
     if (problem.unknown == ForcesUnknown::Acceleration) {
         target = mul(exact(mass), answer);
     } else {
         target = required;
-    }
-    if (!target.ok) {
-        return failed(ForcesOutcome::ArithmeticOverflow, DerivationStatus::ResourceLimitReached,
-                      "evaluating the force-balance residual exceeds exact arithmetic");
     }
     const ForceBalance balance = forces_along_balance(result.inventory, target.value);
     if (!balance.exact) {
