@@ -332,6 +332,30 @@ void run_position_motion_tests(TestSink &t) {
                     exhausted.result.average_velocity.unit.text.empty(),
                 "an exhausted solve exposes no answer at all");
     }
+    {
+        // Issue 416. The family composes two engines that each write a context of their own, so
+        // before this the field carried whichever of them ran last: the differentiation engine with
+        // no backend, and the component converter with one. Both are asserted, because a fix that
+        // only covers the backend route leaves the commoner one still borrowing.
+        Run without(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"));
+        t.equal(without.derivation.context.problem_family_id, "physics.motion.position-vector",
+                "with no backend the context names this family rather than the nested derivative "
+                "engine it borrowed from");
+        t.equal(without.derivation.context.problem_family_envelope_version, "1",
+                "and it records the envelope version the catalog declares");
+        t.check(without.derivation.context.derivation_status == without.result.status,
+                "the context binds to the outcome this family reached");
+        SequenceBackend backend({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0", "sqrt(73)", "0",
+                                 "atan2(8,3)", "0", "0", "atan2(4,0)", "0"});
+        Run with(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), Budget(), &backend);
+        t.equal(with.derivation.context.problem_family_id, "physics.motion.position-vector",
+                "and with a backend it still names this family rather than the component converter "
+                "that wrote the context last");
+        t.equal(with.derivation.context.problem_family_envelope_version, "1",
+                "with the same envelope version on both routes");
+        t.check(!with.derivation.context.requested_method.empty(),
+                "the context states the method this family ran rather than a nested engine's");
+    }
 }
 
 }  // namespace nps

@@ -1,5 +1,6 @@
 #include "nps/physics/position_motion.h"
 
+#include "nps/core/context.h"
 #include "nps/core/evaluate.h"
 #include "nps/core/parser.h"
 #include "nps/steps/differentiate.h"
@@ -32,6 +33,36 @@ Vector made_vector(const Rational values[3], uint8_t rank, Dimension dimension) 
     v.unit.scale = Rational{1, 1};
     v.precision.kind = NumberKind::Exact;
     return v;
+}
+
+// Written after the nested engines have finished, because each of them writes a context of its own
+// and the last writer would otherwise leave this family's derivation naming one of theirs.
+void record_context(Derivation &derivation, const Budget &budget, NodeId model,
+                    DerivationStatus status, bool converted_directions) {
+    ContextInputs inputs;
+    inputs.application_version = application_version();
+    inputs.problem_family_id = "physics.motion.position-vector";
+    inputs.requested_method =
+        "differentiate each component of the supplied position vector twice in t, take the secant "
+        "over the declared interval for the average velocity and evaluate both derivatives at the "
+        "event time";
+    inputs.normalized_problem_model = model;
+    inputs.original_expression = derivation.request.original_expression;
+    inputs.active_assumptions.push_back(
+        "each component of the position vector is a function of t alone");
+    inputs.active_assumptions.push_back("the axes are independent and share one clock");
+    if (converted_directions)
+        inputs.angle_convention =
+            "each reported vector's direction comes from the component converter, in the angle "
+            "measure the problem declared";
+    inputs.unit_policy =
+        "interval bounds and the event time are converted to seconds exactly, and each reported "
+        "vector carries the SI unit of its own dimension";
+    inputs.detail_projection = "standard";
+    inputs.resource_policy = budget_policy(budget);
+    inputs.derivation_status = status;
+    derivation.context = make_context(inputs);
+    derivation.context.problem_family_envelope_version = "1";
 }
 
 // One axis's slice through the whole computation: parse, secant, differentiate twice, evaluate
@@ -203,6 +234,7 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
             result.detail = axis.detail;
             result.status = axis.status;
             result.cost = meter.cost();
+            record_context(derivation, budget, kNoNode, result.status, false);
             return result;
         }
         average_velocity[axis_index] = axis.average_velocity;
@@ -242,6 +274,7 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
                     std::string(kVectorNames[index]) + " direction: " + polar.detail;
                 halted.status = polar.status;
                 halted.cost = meter.cost();
+                record_context(derivation, budget, kNoNode, halted.status, true);
                 return halted;
             }
             if (polar.outcome == VectorComponentsOutcome::Solved && polar.has_polar) {
@@ -274,6 +307,7 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
     result.outcome = PositionMotionOutcome::Solved;
     result.status = last_status;
     result.cost = meter.cost();
+    record_context(derivation, budget, kNoNode, result.status, giac != nullptr);
     return result;
 }
 
