@@ -4126,7 +4126,7 @@ local function writeEvidence()
     local expected = {
         "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
         "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "PLAT-006", "PLAT-012",
+        "PLAT-006", "PLAT-012", "VER-020",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -8262,6 +8262,145 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- VER-020. A reopened history row names the build that produced it and is never shown as renewed.
+do
+    (function()
+    local OLD = "stepcas.unified.inputs-sha256.oldbuild"
+    local NEW = "stepcas.unified.inputs-sha256.newbuild"
+    local function built(id, answers)
+        local module = copyModule()
+        local manifest = copyManifest()
+        manifest.id = id
+        module.capability_manifest = function() return manifest end
+        local plain = module.caseval
+        module.caseval = function(s) return answers and answers[s] or plain(s) end
+        return module
+    end
+    local function enter(env, line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local function record(env, index)
+        return env.historyRecordText and env.historyRecordText(env.steps.histText[index])
+    end
+
+    local old = loadIsolated(built(OLD))
+    old.on.paint(gc)
+    for _, line in ipairs({ "1+1", "2+2", "3+3" }) do enter(old, line) end
+    check(old.steps.histText[1].state == "live" and old.steps.histText[1].build == OLD,
+          "a row computed in this session is live under the build that computed it")
+    check(record(old, 1) == "computed under this build, oldbuild",
+          "and the details say so")
+    local saved = old.on.save()
+    local builds_saved = #saved.history == 3 and saved.history[1].build == OLD and
+                         saved.history[3].build == OLD and saved.history[1].state == nil
+    check(builds_saved,
+          "save records the build behind each row and no state, since a reopened row is archived")
+
+    local new = loadIsolated(built(NEW, { ["2+2"] = "five" }))
+    new.on.restore(saved)
+    local announced = new.steps.status
+    new.on.paint(gc)
+    local rows = new.steps.histText
+    local archived = #rows == 3 and rows[1].state == "archived" and rows[1].build == OLD and
+                     rows[3].state == "archived"
+    check(archived, "a reopened row is archived under the build that produced it, not the one reading it")
+    local announced_mismatch = type(announced) == "string" and
+                               announced:find("3 archived", 1, true) ~= nil and
+                               announced:find("oldbuild", 1, true) ~= nil and
+                               announced:find("newbuild", 1, true) ~= nil
+    check(announced_mismatch, "reopening under another build says so, naming both builds")
+    check(new.steps.status == announced, "and the first paint leaves that on the status line")
+    local archived_text = record(new, 1)
+    check(archived_text == "archived under oldbuild, not revalidated under this build",
+          "and the details of a reopened row say it was not revalidated")
+    new.theView:setFocus(new.histME1[1])
+    new.readFullText()
+    drawn = {}
+    new.on.paint(gc)
+    check(table.concat(drawn, " "):find("Record: archived under", 1, true) ~= nil,
+          "which is what the full text reader shows for the focused row")
+    new.on.escapeKey()
+    new.theView:setFocus(new.fctEditor)
+
+    enter(new, "1+1")
+    local revalidated = rows[1].state == "revalidated" and rows[1].build == NEW and
+                        rows[4].state == "live"
+    check(revalidated, "entering an archived row again under this build and matching it revalidates it")
+    check(record(new, 1) == "revalidated under this build, newbuild",
+          "and its details say revalidated rather than archived")
+    enter(new, "2+2")
+    local diverged = rows[2].state == "diverged" and rows[2].build == OLD
+    check(diverged, "a different answer under this build leaves the row on its old build as diverged")
+    check(record(new, 2) == "archived under oldbuild, this build gives a different result",
+          "and its details show the mismatch rather than accepting it")
+    check(type(new.steps.status) == "string" and new.steps.status:find("differs", 1, true) ~= nil,
+          "and the status line names it too")
+    check(rows[3].state == "archived", "a row nobody entered again stays archived")
+    local resaved = new.on.save()
+    check(resaved.history[1].build == NEW and resaved.history[2].build == OLD and
+              resaved.history[3].build == OLD,
+          "saving again moves only the revalidated row onto this build")
+
+    local unrecorded = loadIsolated(built(NEW))
+    unrecorded.on.restore({ history = { { " 1+1", " giac(1+1)" }, { " 2+2", " 4", build = 7 } } })
+    unrecorded.on.paint(gc)
+    local unknown = unrecorded.steps.histText[1].state == "archived" and
+                    unrecorded.steps.histText[1].build == nil and
+                    unrecorded.steps.histText[2].build == nil
+    check(unknown, "a row saved without a usable build is archived with no build rather than this one")
+    check(record(unrecorded, 1) == "archived, build not recorded, not revalidated under this build",
+          "and says its build was not recorded")
+    local pending = loadIsolated(built(NEW))
+    pending.on.restore({ history = { { " !s 2*x+5=13", " 4", build = OLD } } })
+    pending.on.paint(gc)
+    enter(pending, "!s 2*x+5=13")
+    check(pending.incrementalSolve.active and pending.steps.histText[1].state == "archived",
+          "a solve still in progress has no answer yet, so it neither revalidates nor diverges")
+    pending.incrementalSolve.cancel()
+    local refusedModule = built(NEW)
+    local refusedManifest = copyManifest()
+    refusedManifest.artifact = "split"
+    refusedModule.capability_manifest = function() return refusedManifest end
+    local unloaded = loadIsolated(refusedModule)
+    unloaded.on.restore({ history = { { " 1+1", " giac(1+1)", build = OLD } } })
+    unloaded.on.paint(gc)
+    enter(unloaded, "1+1")
+    local rowsUnloaded = unloaded.steps.histText
+    check(rowsUnloaded[1].state == "archived" and rowsUnloaded[2].build == nil,
+          "with no StepCAS build loaded nothing can be revalidated, so the row stays archived")
+    check(record(unloaded, 2) == "computed with no StepCAS build loaded",
+          "and a row computed then says no build stands behind it")
+    local statuses = {}
+    for name, history in pairs({
+        same = { { " 1+1", " 2", build = NEW } },
+        unrecorded = { { " 1+1", " 2" } },
+        mixed = { { " 1+1", " 2", build = OLD }, { " 2+2", " 4" } },
+    }) do
+        local env = loadIsolated(built(NEW))
+        env.on.restore({ history = history })
+        statuses[name] = env.steps.status
+    end
+    check(statuses.same == "reopened 1 archived results, not revalidated under newbuild",
+          "rows reopened under the build that saved them are still archived rather than current")
+    check(statuses.unrecorded == "reopened 1 archived results from an unrecorded build, not " ..
+              "revalidated under newbuild",
+          "rows with no build are announced as from an unrecorded one")
+    check(statuses.mixed == "reopened 2 archived results from several other builds, not " ..
+              "revalidated under newbuild",
+          "and rows from more than one other build are announced as such")
+
+    evidence("VER-020", builds_saved and archived and announced_mismatch and revalidated and diverged and
+                 unknown,
+             "a reopened history row is archived under the build recorded when it was computed, or " ..
+             "with no build when none was recorded, and says it was not revalidated. Entering it " ..
+             "again under the current build revalidates it only when the answer matches, and a " ..
+             "different answer is shown as a mismatch that keeps the old build. The shell saves " ..
+             "results as history text rather than derivation records, so these are its reopened " ..
+             "results")
     end)()
 end
 
