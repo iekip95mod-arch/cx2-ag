@@ -664,6 +664,53 @@ int selftest() {
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
                   << family_cases[i].what << "\n";
     }
+    // MATH-013 claims the required assumptions are declared, so a line the run faults cannot pass it.
+    for (const bool malformed : {false, true}) {
+        {
+            std::ofstream staged(group_catalog.c_str());
+            staged << "family id staged.complete\n";
+            for (const char *field : kSection27Fields) {
+                if (std::string(field) == "id")
+                    continue;
+                if (std::string(field) == "rule_ids") {
+                    staged << "rule eq.divide-both-sides fixture\n";
+                    continue;
+                }
+                if (malformed && std::string(field) == "required_assumptions") {
+                    staged << "required_assumptions the solver assumes \"unclosed\n";
+                    continue;
+                }
+                staged << field << " none, this field is unused in the staged catalog\n";
+            }
+            staged << "test_group_ids staged group\n";
+        }
+        {
+            std::ofstream staged(group_evidence.c_str());
+            staged << "group\tacceptance corpus\ngroup\tstaged group\n"
+                   << "family\tstaged.complete\nfamily\tstaged.exempt\n";
+        }
+        std::filesystem::remove(group_report);
+        const int status = coverage(group_catalog, fixtures_dir, group_report,
+                                    group_evidence.c_str(), nullptr, staged_awaiting,
+                                    staged_no_engine, staged_no_run_none);
+        std::ifstream written(group_evidence.c_str());
+        std::string verdict;
+        std::string line;
+        const std::string key = "evidence\tMATH-013\t";
+        while (std::getline(written, line)) {
+            if (line.rfind(key, 0) == 0)
+                verdict = line.substr(key.size(), line.find('\t', key.size()) - key.size());
+        }
+        const bool as_expected = status == (malformed ? 1 : 0) &&
+                                 verdict == (malformed ? "fail" : "pass");
+        if (!as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                  << (malformed ? "a required_assumptions line the run faults writes MATH-013 as "
+                                  "fail, saw "
+                                : "a well formed envelope writes MATH-013 as pass, saw ")
+                  << (verdict.empty() ? "no row" : verdict) << "\n";
+    }
     std::cout << "coverage selftest: " << count_text(static_cast<size_t>(failures)) << " failed\n";
     return failures == 0 ? 0 : 1;
 }
@@ -1197,7 +1244,8 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     bool evidence_refused = false;
     if (evidence_path != nullptr) {
         const std::string row =
-            std::string("evidence\tMATH-013\t") + (envelope_gaps == 0 ? "pass" : "fail") +
+            std::string("evidence\tMATH-013\t") +
+            (envelope_gaps == 0 && assumption_faults == 0 ? "pass" : "fail") +
             "\tcoverage\tevery one of " + count_text(families.size()) +
             " catalogued families declares its own accepted expression grammar, domains and "
             "parameter assumptions, required assumptions, exact and special-function and numerical "
