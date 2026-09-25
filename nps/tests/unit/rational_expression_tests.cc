@@ -76,6 +76,9 @@ void test_polynomials(TestSink &t) {
     mpz_ui_pow_ui(mpq_numref(big.at(0)), 2, 400);
     Poly squared;
     t.check(!poly_mul(big, big, &squared), "a product whose coefficients outgrow the bit bound is refused");
+    Poly tiny = poly({1, 1});
+    mpz_ui_pow_ui(mpq_denref(tiny.at(0)), 2, 400);
+    t.check(!poly_mul(tiny, tiny, &squared), "and so is one whose denominators outgrow it");
 }
 
 struct Run {
