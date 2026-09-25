@@ -95,6 +95,28 @@ bool value_is(const ForcesResult &result, int64_t numerator, int64_t denominator
 
 bool cancel_now(void *) { return true; }
 
+Quantity exactly(const char *unit, int64_t numerator, int64_t denominator) {
+    Quantity quantity = parsed((std::string("1 ") + unit).c_str());
+    quantity.value.num = numerator;
+    quantity.value.den = denominator;
+    return quantity;
+}
+
+void overflow_row(TestSink &t, const ForcesProblem &overflowing,
+                  const ForcesProblem &representable, const std::string &detail,
+                  const std::string &what) {
+    Run refused(overflowing);
+    t.check(refused.result.outcome == ForcesOutcome::ArithmeticOverflow,
+            what + " refuses as an arithmetic overflow");
+    t.check(refused.result.status == DerivationStatus::ResourceLimitReached,
+            what + " records a resource limit rather than a failed verification");
+    t.check(!refused.result.has_value, what + " offers no value");
+    t.equal(refused.result.detail, detail, what + " names the arithmetic it could not carry");
+    Run solved(representable);
+    t.check(solved.result.outcome == ForcesOutcome::Solved && solved.result.has_value,
+            what + " solves once the same arrangement fits exact arithmetic");
+}
+
 }
 
 void run_forces_tests(TestSink &t) {
@@ -600,6 +622,141 @@ void run_forces_tests(TestSink &t) {
         const ForceBalance restored = forces_along_balance(solved.result.inventory, target);
         t.check(restored.exact && restored.balanced,
                 "the unperturbed inventory still passes, so the row above is about the entry");
+    }
+    {
+        // Every exact-arithmetic refusal here, one row each, paired with a magnitude that fits.
+        const int64_t wide = int64_t{1} << 61;
+        const int64_t narrow = int64_t{1} << 59;
+
+        ForcesProblem identity = base(ForcesUnknown::Acceleration);
+        identity.assume_equilibrium = false;
+        identity.surface = SurfaceKind::Incline;
+        identity.incline_sin = Rational{1, 4000000000};
+        identity.incline_cos = Rational{1, 1};
+        ForcesProblem identity_fits = identity;
+        identity_fits.incline_sin = Rational{3, 5};
+        identity_fits.incline_cos = Rational{4, 5};
+        overflow_row(t, identity, identity_fits,
+                     "checking the incline trigonometric identity exceeds exact arithmetic",
+                     "an incline sine that squares out of range");
+
+        ForcesProblem weight = base(ForcesUnknown::Acceleration);
+        weight.assume_equilibrium = false;
+        weight.mass = exactly("kg", 4000000000, 1);
+        weight.gravity = exactly("m/s^2", 4000000000, 1);
+        ForcesProblem weight_fits = weight;
+        weight_fits.gravity = exactly("m/s^2", 1, 1);
+        overflow_row(t, weight, weight_fits, "resolving the weight exceeds exact arithmetic",
+                     "a mass and a field strength whose product is out of range");
+
+        // The across component is the most negative int64, so negating it is the step that fails.
+        ForcesProblem across = base(ForcesUnknown::Acceleration);
+        across.assume_equilibrium = false;
+        across.surface = SurfaceKind::Incline;
+        across.incline_sin = Rational{3, 5};
+        across.incline_cos = Rational{4, 5};
+        across.mass = exactly("kg", wide, 1);
+        across.gravity = exactly("m/s^2", 1, 1);
+        ForcesProblem across_fits = across;
+        across_fits.mass = exactly("kg", narrow, 1);
+        overflow_row(t, across, across_fits, "summing the across axis exceeds exact arithmetic",
+                     "an across component whose negation is out of range");
+
+        ForcesProblem along = base(ForcesUnknown::AppliedForce);
+        along.assume_equilibrium = false;
+        along.mass = exactly("kg", 4000000000, 1);
+        along.gravity = exactly("m/s^2", 1, 1);
+        along.acceleration = exactly("m/s^2", 4000000000, 1);
+        along.has_acceleration = true;
+        ForcesProblem along_fits = along;
+        along_fits.acceleration = exactly("m/s^2", 1, 1);
+        overflow_row(t, along, along_fits, "summing the along axis exceeds exact arithmetic",
+                     "a mass and an acceleration whose product is out of range");
+
+        ForcesProblem limit = base(ForcesUnknown::Acceleration);
+        limit.assume_equilibrium = false;
+        limit.mass = exactly("kg", 4000000000, 1);
+        limit.gravity = exactly("m/s^2", 1, 1);
+        limit.friction = FrictionModel::Kinetic;
+        limit.motion = MotionSense::UpTheAxis;
+        limit.friction_coefficient = Rational{4000000000, 1};
+        ForcesProblem limit_fits = limit;
+        limit_fits.friction_coefficient = Rational{1, 1};
+        overflow_row(t, limit, limit_fits,
+                     "evaluating the friction limit exceeds exact arithmetic",
+                     "a coefficient and a normal force whose product is out of range");
+
+        // The along total is the most negative int64, so negating it is the step that fails.
+        ForcesProblem needed = base(ForcesUnknown::NormalForce);
+        needed.surface = SurfaceKind::Incline;
+        needed.incline_sin = Rational{4, 5};
+        needed.incline_cos = Rational{3, 5};
+        needed.mass = exactly("kg", wide, 1);
+        needed.gravity = exactly("m/s^2", 1, 1);
+        needed.friction = FrictionModel::Static;
+        needed.friction_coefficient = Rational{1, 2};
+        ForcesProblem needed_fits = needed;
+        needed_fits.mass = exactly("kg", narrow, 1);
+        needed_fits.friction_coefficient = Rational{2, 1};
+        overflow_row(t, needed, needed_fits,
+                     "evaluating the required friction exceeds exact arithmetic",
+                     "a required static friction whose negation is out of range");
+
+        ForcesProblem against_limit = base(ForcesUnknown::NormalForce);
+        against_limit.surface = SurfaceKind::Incline;
+        against_limit.incline_sin = Rational{3, 5};
+        against_limit.incline_cos = Rational{4, 5};
+        against_limit.mass = exactly("kg", 5, 12000000000);
+        against_limit.gravity = exactly("m/s^2", 1, 1);
+        against_limit.friction = FrictionModel::Static;
+        against_limit.friction_coefficient = Rational{1, 3000000001};
+        ForcesProblem against_limit_fits = against_limit;
+        against_limit_fits.friction_coefficient = Rational{1, 1};
+        overflow_row(t, against_limit, against_limit_fits,
+                     "comparing the required friction against its limit exceeds exact arithmetic",
+                     "a required friction and a limit with no common denominator in range");
+
+        ForcesProblem with_friction = base(ForcesUnknown::Acceleration);
+        with_friction.assume_equilibrium = false;
+        with_friction.surface = SurfaceKind::Incline;
+        with_friction.incline_sin = Rational{3, 5};
+        with_friction.incline_cos = Rational{4, 5};
+        with_friction.mass = exactly("kg", 5, 12000000000);
+        with_friction.gravity = exactly("m/s^2", 1, 1);
+        with_friction.friction = FrictionModel::Kinetic;
+        with_friction.motion = MotionSense::DownTheAxis;
+        with_friction.friction_coefficient = Rational{1, 3000000001};
+        ForcesProblem with_friction_fits = with_friction;
+        with_friction_fits.friction_coefficient = Rational{1, 3};
+        overflow_row(t, with_friction, with_friction_fits,
+                     "summing the along axis exceeds exact arithmetic",
+                     "a friction and an along total with no common denominator in range");
+
+        ForcesProblem isolate = base(ForcesUnknown::Acceleration);
+        isolate.assume_equilibrium = false;
+        isolate.mass = exactly("kg", 3000000001, 1);
+        isolate.gravity = exactly("m/s^2", 1, 1);
+        isolate.applied = exactly("N", 1, 4000000000);
+        isolate.has_applied = true;
+        ForcesProblem isolate_fits = isolate;
+        isolate_fits.mass = exactly("kg", 3, 1);
+        overflow_row(t, isolate, isolate_fits,
+                     "solving for the requested unknown exceeds exact arithmetic",
+                     "an along total divided by a mass with no quotient in range");
+
+        ForcesProblem residual = base(ForcesUnknown::NormalForce);
+        residual.assume_equilibrium = false;
+        residual.mass = exactly("kg", 1, 1);
+        residual.gravity = exactly("m/s^2", 1, 1);
+        residual.applied = exactly("N", 1, 4000000000);
+        residual.has_applied = true;
+        residual.acceleration = exactly("m/s^2", 1, 9000000003000000000);
+        residual.has_acceleration = true;
+        ForcesProblem residual_fits = residual;
+        residual_fits.acceleration = exactly("m/s^2", 1, 4000000000);
+        overflow_row(t, residual, residual_fits,
+                     "evaluating the force-balance residual exceeds exact arithmetic",
+                     "a published inventory and a target with no common denominator in range");
     }
 }
 
