@@ -304,6 +304,41 @@ void run_ranking_tests(TestSink &t) {
                     derivation.size() == 0,
                 "cancellation during comparisons stops without publishing an order");
     }
+    {
+        // The same gap issue 416 names for position motion. This family composed comparison and
+        // recorded no context of its own, so its derivation carried whatever a nested engine left
+        // behind. A refusal is asserted beside a solve because both are walkthroughs a reader sees.
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+        problem.situations.push_back(situation("path 2", ranking_known(2)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "a solved ranking names this family rather than leaving the field to a nested "
+                "engine");
+        t.equal(derivation.context.problem_family_envelope_version, "1",
+                "and records the envelope version the catalog declares");
+        t.check(derivation.context.derivation_status == result.status,
+                "the context binds to the outcome the ranking reached");
+        t.check(derivation.context.requested_method.find("criteria") != std::string::npos,
+                "the context states the method this family ran");
+
+        RankingProblem undecidable;
+        undecidable.situations.push_back(situation("path 1", ranking_unknown()));
+        undecidable.situations.push_back(situation("path 2", ranking_known(2)));
+        Derivation refused_derivation;
+        const RankingResult refused = solve_ranking(refused_derivation, model, undecidable);
+        t.equal(ranking_outcome_name(refused.outcome), "indeterminate order",
+                "the control on the line below, so the refusal really is a refusal");
+        t.equal(refused_derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "and a refused ranking names the family too, since a refusal is a walkthrough as "
+                "much as an answer is");
+    }
 }
 
 }  // namespace nps
