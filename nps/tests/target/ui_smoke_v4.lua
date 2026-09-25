@@ -4788,6 +4788,27 @@ if os.getenv("NPS_COMMAND_MODULE") then
               "a real bridge preflight refusal remains visible without fallback: " .. command)
         if env.steps.active then env.on.escapeKey() end
     end
+    env.fctEditor.editor:setExpression("\\0el {simplify((x^2-1)/(x-1))}")
+    env.on.enterKey()
+    local cancel_index
+    for index, step in ipairs(env.steps.result and env.steps.result.steps or {}) do
+        if step.rule == "alg.rational.cancel-common-factor" then cancel_index = index end
+    end
+    check(env.steps.active and cancel_index ~= nil and env.steps.result.result == "(x + 1)",
+          "the Simplify command cancels a common factor through the real bridge")
+    if cancel_index then
+        env.steps.focus = cancel_index
+        env.steps.view = "step"
+        for _ = 1, 4 do env.on.paint(gc) end
+        drawn = {}
+        env.on.paint(gc)
+        check(table.concat(drawn, "\n"):find("Requires: x \226\137\160 1", 1, true) ~= nil,
+              "and the cancelling step shows the value it excludes")
+    end
+    if env.steps.active then
+        env.on.escapeKey()
+        env.on.escapeKey()
+    end
     local function select_integer_menu(label)
         for _, category in ipairs(env.menu) do
             for index = 2, #category do

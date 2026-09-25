@@ -253,13 +253,14 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
     "algebra.quadratic.pure-square.one-unknown",
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
+    "algebra.rational-expression.single-quotient",
     "number.integer-method.literal",
     "matrix.ref.rational",
     "matrix.rref.rational",
@@ -390,6 +391,24 @@ for _, case in ipairs(command_cases) do
         check(record.agrees and record.giac_calls == 2 and giac_calls == 2,
               case[2] .. " retains the public bridge cross-check policy")
     end
+end
+
+do
+    local function domain_of(record, rule)
+        for _, step in ipairs(record.steps or {}) do
+            if step.rule == rule then return step.domain end
+        end
+        return nil
+    end
+    script("0")
+    local cancelled = nps.walkthrough("simplify((x^2-1)/(x-1))", "x", "exact")
+    check(type(cancelled) == "table" and cancelled.solved and cancelled.result == "(x + 1)" and
+          domain_of(cancelled, "alg.rational.cancel-common-factor") == "x != 1",
+          "simplify cancels a common factor through the bridge and the step carries the excluded value")
+    script("0")
+    local kept = nps.walkthrough("simplify((x+2)/(x-3))", "x", "exact")
+    check(type(kept) == "table" and kept.solved and domain_of(kept, "alg.simplify.fold-and-collect") == "x != 3",
+          "a quotient with nothing to cancel still carries its denominator's condition through the bridge")
 end
 
 do

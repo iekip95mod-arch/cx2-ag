@@ -8,6 +8,7 @@
 #include "nps/core/evaluate.h"
 #include "nps/core/print.h"
 #include "nps/core/rational.h"
+#include "nps/steps/linear.h"
 
 namespace nps {
 namespace {
@@ -1119,6 +1120,243 @@ bool factor_monic_quadratic(Context &ctx, NodeId *expression, const std::string 
     return true;
 }
 
+// Sums, products and whole-number powers of integers and symbols, which is what same_terms can prove over.
+bool polynomial(const Arena &a, NodeId id) {
+    const Node &n = a.at(id);
+    switch (n.kind) {
+        case Kind::Integer:
+        case Kind::Symbol: return true;
+        case Kind::Neg:
+        case Kind::Add:
+        case Kind::Mul:
+            for (NodeId child : a.children(id)) {
+                if (!polynomial(a, child))
+                    return false;
+            }
+            return true;
+        case Kind::Pow: {
+            const ChildView parts = a.children(id);
+            const Node &exponent = a.at(parts[1]);
+            return exponent.kind == Kind::Integer && polynomial(a, parts[0]);
+        }
+        default: return false;
+    }
+}
+
+void flatten_product(const Arena &a, NodeId id, std::vector<NodeId> *out) {
+    if (a.at(id).kind == Kind::Mul) {
+        for (NodeId child : a.children(id))
+            flatten_product(a, child, out);
+        return;
+    }
+    out->push_back(id);
+}
+
+// The quotient read as numerator and denominator factors. False when there is no symbolic denominator
+// or a part is not a polynomial, which leaves the expression to the polynomial family.
+bool read_quotient(Arena &a, NodeId id, std::vector<NodeId> *numerator, std::vector<NodeId> *denominator) {
+    std::vector<NodeId> parts;
+    flatten_product(a, id, &parts);
+    for (NodeId part : parts) {
+        int64_t exponent = 0;
+        if (a.at(part).kind == Kind::Pow && folded_integer(a, a.children(part)[1], &exponent) &&
+            exponent < 0) {
+            if (exponent != -1)
+                return false;
+            flatten_product(a, a.children(part)[0], denominator);
+        } else {
+            flatten_product(a, part, numerator);
+        }
+    }
+    bool symbolic = false;
+    for (NodeId f : *denominator) {
+        if (!polynomial(a, f))
+            return false;
+        Rational value;
+        if (!numeric(a, f, &value))
+            symbolic = true;
+    }
+    for (NodeId f : *numerator) {
+        if (!polynomial(a, f))
+            return false;
+    }
+    return symbolic;
+}
+
+bool has_symbolic_quotient(Arena &a, NodeId id) {
+    std::vector<NodeId> numerator;
+    std::vector<NodeId> denominator;
+    return read_quotient(a, id, &numerator, &denominator);
+}
+
+NodeId quotient_of(Arena &a, const std::vector<NodeId> &numerator, const std::vector<NodeId> &denominator) {
+    const NodeId top = numerator.empty() ? a.integer("1") : product_of(a, numerator);
+    if (denominator.empty())
+        return top;
+    const NodeId reciprocal =
+        a.binary(Kind::Pow, product_of(a, denominator), a.unary(Kind::Neg, a.integer("1")));
+    return numerator.empty() ? reciprocal : a.binary(Kind::Mul, top, reciprocal);
+}
+
+std::vector<NodeId> kept_factors(const std::vector<NodeId> &factors, const std::vector<bool> &gone) {
+    std::vector<NodeId> kept;
+    for (size_t i = 0; i < factors.size(); ++i) {
+        if (!gone[i])
+            kept.push_back(factors[i]);
+    }
+    return kept;
+}
+
+// x != 1 when the factor is linear in its only symbol, and the factor itself otherwise.
+std::string excluded_text(Arena &a, Meter &meter, NodeId factor) {
+    std::vector<std::string> symbols;
+    collect_symbols(a, factor, &symbols);
+    if (symbols.size() == 1) {
+        const NodeId symbol = a.symbol(symbols[0]);
+        const NodeId equation = a.binary(Kind::Equals, factor, a.integer("0"));
+        Rational coefficient;
+        Rational constant;
+        Rational quotient;
+        Rational root;
+        if (equation != kNoNode &&
+            linear_form(a, equation, symbol, meter, &coefficient, &constant) == LinearForm::Reduced &&
+            rational_div(constant, coefficient, &quotient) && rational_sub(Rational(), quotient, &root))
+            return symbols[0] + " != " + rational_text(root);
+    }
+    Restriction r;
+    r.subject = factor;
+    r.condition = Condition::NonZero;
+    return restriction_text(a, r);
+}
+
+// Each sum factored with the registered factoring rules, then flattened back into factors.
+bool factor_each(Context &ctx, const std::string &goal, std::vector<NodeId> *factors) {
+    std::vector<NodeId> out;
+    for (NodeId f : *factors) {
+        NodeId current = f;
+        if (ctx.arena.at(f).kind == Kind::Add) {
+            bool changed = false;
+            if (!take_out_common_factor(ctx, &current, goal, &changed) || ctx.failed)
+                return false;
+            if (!factor_monic_quadratic(ctx, &current, goal, &changed) || ctx.failed)
+                return false;
+        }
+        flatten_product(ctx.arena, current, &out);
+    }
+    *factors = out;
+    return true;
+}
+
+// ALG-005. A factor shared by the numerator and the denominator cancels, one step to a factor, and
+// the value it excluded is recorded on that step. What stays below the line keeps its condition on the plan.
+bool cancel_common_factors(Context &ctx, NodeId *expression, const std::string &goal) {
+    Arena &a = ctx.arena;
+    std::vector<NodeId> numerator;
+    std::vector<NodeId> denominator;
+    if (!read_quotient(a, *expression, &numerator, &denominator))
+        return true;
+    const std::vector<NodeId> original_denominator = denominator;
+
+    const size_t mark = ctx.derivation.mark();
+    if (!factor_each(ctx, goal, &numerator) || !factor_each(ctx, goal, &denominator)) {
+        if (ctx.meter.stopped() || ctx.outcome != RewriteOutcome::UnsupportedForm)
+            return false;
+        // A side the factoring rules refuse is left as written rather than failing the rewrite.
+        ctx.failed = false;
+        ctx.detail.clear();
+        numerator.clear();
+        denominator.clear();
+        read_quotient(a, *expression, &numerator, &denominator);
+    }
+
+    std::vector<std::pair<size_t, size_t>> shared;
+    std::vector<bool> taken(numerator.size(), false);
+    for (size_t j = 0; j < denominator.size(); ++j) {
+        Rational value;
+        if (numeric(a, denominator[j], &value))
+            continue;
+        const NodeId key = canonicalize(a, denominator[j]);
+        for (size_t i = 0; key != kNoNode && i < numerator.size(); ++i) {
+            if (!taken[i] && canonicalize(a, numerator[i]) == key) {
+                taken[i] = true;
+                shared.push_back({i, j});
+                break;
+            }
+        }
+    }
+    if (a.failed()) {
+        refuse(ctx, RewriteOutcome::ResourceExceeded, "the expression limits were reached");
+        return false;
+    }
+    if (shared.empty()) {
+        // Nothing cancels, so the factoring is not the reader's business and is taken back.
+        ctx.derivation.rewind_to(mark);
+        for (NodeId f : original_denominator) {
+            Rational value;
+            if (!numeric(a, f, &value))
+                ctx.derivation.restrictions_at(ctx.plan).push_back(excluded_text(a, ctx.meter, f));
+        }
+        return true;
+    }
+
+    NodeId current = quotient_of(a, numerator, denominator);
+    std::vector<bool> gone_top(numerator.size(), false);
+    std::vector<bool> gone_bottom(denominator.size(), false);
+    for (const auto &pair : shared) {
+        const NodeId factor = denominator[pair.second];
+        const NodeId top_before = quotient_of(a, kept_factors(numerator, gone_top), {});
+        const NodeId bottom_before = quotient_of(a, kept_factors(denominator, gone_bottom), {});
+        gone_top[pair.first] = true;
+        gone_bottom[pair.second] = true;
+        const std::vector<NodeId> top = kept_factors(numerator, gone_top);
+        const std::vector<NodeId> bottom = kept_factors(denominator, gone_bottom);
+        const NodeId after = quotient_of(a, top, bottom);
+        const NodeId top_after = quotient_of(a, top, {});
+        const NodeId bottom_after = quotient_of(a, bottom, {});
+        const bool proved =
+            after != kNoNode &&
+            same_terms(a, expanded_silently(a, ctx.meter, a.binary(Kind::Mul, top_after, factor)),
+                       expanded_silently(a, ctx.meter, top_before)) &&
+            same_terms(a, expanded_silently(a, ctx.meter, a.binary(Kind::Mul, bottom_after, factor)),
+                       expanded_silently(a, ctx.meter, bottom_before));
+        if (!proved) {
+            if (ctx.meter.stopped()) {
+                ctx.failed = true;
+                ctx.outcome = RewriteOutcome::Refused;
+                ctx.detail = halt_name(ctx.meter.halt());
+                return false;
+            }
+            refuse(ctx, RewriteOutcome::VerificationFailed,
+                   "the cancelled factor did not multiply back into both sides");
+            return false;
+        }
+        Step s = envelope(goal, "alg.rational.cancel-common-factor", "Cancel a common factor",
+                          "A factor above and below the line divides out");
+        s.explanation_detailed =
+            "The same factor multiplies the top and the bottom, so dividing both by it leaves the "
+            "value unchanged wherever the factor is not zero. Where it is zero the original has no "
+            "value, so that point stays excluded even though the factor is gone.";
+        s.domain_restrictions.push_back(excluded_text(a, ctx.meter, factor));
+        s.verifications.push_back(passed(
+            "multiply the cancelled factor back into both sides and compare term by term",
+            EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+            "the factor times what is left gives back the numerator and the denominator"));
+        s.proof_obligations.push_back({"obl.alg.cancel-keeps-value",
+                                       "the quotient keeps its value wherever the cancelled factor is not zero"});
+        if (!record(ctx, std::move(s), current, after, "Cancel " + print(a, factor),
+                    std::vector<uint32_t>()))
+            return false;
+        current = after;
+    }
+    for (size_t j = 0; j < denominator.size(); ++j) {
+        Rational value;
+        if (!gone_bottom[j] && !numeric(a, denominator[j], &value))
+            ctx.derivation.restrictions_at(ctx.plan).push_back(excluded_text(a, ctx.meter, denominator[j]));
+    }
+    *expression = current;
+    return true;
+}
+
 VerificationRecord backend_opinion(Arena &arena, Backend &giac, Meter &meter, NodeId difference,
                                    bool *disagreed) {
     VerificationRecord v;
@@ -1154,11 +1392,14 @@ VerificationRecord backend_opinion(Arena &arena, Backend &giac, Meter &meter, No
     return v;
 }
 
-void record_context(Derivation &derivation, const Budget &budget, NodeId model, RewriteGoal goal,
+void record_context(Arena &arena, Derivation &derivation, const Budget &budget, NodeId model, RewriteGoal goal,
                     DerivationStatus status) {
     ContextInputs inputs;
     inputs.application_version = application_version();
-    inputs.problem_family_id = "algebra.polynomial-rewrite.single-expression";
+    inputs.problem_family_id = goal == RewriteGoal::Simplify && model != kNoNode && !arena.failed() &&
+                                       has_symbolic_quotient(arena, model)
+                                   ? "algebra.rational-expression.single-quotient"
+                                   : "algebra.polynomial-rewrite.single-expression";
     inputs.requested_method = rewrite_goal_name(goal);
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
@@ -1276,38 +1517,36 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
     if (expression == kNoNode || arena.failed()) {
         result.detail = "nothing to rewrite";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
     if (contains_list(arena, expression)) {
         result.outcome = RewriteOutcome::UnsupportedForm;
         result.detail = "list and matrix rewriting is not supported";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
     if (arena.at(expression).kind == Kind::Equals) {
         result.outcome = RewriteOutcome::UnsupportedForm;
         result.detail = "this rule rewrites an expression, and an equation has two of them";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
     if (divides_by_zero(arena, expression)) {
         result.outcome = RewriteOutcome::Refused;
         result.detail = "the expression divides by zero, which has no value to rewrite";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
-    // None of the six rules below records a domain restriction, and that is correct only because none
-    // of them cancels: x/x, ln(x)/ln(x) and (x^2-1)/(x-1) all come back untouched. A cancelling rule
-    // added here introduces one and has to record it, or #17 is silently false from that day.
+    // Only alg.rational.cancel-common-factor cancels, and it records the excluded value, which keeps #17 true.
     if (has_unmeetable_condition(arena, expression)) {
         result.outcome = RewriteOutcome::Refused;
         result.detail = "the expression is undefined here, so there is nothing to rewrite";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
     if (holds_decimal(arena, expression)) {
@@ -1316,7 +1555,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
             "this rule works on exact numbers, and a decimal would have to become a fraction or "
             "stay a decimal, which is a choice it does not make";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1363,7 +1602,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
         result.status = cancelled ? DerivationStatus::NotRecorded
                                   : DerivationStatus::ResourceLimitReached;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1384,6 +1623,8 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
         gather_powers(ctx, &current, goal_text);
     if (!ctx.failed)
         collect_like_terms(ctx, &current, goal_text);
+    if (!ctx.failed && goal == RewriteGoal::Simplify)
+        cancel_common_factors(ctx, &current, goal_text);
     if (!ctx.failed && goal == RewriteGoal::Factor) {
         bool changed = false;
         if (take_out_common_factor(ctx, &current, goal_text, &changed) && !ctx.failed)
@@ -1406,7 +1647,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
                         : kept     ? DerivationStatus::Cancelled
                                    : DerivationStatus::NotRecorded;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1421,7 +1662,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
                 ? DerivationStatus::ResourceLimitReached
                 : DerivationStatus::Unsupported;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1441,7 +1682,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
         result.detail = "rewriting reaches a division by zero, so the expression has no value";
         result.status = DerivationStatus::InvalidInput;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1459,7 +1700,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
                             : "there is nothing left to work out or gather";
         result.status = DerivationStatus::SolvedAndVerified;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1481,7 +1722,7 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
         result.status = cancelled ? DerivationStatus::NotRecorded
                                   : DerivationStatus::ResourceLimitReached;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
@@ -1545,14 +1786,14 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
                             ? "the rewritten expression failed its own value check"
                             : "Giac and the rewritten expression disagree, so it is not offered";
         result.status = DerivationStatus::VerificationFailed;
-        record_context(derivation, budget, expression, goal, result.status);
+        record_context(arena, derivation, budget, expression, goal, result.status);
         return result;
     }
 
     result.outcome = RewriteOutcome::Rewritten;
     result.expression = current;
     result.status = derivation.outcome_from(mark);
-    record_context(derivation, budget, expression, goal, result.status);
+    record_context(arena, derivation, budget, expression, goal, result.status);
     return result;
 }
 

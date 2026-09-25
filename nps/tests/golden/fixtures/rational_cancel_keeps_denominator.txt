@@ -1,0 +1,78 @@
+problem: (x*(x + 2))/(x*(x - 3))
+variable: simplify
+outcome: rewritten
+result: ((x + 2) * ((x + (-3))^(-1)))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.rational-expression.single-quotient
+  envelope version: <not recorded>
+  normalized problem: ((x * (x + 2)) * ((x * (x + (-3)))^(-1)))
+  requested method: simplify
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Rewrite ((x * (x + 2)) * ((x * (x + (-3)))^(-1)))
+    rule: alg.simplify.fold-and-collect, Work out the arithmetic, then gather like terms
+    claim: no claim
+    explanation: Work out the arithmetic, then gather like terms
+    domain restriction: x != 3
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Work out the arithmetic, then gather like terms
+    applicability: every number in the expression is exact
+    applicability: every move comes from a registered rewriting rule
+    fact: asked to simplify ((x * (x + 2)) * ((x * (x + (-3)))^(-1)))
+    rationale: the arithmetic is worked out where it stands and then terms that differ only by their coefficient are added together
+    verification: literal inspection, passed, no decimal literal appears in the expression
+    verification: registered rewriting rule dispatch, passed, every move came from a registered rewriting rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: rewrite
+      goal: simplify the expression
+      rule: alg.gather-powers, Repeated factors are a power
+      claim: equivalent expression
+      explanation: The same factor multiplied several times is that factor to a power
+      detail: Counting how many times a factor appears in the term and writing it as an exponent changes nothing about the value, and it is what lets like terms be seen as alike.
+      proof obligation: obl.alg.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Write (((x * (x + (-3)))^(-1)) * x * (x + 2)) as (x * (x + 2) * ((x * (x + (-3)))^(-1)))
+      before: ((x * (x + 2)) * ((x * (x + (-3)))^(-1)))
+      after: (x * (x + 2) * ((x * (x + (-3)))^(-1)))
+      reversible: yes
+      verification: rule-local invariant, passed, the exponents count the same factors the product had
+      verified: yes
+    1.2 transformation
+      phase: rewrite
+      goal: simplify the expression
+      rule: alg.rational.cancel-common-factor, Cancel a common factor
+      claim: equivalent expression
+      explanation: A factor above and below the line divides out
+      detail: The same factor multiplies the top and the bottom, so dividing both by it leaves the value unchanged wherever the factor is not zero. Where it is zero the original has no value, so that point stays excluded even though the factor is gone.
+      domain restriction: x != 0
+      proof obligation: obl.alg.cancel-keeps-value, the quotient keeps its value wherever the cancelled factor is not zero
+      action: Cancel x
+      before: ((x * (x + 2)) * ((x * (x + (-3)))^(-1)))
+      after: ((x + 2) * ((x + (-3))^(-1)))
+      reversible: yes
+      verification: multiply the cancelled factor back into both sides and compare term by term, passed, the factor times what is left gives back the numerator and the denominator
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the rewritten expression
+      rule: alg.rewrite.check-by-evaluation, Check by working both forms out
+      claim: equivalent expression
+      explanation: Work the first form and the last one out at the same values
+      detail: Every rule used here keeps the value of the expression, so the two forms must agree wherever they are both defined. Working both out at several exact values can show that they do not, and a backend is asked for the symbolic answer when one is supplied.
+      proof obligation: obl.rewrite.same-value, the rewritten expression has the value the original had
+      target claim: ((x * (x + 2)) * ((x * (x + (-3)))^(-1))) and ((x + 2) * ((x + (-3))^(-1))) are the same expression
+      check method: work both forms out exactly at several assignments
+      expected: the two forms take the same value
+      observed: the forms agreed at all 5 assignments
+      verification: exact evaluation at 6 rational assignments, passed, both forms took the same value at all 5 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+      verified: yes

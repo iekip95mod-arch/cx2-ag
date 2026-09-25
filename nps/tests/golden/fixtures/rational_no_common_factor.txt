@@ -1,0 +1,36 @@
+problem: (x + 2)/(x - 3)
+variable: simplify
+outcome: already in that form
+result: ((x + 2) * ((x + (-3))^(-1)))
+detail: there is nothing left to work out or gather
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.rational-expression.single-quotient
+  envelope version: <not recorded>
+  normalized problem: ((x + 2) * ((x + (-3))^(-1)))
+  requested method: simplify
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Rewrite ((x + 2) * ((x + (-3))^(-1)))
+    rule: alg.simplify.fold-and-collect, Work out the arithmetic, then gather like terms
+    claim: no claim
+    explanation: Work out the arithmetic, then gather like terms
+    domain restriction: x != 3
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Work out the arithmetic, then gather like terms
+    applicability: every number in the expression is exact
+    applicability: every move comes from a registered rewriting rule
+    fact: asked to simplify ((x + 2) * ((x + (-3))^(-1)))
+    rationale: the arithmetic is worked out where it stands and then terms that differ only by their coefficient are added together
+    verification: literal inspection, passed, no decimal literal appears in the expression
+    verification: registered rewriting rule dispatch, passed, every move came from a registered rewriting rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed

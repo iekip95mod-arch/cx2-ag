@@ -275,6 +275,17 @@ const ObligationSchema kFactorMultipliesBack[] = {
      kMultiplyBackOut, 2},
 };
 
+// algebra.rational-expression.single-quotient
+const EvidenceAlternative kCancelMultipliesBack[] = {
+    {"multiply the cancelled factor back into both sides and compare term by term",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+
+const ObligationSchema kCancelKeepsValue[] = {
+    {"obl.alg.cancel-keeps-value",
+     "the quotient keeps its value wherever the cancelled factor is not zero", kCancelMultipliesBack, 1},
+};
+
 // The sampled evaluation names its own sample count, so this string moves if kSamples does. That is
 // the right coupling rather than an accident: a different number of assignments is different
 // evidence, and the conformance check saying so is what stops the count drifting unremarked.
@@ -1721,6 +1732,8 @@ const RuleSchema kRules[] = {
      FailureBehavior::CannotFail},
     {"alg.rewrite.check-by-evaluation", ClaimType::EquivalentExpression, kRewriteSameValue, 1,
      FailureBehavior::WithholdResult},
+    {"alg.rational.cancel-common-factor", ClaimType::EquivalentExpression, kCancelKeepsValue, 1,
+     FailureBehavior::CannotFail},
 
     // algebra.formula-rearrangement
     {"alg.rearrange.inverse-operations", ClaimType::NoClaim, kRearrangeStrategy, 3,

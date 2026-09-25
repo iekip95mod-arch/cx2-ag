@@ -1294,6 +1294,35 @@ rule alg.factor.product-and-sum fixture
 rule alg.factor.difference-of-squares fixture
 rule alg.rewrite.check-by-evaluation fixture
 
+family id algebra.rational-expression.single-quotient
+topic_and_level Simplifying one rational expression by cancelling a common factor, PRD section 9.4 ALG-005
+accepted_input_forms one simplify command whose expression is a quotient with a symbolic denominator
+accepted_expression_grammar a product of polynomial factors over exact integers and symbols, times the reciprocal of a product of polynomial factors, with every exponent a whole number and the reciprocal written as a single division
+domains_and_parameter_assumptions every value that makes a denominator factor zero is excluded, and the exclusion is published whether or not the factor survives
+supported_branches_and_degenerate_cases a quotient with no shared factor is reported as already in its form and still publishes its denominator's conditions, a factor with no rational root cancels against itself with its condition stated on the factor, and a quotient whose parts are not polynomials is left to the polynomial rewrite family unchanged
+exact_special_function_and_numerical_result_policy exact integers and fractions only, and a decimal literal is refused rather than converted
+parser_module_ids src/core/parser.cc, src/steps/rewrite.cc, src/core/canonical.cc, src/steps/linear.cc
+required_assumptions none carried for the family, each excluded value is recorded as a domain restriction on the step that cancels its factor, and a denominator factor that stays is recorded on the plan
+test_group_ids rewrite
+proof_obligation_ids obl.alg.cancel-keeps-value, obl.alg.factor-multiplies-back, obl.rewrite.same-value, obl.alg.rule-preserves-value, obl.plan.preconditions-hold
+supported_methods factor the numerator and the denominator with the registered common-factor, product-and-sum and difference-of-squares rules, cancel each factor the two share, one step to a factor, and check the result by exact evaluation
+unsupported_near_neighbors sums and differences of rational expressions (#523), products and quotients of several rational expressions (#524), partial fractions (#525), repeated or powered factors cancelling in part, non-monic quadratic factors, and radicals or functions in either part
+solution_soundness_status verified, each cancellation multiplies the cancelled factor back into both sides and compares term by term, and the finished expression is worked out against the original at six exact assignments
+solution_completeness_status partial, cancellation of identical factors after the registered factoring rules
+corpus_case_ids rational_cancel_difference_of_squares, rational_cancel_product_and_sum, rational_cancel_keeps_denominator, rational_no_common_factor
+explanation_review_status rewritten and already-simplest derivations covered by golden fixtures, independent explanation review not yet recorded
+device_performance_status not measured
+direct_keypad_entry_status the existing Simplify entry in the Algebra menu reaches it, manual keypad qualification pending
+isolated_runtime_status host core and native Lua bridge validated, calculator runtime not yet measured
+capability_manifest_ids algebra.rational-expression.single-quotient
+release_status unreleased
+rule alg.simplify.fold-and-collect fixture
+rule alg.gather-powers fixture
+rule alg.factor.difference-of-squares fixture
+rule alg.factor.product-and-sum fixture
+rule alg.rational.cancel-common-factor fixture
+rule alg.rewrite.check-by-evaluation fixture
+
 family id number.integer-method.literal
 reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
 curriculum_source_locations docs/menu-walkthrough-plan.md, Number and Probability menu inventory

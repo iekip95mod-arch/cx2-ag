@@ -1015,6 +1015,14 @@ void run_golden_tests(TestSink &t) {
                  rewrite_record("x^2 + 4x + 0", RewriteGoal::Factor, Budget()));
     check_golden(t, "rewrite_difference_of_squares",
                  rewrite_record("x^2 + -4", RewriteGoal::Factor, Budget()));
+    check_golden(t, "rational_cancel_difference_of_squares",
+                 rewrite_record("(x^2 - 1)/(x - 1)", RewriteGoal::Simplify, Budget()));
+    check_golden(t, "rational_cancel_product_and_sum",
+                 rewrite_record("(x^2 + 3x + 2)/(x + 1)", RewriteGoal::Simplify, Budget()));
+    check_golden(t, "rational_cancel_keeps_denominator",
+                 rewrite_record("(x*(x + 2))/(x*(x - 3))", RewriteGoal::Simplify, Budget()));
+    check_golden(t, "rational_no_common_factor",
+                 rewrite_record("(x + 2)/(x - 3)", RewriteGoal::Simplify, Budget()));
     check_golden(t, "rewrite_decimal_refused",
                  rewrite_record("1.5 + 2", RewriteGoal::Simplify, Budget()));
     check_golden(t, "rewrite_step_budget_halt",

@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <pthread.h>
@@ -74,6 +75,45 @@ bool same_value(const std::string &left, const std::string &right) {
         return false;
     const SampleAgreement agreement = agrees_on_samples(arena, a, b, 6);
     return agreement.evaluated > 0 && agreement.agreed == agreement.evaluated;
+}
+
+struct Cancelled {
+    RewriteOutcome outcome = RewriteOutcome::Refused;
+    std::string expression;
+    std::string family;
+    std::vector<std::string> rules;
+    // Each restriction with the rule of the step that carries it, as "rule: text".
+    std::vector<std::string> restrictions;
+    bool all_verified = true;
+};
+
+bool cancel_now(void *) { return true; }
+
+Cancelled simplify_quotient(const std::string &source, const Budget &budget = Budget()) {
+    Arena arena;
+    Derivation d;
+    const RewriteResult r = rewrite(arena, d, parse(arena, source).root, RewriteGoal::Simplify, budget);
+    Cancelled out;
+    out.outcome = r.outcome;
+    out.expression = r.expression == kNoNode ? "" : print(arena, r.expression);
+    out.family = d.context.problem_family_id;
+    for (size_t i = 0; i < d.size(); ++i) {
+        const Step &step = d.at(static_cast<StepId>(i));
+        out.rules.push_back(step.rule_id);
+        for (const std::string &text : step.domain_restrictions)
+            out.restrictions.push_back(step.rule_id + ": " + text);
+        if (!step.verified())
+            out.all_verified = false;
+    }
+    return out;
+}
+
+bool holds(const std::vector<std::string> &list, const std::string &item) {
+    for (const std::string &entry : list) {
+        if (entry == item)
+            return true;
+    }
+    return false;
 }
 
 bool bounded_evaluation() {
@@ -785,6 +825,75 @@ void run_rewrite_tests(TestSink &t) {
         // level aggregating the trace, and there is no presentation layer in this engine to test.
         t.check(shaped && first != nullptr && print(arena, first->after) == "(2 + 12)",
                 "each arithmetic operation is its own step rather than one simplified answer");
+    }
+
+    // ALG-005, the cancellation slice of #132. The excluded value is recorded on the step that cancels.
+    {
+        const Cancelled c = simplify_quotient("(x^2-1)/(x-1)");
+        t.check(c.outcome == RewriteOutcome::Rewritten && same_value(c.expression, "x+1"),
+                "a difference of squares over one of its factors simplifies to the other factor");
+        t.check(holds(c.rules, "alg.factor.difference-of-squares"),
+                "the numerator is factored by the registered rule before anything cancels");
+        t.evidence("ALG-005", holds(c.restrictions, "alg.rational.cancel-common-factor: x != 1"),
+                   "cancelling x - 1 records that x = 1 is excluded");
+        t.check(c.family == "algebra.rational-expression.single-quotient",
+                "a quotient with a symbolic denominator is stamped as the rational expression family");
+        t.check(c.all_verified, "and every step, including the final evaluation check, is verified");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x*(x+2))/(x*(x-3))");
+        t.check(c.outcome == RewriteOutcome::Rewritten && same_value(c.expression, "(x+2)/(x-3)"),
+                "a shared factor of x cancels and the other brackets stay");
+        t.evidence("ALG-005", holds(c.restrictions, "alg.rational.cancel-common-factor: x != 0"),
+                   "the cancelled factor x records that x = 0 is excluded");
+        t.evidence("ALG-005", holds(c.restrictions, "alg.simplify.fold-and-collect: x != 3"),
+                   "and the denominator that stays keeps its own condition on the plan");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x+2)/(x-3)");
+        t.check(c.outcome == RewriteOutcome::AlreadyInForm,
+                "a quotient with no shared factor is already in its simplest form");
+        t.check(holds(c.restrictions, "alg.simplify.fold-and-collect: x != 3") &&
+                    c.family == "algebra.rational-expression.single-quotient",
+                "and still publishes its denominator's condition");
+        t.check(!holds(c.rules, "alg.factor.difference-of-squares") &&
+                    !holds(c.rules, "alg.factor.product-and-sum"),
+                "nothing is factored when nothing would cancel");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x^2-1)/(x+5)");
+        t.check(c.outcome == RewriteOutcome::AlreadyInForm &&
+                    !holds(c.rules, "alg.factor.difference-of-squares"),
+                "a factorable numerator with nothing to cancel against is left unfactored");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x^2+1)/(x^2+1)");
+        t.check(c.outcome == RewriteOutcome::Rewritten && c.expression == "1",
+                "a factor with no rational root cancels against itself");
+        t.check(holds(c.restrictions, "alg.rational.cancel-common-factor: ((x^2) + 1) is not zero"),
+                "and its condition is stated on the factor rather than as an excluded value");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x^2+3*x+2)/(x+1)");
+        t.check(c.outcome == RewriteOutcome::Rewritten && same_value(c.expression, "x+2") &&
+                    holds(c.rules, "alg.factor.product-and-sum") &&
+                    holds(c.restrictions, "alg.rational.cancel-common-factor: x != -1"),
+                "a monic quadratic factored by product and sum cancels against its bracket");
+    }
+    {
+        const Cancelled c = simplify_quotient("sin(x)/sin(x)");
+        t.check(c.outcome == RewriteOutcome::AlreadyInForm && !holds(c.rules, "alg.rational.cancel-common-factor") &&
+                    c.family == "algebra.polynomial-rewrite.single-expression",
+                "a quotient of forms that are not polynomials is outside the rational family and is not cancelled");
+    }
+    {
+        const Cancelled c = simplify_quotient("(x^2-1)/(x-1)", Budget{4096, 2, 64, 32, nullptr, nullptr});
+        t.check(c.outcome == RewriteOutcome::ResourceExceeded && !holds(c.rules, "alg.rational.cancel-common-factor"),
+                "a step budget that runs out before the cancellation says so and cancels nothing");
+        Budget stopped;
+        stopped.poll = cancel_now;
+        const Cancelled halted = simplify_quotient("(x^2-1)/(x-1)", stopped);
+        t.check(halted.outcome == RewriteOutcome::Cancelled, "a cancelled simplification says so");
     }
 }
 
