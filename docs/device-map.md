@@ -138,7 +138,7 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`source`: read on 2026-09-24, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
 `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
 `work`.
@@ -147,16 +147,19 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2735 sends projectile true for the thrown ball and
-nps/lua/nps_v4.lua:2752 leaves it unset for the sliding puck. nps/src/physics/planar_kinematics.cc:246
-reads that flag and reports either physics.kinematics.constant-acceleration.projectile.two-dimension or
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:CITE_PROJECTILE sends projectile true for the thrown
+ball and nps/lua/nps_v4.lua:CITE_GENERAL leaves it unset for the ball in a sideways wind.
+nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
-nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a menu
-entry that cannot run.
+nps/src/core/capability_manifest.cc:CITE_MANIFEST and required of the loaded module at
+nps/lua/nps_v4.lua:CITE_REQUIRED, so a build missing either one refuses to start rather than offering a
+menu entry that cannot run.
 
 `position_motion` and `ranking` still have working
-engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
+engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
+nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
+with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
 
 ## What renders on screen
@@ -174,7 +177,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1435.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156, measureMath
+sets the expression at :3190, and the history editor sets its expression at :1437.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -241,7 +245,7 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1330 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+`source`: nps/CMakeLists.txt:1332 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
 targets that compile lua_module.cc, `nps_split_module` at line 723 and `nps_nspire_module` at line 929,
 are in the device branch behind the ARM toolchain.
 

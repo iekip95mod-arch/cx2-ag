@@ -1206,6 +1206,8 @@ else()
     add_library(nps_core OBJECT ${CORE_SOURCES})
     target_link_libraries(nps_core PUBLIC nps_flags nps_gmp)
     target_include_directories(nps_core PUBLIC include)
+    # The family census the coverage join reads, host only so the calculator build carries none of it.
+    target_compile_definitions(nps_core PUBLIC NPS_FAMILY_CENSUS=1)
 
     # Section 5.2's item 2, the host test harness.
     add_executable(nps_host ${TEST_SOURCES} "${NPS_GIAC_SRC}/sha256.c")

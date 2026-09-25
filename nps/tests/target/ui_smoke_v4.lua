@@ -3537,6 +3537,82 @@ check(request_ok and request_error == "StepCAS module is outdated or incomplete 
 check(calls.integrate == integrate_before,
       "step requests do not call any solver after the surface check fails")
 
+do
+    local modes = {}
+    for _, fixture in ipairs(PHYSICS_FIXTURES) do modes[fixture.mode] = true end
+    for mode in pairs(modes) do
+        local module = copyModule()
+        check(type(module[mode]) == "function", "the guided " .. mode .. " action has a native export")
+        module[mode] = nil
+        local env, _, _, ok = loadIsolated(module)
+        check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
+              "StepCAS module is outdated or incomplete (missing " .. mode .. ")",
+              "the guided " .. mode .. " action requires its native export at load")
+    end
+
+    local physicsSolvers = {
+        { "kinematics", "physics.kinematics.constant-acceleration.one-dimension" },
+        { "unit_conversion", "units.chain-link-conversion" },
+        { "density", "physics.density.mass-volume" },
+        { "vector_addition", "physics.vectors.cartesian-addition.two-dimension" },
+        { "relative_motion", "physics.kinematics.relative-motion.components.two-dimension" },
+        { "work", "physics.work.constant-force-dot-product" },
+        { "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
+        { "catch_up", "physics.kinematics.catch-up.equal-position" },
+        { "forces", "physics.forces.newton-second-law" },
+        { "optics", "physics.optics.thin-lens.image" },
+        { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+    }
+    for _, solver in ipairs(physicsSolvers) do
+        local module = copyModule()
+        local manifest = copyManifest()
+        local installed = false
+        for _, entry in ipairs(manifest.installed_modules) do
+            if entry.id == solver[2] then
+                installed = true
+                entry.id = entry.id .. ".removed"
+                break
+            end
+        end
+        check(modes[solver[1]] and type(module[solver[1]]) == "function" and installed,
+              "the guided " .. solver[1] .. " action has its expected native capability")
+        module.capability_manifest = function() return manifest end
+        local env, _, _, ok = loadIsolated(module)
+        check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
+              "StepCAS module incompatible (missing " .. solver[2] .. ")",
+              "the guided " .. solver[1] .. " action requires " .. solver[2] .. " at load")
+    end
+
+    local textSolvers = {
+        { "differentiate", "calculus.derivative.single-variable" },
+        { "integrate", "calculus.integral.indefinite.single-variable" },
+        { "solve", "algebra.linear-equation.one-unknown" },
+        { "solve", "algebra.quadratic.pure-square.one-unknown" },
+        { "walkthrough", "algebra.formula-rearrangement.single-occurrence" },
+        { "walkthrough", "algebra.polynomial-rewrite.single-expression" },
+        { "walkthrough", "number.integer-method.literal" },
+    }
+    for _, solver in ipairs(textSolvers) do
+        local module = copyModule()
+        local manifest = copyManifest()
+        local installed = false
+        for _, entry in ipairs(manifest.installed_modules) do
+            if entry.id == solver[2] then
+                installed = true
+                entry.id = entry.id .. ".removed"
+                break
+            end
+        end
+        check(type(module[solver[1]]) == "function" and installed,
+              "the " .. solver[2] .. " text action has an export and an installed capability")
+        module.capability_manifest = function() return manifest end
+        local env, _, _, ok = loadIsolated(module)
+        check(ok and not env.hasSteps and env.runSteps("integrate", "1/x") ==
+              "StepCAS module incompatible (missing " .. solver[2] .. ")",
+              "the " .. solver[2] .. " text action requires its capability at load")
+    end
+end
+
 local load_env, load_names, load_menu, load_ok, load_error =
     loadIsolated(nil, "duplicate nps_nspire module shadow\nloader detail")
 check(load_ok and #load_names == 1, "an nrequire failure leaves the document usable: " .. tostring(load_error))
@@ -7988,6 +8064,9 @@ do
     for key, value in pairs(fake_result) do record[key] = value end
     record.canonical = "SECRET_CANONICAL_ANSWER"
     record.result = "SECRET_RAW_ANSWER"
+    record.status = "SECRET_FINAL_TRUST"
+    record.assumptions = "SECRET_FINAL_ASSUMPTION"
+    record.interpretation = "SECRET_FINAL_INTERPRETATION"
     env.stepsSetProgression("hint")
     env.steps.walkthrough = "hint"
     env.steps.result, env.steps.view = record, "result"
@@ -7998,11 +8077,13 @@ do
     local editors_before = #editors
     env.on.paint(gc)
     local answer_in_source = false
+    local hidden_source = {}
     if env.steps.detailLayout and env.steps.detailLayout.source then
         for _, item in ipairs(env.steps.detailLayout.source) do
             if item.slot == "answer" or item.label == "Answer:" or (item.math and item.math:find("SECRET", 1, true)) then
                 answer_in_source = true
             end
+            hidden_source[#hidden_source + 1] = item.text or item.label or item.math or ""
         end
     end
     local answer_in_drawn = table.concat(drawn):find("Answer:", 1, true) ~= nil
@@ -8016,6 +8097,11 @@ do
           "resultLines withholds the final answer when hints remain: source=" ..
           tostring(answer_in_source) .. " drawn=" .. tostring(answer_in_drawn) ..
           " editors=" .. tostring(answer_in_editors))
+    hidden_source = table.concat(hidden_source, " ")
+    check(not hidden_source:find("SECRET_FINAL_TRUST", 1, true) and
+          not hidden_source:find("SECRET_FINAL_ASSUMPTION", 1, true) and
+          not hidden_source:find("SECRET_FINAL_INTERPRETATION", 1, true),
+          "resultLines withholds trust, assumptions and interpretation while hints remain")
 
     -- Once progression reveals all steps, the answer is included in the result view.
     env.steps.revealed = #record.steps
@@ -8024,16 +8110,22 @@ do
     editors_before = #editors
     env.on.paint(gc)
     local revealed_in_source = false
+    local revealed_source = {}
     if env.steps.detailLayout and env.steps.detailLayout.source then
         for _, item in ipairs(env.steps.detailLayout.source) do
             if item.slot == "answer" and item.label == "Answer:" and item.math == "SECRET_CANONICAL_ANSWER" then
                 revealed_in_source = true
             end
+            revealed_source[#revealed_source + 1] = item.text or item.label or item.math or ""
         end
     end
     local revealed_in_drawn = table.concat(drawn):find("Answer:", 1, true) ~= nil
-    check(revealed_in_source and revealed_in_drawn,
-          "resultLines includes the answer once all hints are revealed")
+    revealed_source = table.concat(revealed_source, " ")
+    check(revealed_in_source and revealed_in_drawn and
+          revealed_source:find("SECRET_FINAL_TRUST", 1, true) and
+          revealed_source:find("SECRET_FINAL_ASSUMPTION", 1, true) and
+          revealed_source:find("SECRET_FINAL_INTERPRETATION", 1, true),
+          "resultLines includes the answer and result context once all hints are revealed")
 
     -- Full progression also displays the answer.
     env.stepsSetProgression("full")

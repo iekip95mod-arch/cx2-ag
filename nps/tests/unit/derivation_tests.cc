@@ -5,6 +5,7 @@
 #include "nps/steps/linear.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
+#include "nps/steps/schema.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "unit/adapter_tests.h"
@@ -1930,6 +1931,124 @@ void test_remembered_runs(TestSink &t) {
     }
 }
 
+void test_rule_schema_coverage(TestSink &t) {
+    const auto declares = [&t](const char *rule_id, ClaimType claim, FailureBehavior on_failure,
+                               const char *obligation_id, const char *method,
+                               EvidenceStrength strength) {
+        const RuleSchema *schema = rule_schema(rule_id);
+        t.check(schema && schema->claim == claim && schema->on_failure == on_failure &&
+                    schema->obligation_count == 1 &&
+                    std::string(schema->obligations[0].id) == obligation_id &&
+                    schema->obligations[0].evidence_count == 1 &&
+                    std::string(schema->obligations[0].evidence[0].method) == method &&
+                    schema->obligations[0].evidence[0].strength == strength,
+                std::string(rule_id) +
+                    " declares its emitted claim, obligation, evidence and failure behavior");
+    };
+
+    const RuleSchema *cross_check = rule_schema("calculus.differentiate.giac-cross-check");
+    t.check(cross_check && cross_check->claim == ClaimType::NoClaim &&
+                cross_check->on_failure == FailureBehavior::WithholdResult &&
+                cross_check->obligation_count == 1 &&
+                std::string(cross_check->obligations[0].id) == "obl.differentiate.matches-backend",
+            "the derivative cross-check declares its recorded obligation");
+
+    const RuleSchema *handover = rule_schema("kin.coupled.handover");
+    t.check(handover && handover->claim == ClaimType::NoClaim &&
+                handover->on_failure == FailureBehavior::CannotFail &&
+                handover->obligation_count == 0,
+            "the coupled-body handover declares its no-claim record");
+
+    const RuleSchema *forces = rule_schema("physics.forces.plan");
+    t.check(forces && forces->claim == ClaimType::NoClaim &&
+                forces->on_failure == FailureBehavior::WithholdResult &&
+                forces->obligation_count == 5,
+            "the force plan declares its four preconditions and summary");
+
+    const RuleSchema *ranking = rule_schema("physics.ranking.order");
+    t.check(ranking && ranking->claim == ClaimType::NoClaim &&
+                ranking->on_failure == FailureBehavior::WithholdResult &&
+                ranking->obligation_count == 0,
+            "the ranking order declares its no-claim check");
+
+    const RuleSchema *criterion = rule_schema("physics.ranking.criterion");
+    t.check(criterion && criterion->claim == ClaimType::NoClaim &&
+                criterion->on_failure == FailureBehavior::WithholdResult &&
+                criterion->obligation_count == 0,
+            "all ranking criteria share one no-claim schema");
+
+    const RuleSchema *vanishing = rule_schema("physics.term-vanishes");
+    t.check(vanishing && vanishing->claim == ClaimType::EquivalentExpression &&
+                vanishing->on_failure == FailureBehavior::CannotFail &&
+                vanishing->obligation_count == 1 &&
+                std::string(vanishing->obligations[0].id) ==
+                    "obl.physics.zero-factor-eliminates-term",
+            "a vanishing term declares its zero-factor obligation");
+
+    declares("physics.forces.check-input-dimensions", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.input-dimensions", "dimensional analysis",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.check-angle", ClaimType::Definition, FailureBehavior::WithholdResult,
+             "obl.forces.exact-angle",
+             "trigonometric identity", EvidenceStrength::StructurallyValid);
+    declares("physics.forces.weight", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.forces.weight-components", "exact rational product",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.normal-force", ClaimType::SolutionSetPreserved,
+             FailureBehavior::CannotFail,
+             "obl.forces.normal-from-balance", "exact across-axis sum",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.third-law-pairs", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.pairs-separate", "inventory and pair comparison",
+             EvidenceStrength::StructurallyValid);
+    declares("physics.forces.kinetic-friction", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.forces.kinetic-friction", "exact rational product",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.static-friction-limit", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.static-within-limit", "exact comparison of required friction against mu_s N",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.solve-unknown", ClaimType::SolutionSetPreserved,
+             FailureBehavior::CannotFail,
+             "obl.forces.unknown-isolated", "exact rearrangement",
+             EvidenceStrength::DimensionallyValid);
+    declares("physics.forces.check-residual", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.residual-zero", "exact substitution into the along-axis sum",
+             EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+    declares("physics.forces.check-result-dimension", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.forces.result-dimension", "dimensional analysis",
+             EvidenceStrength::DimensionallyValid);
+
+    declares("physics.relative-motion.significant-figures", ClaimType::NoClaim,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.rounding-within-half-place",
+             "exact comparison against the unrounded value", EvidenceStrength::CandidateChecked);
+    declares("physics.relative-motion.bearing-convention", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.bearing-convention-stated",
+             "nearest cardinal by component magnitude", EvidenceStrength::StructurallyValid);
+    declares("physics.relative-motion.subscript-cancellation", ClaimType::Definition,
+             FailureBehavior::WithholdResult,
+             "obl.relative-motion.subscript-cancellation", "subscript chain",
+             EvidenceStrength::StructurallyValid);
+    declares("physics.relative-motion.isolate-unknown", ClaimType::EquivalentExpression,
+             FailureBehavior::CannotFail,
+             "obl.relative-motion.isolate-before-substitute",
+             "symbolic rearrangement of the subscript identity",
+             EvidenceStrength::StructurallyValid);
+
+    declares("physics.work.giac-cross-check", ClaimType::Definition,
+             FailureBehavior::WithholdResult, "obl.work.backend-agrees",
+             "Giac Adapter Op::Dot and local canonical comparison",
+             EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+}
+
 void run_derivation_tests(TestSink &t) {
     Arena arena;
     Derivation d;
@@ -2088,6 +2207,7 @@ void run_derivation_tests(TestSink &t) {
     test_plan_preconditions(t);
     test_plan_records_its_applicability(t);
     test_remembered_runs(t);
+    test_rule_schema_coverage(t);
 }
 
 }  // namespace nps

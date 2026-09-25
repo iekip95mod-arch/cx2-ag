@@ -728,6 +728,42 @@ rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
 
+family id physics.kinematics.constant-acceleration.two-dimension
+topic_and_level Two-dimensional motion under a constant acceleration in any direction, PRD section 22.1 and PHYS-028's Event/State/Interval distinction
+accepted_expression_grammar existing scalar expression grammar for each vector component
+accepted_input_forms one typed PlanarKinematicsProblem naming a body, a declared frame, rank-two velocity and acceleration vectors and an interval, with the projectile flag clear
+domains_and_parameter_assumptions both vectors are rank two, declare the same named frame and carry matching stage identity, and the acceleration is constant over the interval with no constraint on its direction
+supported_branches_and_degenerate_cases the general case where both components of the acceleration may be non-zero, which is what separates this family from the projectile specialization beside it
+exact_special_function_and_numerical_result_policy exact rational SI conversion and per-component solving with the existing one-dimensional linear engine, with measured precision applied only to the final report
+parser_module_ids src/units/units.cc, src/physics/planar_kinematics.cc
+required_assumptions the frame and the axis convention are declared rather than inferred, carried as "positive i is right and positive j is up", "the acceleration is constant over the whole interval" and "one shared time links both axes"
+test_group_ids planar kinematics
+proof_obligation_ids obl.plan.preconditions-hold, obl.planar-kinematics.rank-two, obl.planar-kinematics.frames-declared, obl.planar-kinematics.frames-match, obl.planar-kinematics.stage-identity, obl.planar-kinematics.input-dimensions, obl.planar-kinematics.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.planar-kinematics.result-dimensions, obl.planar-kinematics.component-i, obl.planar-kinematics.component-j, obl.planar-kinematics.shared-time
+supported_methods validate rank, frame, stage identity and dimensions, then solve each axis independently with the existing one-dimensional kinematics engine under one shared time
+unsupported_near_neighbors an acceleration that changes over the interval, air resistance, more than two dimensions, and the apex cross-check, which belongs to the projectile specialization
+solution_soundness_status verified by rank, frame, stage and dimension checks and by the shared-time check that links the two axes
+solution_completeness_status partial, one body under one constant acceleration over one interval
+corpus_case_ids planar_kinematics_general_two_dimension
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
+release_status in development, unreleased
+# The projectile-plan, check-projectile and check-apex-routes rules belong to the specialization below.
+rule physics.planar-kinematics.plan fixture
+rule physics.planar-kinematics.check-rank fixture
+rule physics.planar-kinematics.check-frame-declared fixture
+rule physics.planar-kinematics.check-frame-match fixture
+rule physics.planar-kinematics.check-stages fixture
+rule physics.planar-kinematics.check-input-dimensions fixture
+rule physics.planar-kinematics.definition fixture
+rule physics.planar-kinematics.substitute fixture
+rule physics.planar-kinematics.convert-si fixture
+rule physics.planar-kinematics.check-result-dimension fixture
+rule physics.planar-kinematics.component-i fixture
+rule physics.planar-kinematics.component-j fixture
+rule physics.planar-kinematics.check-shared-time fixture
+rule physics.planar-kinematics.significant-figures fixture
+
 family id physics.kinematics.constant-acceleration.projectile.two-dimension
 topic_and_level Two-dimensional projectile motion under constant vertical acceleration, PRD section 22.1 and PHYS-028's Event/State/Interval distinction
 accepted_expression_grammar existing scalar expression grammar for each vector component
@@ -797,6 +833,362 @@ rule i.constant device
 rule i.function device
 # This family composes with the existing indefinite-integral engine for each segment's closed
 # form rather than carrying a second integrator, so every rule id above is that family's own.
+
+family id physics.forces.newton-second-law
+topic_and_level One body under Newton's second law on axes along and across its supporting surface, PRD section 9 PHYS-008 and chapter 4 of the PHYS 2410 scope
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities rather than as a typed equation, and the along-axis and across-axis sums are built by the engine
+accepted_input_forms one typed ForcesProblem naming the body and its support, a mass, a gravitational field strength, a surface that is horizontal or an incline declared by the exact sine and cosine of its angle, an optional applied force and tension, a friction model with its coefficient, a declared sense of motion and the unknown to solve for
+domains_and_parameter_assumptions the body is a particle in contact with the surface, the across-axis acceleration is zero, and an incline's sine and cosine are given as exact rationals, an inexact pair being refused rather than approximated
+supported_branches_and_degenerate_cases a horizontal surface and an incline, no friction, kinetic friction opposing a declared sense of motion, and static friction compared against its own maximum, with the four unknowns acceleration, applied force, normal force and friction force
+exact_special_function_and_numerical_result_policy exact rational arithmetic throughout, with the incline entered as an exact sine and cosine so no trigonometric evaluation is needed and no value is approximated
+parser_module_ids src/units/units.cc, src/physics/forces.cc
+required_assumptions the particle model and the axis choice are stated rather than inferred, carried as "the body is a particle, so every force acts at one point", "the axes run along the supporting surface and across it" and "the surface stays in contact, so the across-axis acceleration is zero"
+test_group_ids forces
+proof_obligation_ids obl.plan.preconditions-hold, obl.forces.input-dimensions, obl.forces.exact-angle, obl.forces.weight-components, obl.forces.normal-from-balance, obl.forces.pairs-separate, obl.forces.kinetic-friction, obl.forces.unknown-isolated, obl.forces.residual-zero, obl.forces.result-dimension, obl.forces.static-within-limit
+supported_methods inventory the forces on the one body, resolve each onto the two surface axes, sum each axis under Newton's second law, isolate the unknown and check the along-axis residual and the result's dimension
+unsupported_near_neighbors more than one body sharing an unknown, an incline whose sine and cosine are not exact rationals, drag or any velocity-dependent force, circular motion, and word-language input
+solution_soundness_status verified, the input dimensions and the incline angle are checked before solving, the along-axis residual is rebuilt from the published inventory and checked against zero, and the result's dimension is checked against the unknown
+solution_completeness_status partial, one body on one surface with the four named unknowns
+corpus_case_ids forces_horizontal_kinetic_friction, forces_incline_static_friction, forces_incline_angle_refused
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+# The third-law pairs act between bodies, so its obligation keeps them out of the one body's inventory.
+rule physics.forces.plan fixture
+rule physics.forces.check-input-dimensions fixture
+rule physics.forces.check-angle fixture
+rule physics.forces.weight fixture
+rule physics.forces.normal-force fixture
+rule physics.forces.third-law-pairs fixture
+rule physics.forces.kinetic-friction fixture
+rule physics.forces.static-friction-limit fixture
+rule physics.forces.solve-unknown fixture
+rule physics.forces.check-residual fixture
+rule physics.forces.check-result-dimension fixture
+
+family id physics.circular-motion.uniform
+topic_and_level Uniform circular motion relating speed, radius and period, with the centripetal acceleration reported alongside, PRD section 9 PHYS-010
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds the relation it needs
+accepted_input_forms one typed CircularMotionProblem naming which of speed, radius and period is unknown and giving the other two as quantities
+domains_and_parameter_assumptions the speed is constant around the circle and the radius is positive, a zero or negative radius being refused rather than answered
+supported_branches_and_degenerate_cases each of speed, radius and period as the unknown, with a different relation selected for each, and the centripetal acceleration computed for all three once speed and radius are both known
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/circular_motion.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the constant-speed model and what the reported acceleration means are stated rather than inferred, carried as "the speed is constant, so the motion traces a circle at constant rate" and "the reported acceleration is the magnitude directed toward the centre of the circle"
+test_group_ids circular motion
+proof_obligation_ids obl.plan.preconditions-hold, physics.circular-motion.period.dimensions-agree, physics.circular-motion.period.candidate-satisfies, physics.circular-motion.speed.dimensions-agree, physics.circular-motion.speed.candidate-satisfies, physics.circular-motion.radius.dimensions-agree, physics.circular-motion.radius.candidate-satisfies, physics.circular-motion.acceleration.dimensions-agree, physics.circular-motion.acceleration.candidate-satisfies, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods select the relation that isolates the requested unknown, check its dimensions, substitute the knowns exactly in SI, isolate with the existing linear engine, check the candidate in the original relation, then run the same sequence again for the centripetal acceleration
+unsupported_near_neighbors non-uniform circular motion, angular velocity and angular acceleration as their own quantities, the force that causes the acceleration, and orbital mechanics
+solution_soundness_status verified, each relation's dimensions are checked before substitution and each candidate is put back into the relation it came from
+solution_completeness_status partial, the three positions of the uniform relation with the centripetal acceleration beside them
+corpus_case_ids circular_motion_period_and_acceleration, circular_motion_speed_from_period, circular_motion_radius_from_period
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+# One rule prefix per unknown, and the acceleration's own rules run for every one of them.
+rule physics.circular-motion.period.definition fixture
+rule physics.circular-motion.period.check-dimensions fixture
+rule physics.circular-motion.period.substitute fixture
+rule physics.circular-motion.period.check-candidate fixture
+rule physics.circular-motion.speed.definition fixture
+rule physics.circular-motion.speed.check-dimensions fixture
+rule physics.circular-motion.speed.substitute fixture
+rule physics.circular-motion.speed.check-candidate fixture
+rule physics.circular-motion.speed.significant-figures fixture
+rule physics.circular-motion.radius.definition fixture
+rule physics.circular-motion.radius.check-dimensions fixture
+rule physics.circular-motion.radius.substitute fixture
+rule physics.circular-motion.radius.check-candidate fixture
+rule physics.circular-motion.radius.significant-figures fixture
+rule physics.circular-motion.acceleration.definition fixture
+rule physics.circular-motion.acceleration.check-dimensions fixture
+rule physics.circular-motion.acceleration.substitute fixture
+rule physics.circular-motion.acceleration.check-candidate fixture
+rule physics.circular-motion.acceleration.significant-figures fixture
+# The isolation is the existing linear engine's, so its moves land in this same derivation.
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.gravitation.point-masses
+topic_and_level Newton's law of gravitation between two point masses, PRD section 9 PHYS-012
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds F = G*m1*m2*r^-2
+accepted_input_forms one typed RelationProblem naming which of the force, the two masses and the separation is unknown and giving the other three as quantities
+domains_and_parameter_assumptions each body is a point mass or a spherically symmetric sphere, the separation is between centres, and the tabulated gravitational constant is used exactly
+supported_branches_and_degenerate_cases any one of the four positions as the unknown, since the relation is linear in each after exact SI substitution
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with the gravitational constant carried as an exact tabulated rational rather than a decimal
+parser_module_ids src/units/units.cc, src/physics/gravitation.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the point-mass model, the two-body restriction and the exact constant are stated rather than inferred, carried as "each body is a point mass, or a sphere whose mass distribution is spherically symmetric so its field outside equals that of a point mass at its centre", "the separation is measured between the two centres and no third body contributes" and "the tabulated gravitational constant 6.674e-11 m^3 kg^-1 s^-2 is used exactly and its measurement uncertainty is not propagated"
+test_group_ids gravitation
+proof_obligation_ids obl.plan.preconditions-hold, physics.gravitation.dimensions-agree, physics.gravitation.candidate-satisfies, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, substitute the knowns exactly in SI, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors more than two bodies, gravitational fields and potentials as their own quantities, orbital motion, and the uncertainty carried by the measured constant
+solution_soundness_status verified, the dimensions are checked before substitution and the candidate is put back into the original relation
+solution_completeness_status partial, the four positions of the two-body law
+corpus_case_ids gravitation_two_point_masses
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.gravitation.definition fixture
+rule physics.gravitation.check-dimensions fixture
+rule physics.gravitation.substitute fixture
+rule physics.gravitation.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.oscillation.restoring-force
+topic_and_level The linear restoring force of simple harmonic motion, PRD section 9 PHYS-011
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds F = k*x
+accepted_input_forms one typed RelationProblem naming which of the restoring force, the stiffness and the displacement is unknown and giving the other two as quantities
+domains_and_parameter_assumptions the restoring force is linear in the displacement from equilibrium, the motion is undamped and undriven, and the relation is between magnitudes
+supported_branches_and_degenerate_cases any one of the three positions as the unknown, since the relation is linear in each
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/oscillation.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the linearity, the direction convention and the absence of damping are stated rather than inferred, carried as "the restoring force is linear in the displacement from equilibrium, which for a pendulum holds only in the small-angle approximation", "the magnitudes are related here, with the restoring force directed opposite to the displacement" and "the motion is undamped and no driving force acts"
+test_group_ids oscillation
+proof_obligation_ids obl.plan.preconditions-hold, physics.oscillation.dimensions-agree, physics.oscillation.candidate-satisfies, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, substitute the knowns exactly in SI, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors the period and frequency of the oscillation, the energy stored, damped or driven motion, and the pendulum outside the small-angle approximation
+solution_soundness_status verified, the dimensions are checked before substitution and the candidate is put back into the original relation
+solution_completeness_status partial, the three positions of the restoring-force relation only
+corpus_case_ids oscillation_restoring_force
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.oscillation.definition fixture
+rule physics.oscillation.check-dimensions fixture
+rule physics.oscillation.substitute fixture
+rule physics.oscillation.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.wave.speed-frequency-wavelength
+topic_and_level The basic traveling-wave relation v = f*lambda, PRD section 9 PHYS-011
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds v = f*lambda
+accepted_input_forms one typed RelationProblem naming which of the speed, the frequency and the wavelength is unknown and giving the other two as quantities
+domains_and_parameter_assumptions the medium is uniform and non-dispersive over the band in question, and the wave is periodic and travelling rather than standing
+supported_branches_and_degenerate_cases any one of the three positions as the unknown, and a wavelength given with a unit prefix, which reaches the conversion step an all-SI problem never runs
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/oscillation.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the medium and the kind of wave are stated rather than inferred, carried as "the medium is uniform and non-dispersive over the band in question, so one speed describes the wave" and "the wave is periodic and travelling rather than standing, and the frequency is the source frequency the medium carries unchanged"
+test_group_ids oscillation
+proof_obligation_ids obl.plan.preconditions-hold, physics.wave.dimensions-agree, physics.wave.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors standing waves and their harmonics, dispersion, wave amplitude and energy, interference and the Doppler shift
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the three positions of the traveling-wave relation only
+corpus_case_ids wave_speed_mixed_units
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.wave.definition fixture
+rule physics.wave.check-dimensions fixture
+rule physics.wave.convert-units fixture
+rule physics.wave.substitute fixture
+rule physics.wave.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+# The five relativity families share one engine and one rule set, differing in the relation applied.
+
+family id physics.relativity.time-dilation
+topic_and_level Time dilation between two inertial frames in relative motion along a shared x axis, PRD section 9 PHYS-023
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds dt = gamma*dt0
+accepted_input_forms one typed RelativityProblem naming both frames, the boost as a fraction of c and the proper time
+domains_and_parameter_assumptions both frames are inertial, the boost is below the speed of light, and 1 - beta^2 is the square of an exact fraction so gamma is an exact rational
+supported_branches_and_degenerate_cases a boost along either direction of the shared axis, since gamma reads beta squared, and a refusal when the speed is at or above c or when gamma has no exact rational value
+exact_special_function_and_numerical_result_policy exact rational throughout, reporting nothing rather than a decimal when the Lorentz factor is not an exact rational
+parser_module_ids src/units/units.cc, src/physics/relativity.cc
+required_assumptions the frames, the boost direction and the meaning of the proper time are stated rather than inferred, carried as "both frames are inertial, so no acceleration enters the transformation" and "the two events happen at the same place in the moving frame, so its reading is the proper time"
+test_group_ids relativity
+proof_obligation_ids obl.plan.preconditions-hold, obl.relativity.frames-distinct, obl.relativity.speed-below-light, obl.relativity.factor-identity, obl.physics.lookup-preserves-solutions, obl.relativity.invariant-holds
+supported_methods check the two frames are declared and distinct, check the boost is below c, form the exact Lorentz factor, apply the dilation relation and check the result against a quantity both frames must agree on
+unsupported_near_neighbors accelerating frames, general relativity, a boost whose Lorentz factor is not an exact rational, and motion off the shared axis
+solution_soundness_status verified, the frames, the speed and the factor identity are checked before the relation is applied and the answer is checked against an invariant rather than against the relation that produced it
+solution_completeness_status partial, one boost along one shared axis with an exact rational Lorentz factor
+corpus_case_ids relativity_time_dilation_exact_gamma
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.relativity.plan fixture
+rule physics.relativity.check-frames fixture
+rule physics.relativity.check-boost fixture
+rule physics.relativity.lorentz-factor fixture
+rule physics.relativity.apply fixture
+rule physics.relativity.check-invariant fixture
+
+family id physics.relativity.length-contraction
+topic_and_level Length contraction between two inertial frames in relative motion along a shared x axis, PRD section 9 PHYS-023
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds L = L0/gamma
+accepted_input_forms one typed RelativityProblem naming both frames, the boost as a fraction of c and the proper length
+domains_and_parameter_assumptions both frames are inertial, the boost is below the speed of light, 1 - beta^2 is the square of an exact fraction, and the proper length is positive
+supported_branches_and_degenerate_cases a boost along either direction of the shared axis, and a refusal for a non-positive proper length, a speed at or above c, or a gamma with no exact rational value
+exact_special_function_and_numerical_result_policy exact rational throughout, reporting nothing rather than a decimal when the Lorentz factor is not an exact rational
+parser_module_ids src/units/units.cc, src/physics/relativity.cc
+required_assumptions the frames and the rod's orientation and rest frame are stated rather than inferred, carried as "both frames are inertial, so no acceleration enters the transformation" and "the rod lies along the direction of motion and is at rest in the moving frame, so its length there is the proper length"
+test_group_ids relativity
+proof_obligation_ids obl.plan.preconditions-hold, obl.relativity.frames-distinct, obl.relativity.speed-below-light, obl.relativity.factor-identity, obl.physics.lookup-preserves-solutions, obl.relativity.invariant-holds
+supported_methods check the two frames are declared and distinct, check the boost is below c, form the exact Lorentz factor, apply the contraction relation and check the result against a quantity both frames must agree on
+unsupported_near_neighbors a rod across the direction of motion, accelerating frames, general relativity, and a boost whose Lorentz factor is not an exact rational
+solution_soundness_status verified, the frames, the speed and the factor identity are checked before the relation is applied and the answer is checked against an invariant rather than against the relation that produced it
+solution_completeness_status partial, one rod along one shared axis with an exact rational Lorentz factor
+corpus_case_ids relativity_length_contraction_exact_gamma
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.relativity.plan fixture
+rule physics.relativity.check-frames fixture
+rule physics.relativity.check-boost fixture
+rule physics.relativity.lorentz-factor fixture
+rule physics.relativity.apply fixture
+rule physics.relativity.check-invariant fixture
+
+family id physics.relativity.lorentz-transformation
+topic_and_level One event's coordinates in two inertial frames, PRD section 9 PHYS-023
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds the transformation pair
+accepted_input_forms one typed RelativityProblem naming both frames, the boost as a fraction of c, and the event's position and time in the rest frame
+domains_and_parameter_assumptions both frames are inertial, the axes are parallel and the origins coincide at t = 0, the boost is below the speed of light, and gamma is an exact rational
+supported_branches_and_degenerate_cases an event ahead of or behind the origin, since a negative position is an ordinary coordinate rather than an unphysical value, and a refusal for a speed at or above c
+exact_special_function_and_numerical_result_policy exact rational throughout, reporting nothing rather than a decimal when the Lorentz factor is not an exact rational
+parser_module_ids src/units/units.cc, src/physics/relativity.cc
+required_assumptions the frames and the coincident origins are stated rather than inferred, carried as "both frames are inertial, so no acceleration enters the transformation" and "the axes are parallel and the origins coincide at t = t' = 0, so the transformation carries no offset"
+test_group_ids relativity
+proof_obligation_ids obl.plan.preconditions-hold, obl.relativity.frames-distinct, obl.relativity.speed-below-light, obl.relativity.factor-identity, obl.physics.lookup-preserves-solutions, obl.relativity.invariant-holds
+supported_methods check the two frames are declared and distinct, check the boost is below c, form the exact Lorentz factor, transform both coordinates and check the spacetime interval, which both frames must agree on
+unsupported_near_neighbors a boost off the shared axis, a transformation carrying an origin offset, accelerating frames, and general relativity
+solution_soundness_status verified, the transformed coordinates are checked against the invariant spacetime interval rather than against the transformation that produced them
+solution_completeness_status partial, one event and one boost along one shared axis with an exact rational Lorentz factor
+corpus_case_ids relativity_lorentz_transformation_event
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.relativity.plan fixture
+rule physics.relativity.check-frames fixture
+rule physics.relativity.check-boost fixture
+rule physics.relativity.lorentz-factor fixture
+rule physics.relativity.apply fixture
+rule physics.relativity.check-invariant fixture
+
+family id physics.relativity.velocity-addition
+topic_and_level Relativistic velocity addition along a shared x axis, PRD section 9 PHYS-023
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds the addition relation
+accepted_input_forms one typed RelativityProblem naming both frames, the boost as a fraction of c and the object's velocity in the moving frame
+domains_and_parameter_assumptions both frames are inertial, the boost and the object's velocity are both below the speed of light, and the object moves along the shared axis
+supported_branches_and_degenerate_cases velocities that would exceed c under a Galilean sum and do not under this one, and a refusal for an object given at or above the speed of light
+exact_special_function_and_numerical_result_policy exact rational throughout, and this is the one relation here that needs no Lorentz factor, so an inexact gamma does not refuse it
+parser_module_ids src/units/units.cc, src/physics/relativity.cc
+required_assumptions the frames and the object's direction are stated rather than inferred, carried as "both frames are inertial, so no acceleration enters the transformation" and "the object moves along the same shared x axis the boost points along"
+test_group_ids relativity
+proof_obligation_ids obl.plan.preconditions-hold, obl.relativity.frames-distinct, obl.relativity.speed-below-light, obl.physics.lookup-preserves-solutions, obl.relativity.invariant-holds
+supported_methods check the two frames are declared and distinct, check both speeds are below c, apply the addition relation and check the result against a quantity both frames must agree on
+unsupported_near_neighbors an object off the shared axis, a massless object at c, accelerating frames, and general relativity
+solution_soundness_status verified, both speeds are checked before the relation is applied and the answer is checked against an invariant rather than against the relation that produced it
+solution_completeness_status partial, one object along one shared axis
+corpus_case_ids relativity_velocity_addition_half_c
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+# No lorentz-factor rule or factor-identity obligation, because this relation does not read gamma.
+rule physics.relativity.plan fixture
+rule physics.relativity.check-frames fixture
+rule physics.relativity.check-boost fixture
+rule physics.relativity.apply fixture
+rule physics.relativity.check-invariant fixture
+
+family id physics.relativity.energy-momentum
+topic_and_level The total energy, momentum and kinetic energy of a moving particle, PRD section 9 PHYS-023
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds E = gamma*E0 with pc = gamma*beta*E0
+accepted_input_forms one typed RelativityProblem naming both frames, the boost as a fraction of c and the particle's rest energy in megaelectronvolts
+domains_and_parameter_assumptions both frames are inertial, the boost is below the speed of light, gamma is an exact rational, and the rest energy is positive
+supported_branches_and_degenerate_cases the total energy, the momentum energy and the kinetic energy reported together from one rest energy, and a refusal for a non-positive rest energy or a speed at or above c
+exact_special_function_and_numerical_result_policy exact rational throughout in megaelectronvolts, because the SI value of an energy at this scale does not fit the exact rationals every step here compares with
+parser_module_ids src/units/units.cc, src/physics/relativity.cc
+required_assumptions the frames and the particle's rest frame are stated rather than inferred, carried as "both frames are inertial, so no acceleration enters the transformation" and "the particle is at rest in the moving frame, so it travels at the boost velocity in the rest frame"
+test_group_ids relativity
+proof_obligation_ids obl.plan.preconditions-hold, obl.relativity.frames-distinct, obl.relativity.speed-below-light, obl.relativity.factor-identity, obl.physics.lookup-preserves-solutions, obl.relativity.invariant-holds
+supported_methods check the two frames are declared and distinct, check the boost is below c, form the exact Lorentz factor, report the total energy, the momentum energy and the kinetic energy, and check them against a quantity both frames must agree on
+unsupported_near_neighbors a massless particle, a particle given by its mass rather than its rest energy, collisions and decays, and accelerating frames
+solution_soundness_status verified, every reported energy has its own recorded equation on exact values and the answers are checked against an invariant
+solution_completeness_status partial, one particle at one boost with an exact rational Lorentz factor
+corpus_case_ids relativity_energy_momentum_proton
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.relativity.plan fixture
+rule physics.relativity.check-frames fixture
+rule physics.relativity.check-boost fixture
+rule physics.relativity.lorentz-factor fixture
+rule physics.relativity.apply fixture
+rule physics.relativity.check-invariant fixture
+
+family id physics.motion.position-vector
+topic_and_level Velocity and acceleration read off a supplied position vector r(t), chapter 4 of the PHYS 2410 scope
+family_envelope_version 1
+accepted_expression_grammar the existing algebraic expression grammar for each component, evaluated in the time variable t
+accepted_input_forms one typed PositionMotionProblem giving each component of r(t) as an expression in t, the declared rank, the interval bounds and the event time as time quantities
+domains_and_parameter_assumptions each component is a function of t alone, the axes are independent and share one clock, and the interval has a non-zero duration
+supported_branches_and_degenerate_cases rank two and rank three position vectors, a component that never moves, and the magnitude and direction of each reported vector when a backend is supplied to convert it
+exact_special_function_and_numerical_result_policy exact rational evaluation of the secant over the interval and of both derivatives at the event, with directions left unreported when no backend can compute them
+parser_module_ids src/core/parser.cc, src/physics/position_motion.cc, src/steps/differentiate.cc, src/physics/vector_components.cc
+required_assumptions the one-variable component model and the shared clock are stated rather than inferred, carried as "each component of the position vector is a function of t alone" and "the axes are independent and share one clock"
+test_group_ids position motion
+proof_obligation_ids obl.plan.preconditions-hold, obl.calculus.rule-preserves-value
+supported_methods differentiate each component twice in t with the existing differentiation engine, take the secant over the declared interval for the average velocity, evaluate both derivatives at the event time, and convert each reported vector to a magnitude and direction when a backend is supplied
+unsupported_near_neighbors a component that is not differentiable by rule, motion given as a constant-acceleration equation table, more than one independent variable, and word-language input
+solution_soundness_status verified by the composed differentiation engine, which checks each rule it applies. This family owns no rule of its own and its interval and dimension checks are refusals rather than recorded steps
+solution_completeness_status partial, limited to the component expressions the composed differentiation engine supports
+corpus_case_ids position_motion_vector_derivatives
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+# This family composes the differentiation engine, so every rule id below is that family's own.
+rule calculus.differentiate.rules fixture
+rule d.power fixture
+rule d.constant-multiple fixture
+rule d.variable fixture
+rule d.constant fixture
+
+family id physics.ranking.comparative-order
+topic_and_level Ranking several situations by a quantity through ordered comparison criteria, chapter 2 of the PHYS 2410 scope
+family_envelope_version 1
+accepted_expression_grammar no expression grammar of its own, because a situation's standing on each criterion arrives as an exact rational rather than as an expression
+accepted_input_forms one typed RankingModel naming the quantity and its criteria in priority order, and one RankingProblem giving each named situation's value for every criterion
+domains_and_parameter_assumptions the criteria are given in priority order, every situation carries a value for each of them, and a value may be declared unknown
+supported_branches_and_degenerate_cases a strict order, ties grouped into one tier, a later criterion deciding a pair the first one ties, and a refusal when the given facts do not decide a pair at all
+exact_special_function_and_numerical_result_policy exact rational comparison only, with no arithmetic performed on the criterion values and nothing approximated
+parser_module_ids src/physics/ranking.cc
+required_assumptions the priority order and the completeness of the criterion values are stated rather than inferred, carried as "the criteria are given in priority order and every situation is measured on each of them"
+test_group_ids ranking
+proof_obligation_ids none, the two rules this family records raise no obligation of their own, because a comparison of exact rationals has nothing to prove beyond the comparison itself
+supported_methods compare each pair on the criteria in priority order, the first untied criterion deciding the pair, record a justification step per criterion, then order the situations and group the ties into tiers
+unsupported_near_neighbors combining criteria into a computed quantity, ranking by a value the problem does not give, and inferring a missing value from the others
+solution_soundness_status partial, the order follows from exact rational comparisons and a pair the criteria cannot decide is refused rather than guessed, but nothing independent re-derives the published order
+solution_completeness_status partial, the order is complete for situations whose criterion values are all known and is refused otherwise
+corpus_case_ids ranking_average_speed_with_a_tie
+device_performance_status not measured
+direct_keypad_entry_status not implemented, typed API only
+isolated_runtime_status not yet measured on the calculator
+release_status unreleased
+rule physics.ranking.criterion fixture
+rule physics.ranking.order fixture
 
 family id algebra.formula-rearrangement.single-occurrence
 topic_and_level Rearranging a formula for one of its symbols, PRD section 9.4 ALG-007
