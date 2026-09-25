@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -272,6 +272,7 @@ local expected_modules = {
     "calculus.linearization.single-variable",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
+    "physics.kinematics.constant-acceleration.two-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
@@ -1597,6 +1598,53 @@ check(planar_rules["physics.planar-kinematics.component-i"] and
       planar_rules["physics.planar-kinematics.component-j"] and
       planar_rules["physics.planar-kinematics.check-shared-time"],
       "the planar-kinematics bridge retains both axis and shared-time provenance")
+
+check(planar_rules["physics.planar-kinematics.plan"] and
+      not planar_rules["physics.planar-kinematics.projectile-plan"] and
+      not planar_rules["physics.planar-kinematics.check-projectile"],
+      "an unset projectile flag selects the general planar plan")
+
+-- The same inputs with a horizontal acceleration, which only the general family accepts.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = {
+        x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "2 s",
+})
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the planar-kinematics bridge solves an accelerated horizontal axis")
+check(r.result == "(10 i - 12 j) m" and r.displacement.exact_x == "10" and
+      r.displacement.exact_y == "-12" and r.final_velocity.result == "(7 i - 16 j) m/s" and
+      r.final_velocity.exact_x == "7" and r.final_velocity.exact_y == "-16",
+      "the general planar family carries the horizontal acceleration into both reports")
+local general_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then general_rules[s.rule] = true end end
+check(general_rules["physics.planar-kinematics.plan"] and
+      not general_rules["physics.planar-kinematics.check-projectile"],
+      "the general planar family records no projectile precondition")
+
+-- The positive control for the two absences above: the same shape with the flag set reaches the
+-- projectile plan and its extra check, so those assertions are about the flag rather than the path.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = planar_kinematics_input.acceleration,
+    elapsed_time = "2 s",
+    projectile = true,
+})
+check(r.solved == true and r.result == "(6 i - 12 j) m",
+      "the projectile specialization solves the unaccelerated horizontal axis")
+local projectile_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then projectile_rules[s.rule] = true end end
+check(projectile_rules["physics.planar-kinematics.projectile-plan"] and
+      projectile_rules["physics.planar-kinematics.check-projectile"] and
+      not projectile_rules["physics.planar-kinematics.plan"],
+      "a set projectile flag selects the projectile plan and its precondition")
 
 r = nps.planar_kinematics({
     body_name = "ball",
