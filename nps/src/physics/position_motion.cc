@@ -35,8 +35,7 @@ Vector made_vector(const Rational values[3], uint8_t rank, Dimension dimension) 
     return v;
 }
 
-// Written on the one funnel every outcome leaves by, because each nested engine writes a context of
-// its own and the last writer would otherwise leave this family's derivation naming one of theirs.
+// Written on the one funnel every outcome leaves by, since each nested engine writes its own.
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status, bool converted_directions) {
     ContextInputs inputs;
@@ -316,8 +315,7 @@ PositionMotionResult solve_position_motion(Arena &arena, Derivation &derivation,
                                            const PositionMotionProblem &problem,
                                            const Budget &budget, Backend *giac) {
     const PositionMotionResult result = solve_body(arena, derivation, problem, budget, giac);
-    // The angle convention is stated only when a direction was actually reported, because a
-    // refusal that never reached the converter has no direction to state one for.
+    // Stated only when a direction was reported, since a refusal has none to state one for.
     const bool converted = result.has_average_velocity_polar ||
                            result.has_instantaneous_velocity_polar ||
                            result.has_instantaneous_acceleration_polar;

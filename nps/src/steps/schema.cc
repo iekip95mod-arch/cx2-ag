@@ -598,8 +598,7 @@ const ObligationSchema kLookupPreservesSolutions[] = {
      kKnownQuantityLookup, 1},
 };
 
-// The families solved through src/physics/relation.cc. Every id there is built from the model's
-// rule prefix, so each family needs its own three arrays even though the shapes are identical.
+// Relation-driven families, whose obligation ids embed the model's own rule prefix.
 const EvidenceAlternative kRelationPositionModel[] = {
     {"registered relation-position model", EvidenceStrength::StructurallyValid},
 };
@@ -1758,8 +1757,7 @@ const RuleSchema kRules[] = {
     {"physics.density.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},
 
-    // physics.circular-motion.uniform. One rule prefix per unknown, because the engine picks a
-    // different relation for each and the centripetal acceleration is reported beside all of them.
+    // physics.circular-motion.uniform, one rule prefix per unknown plus the acceleration's own.
     {"physics.circular-motion.period.definition", ClaimType::NoClaim, kCircularPeriodStrategy, 3,
      FailureBehavior::WithholdResult},
     {"physics.circular-motion.period.check-dimensions", ClaimType::Definition,

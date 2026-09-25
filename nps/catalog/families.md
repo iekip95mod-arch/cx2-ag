@@ -748,8 +748,7 @@ device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
-# No projectile-plan, check-projectile or check-apex-routes rule here. Those three belong to the
-# specialization below, which is the whole difference between the two families' recorded steps.
+# The projectile-plan, check-projectile and check-apex-routes rules belong to the specialization below.
 rule physics.planar-kinematics.plan fixture
 rule physics.planar-kinematics.check-rank fixture
 rule physics.planar-kinematics.check-frame-declared fixture
@@ -855,8 +854,7 @@ device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet measured on the calculator
 release_status unreleased
-# Newton's third law acts between bodies, so the pair step is recorded and its obligation keeps the
-# pairs out of the one body's inventory rather than adding a force to it.
+# The third-law pairs act between bodies, so its obligation keeps them out of the one body's inventory.
 rule physics.forces.plan fixture
 rule physics.forces.check-input-dimensions fixture
 rule physics.forces.check-angle fixture
@@ -889,8 +887,7 @@ device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet measured on the calculator
 release_status unreleased
-# One rule prefix per unknown, because a different relation is selected for each, and the
-# acceleration's own four rules run for every one of them.
+# One rule prefix per unknown, and the acceleration's own rules run for every one of them.
 rule physics.circular-motion.period.definition fixture
 rule physics.circular-motion.period.check-dimensions fixture
 rule physics.circular-motion.period.substitute fixture
@@ -910,8 +907,7 @@ rule physics.circular-motion.acceleration.check-dimensions fixture
 rule physics.circular-motion.acceleration.substitute fixture
 rule physics.circular-motion.acceleration.check-candidate fixture
 rule physics.circular-motion.acceleration.significant-figures fixture
-# The isolation is the existing linear engine's, run with no backend, so its moves land in the same
-# derivation and a reader of one of these records sees them.
+# The isolation is the existing linear engine's, so its moves land in this same derivation.
 rule eq.linear.inverse-operations fixture
 rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
@@ -1005,9 +1001,7 @@ rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture
 rule eq.linear.check-by-substitution fixture
 
-# The five relativity families share one engine and one rule set, so their blocks differ in the
-# relation each applies rather than in the steps each records. Velocity addition is the one that
-# needs no Lorentz factor, so it names neither that rule nor its obligation.
+# The five relativity families share one engine and one rule set, differing in the relation applied.
 
 family id physics.relativity.time-dilation
 topic_and_level Time dilation between two inertial frames in relative motion along a shared x axis, PRD section 9 PHYS-023
@@ -1110,8 +1104,7 @@ device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet measured on the calculator
 release_status unreleased
-# No lorentz-factor rule here, because this relation does not read gamma, which is also why no
-# factor-identity obligation appears above.
+# No lorentz-factor rule or factor-identity obligation, because this relation does not read gamma.
 rule physics.relativity.plan fixture
 rule physics.relativity.check-frames fixture
 rule physics.relativity.check-boost fixture
@@ -1159,15 +1152,14 @@ test_group_ids position motion
 proof_obligation_ids obl.plan.preconditions-hold, obl.calculus.rule-preserves-value
 supported_methods differentiate each component twice in t with the existing differentiation engine, take the secant over the declared interval for the average velocity, evaluate both derivatives at the event time, and convert each reported vector to a magnitude and direction when a backend is supplied
 unsupported_near_neighbors a component that is not differentiable by rule, motion given as a constant-acceleration equation table, more than one independent variable, and word-language input
-solution_soundness_status verified by the composed differentiation engine, which checks each rule it applies; this family owns no rule of its own and its interval and dimension checks are refusals rather than recorded steps
+solution_soundness_status verified by the composed differentiation engine, which checks each rule it applies. This family owns no rule of its own and its interval and dimension checks are refusals rather than recorded steps
 solution_completeness_status partial, limited to the component expressions the composed differentiation engine supports
 corpus_case_ids position_motion_vector_derivatives
 device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet measured on the calculator
 release_status unreleased
-# This family composes the differentiation engine for each component rather than carrying a second
-# differentiator, so every rule id below is that family's own, recorded in this derivation.
+# This family composes the differentiation engine, so every rule id below is that family's own.
 rule calculus.differentiate.rules fixture
 rule d.power fixture
 rule d.constant-multiple fixture

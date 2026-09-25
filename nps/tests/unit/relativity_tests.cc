@@ -171,8 +171,7 @@ void run_relativity_tests(TestSink &t) {
                        contains_text(solved.rules, "physics.relativity.check-invariant"),
                    "the relativity family records its plan, frame, speed, factor, relation and "
                    "invariant steps");
-        // One tag covers all five relativity families, because they share this group and this rule
-        // set and differ only in the relation apply selects.
+        // One tag covers all five relativity families, which share this group and this rule set.
         t.evidence("PHYS-025",
                    contains_text(solved.assumptions,
                                  "both frames are inertial, so no acceleration enters the "

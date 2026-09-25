@@ -429,9 +429,7 @@ void run_relative_motion_tests(TestSink &t) {
                 "a zero relative velocity has no nearest cardinal and asks the backend nothing");
     }
     {
-        // The gap issue 416 names for this family. The bearing folds the answer through the
-        // component converter, which records a context of its own, so the identity solve's context
-        // was overwritten by the last engine to run rather than by the family that solved it.
+        // Issue 416's shape here, where the bearing's converter overwrote the identity solve's context.
         SequenceBackend bearing_backend({"-95/2", "-349/18", "51.3047", "0", "51.3047",
                                          "atan2(349/18,95/2)", "0", "atan2(349/18,95/2)*180/pi",
                                          "0", "22.2"});
@@ -447,9 +445,7 @@ void run_relative_motion_tests(TestSink &t) {
                 "wrote the context last");
         t.equal(reported.derivation.context.problem_family_envelope_version, "1",
                 "and records the envelope version the catalog declares");
-        // Naming the family again is not the same as keeping what the solve recorded. Rebuilding a
-        // fresh context here would name the family and silently drop these, so they are asserted
-        // rather than the family id alone.
+        // A fresh context would name the family and drop these, so the family id alone proves nothing.
         t.check(reported.derivation.context.active_assumptions.size() == 2,
                 "and keeps the frame and axis assumptions the inner solve recorded rather than "
                 "replacing them with a thinner context");

@@ -305,9 +305,7 @@ void run_ranking_tests(TestSink &t) {
                 "cancellation during comparisons stops without publishing an order");
     }
     {
-        // The same gap issue 416 names for position motion. This family composed comparison and
-        // recorded no context of its own, so its derivation carried whatever a nested engine left
-        // behind. A refusal is asserted beside a solve because both are walkthroughs a reader sees.
+        // Issue 416's shape here, where the family recorded no context of its own at all.
         RankingModel model;
         model.quantity_name = "average speed";
         model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});

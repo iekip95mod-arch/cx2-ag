@@ -98,13 +98,10 @@ struct AwaitingGroup {
     const char *engine;
 };
 
-// A vector rather than an array so the table can empty out once every family has its block, and so
-// the selftest can stage a row of its own against a real table that no longer carries one.
+// A vector rather than an array, because a zero-length array is not valid and this table empties.
 const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {};
 
-// One line decides whether a family with no catalog block fails the run or only reports. Every
-// family the tree implements now has a block, so the table above is empty and this can hold the
-// line rather than describe where it used to be.
+// One line decides whether a family with no catalog block fails the run or only reports.
 const bool kAwaitingCatalogIsFatal = true;
 
 struct Outcome {
@@ -479,8 +476,7 @@ int selftest() {
         {nullptr, "", 0, 0, 0, 0,
          "and a run with no evidence file at all reports the join as one that did not run"},
     };
-    // Staged rather than read from the real table, which empties as the blocks land. A check that
-    // can only fire while some family is still uncatalogued stops being a check the day it matters.
+    // Staged, because a check that needs the real table non-empty dies the day it is emptied.
     const std::vector<AwaitingGroup> staged_awaiting = {
         {"staged awaiting", "src/physics/staged.cc, stamping no id of its own"}};
     for (size_t i = 0; i < sizeof(group_cases) / sizeof(group_cases[0]); ++i) {
@@ -521,8 +517,7 @@ int selftest() {
             ++failures;
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
                   << group_cases[i].what << "\n";
-        // The counter says the deferral was seen and the row says a reader of the report meets it,
-        // which are separate claims. The second one is the one that used to reach stdout alone.
+        // Seen by the counter and met by a reader of the report are separate claims.
         if (!wrote)
             continue;
         std::ifstream written(group_report.c_str());
@@ -535,8 +530,7 @@ int selftest() {
                              "own |") != std::string::npos;
         const bool says_none =
             report_text.find("No test group is awaiting a catalog block.") != std::string::npos;
-        // A join that never ran is a third answer. Reading it as none would report an empty table
-        // for a question nothing asked, which is the absence this whole section exists to refuse.
+        // A join that never ran is a third answer, not an empty one.
         const bool says_unanswered =
             report_text.find("this table is unanswered rather than empty") != std::string::npos;
         const bool row_as_expected = has_row == wants_row && says_none == (joins && !wants_row) &&
@@ -640,8 +634,7 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     // The same question for a family no fixture reaches, because a fixture is optional and a group is not.
     size_t awaiting_catalog = 0;
     size_t stale_exemptions = 0;
-    // Kept so the report can carry a row per deferral. Until this existed the awaiting list reached
-    // stdout alone, where a deferral lasts as long as somebody remembers reading it.
+    // Kept so the report carries a row per deferral, which used to reach stdout alone.
     std::vector<const AwaitingGroup *> awaiting_rows;
     const bool join_ran = evidence_path != nullptr;
     if (join_ran) {

@@ -46,8 +46,7 @@ struct RankingSituation {
 // A quantity ranked across several named situations by one or more criteria, tried in priority
 // order. The first criterion that is not tied between two situations decides their order, the way
 // problem 7(d)'s initial speed ties on the vertical component and is decided by the horizontal one.
-// The family id is the engine's own rather than a field here. Nothing ever set this one and nothing
-// read it, so a caller filling it in would have changed no record it appears in.
+// The family id is the engine's own, because nothing ever set or read the field that was here.
 struct RankingModel {
     const char *quantity_name = "";
     std::vector<RankingCriterion> criteria;

@@ -500,8 +500,7 @@ std::string optics_record(OpticsRelation relation, OpticsVariable unknown,
            render_derivation(arena, derivation);
 }
 
-// Gravitation, oscillation and the wave relation all solve through solve_relation, so one record
-// serves the three rather than three copies differing only in which solve they name.
+// Gravitation, oscillation and wave all solve through solve_relation, so one record serves three.
 std::string relation_record(const RelationModel &model, const RelationProblem &problem,
                             const std::string &problem_text,
                             RelationResult (*solve)(Arena &, Derivation &, const RelationProblem &,
@@ -529,8 +528,7 @@ std::string circular_motion_record(const CircularMotionProblem &problem,
     std::string answer;
     if (result.outcome == RelationOutcome::Solved) {
         answer = result.unknown_result.value_text + " " + result.unknown_result.unit_text;
-        // The centripetal acceleration is reported alongside whichever of the three was asked for,
-        // so a fixture that dropped it would pin half of what this family answers.
+        // The acceleration comes back beside all three unknowns, so dropping it pins half the answer.
         if (result.acceleration_result.outcome == RelationOutcome::Solved)
             answer += ", centripetal acceleration " + result.acceleration_result.value_text + " " +
                       result.acceleration_result.unit_text;
@@ -540,9 +538,7 @@ std::string circular_motion_record(const CircularMotionProblem &problem,
            render_derivation(arena, derivation);
 }
 
-// This family reads its own declared working units, fractions of c and megaelectronvolts, which the
-// unit table does not carry and parse_quantity cannot read as a fraction. Built exactly here, the
-// way relativity_tests.cc builds them and the way a bridge would.
+// The unit table carries neither fractions of c nor MeV, and parse_quantity cannot read a fraction.
 Quantity relativity_declared(RelativityVariable variable, int64_t num, int64_t den) {
     Quantity value;
     value.value.num = num;
@@ -630,8 +626,7 @@ std::string ranking_record(const RankingModel &model, const RankingProblem &prob
            render_derivation(arena, derivation);
 }
 
-// Issue 255. The catalog block for the force family claims fixture evidence for its rules, so the
-// fixtures have to exist before the block can say so.
+// Issue 255, whose catalog block claims fixture evidence these fixtures have to exist to support.
 std::string forces_record(const ForcesProblem &problem, const std::string &problem_text,
                           const Budget &budget) {
     Arena arena;
@@ -1090,9 +1085,7 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "planar_kinematics_projectile_mixed_units",
                  planar_kinematics_record("(36.0, 0.0) km/h", "(0.0, -9.80) m/s^2", "4.00 s", true,
                                           Budget()));
-    // Issue 226's catalog half. The general two-dimension family is a different family id from the
-    // projectile one and had no fixture of its own, so an acceleration with a non-zero horizontal
-    // component, which the projectile specialization refuses outright.
+    // Issue 226. A non-zero horizontal acceleration, which the projectile specialization refuses.
     check_golden(t, "planar_kinematics_general_two_dimension",
                  planar_kinematics_record("(3.0, 4.0) m/s", "(2.0, -9.80) m/s^2", "2.00 s", false,
                                           Budget()));
@@ -1137,9 +1130,7 @@ void run_golden_tests(TestSink &t) {
                              WorkForceProfile::Constant, Budget()));
     check_golden(t, "work_variable_force_refused",
                  work_record("(3, 4) N", "(2, 1) m", WorkForceProfile::Variable, Budget()));
-    // Issue 255's three: a horizontal push, an incline whose sine and cosine are exact, and a
-    // refusal. The incline is the 3-4-5 triangle because the envelope is exact rational trig, and
-    // the refusal is an angle outside it, which is the boundary the family's near neighbors name.
+    // Issue 255's three: a horizontal push, an exact 3-4-5 incline, and an angle outside the envelope.
     {
         ForcesProblem push = forces_base(ForcesUnknown::Acceleration);
         std::string why;
@@ -1174,8 +1165,7 @@ void run_golden_tests(TestSink &t) {
                                    "exact pair",
                                    Budget()));
     }
-    // One fixture per family that had no catalog block, so each block's rule lines and obligations
-    // have a recorded derivation behind them rather than a promise of one.
+    // One fixture per newly catalogued family, so its rule lines have a derivation behind them.
     {
         std::string why;
         Quantity first_mass, second_mass, separation;
@@ -1204,8 +1194,7 @@ void run_golden_tests(TestSink &t) {
                                      "restoring force",
                                      solve_oscillation, Budget()));
 
-        // A prefixed wavelength, so the fixture reaches the conversion step an all-SI problem
-        // never runs.
+        // A prefixed wavelength reaches the conversion step an all-SI problem never runs.
         Quantity frequency, wavelength;
         parse_quantity("50 s^-1", &frequency, &why);
         parse_quantity("40 cm", &wavelength, &why);
@@ -1231,8 +1220,7 @@ void run_golden_tests(TestSink &t) {
                                             "find the period",
                                             Budget()));
 
-        // beta = 3/5, the one boost whose Lorentz factor is an exact rational, which is what this
-        // family's envelope is built around.
+        // beta = 3/5 gives an exact rational Lorentz factor, which is what the envelope requires.
         RelativityProblem dilation = relativity_problem(RelativityRelation::TimeDilation, 3, 5);
         dilation.knowns.push_back(RelativityKnown{
             RelativityVariable::ProperTime,
@@ -1255,8 +1243,7 @@ void run_golden_tests(TestSink &t) {
                                             "r(t) = 3t i + 2t^2 j over 0 to 2 s, read at 2 s",
                                             Budget()));
 
-        // The other two unknowns the circular-motion engine supports, so the block's speed and
-        // radius rule lines have a fixture behind them rather than only the period's.
+        // The speed and radius unknowns, so their rule lines have a fixture and not only the period's.
         Quantity period;
         parse_quantity("6.28318530717959 s", &period, &why);
         CircularMotionProblem for_speed;
@@ -1281,8 +1268,7 @@ void run_golden_tests(TestSink &t) {
                                             "6.28318530717959 s period; find the radius",
                                             Budget()));
 
-        // The four relativity relations beside time dilation. Each is its own catalog family, so
-        // each needs its own recorded derivation.
+        // The four relations beside time dilation, each its own catalog family needing its own record.
         RelativityProblem contraction =
             relativity_problem(RelativityRelation::LengthContraction, 4, 5);
         contraction.knowns.push_back(RelativityKnown{

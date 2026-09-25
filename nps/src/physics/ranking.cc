@@ -252,8 +252,7 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
                         halt_name(meter.halt()));
     }
     result.cost = meter.cost();
-    // Written on the one funnel every outcome leaves by, so a refusal carries the family as much as
-    // an answer does and no later outcome needs its own call.
+    // Written on the one funnel every outcome leaves by, so a refusal carries the family too.
     ContextInputs inputs;
     inputs.application_version = application_version();
     inputs.problem_family_id = "physics.ranking.comparative-order";

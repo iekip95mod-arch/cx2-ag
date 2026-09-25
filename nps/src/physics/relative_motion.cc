@@ -275,8 +275,7 @@ std::string direction_interpretation(const RelativeMotionProblem &problem,
            problem.reference_name + " in the declared east-north axes";
 }
 
-// Asked in two places now, because the bearing has a velocity rather than a problem and still has
-// to name the same family the solve did.
+// Asked in two places, because the bearing has a velocity rather than a problem to read it from.
 const char *relative_motion_family_id(bool one_dimensional) {
     return one_dimensional ? "physics.kinematics.relative-motion.components.one-dimension"
                            : "physics.kinematics.relative-motion.components.two-dimension";
@@ -1010,8 +1009,7 @@ RelativeBearing relative_motion_bearing(Arena &arena, Derivation &derivation,
     folded.x = along;
     folded.y = across;
     folded.z = Rational();
-    // The converter records a context of its own, so what this family already wrote is kept across
-    // the call and put back afterwards rather than left naming whichever engine ran last.
+    // The converter records a context of its own, so this family's is kept across the call.
     const SolutionContext before = derivation.context;
     const VectorComponentsResult polar =
         components_to_magnitude_angle(arena, derivation, folded, angle_unit, giac, budget);

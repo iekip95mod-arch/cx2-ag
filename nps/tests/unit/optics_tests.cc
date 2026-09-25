@@ -120,8 +120,7 @@ void run_optics_tests(TestSink &t) {
                        contains(solved.rules, "physics.optics.check-candidate"),
                    "refraction provenance names the plan, dimensions, domain, convention, "
                    "substitution and final check");
-        // Issue 423. One tag covers the five optics families, because they share this group and
-        // these steps and differ only in the law the plan selects.
+        // Issue 423. One tag covers all five optics families, which share this group and these steps.
         t.evidence("PHYS-025",
                    contains(solved.rules, "physics.optics.refraction.snell") &&
                        contains(solved.rules, "physics.optics.check-domain") &&

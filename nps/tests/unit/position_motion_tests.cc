@@ -333,10 +333,7 @@ void run_position_motion_tests(TestSink &t) {
                 "an exhausted solve exposes no answer at all");
     }
     {
-        // Issue 416. The family composes two engines that each write a context of their own, so
-        // before this the field carried whichever of them ran last: the differentiation engine with
-        // no backend, and the component converter with one. Both are asserted, because a fix that
-        // only covers the backend route leaves the commoner one still borrowing.
+        // Issue 416. Both routes are asserted, since each nested engine borrowed the field in turn.
         Run without(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"));
         t.equal(without.derivation.context.problem_family_id, "physics.motion.position-vector",
                 "with no backend the context names this family rather than the nested derivative "
@@ -358,9 +355,7 @@ void run_position_motion_tests(TestSink &t) {
         std::string assumptions;
         for (const std::string &one : without.derivation.context.active_assumptions)
             assumptions += one + " | ";
-        // Every exit, not only the three that happened to have a call. A refusal is a walkthrough a
-        // reader sees, so it carries the family as much as an answer does, and the solved control
-        // below the table is what stops this passing for a family id nothing ever writes.
+        // Every exit, because a refusal is a walkthrough and carries the family as much as an answer.
         struct Exit {
             PositionMotionProblem problem;
             const char *outcome;
