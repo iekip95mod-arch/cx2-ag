@@ -968,8 +968,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the four positions of the two-body law
 corpus_case_ids gravitation_two_point_masses
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.gravitation.point-masses
 release_status unreleased
 rule physics.gravitation.definition fixture
 rule physics.gravitation.check-dimensions fixture
@@ -997,8 +998,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the restoring-force relation only
 corpus_case_ids oscillation_restoring_force
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.oscillation.restoring-force
 release_status unreleased
 rule physics.oscillation.definition fixture
 rule physics.oscillation.check-dimensions fixture
@@ -1026,8 +1028,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the traveling-wave relation only
 corpus_case_ids wave_speed_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.wave.speed-frequency-wavelength
 release_status unreleased
 rule physics.wave.definition fixture
 rule physics.wave.check-dimensions fixture
