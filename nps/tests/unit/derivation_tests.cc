@@ -1480,8 +1480,7 @@ void test_equivalence_is_checked_against_the_arena(TestSink &t) {
                 "names");
     }
     {
-        // #329. Three readings nothing put to read_family, each choosing the sentence a refusal
-        // carries rather than whether to refuse.
+        // #329. The three read_family faults nothing had put to it, each picking a refusal's sentence.
         Arena arena;
 
         invariants::Pass two_symbols;
