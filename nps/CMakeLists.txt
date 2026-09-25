@@ -374,8 +374,8 @@ else()
     target_link_libraries(nps_gmp INTERFACE PkgConfig::NPS_GMP)
 endif()
 
-# Inputs that #222 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
-# bytes depend on them. The check below cannot hold those to the tracked-source rule until #222 moves
+# Inputs that #490 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
+# bytes depend on them. The check below cannot hold those to the tracked-source rule until #490 moves
 # those hashes onto sources, so the call that hashed one says so here. Naming the call rather than a
 # path pattern keeps the exemption from covering a tracked source that happens to sit beside one.
 function(nps_defer_manifest_inputs)
@@ -456,7 +456,7 @@ function(nps_hash_ndl_inputs output)
         "${sdk}/toolchain/install/bin/arm-none-eabi-ld"
         "${sdk}/toolchain/install/include/gmp.h"
         "${sdk}/toolchain/install/lib/libgmp.a")
-    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #222.
+    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #490.
     nps_defer_manifest_inputs(${inputs})
     nps_hash_inputs(hash ${inputs})
     set(${output} "${hash}" PARENT_SCOPE)
@@ -480,7 +480,7 @@ function(nps_hash_giac_inputs output)
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
-    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #222.
+    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #490.
     nps_defer_manifest_inputs(
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
