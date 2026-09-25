@@ -4456,6 +4456,8 @@ do
         { "Templates", "Derivative, how fast something changes", "(x^2,x)", "differentiate", "x^2" },
         { "Templates", "Integral, the area under a curve", "∫(1/x,x)", "integrate", "1/x" },
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
+        { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
+        { "Templates", "Linearization at a point", "linearize(x^2,x,0)", "linearize", "x^2" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }
