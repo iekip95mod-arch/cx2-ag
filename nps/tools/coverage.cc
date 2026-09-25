@@ -93,10 +93,14 @@ const struct {
 };
 
 // An engine family with no catalog block, which is the state graph integration was in before #441.
-const struct {
+struct AwaitingGroup {
     const char *group;
     const char *engine;
-} kGroupsAwaitingCatalog[] = {
+};
+
+// A vector rather than an array so the table can empty out once every family has its block, and so
+// the selftest can stage a row of its own against a real table that no longer carries one.
+const std::vector<AwaitingGroup> kGroupsAwaitingCatalog = {
     {"circular motion", "src/physics/circular_motion.cc, stamping physics.circular-motion.uniform"},
     {"forces", "src/physics/forces.cc, stamping physics.forces.newton-second-law"},
     {"gravitation", "src/physics/gravitation.cc, stamping physics.gravitation.point-masses"},
@@ -184,7 +188,8 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
 }  // namespace
 
 int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
-             const std::string &report_path, const char *evidence_path, Outcome *out = nullptr);
+             const std::string &report_path, const char *evidence_path, Outcome *out = nullptr,
+             const std::vector<AwaitingGroup> &awaiting = kGroupsAwaitingCatalog);
 
 // Staged catalogs test reader conventions and reporting without changing the release catalog.
 int selftest() {
@@ -473,17 +478,21 @@ int selftest() {
          "a group that ran and a catalogued family names is coverage the catalog describes"},
         {nullptr, "staged group", 1, 1, 0, 0,
          "the same group with its family block gone is an uncatalogued family"},
-        {nullptr, "forces", 0, 0, 1, 0,
+        {nullptr, "staged awaiting", 0, 0, 1, 0,
          "a group whose family is written down as not catalogued yet is counted and survives"},
         {"fuzz", "fuzz", 1, 0, 0, 1,
          "a group excused as having no family and named by one is a stale exemption"},
-        {"forces", "forces", 1, 0, 0, 1,
+        {"staged awaiting", "staged awaiting", 1, 0, 0, 1,
          "and so is one excused as awaiting a block after the block arrives"},
         {"staged group", nullptr, 1, 0, 0, 0,
          "an evidence file with no group rows is refused rather than read as clean"},
         {nullptr, "", 0, 0, 0, 0,
          "and a run with no evidence file at all reports the join as one that did not run"},
     };
+    // Staged rather than read from the real table, which empties as the blocks land. A check that
+    // can only fire while some family is still uncatalogued stops being a check the day it matters.
+    const std::vector<AwaitingGroup> staged_awaiting = {
+        {"staged awaiting", "src/physics/staged.cc, stamping no id of its own"}};
     for (size_t i = 0; i < sizeof(group_cases) / sizeof(group_cases[0]); ++i) {
         {
             std::ofstream staged(group_catalog.c_str());
@@ -510,7 +519,8 @@ int selftest() {
         std::filesystem::remove(group_report);
         Outcome counted;
         const int status = coverage(group_catalog, fixtures_dir, group_report,
-                                    joins ? group_evidence.c_str() : nullptr, &counted);
+                                    joins ? group_evidence.c_str() : nullptr, &counted,
+                                    staged_awaiting);
         const bool wrote = std::filesystem::exists(group_report);
         const bool as_expected =
             status == group_cases[i].status && wrote == (group_cases[i].ran != nullptr) &&
@@ -521,13 +531,42 @@ int selftest() {
             ++failures;
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
                   << group_cases[i].what << "\n";
+        // The counter says the deferral was seen and the row says a reader of the report meets it,
+        // which are separate claims. The second one is the one that used to reach stdout alone.
+        if (!wrote)
+            continue;
+        std::ifstream written(group_report.c_str());
+        std::string report_text, report_line;
+        while (std::getline(written, report_line))
+            report_text += report_line + "\n";
+        const bool wants_row = group_cases[i].awaiting > 0;
+        const bool has_row =
+            report_text.find("| staged awaiting | src/physics/staged.cc, stamping no id of its "
+                             "own |") != std::string::npos;
+        const bool says_none =
+            report_text.find("No test group is awaiting a catalog block.") != std::string::npos;
+        // A join that never ran is a third answer. Reading it as none would report an empty table
+        // for a question nothing asked, which is the absence this whole section exists to refuse.
+        const bool says_unanswered =
+            report_text.find("this table is unanswered rather than empty") != std::string::npos;
+        const bool row_as_expected = has_row == wants_row && says_none == (joins && !wants_row) &&
+                                     says_unanswered == !joins;
+        if (!row_as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (row_as_expected ? "ok   " : "FAIL ")
+                  << (!joins ? "and a join that did not run leaves that table unanswered"
+                             : wants_row
+                                   ? "and that deferral is written into the report as its own row"
+                                   : "and the report says outright that none is awaiting one")
+                  << "\n";
     }
     std::cout << "coverage selftest: " << count_text(static_cast<size_t>(failures)) << " failed\n";
     return failures == 0 ? 0 : 1;
 }
 
 int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
-             const std::string &report_path, const char *evidence_path, Outcome *out) {
+             const std::string &report_path, const char *evidence_path, Outcome *out,
+             const std::vector<AwaitingGroup> &awaiting_table) {
     std::vector<Family> families;
     std::string fault;
     if (!read_catalog(catalog_path, &families, &fault) || families.empty()) {
@@ -611,6 +650,9 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     // The same question for a family no fixture reaches, because a fixture is optional and a group is not.
     size_t awaiting_catalog = 0;
     size_t stale_exemptions = 0;
+    // Kept so the report can carry a row per deferral. Until this existed the awaiting list reached
+    // stdout alone, where a deferral lasts as long as somebody remembers reading it.
+    std::vector<const AwaitingGroup *> awaiting_rows;
     const bool join_ran = evidence_path != nullptr;
     if (join_ran) {
         std::set<std::string> groups_run;
@@ -635,7 +677,7 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
             std::cout << "coverage: the test group " << entry.group
                       << " is excused as belonging to no family and a catalogued family names it\n";
         }
-        for (const auto &entry : kGroupsAwaitingCatalog) {
+        for (const auto &entry : awaiting_table) {
             if (!claimed.count(entry.group))
                 continue;
             ++stale_exemptions;
@@ -653,15 +695,16 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
             }
             if (excused)
                 continue;
-            const char *awaiting = nullptr;
-            for (const auto &entry : kGroupsAwaitingCatalog) {
+            const AwaitingGroup *awaiting = nullptr;
+            for (const auto &entry : awaiting_table) {
                 if (group == entry.group)
-                    awaiting = entry.engine;
+                    awaiting = &entry;
             }
             if (awaiting != nullptr) {
                 ++awaiting_catalog;
-                std::cout << "coverage: the test group " << group << " exercises " << awaiting
-                          << ", and no catalog block describes it yet\n";
+                awaiting_rows.push_back(awaiting);
+                std::cout << "coverage: the test group " << group << " exercises "
+                          << awaiting->engine << ", and no catalog block describes it yet\n";
                 continue;
             }
             ++uncatalogued;
@@ -932,6 +975,27 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
         report << "No field names are absent from the catalog-wide union.\n";
     report << "\n" << count_text(field_count - absent) << " of " << count_text(field_count)
            << " section 27 field names occur in at least one family.\n";
+
+    report << "\n## Test groups awaiting a catalog block\n\n";
+    report << "A group here ran and no catalogued family names it, and the tool is carrying a "
+              "written exemption for it rather than failing. The exemption is the deferral, so it "
+              "belongs in the generated report where a reader of the coverage claim meets it, "
+              "rather than only in the run output.\n\n";
+    if (!join_ran) {
+        report << "The test group join did not run, so this table is unanswered rather than "
+                  "empty.\n";
+    } else if (awaiting_rows.empty()) {
+        report << "No test group is awaiting a catalog block.\n";
+    } else {
+        report << "| Test group | What it exercises |\n|---|---|\n";
+        for (const AwaitingGroup *row : awaiting_rows)
+            report << "| " << row->group << " | " << row->engine << " |\n";
+        report << "\n" << count_text(awaiting_rows.size())
+               << " test groups are awaiting a catalog block, and that is "
+               << (kAwaitingCatalogIsFatal ? "a failure of this run" : "reported without failing "
+                                                                      "this run")
+               << ".\n";
+    }
     report.close();
 
     // An append that was asked for and did not happen leaves the requirement looking unclaimed for a
