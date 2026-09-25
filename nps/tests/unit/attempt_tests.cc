@@ -140,6 +140,8 @@ void test_halts(TestSink &t) {
     const Judged stopped = judge("2*x + 3 = 7", "2*x = 4", {}, cancelled);
     t.evidence("STEP-013", equivalence(stopped), "cancelled", "a cancelled judgment says so");
     t.equal(usefulness(stopped), "not judged", "and judges nothing further");
+    t.equal(equivalence(judge("x + x", "x + x", {}, cancelled)), "cancelled",
+            "a cancelled judgment is not decided by the canonical form either");
 
     Budget starved;
     starved.max_rewrites = 0;
