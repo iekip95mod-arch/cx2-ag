@@ -185,6 +185,83 @@ void run_rewrite_tests(TestSink &t) {
                 value.num == 7 && value.den == 3,
                 "shared evaluation withholds nonrational or invalid elementary values: " + std::string(expression));
     }
+    {
+        // The limit reading holds only while everything reduced here is continuous where it returns.
+        const std::string warning =
+            ", so the limit reading in nps/tests/step_invariants.h must be re-justified";
+        struct HeadCase { const char *name; Rational argument; bool reduces; };
+        const HeadCase heads[] = {
+            {"sqrt", {0, 1}, true},  {"sqrt", {4, 1}, true},   {"sqrt", {9, 4}, true},
+            {"sqrt", {2, 1}, false}, {"sqrt", {-1, 1}, false}, {"sin", {0, 1}, true},
+            {"sin", {1, 1}, false},  {"cos", {0, 1}, true},    {"cos", {1, 1}, false},
+            {"exp", {0, 1}, true},   {"exp", {1, 1}, false},   {"ln", {1, 1}, true},
+            {"ln", {0, 1}, false},
+        };
+        std::string moved;
+        for (const HeadCase &head : heads) {
+            Rational value{7, 3};
+            if (evaluate_rational_function(head.name, head.argument, &value) != head.reduces)
+                moved += (moved.empty() ? "" : " | ") + std::string(head.name) + " at " +
+                         rational_text(head.argument);
+        }
+        for (const char *name : {"abs", "sign", "sgn", "floor", "ceil", "round", "trunc", "frac",
+                                 "mod", "piecewise", "min", "max", "step", "tan", "log"}) {
+            for (const Rational &argument : {Rational{0, 1}, Rational{1, 1}, Rational{-1, 1},
+                                             Rational{1, 2}, Rational{3, 2}, Rational{-3, 2}}) {
+                Rational value{7, 3};
+                if (evaluate_rational_function(name, argument, &value))
+                    moved += (moved.empty() ? "" : " | ") + std::string(name) + " at " +
+                             rational_text(argument);
+            }
+        }
+        t.equal(moved, "",
+                "evaluate_rational reduces the same call heads at the same arguments as before" +
+                    warning);
+
+        struct KindCase { Kind kind; const char *name; bool reduces; };
+        const KindCase kinds[] = {
+            {Kind::Integer, "Integer", true},  {Kind::Decimal, "Decimal", true},
+            {Kind::Symbol, "Symbol", true},    {Kind::Add, "Add", true},
+            {Kind::Mul, "Mul", true},          {Kind::Pow, "Pow", true},
+            {Kind::Neg, "Neg", true},          {Kind::Call, "Call", true},
+            {Kind::Equals, "Equals", false},   {Kind::Assign, "Assign", false},
+            {Kind::Approx, "Approx", false},   {Kind::Identity, "Identity", false},
+            {Kind::Less, "Less", false},       {Kind::LessEqual, "LessEqual", false},
+            {Kind::Greater, "Greater", false}, {Kind::GreaterEqual, "GreaterEqual", false},
+            {Kind::Invalid, "Invalid", false}, {Kind::List, "List", false},
+        };
+        std::string changed;
+        // Every byte, so a kind appended after List and then reduced here is caught as well.
+        for (size_t raw = 0; raw < 256; ++raw) {
+            const Kind kind = static_cast<Kind>(raw);
+            bool expected = false;
+            std::string name = "the undeclared kind " + integer_text(static_cast<int64_t>(raw));
+            for (const KindCase &entry : kinds) {
+                if (entry.kind != kind)
+                    continue;
+                expected = entry.reduces;
+                name = entry.name;
+            }
+            Arena arena;
+            const NodeId four = arena.integer("4");
+            NodeId node = kNoNode;
+            switch (kind) {
+                case Kind::Integer: node = four; break;
+                case Kind::Decimal: node = arena.decimal("2.5"); break;
+                case Kind::Symbol: node = arena.symbol("x"); break;
+                case Kind::Neg: node = arena.unary(Kind::Neg, four); break;
+                case Kind::Call: node = arena.call("sqrt", {four}); break;
+                case Kind::List: node = arena.list({four, four}); break;
+                default: node = arena.binary(kind, four, four); break;
+            }
+            Rational value{7, 3};
+            const bool reduced =
+                !arena.failed() && evaluate_rational(arena, node, {{"x", {1, 2}}}, &value);
+            if (reduced != expected)
+                changed += (changed.empty() ? "" : " | ") + name;
+        }
+        t.equal(changed, "", "evaluate_rational reduces the same node kinds as before" + warning);
+    }
 #if defined(__unix__) || defined(__APPLE__)
     pthread_attr_t attributes;
     const int initialized = pthread_attr_init(&attributes);
