@@ -71,6 +71,9 @@ const InstalledModule kInstalledModules[] = {
 };
 #endif
 
+// nps_v4.lua refuses a manifest of more than 128 modules, so outgrowing it disables StepCAS.
+static_assert(std::size(kInstalledModules) <= 128);
+
 const SchemaVersion kSchemaVersions[] = {
     {"capability-manifest", 2},
     {"solution-context", kContextFormatVersion},

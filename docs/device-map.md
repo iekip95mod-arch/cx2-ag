@@ -157,11 +157,6 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 `unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. The Lorentz transformation is
 the one relativity relation the bridge carries and no fixture runs.
 
-The shell refuses a manifest listing more than 64 modules (nps_v4.lua:117). It was 32 until the
-relation families took the real manifest to 34, and nothing on the host held the real count against
-that ceiling, so ui_smoke_v4.lua now checks a padded manifest at 64 and 65. The real manifest now
-lists 43.
-
 `planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
@@ -181,6 +176,11 @@ engines on main with no binding and no menu entry: `source`, neither name appear
 nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
 with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
+
+Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:117 and every StepCAS surface stays
+off. The build fails first, at nps/src/core/capability_manifest.cc:75, if the compiled manifest outgrows
+that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
 
