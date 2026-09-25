@@ -2332,23 +2332,42 @@ check(collectgarbage("count") - before <= 4096, "the collector runs after a pars
 -- the session. Asked at the moment of the read rather than after it: the metatable records the state
 -- it can see and then raises, and the host cannot answer afterwards because LuaJIT unwinds through
 -- C++ and runs the destructor on the way out.
+-- Every entry point is offered the probe in each argument position rather than a list of the ones
+-- known to take a table, so an entry point added later is swept the day it is written.
 do
-    local table_arguments = {
+    local names = {}
+    for name, value in pairs(nps) do
+        if type(value) == "function" then names[#names + 1] = name end
+    end
+    table.sort(names)
+    local readers = {}
+    for _, name in ipairs(names) do
+        for position = 1, 3 do
+            local running = nil
+            local probe = setmetatable({}, {
+                __index = function()
+                    running = collectgarbage("isrunning")
+                    error("the field read that this entry point starts with")
+                end,
+            })
+            local arguments = { "x", "x", "x" }
+            arguments[position] = probe
+            pcall(nps[name], arguments[1], arguments[2], arguments[3])
+            if running ~= nil then
+                readers[name] = true
+                check(running == true,
+                      name .. " reads its table argument " .. position ..
+                          " before it stops the collector, saw " .. tostring(running))
+            end
+        end
+    end
+    -- A sweep that reached no reader would pass by asserting nothing, so the known ones must appear.
+    for _, name in ipairs({
         "catch_up", "relative_motion", "relative_motion_local", "work", "work_local",
-        "planar_kinematics", "magnitude_angle_to_components", "components_to_magnitude_angle",
-    }
-    for _, name in ipairs(table_arguments) do
-        local running = nil
-        local probe = setmetatable({}, {
-            __index = function()
-                running = collectgarbage("isrunning")
-                error("the field read that this entry point starts with")
-            end,
-        })
-        pcall(nps[name], probe)
-        check(running == true,
-              name .. " reads its table argument before it stops the collector, saw " ..
-                  tostring(running))
+        "planar_kinematics", "forces", "magnitude_angle_to_components",
+        "components_to_magnitude_angle",
+    }) do
+        check(readers[name] == true, "the table argument sweep reached " .. name)
     end
 end
 
