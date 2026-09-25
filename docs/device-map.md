@@ -116,8 +116,8 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4038), `vector_addition` (lua_module.cc:4041),
+`vector_cross` (lua_module.cc:4042), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
