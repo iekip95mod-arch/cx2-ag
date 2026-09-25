@@ -1,0 +1,75 @@
+problem: 2*sin(x)^2 + cos(2x)
+outcome: rewritten
+result: 1
+detail: squares and products reduced and like terms collected
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.trigonometric-identities
+  envelope version: 1
+  normalized problem: ((2 * (sin(x)^2)) + cos((2 * x)))
+  requested method: tcollect
+  angle convention: either, the identities hold in radians and in degrees
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Collect ((2 * (sin(x)^2)) + cos((2 * x)))
+    rule: plan.trig-collect, Reduce squares and products to single angles
+    claim: no claim
+    explanation: Use the Pythagorean, half-angle and double-angle identities, then collect like terms.
+    detail: Each step names the identity it uses. Every step and the result are checked exactly.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce squares and products to single angles
+    applicability: the expression is a polynomial in sines and cosines of rational multiples of its variables with rational coefficients
+    fact: ((2 * (sin(x)^2)) + cos((2 * x)))
+    rationale: The expression is a polynomial in sines and cosines of rational multiples of its variables.
+    verification: exact exponential normal form, passed, Collect ((2 * (sin(x)^2)) + cos((2 * x)))
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Collect
+      goal: Collect one product or square
+      rule: trig.half-angle, Half-angle identity
+      claim: equivalent expression
+      explanation: The identity used is sin(a)^2 = (1 - cos(2a))/2.
+      detail: It holds for every angle, so the expression keeps its value.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      action: Use sin(a)^2 = (1 - cos(2a))/2.
+      before: ((2 * (sin(x)^2)) + cos((2 * x)))
+      after: ((2 * ((2^-1) * (1 + (-cos((2 * x)))))) + cos((2 * x)))
+      reversible: yes
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes
+    1.2 transformation
+      phase: Collect
+      goal: Collect one product or square
+      rule: trig.collect, Collect like terms
+      claim: equivalent expression
+      explanation: The identity used is like terms combine.
+      detail: It holds for every angle, so the expression keeps its value.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      action: Collect like terms to get 1.
+      before: ((2 * ((2^-1) * (1 + (-cos((2 * x)))))) + cos((2 * x)))
+      after: 1
+      reversible: yes
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes
+    1.3 check
+      phase: Check
+      goal: Check the result against the expression as typed
+      rule: trig.check-identity, Check the result is the same function
+      claim: equivalent expression
+      explanation: Write both as sums of powers of e to the i times the angle and compare every coefficient.
+      detail: Two trigonometric polynomials are the same function exactly when their exponential forms match.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      target claim: 1 equals ((2 * (sin(x)^2)) + cos((2 * x)))
+      check method: exact exponential normal form
+      expected: identical exponential forms
+      observed: both sides have the same exponential form, coefficient for coefficient
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes

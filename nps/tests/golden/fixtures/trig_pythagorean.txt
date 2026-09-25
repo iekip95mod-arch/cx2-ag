@@ -1,0 +1,61 @@
+problem: sin(x)^2 + cos(x)^2
+outcome: rewritten
+result: 1
+detail: squares and products reduced and like terms collected
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.trigonometric-identities
+  envelope version: 1
+  normalized problem: ((sin(x)^2) + (cos(x)^2))
+  requested method: tcollect
+  angle convention: either, the identities hold in radians and in degrees
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Collect ((sin(x)^2) + (cos(x)^2))
+    rule: plan.trig-collect, Reduce squares and products to single angles
+    claim: no claim
+    explanation: Use the Pythagorean, half-angle and double-angle identities, then collect like terms.
+    detail: Each step names the identity it uses. Every step and the result are checked exactly.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Reduce squares and products to single angles
+    applicability: the expression is a polynomial in sines and cosines of rational multiples of its variables with rational coefficients
+    fact: ((sin(x)^2) + (cos(x)^2))
+    rationale: The expression is a polynomial in sines and cosines of rational multiples of its variables.
+    verification: exact exponential normal form, passed, Collect ((sin(x)^2) + (cos(x)^2))
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Collect
+      goal: Collect one product or square
+      rule: trig.pythagorean, Pythagorean identity
+      claim: equivalent expression
+      explanation: The identity used is sin(a)^2 + cos(a)^2 = 1.
+      detail: It holds for every angle, so the expression keeps its value.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      action: Use sin(a)^2 + cos(a)^2 = 1 with a = x.
+      before: ((sin(x)^2) + (cos(x)^2))
+      after: 1
+      reversible: yes
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes
+    1.2 check
+      phase: Check
+      goal: Check the result against the expression as typed
+      rule: trig.check-identity, Check the result is the same function
+      claim: equivalent expression
+      explanation: Write both as sums of powers of e to the i times the angle and compare every coefficient.
+      detail: Two trigonometric polynomials are the same function exactly when their exponential forms match.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      target claim: 1 equals ((sin(x)^2) + (cos(x)^2))
+      check method: exact exponential normal form
+      expected: identical exponential forms
+      observed: both sides have the same exponential form, coefficient for coefficient
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes
