@@ -275,15 +275,19 @@ std::string direction_interpretation(const RelativeMotionProblem &problem,
            problem.reference_name + " in the declared east-north axes";
 }
 
+// Asked in two places, because the bearing has a velocity rather than a problem to read it from.
+const char *relative_motion_family_id(bool one_dimensional) {
+    return one_dimensional ? "physics.kinematics.relative-motion.components.one-dimension"
+                           : "physics.kinematics.relative-motion.components.two-dimension";
+}
+
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status, const RelativeMotionProblem &problem) {
     ContextInputs inputs;
     inputs.application_version = application_version();
     const bool one_dimensional =
         problem.subject_velocity.rank == 1 && problem.reference_velocity.rank == 1;
-    inputs.problem_family_id = one_dimensional
-                                    ? "physics.kinematics.relative-motion.components.one-dimension"
-                                    : "physics.kinematics.relative-motion.components.two-dimension";
+    inputs.problem_family_id = relative_motion_family_id(one_dimensional);
     inputs.requested_method =
         "validate two velocity vectors, convert to SI, subtract matching components, verify, and "
         "interpret direction";
@@ -308,6 +312,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.resource_policy = budget_policy(budget);
     inputs.derivation_status = status;
     derivation.context = make_context(inputs);
+    derivation.context.problem_family_envelope_version = "1";
 }
 
 RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
@@ -1004,8 +1009,28 @@ RelativeBearing relative_motion_bearing(Arena &arena, Derivation &derivation,
     folded.x = along;
     folded.y = across;
     folded.z = Rational();
+    // The converter records a context of its own, so this family's is kept across the call.
+    const SolutionContext before = derivation.context;
     const VectorComponentsResult polar =
         components_to_magnitude_angle(arena, derivation, folded, angle_unit, giac, budget);
+    derivation.context = before;
+    if (derivation.context.problem_family_id != relative_motion_family_id(velocity.rank == 1)) {
+        // Asked for on its own, with no solve in front of it to have written one.
+        ContextInputs inputs;
+        inputs.application_version = application_version();
+        inputs.problem_family_id = relative_motion_family_id(velocity.rank == 1);
+        inputs.requested_method =
+            "fold the velocity onto the nearest cardinal and convert the folded components to a "
+            "magnitude and an offset angle";
+        inputs.original_expression = derivation.request.original_expression;
+        inputs.unit_policy = "exact SI components, final-only precision on the reported angle";
+        inputs.detail_projection = "standard";
+        inputs.resource_policy = budget_policy(budget);
+        inputs.derivation_status = derivation.outcome_from(0);
+        derivation.context = make_context(inputs);
+        derivation.context.problem_family_envelope_version = "1";
+    }
+    derivation.context.angle_convention = bearing.convention;
     bearing.cost = polar.cost;
     bearing.cost.steps += meter.cost().steps;
     bearing.cost.rewrites += meter.cost().rewrites;

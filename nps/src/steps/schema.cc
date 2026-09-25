@@ -640,6 +640,130 @@ const ObligationSchema kLookupPreservesSolutions[] = {
      kKnownQuantityLookup, 1},
 };
 
+// Relation-driven families, whose obligation ids embed the model's own rule prefix.
+const EvidenceAlternative kRelationPositionModel[] = {
+    {"registered relation-position model", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kCircularPeriodStrategy[] = {
+    {"physics.circular-motion.period.compatible-dimensions",
+     "every quantity in T = 2*pi*r*v^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.period.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularPeriodDimensions[] = {
+    {"physics.circular-motion.period.dimensions-agree",
+     "both sides of T = 2*pi*r*v^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularPeriodCandidate[] = {
+    {"physics.circular-motion.period.candidate-satisfies",
+     "the candidate satisfies T = 2*pi*r*v^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularSpeedStrategy[] = {
+    {"physics.circular-motion.speed.compatible-dimensions",
+     "every quantity in v = 2*pi*r*T^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.speed.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularSpeedDimensions[] = {
+    {"physics.circular-motion.speed.dimensions-agree",
+     "both sides of v = 2*pi*r*T^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularSpeedCandidate[] = {
+    {"physics.circular-motion.speed.candidate-satisfies",
+     "the candidate satisfies v = 2*pi*r*T^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularRadiusStrategy[] = {
+    {"physics.circular-motion.radius.compatible-dimensions",
+     "every quantity in r = (1/(2*pi))*v*T uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.radius.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularRadiusDimensions[] = {
+    {"physics.circular-motion.radius.dimensions-agree",
+     "both sides of r = (1/(2*pi))*v*T have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularRadiusCandidate[] = {
+    {"physics.circular-motion.radius.candidate-satisfies",
+     "the candidate satisfies r = (1/(2*pi))*v*T", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kCircularAccelerationStrategy[] = {
+    {"physics.circular-motion.acceleration.compatible-dimensions",
+     "every quantity in a = v^2*r^-1 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.circular-motion.acceleration.linear-unknown",
+     "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kCircularAccelerationDimensions[] = {
+    {"physics.circular-motion.acceleration.dimensions-agree",
+     "both sides of a = v^2*r^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kCircularAccelerationCandidate[] = {
+    {"physics.circular-motion.acceleration.candidate-satisfies",
+     "the candidate satisfies a = v^2*r^-1", kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kGravitationStrategy[] = {
+    {"physics.gravitation.compatible-dimensions",
+     "every quantity in F = G*m1*m2*r^-2 uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.gravitation.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kGravitationDimensions[] = {
+    {"physics.gravitation.dimensions-agree",
+     "both sides of F = G*m1*m2*r^-2 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kGravitationCandidate[] = {
+    {"physics.gravitation.candidate-satisfies", "the candidate satisfies F = G*m1*m2*r^-2",
+     kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kOscillationStrategy[] = {
+    {"physics.oscillation.compatible-dimensions",
+     "every quantity in F = k*x uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.oscillation.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kOscillationDimensions[] = {
+    {"physics.oscillation.dimensions-agree", "both sides of F = k*x have the same dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kOscillationCandidate[] = {
+    {"physics.oscillation.candidate-satisfies", "the candidate satisfies F = k*x",
+     kSubstituteOriginalRelation, 1},
+};
+
+const ObligationSchema kWaveStrategy[] = {
+    {"physics.wave.compatible-dimensions",
+     "every quantity in v = f*lambda uses compatible dimensions", kDimensionalAnalysis, 1},
+    {"physics.wave.linear-unknown", "the relation is linear in the requested unknown",
+     kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kWaveDimensions[] = {
+    {"physics.wave.dimensions-agree", "both sides of v = f*lambda have the same dimension",
+     kDimensionalAnalysis, 1},
+};
+const ObligationSchema kWaveCandidate[] = {
+    {"physics.wave.candidate-satisfies", "the candidate satisfies v = f*lambda",
+     kSubstituteOriginalRelation, 1},
+};
+
 // modern
 const EvidenceAlternative kModernRelationModel[] = {
     {"registered relation model", EvidenceStrength::StructurallyValid},
@@ -1699,6 +1823,78 @@ const RuleSchema kRules[] = {
     {"physics.density.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
      FailureBehavior::WithholdResult},
     {"physics.density.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.circular-motion.uniform, one rule prefix per unknown plus the acceleration's own.
+    {"physics.circular-motion.period.definition", ClaimType::NoClaim, kCircularPeriodStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.check-dimensions", ClaimType::Definition,
+     kCircularPeriodDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.period.check-candidate", ClaimType::Implication,
+     kCircularPeriodCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.definition", ClaimType::NoClaim, kCircularSpeedStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.check-dimensions", ClaimType::Definition,
+     kCircularSpeedDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.check-candidate", ClaimType::Implication,
+     kCircularSpeedCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.speed.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.definition", ClaimType::NoClaim, kCircularRadiusStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.check-dimensions", ClaimType::Definition,
+     kCircularRadiusDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.check-candidate", ClaimType::Implication,
+     kCircularRadiusCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.radius.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.definition", ClaimType::NoClaim,
+     kCircularAccelerationStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.check-dimensions", ClaimType::Definition,
+     kCircularAccelerationDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.substitute", ClaimType::SolutionSetPreserved,
+     kLookupPreservesSolutions, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.check-candidate", ClaimType::Implication,
+     kCircularAccelerationCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.circular-motion.acceleration.significant-figures", ClaimType::NoClaim,
+     kReportedWithinHalfPlace, 1, FailureBehavior::WithholdResult},
+
+    // physics.gravitation.point-masses
+    {"physics.gravitation.definition", ClaimType::NoClaim, kGravitationStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.gravitation.check-dimensions", ClaimType::Definition, kGravitationDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.gravitation.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions,
+     1, FailureBehavior::WithholdResult},
+    {"physics.gravitation.check-candidate", ClaimType::Implication, kGravitationCandidate, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.oscillation.restoring-force
+    {"physics.oscillation.definition", ClaimType::NoClaim, kOscillationStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.oscillation.check-dimensions", ClaimType::Definition, kOscillationDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.oscillation.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions,
+     1, FailureBehavior::WithholdResult},
+    {"physics.oscillation.check-candidate", ClaimType::Implication, kOscillationCandidate, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.wave.speed-frequency-wavelength
+    {"physics.wave.definition", ClaimType::NoClaim, kWaveStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.check-dimensions", ClaimType::Definition, kWaveDimensions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.wave.check-candidate", ClaimType::Implication, kWaveCandidate, 1,
      FailureBehavior::WithholdResult},
 
     // physics.modern.photon-wavelength, physics.modern.photoelectric and

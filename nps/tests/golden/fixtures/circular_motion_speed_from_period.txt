@@ -1,0 +1,286 @@
+problem: uniform circular motion on a 1 m radius with a 6.28318530717959 s period; find the speed
+variable: speed
+outcome: solved
+result: 1.00000000000000 m/s, centripetal acceleration 1.00000000000000 m/s^2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.circular-motion.uniform
+  envelope version: <not recorded>
+  normalized problem: (a = ((v^2) * (r^-1)))
+  requested method: uniform circular motion, exact SI substitution, linear isolation of the requested quantity
+  active assumption: the speed is constant, so the motion traces a circle at constant rate
+  active assumption: the reported acceleration is the magnitude directed toward the centre of the circle
+  angle convention: <not recorded>
+  branch convention: real domain
+  unit policy: validate dimensions before substitution, convert exactly to SI, and round only the reported answer
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find speed
+    rule: physics.circular-motion.speed.definition, Circular motion speed
+    claim: no claim
+    explanation: Use v = 2*pi*r*T^-1 and solve for the requested quantity
+    assumption before: the speed is constant, so one period describes every lap
+    assumption before: 2*pi is carried as the exact rational 628318530717959/100000000000000 and its approximation error is not propagated
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply the uniform circular motion period, solved for speed
+    applicability: every quantity in v = 2*pi*r*T^-1 uses compatible dimensions
+    applicability: the relation is linear in speed
+    fact: radius = 1 m
+    fact: period = 6.28318530717959 s
+    fact: find speed
+    alternative: general symbolic backend isolation
+    rationale: v = 2*pi*r*T^-1 is linear in the requested unknown after exact SI substitution, so the local exact linear solver is sufficient and deterministic
+    verification: dimensional analysis, passed, L T^-1 against L T^-1
+    verification: registered relation-position model, passed, v occurs at power one in v = 2*pi*r*T^-1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the dimensions of v = 2*pi*r*T^-1
+      rule: physics.circular-motion.speed.check-dimensions, Dimensional analysis
+      claim: definition
+      explanation: Both sides of v = 2*pi*r*T^-1 must have the same dimension
+      proof obligation: physics.circular-motion.speed.dimensions-agree, both sides of v = 2*pi*r*T^-1 have the same dimension
+      target claim: v = 2*pi*r*T^-1 is dimensionally consistent
+      check method: raise each factor dimension to its power and multiply
+      expected: equal dimensions
+      observed: L T^-1 against L T^-1
+      verification: dimensional analysis, passed, L T^-1 against L T^-1
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Substitute the known SI values
+      rule: physics.circular-motion.speed.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its exact SI value
+      detail: After converting the known quantities to SI, put their values into v = 2*pi*r/T. Leave the requested quantity as a symbol, then solve the resulting equation for it.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute the known quantities into v = 2*pi*r*T^-1 after exact SI conversion
+      before: (v = (((628318530717959 * (100000000000000^-1)) * r) * (T^-1)))
+      after: (v = (((628318530717959 * (100000000000000^-1)) * 1) * ((628318530717959 * (100000000000000^-1))^-1)))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, 2 known quantities were substituted
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the candidate in v = 2*pi*r*T^-1
+      rule: physics.circular-motion.speed.check-candidate, Substitution check
+      claim: implication
+      explanation: Put the candidate back into v = 2*pi*r*T^-1
+      proof obligation: physics.circular-motion.speed.candidate-satisfies, the candidate satisfies v = 2*pi*r*T^-1
+      target claim: v = 1 satisfies v = 2*pi*r*T^-1
+      check method: substitute every exact SI value into the relation
+      expected: both sides of v = 2*pi*r*T^-1 agree
+      observed: both sides are exactly equal
+      verification: exact substitution into the original relation, passed, both sides are exactly equal
+      verified: yes
+  2 plan
+    phase: plan
+    goal: Isolate v
+    rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+    claim: no claim
+    explanation: Solve by undoing what was done to v
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Inverse operations on a linear equation
+    applicability: the equation is degree one in v
+    applicability: every other quantity is a rational constant
+    fact: one unknown, v
+    rationale: collect the terms, remove the constant and isolate v using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+    verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+    verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: solve
+      goal: Collect the terms in v
+      rule: eq.collect-like-terms, Collect like terms
+      claim: solution set preserved
+      explanation: Moving every term to one side keeps both sides equal
+      detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Move every term to the left side
+      before: (v = (((628318530717959 * (100000000000000^-1)) * 1) * ((628318530717959 * (100000000000000^-1))^-1)))
+      after: (((1 * v) + -1) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+      verified: yes
+    2.2 transformation
+      phase: solve
+      goal: Isolate v
+      rule: eq.divide-both-sides, Isolate the unknown
+      claim: solution set preserved
+      explanation: Applying the same operation to both sides preserves the solutions
+      detail: Remove the constant term by applying its opposite to both sides. The coefficient of v is 1, so no division is needed.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Add 1 to both sides
+      before: (((1 * v) + -1) = 0)
+      after: (v = 1)
+      reversible: yes
+      verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient 1 was checked to be non-zero
+      verified: yes
+    2.3 check
+      phase: check
+      goal: Check the answer
+      rule: eq.linear.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the answer back into the original equation
+      detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+      proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+      target claim: v = 1 satisfies the equation
+      check method: substitute the solution into the equation as it was typed
+      expected: both sides equal
+      observed: both sides are equal
+      verification: substitution, passed, both sides came out equal
+      verified: yes
+  3 transformation
+    phase: report
+    goal: Report the answer to the measured precision
+    rule: physics.circular-motion.speed.significant-figures, Significant figures
+    claim: no claim
+    explanation: Use the fewest significant figures among the measured givens
+    detail: A measured value is only as good as the figures it was written with, so the answer is reported to the fewest significant figures among the measurements it came from. Every step above this one keeps the exact value, because rounding partway through throws away figures the final rounding cannot get back.
+    proof obligation: obl.physics.reported-within-half-place, the reported value is within half a unit in the last place of the exact one
+    action: Report 1 as 1.00000000000000
+    before: 1
+    after: 1.00000000000000
+    reversible: no
+    verification: exact comparison against the unrounded value, passed, 1.00000000000000 is within half a unit in the last place of 1
+    verified: nothing claimed
+  4 plan
+    phase: plan
+    goal: Find centripetal acceleration
+    rule: physics.circular-motion.acceleration.definition, Centripetal acceleration
+    claim: no claim
+    explanation: Use a = v^2*r^-1 and solve for the requested quantity
+    assumption before: the speed is constant, so the motion traces a circle at constant rate
+    assumption before: the reported acceleration is the magnitude directed toward the centre of the circle
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply the centripetal acceleration a = v^2/r
+    applicability: every quantity in a = v^2*r^-1 uses compatible dimensions
+    applicability: the relation is linear in centripetal acceleration
+    fact: speed = 1.00000000000000 m/s
+    fact: radius = 1 m
+    fact: find centripetal acceleration
+    alternative: general symbolic backend isolation
+    rationale: a = v^2*r^-1 is linear in the requested unknown after exact SI substitution, so the local exact linear solver is sufficient and deterministic
+    verification: dimensional analysis, passed, L T^-2 against L T^-2
+    verification: registered relation-position model, passed, a occurs at power one in a = v^2*r^-1
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    4.1 check
+      phase: check
+      goal: Check the dimensions of a = v^2*r^-1
+      rule: physics.circular-motion.acceleration.check-dimensions, Dimensional analysis
+      claim: definition
+      explanation: Both sides of a = v^2*r^-1 must have the same dimension
+      proof obligation: physics.circular-motion.acceleration.dimensions-agree, both sides of a = v^2*r^-1 have the same dimension
+      target claim: a = v^2*r^-1 is dimensionally consistent
+      check method: raise each factor dimension to its power and multiply
+      expected: equal dimensions
+      observed: L T^-2 against L T^-2
+      verification: dimensional analysis, passed, L T^-2 against L T^-2
+      verified: yes
+    4.2 transformation
+      phase: solve
+      goal: Substitute the known SI values
+      rule: physics.circular-motion.acceleration.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its exact SI value
+      detail: After converting the known quantities to SI, put their values into a = v^2/r. Leave the requested quantity as a symbol, then solve the resulting equation for it.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute the known quantities into a = v^2*r^-1 after exact SI conversion
+      before: (a = ((v^2) * (r^-1)))
+      after: (a = ((1^2) * (1^-1)))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, 2 known quantities were substituted
+      verified: yes
+    4.3 check
+      phase: check
+      goal: Check the candidate in a = v^2*r^-1
+      rule: physics.circular-motion.acceleration.check-candidate, Substitution check
+      claim: implication
+      explanation: Put the candidate back into a = v^2*r^-1
+      proof obligation: physics.circular-motion.acceleration.candidate-satisfies, the candidate satisfies a = v^2*r^-1
+      target claim: a = 1 satisfies a = v^2*r^-1
+      check method: substitute every exact SI value into the relation
+      expected: both sides of a = v^2*r^-1 agree
+      observed: both sides are exactly equal
+      verification: exact substitution into the original relation, passed, both sides are exactly equal
+      verified: yes
+  5 plan
+    phase: plan
+    goal: Isolate a
+    rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+    claim: no claim
+    explanation: Solve by undoing what was done to a
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Inverse operations on a linear equation
+    applicability: the equation is degree one in a
+    applicability: every other quantity is a rational constant
+    fact: one unknown, a
+    rationale: collect the terms, remove the constant and isolate a using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+    verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+    verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    5.1 transformation
+      phase: solve
+      goal: Collect the terms in a
+      rule: eq.collect-like-terms, Collect like terms
+      claim: solution set preserved
+      explanation: Moving every term to one side keeps both sides equal
+      detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Move every term to the left side
+      before: (a = ((1^2) * (1^-1)))
+      after: (((1 * a) + -1) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+      verified: yes
+    5.2 transformation
+      phase: solve
+      goal: Isolate a
+      rule: eq.divide-both-sides, Isolate the unknown
+      claim: solution set preserved
+      explanation: Applying the same operation to both sides preserves the solutions
+      detail: Remove the constant term by applying its opposite to both sides. The coefficient of a is 1, so no division is needed.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Add 1 to both sides
+      before: (((1 * a) + -1) = 0)
+      after: (a = 1)
+      reversible: yes
+      verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient 1 was checked to be non-zero
+      verified: yes
+    5.3 check
+      phase: check
+      goal: Check the answer
+      rule: eq.linear.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the answer back into the original equation
+      detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+      proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+      target claim: a = 1 satisfies the equation
+      check method: substitute the solution into the equation as it was typed
+      expected: both sides equal
+      observed: both sides are equal
+      verification: substitution, passed, both sides came out equal
+      verified: yes
+  6 transformation
+    phase: report
+    goal: Report the answer to the measured precision
+    rule: physics.circular-motion.acceleration.significant-figures, Significant figures
+    claim: no claim
+    explanation: Use the fewest significant figures among the measured givens
+    detail: A measured value is only as good as the figures it was written with, so the answer is reported to the fewest significant figures among the measurements it came from. Every step above this one keeps the exact value, because rounding partway through throws away figures the final rounding cannot get back.
+    proof obligation: obl.physics.reported-within-half-place, the reported value is within half a unit in the last place of the exact one
+    action: Report 1 as 1.00000000000000
+    before: 1
+    after: 1.00000000000000
+    reversible: no
+    verification: exact comparison against the unrounded value, passed, 1.00000000000000 is within half a unit in the last place of 1
+    verified: nothing claimed

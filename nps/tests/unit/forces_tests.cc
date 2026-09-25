@@ -216,6 +216,18 @@ void run_forces_tests(TestSink &t) {
         t.evidence("PHYS-008",
                    value_is(solved.result, 7, 2) && solved.result.inventory.size() == 4,
                    "weight, normal, applied and friction are inventoried and summed");
+        t.evidence("PHYS-025",
+                   has_rule(solved.derivation, "physics.forces.plan") &&
+                       has_rule(solved.derivation, "physics.forces.check-input-dimensions") &&
+                       has_rule(solved.derivation, "physics.forces.weight") &&
+                       has_rule(solved.derivation, "physics.forces.normal-force") &&
+                       has_rule(solved.derivation, "physics.forces.kinetic-friction") &&
+                       has_rule(solved.derivation, "physics.forces.solve-unknown") &&
+                       has_rule(solved.derivation, "physics.forces.check-residual") &&
+                       has_rule(solved.derivation, "physics.forces.check-result-dimension") &&
+                       solved.result.assumptions.size() >= 3,
+                   "the force family records its axis choice, the governing sum, the friction model "
+                   "it selected and its residual and dimension checks");
     }
     {
         // Static friction holds the block on an exact 3-4-5 incline, so equilibrium is consistent.

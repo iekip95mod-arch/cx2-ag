@@ -332,6 +332,77 @@ void run_position_motion_tests(TestSink &t) {
                     exhausted.result.average_velocity.unit.text.empty(),
                 "an exhausted solve exposes no answer at all");
     }
+    {
+        // Issue 416. Both routes are asserted, since each nested engine borrowed the field in turn.
+        Run without(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"));
+        t.equal(without.derivation.context.problem_family_id, "physics.motion.position-vector",
+                "with no backend the context names this family rather than the nested derivative "
+                "engine it borrowed from");
+        t.equal(without.derivation.context.problem_family_envelope_version, "1",
+                "and it records the envelope version the catalog declares");
+        t.check(without.derivation.context.derivation_status == without.result.status,
+                "the context binds to the outcome this family reached");
+        SequenceBackend backend({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0", "sqrt(73)", "0",
+                                 "atan2(8,3)", "0", "0", "atan2(4,0)", "0"});
+        Run with(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), Budget(), &backend);
+        t.equal(with.derivation.context.problem_family_id, "physics.motion.position-vector",
+                "and with a backend it still names this family rather than the component converter "
+                "that wrote the context last");
+        t.equal(with.derivation.context.problem_family_envelope_version, "1",
+                "with the same envelope version on both routes");
+        t.check(!with.derivation.context.requested_method.empty(),
+                "the context states the method this family ran rather than a nested engine's");
+        std::string assumptions;
+        for (const std::string &one : without.derivation.context.active_assumptions)
+            assumptions += one + " | ";
+        // Every exit, because a refusal is a walkthrough and carries the family as much as an answer.
+        struct Exit {
+            PositionMotionProblem problem;
+            const char *outcome;
+            const char *what;
+        };
+        PositionMotionProblem bad_rank = problem("3*t", "2*t^2", "0 s", "2 s", "2 s");
+        bad_rank.rank = 1;
+        PositionMotionProblem bad_dimension = problem("3*t", "2*t^2", "0 m", "2 s", "2 s");
+        PositionMotionProblem zero_duration = problem("3*t", "2*t^2", "2 s", "2 s", "2 s");
+        PositionMotionProblem bad_axis = problem("2^t", "2*t^2", "0 s", "2 s", "2 s");
+        const Exit exits[] = {
+            {bad_rank, "invalid input", "a rank the family does not support"},
+            {bad_dimension, "dimension mismatch", "an interval bound that is not a time"},
+            {zero_duration, "invalid input", "an interval of zero duration"},
+            {bad_axis, "unsupported form", "a component the differentiation engine cannot take"},
+        };
+        for (const Exit &exit : exits) {
+            Run refused(exit.problem);
+            t.equal(position_motion_outcome_name(refused.result.outcome), exit.outcome,
+                    std::string("the control for the line below, so ") + exit.what +
+                        " really does refuse");
+            t.equal(refused.derivation.context.problem_family_id, "physics.motion.position-vector",
+                    std::string("and the refusal for ") + exit.what + " still names this family");
+            t.equal(refused.derivation.context.problem_family_envelope_version, "1",
+                    std::string("and records the envelope version for ") + exit.what);
+        }
+        {
+            Budget exhausting;
+            exhausting.max_backend_calls = 5;
+            SequenceBackend halting({"3", "0", "4*t", "4", "0", "atan2(4,3)", "0"});
+            Run halted(problem("3*t", "2*t^2", "0 s", "2 s", "2 s"), exhausting, &halting);
+            t.equal(position_motion_outcome_name(halted.result.outcome), "resource exceeded",
+                    "the control for the line below, so the conversion really does halt");
+            t.equal(halted.derivation.context.problem_family_id, "physics.motion.position-vector",
+                    "and a halted conversion still names this family");
+        }
+        t.evidence("PHYS-025",
+                   assumptions.find("function of t alone") != std::string::npos &&
+                       assumptions.find("share one clock") != std::string::npos &&
+                       without.derivation.context.problem_family_id ==
+                           "physics.motion.position-vector" &&
+                       !without.derivation.context.requested_method.empty() &&
+                       !without.derivation.context.unit_policy.empty() &&
+                       without.derivation.size() > 0,
+                   "the position-vector family records its one-variable component condition, the "
+                   "shared clock, the method it ran and the unit policy it reported under");
+    }
 }
 
 }  // namespace nps
