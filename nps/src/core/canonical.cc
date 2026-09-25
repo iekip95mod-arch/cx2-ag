@@ -369,20 +369,22 @@ struct LikeTerms {
     std::vector<NodeId> original;
 };
 
+// A rational constant is a like term with no factors. Decimals keep their numeric-mode spelling.
 bool split_like_term(const Arena &arena, NodeId term, Rational *coefficient,
                      std::vector<NodeId> *factors) {
     const Node &node = arena.at(term);
-    Rational scalar;
-    if (rational_value(arena, term, &scalar) || node.kind == Kind::Decimal)
+    if (node.kind == Kind::Decimal)
         return false;
-    if (node.kind != Kind::Mul) {
-        *coefficient = Rational{1, 1};
-        factors->push_back(term);
-        return true;
+    std::vector<NodeId> parts;
+    if (node.kind == Kind::Mul) {
+        for (NodeId factor : arena.children(term))
+            parts.push_back(factor);
+    } else {
+        parts.push_back(term);
     }
 
     Rational value{1, 1};
-    for (NodeId factor : arena.children(term)) {
+    for (NodeId factor : parts) {
         const Node &part = arena.at(factor);
         int64_t integer = 0;
         int64_t denominator = 0;
@@ -401,8 +403,6 @@ bool split_like_term(const Arena &arena, NodeId term, Rational *coefficient,
             factors->push_back(factor);
         }
     }
-    if (factors->empty())
-        return false;
     *coefficient = value;
     return true;
 }
@@ -437,6 +437,9 @@ NodeId scaled_term(Arena &arena, const Rational &coefficient,
         }
     }
     factors.insert(factors.end(), base_factors.begin(), base_factors.end());
+    // Rational terms totalling one leave nothing to write, and that unit is the whole term.
+    if (factors.empty())
+        return arena.integer("1");
     std::sort(factors.begin(), factors.end(),
               [&arena](NodeId x, NodeId y) { return compare(arena, x, y) < 0; });
     return factors.size() == 1 ? factors[0] : arena.nary(Kind::Mul, factors);

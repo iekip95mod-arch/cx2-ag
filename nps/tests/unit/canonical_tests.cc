@@ -674,8 +674,16 @@ void run_canonical_tests(TestSink &t) {
             "products with the same symbolic factors gather independent of factor order");
     t.equal(canon("pi/3 + pi/3"), "(2 * pi * (3^-1))",
             "rational coefficients of one symbolic term gather exactly");
-    t.equal(canon("1/3 + 1/3"), "((3^-1) + (3^-1))",
-            "pure rational terms remain outside symbolic collection");
+    t.equal(canon("1/3 + 1/3"), "(2 * (3^-1))",
+            "pure rational terms gather the same way a symbolic one does");
+    t.equal(canon("1/3 + 1/6"), "(2^-1)", "unlike denominators gather over a common one");
+    t.equal(canon("1 + 1/3"), "(4 * (3^-1))", "a whole number gathers with a fraction");
+    t.equal(canon("1/3 + 2/3"), "1", "rational terms that total one gather to the integer");
+    t.equal(canon("1/3 - 1/3"), "0", "rational terms that cancel leave nothing behind");
+    t.equal(canon("pi*(-2/3 - 2/3) + 16*pi/3"), "(4 * pi)",
+            "a symbolic factor over a folded rational sum gathers with its like term");
+    t.equal(canon("0.5 + 0.5"), "(0.5 + 0.5)",
+            "decimal constants keep their numeric-mode spelling and stay separate");
     t.equal(canon("0.5*x + 0.5*x"), "((0.5 * x) + (0.5 * x))",
             "decimal coefficients keep their numeric-mode spelling and stay separate");
     t.equal(canon("2*x + 3*y"), "((2 * x) + (3 * y))",

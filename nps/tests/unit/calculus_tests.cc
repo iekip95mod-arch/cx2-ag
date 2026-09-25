@@ -169,6 +169,8 @@ void run_calculus_tests(TestSink &t) {
     const Example examples[] = {
         {"int(x^2,x,0,1)", "1/3"}, {"int(3*x^2+2*x+1,x,-1,2)", "15"},
         {"int(pi*(x-1)^2,x,0,2)", "2*pi/3"},
+        {"int(x^2,x,0,2)", "8/3"},
+        {"int(pi*(((4-y)/2)^2-(y/2)^2),y,0,2)", "4*pi"},
         {"int(x^2,x,1,0)", "-1/3"}, {"int(x^2,x,2,2)", "0"},
         {"int(2*t,t,1/2,3/2)", "2"}, {"int(5,x,-3,4)", "35"},
         {"int(1/x^2,x,1,2)", "1/2"},
@@ -249,6 +251,19 @@ void run_calculus_tests(TestSink &t) {
                                (broken.empty() ? "" : " " + broken.front()));
         t.check(derivation.context.original_expression == example.command,
                 "nested calculus retains the original requested command");
+    }
+    for (const auto &gathered : {std::pair{"int(pi*(x-1)^2,x,0,2)", "(2 * pi * (3^-1))"},
+                                 std::pair{"int(x^2,x,0,2)", "(8 * (3^-1))"},
+                                 std::pair{"int(pi*(((4-y)/2)^2-(y/2)^2),y,0,2)", "(4 * pi)"}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = gathered.first;
+        const CalculusResult result =
+            calculus_walkthrough(arena, derivation, parse_command(arena, gathered.first, "x"));
+        const std::string answer = result.value == kNoNode ? result.detail : print(arena, result.value);
+        t.check(result.status == DerivationStatus::SolvedAndVerified && answer == gathered.second,
+                std::string("a verified definite integral states its answer gathered: ") +
+                    gathered.first + " got " + answer);
     }
     {
         Arena arena;
