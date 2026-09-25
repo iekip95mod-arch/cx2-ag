@@ -593,9 +593,9 @@ bool dependency_failure_tag(const std::string &tag) {
 }
 
 // A cancellation leads, because the learner asking to stop is the one terminal condition that is
-// not a statement about the backend. It is read before the dependency and comparison cases for the
-// same reason section 15 keeps the four apart: a stop nobody recorded reads as a check that merely
-// could not run, and the two are different facts.
+// not a statement about the backend. It is read first because PRD PERF-009 forbids a cancel that
+// leaves a mislabeled derivation, and AGENTS.md keeps cancellation distinct: a stop nobody recorded
+// reads as a check that merely could not run, and the two are different facts.
 DerivationStatus cross_checked_status(DerivationStatus local, const CrossCheck &check) {
     if (check.cancelled)
         return DerivationStatus::Cancelled;

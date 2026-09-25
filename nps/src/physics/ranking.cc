@@ -1,5 +1,7 @@
 #include "nps/physics/ranking.h"
 
+#include "nps/core/context.h"
+
 namespace nps {
 namespace {
 
@@ -250,6 +252,22 @@ RankingResult solve_ranking(Derivation &derivation, const RankingModel &model,
                         halt_name(meter.halt()));
     }
     result.cost = meter.cost();
+    // Written on the one funnel every outcome leaves by, so a refusal carries the family too.
+    ContextInputs inputs;
+    inputs.application_version = application_version();
+    inputs.problem_family_id = "physics.ranking.comparative-order";
+    inputs.requested_method =
+        std::string("order the situations by the ranking criteria in priority order, the first "
+                    "untied criterion deciding each pair, for ") +
+        model.quantity_name;
+    inputs.original_expression = derivation.request.original_expression;
+    inputs.active_assumptions.push_back(
+        "the criteria are given in priority order and every situation is measured on each of them");
+    inputs.detail_projection = "standard";
+    inputs.resource_policy = budget_policy(budget);
+    inputs.derivation_status = result.status;
+    derivation.context = make_context(inputs);
+    derivation.context.problem_family_envelope_version = "1";
     return result;
 }
 

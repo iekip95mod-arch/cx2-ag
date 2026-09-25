@@ -120,6 +120,17 @@ void run_optics_tests(TestSink &t) {
                        contains(solved.rules, "physics.optics.check-candidate"),
                    "refraction provenance names the plan, dimensions, domain, convention, "
                    "substitution and final check");
+        // Issue 423. One tag covers all five optics families, which share this group and these steps.
+        t.evidence("PHYS-025",
+                   contains(solved.rules, "physics.optics.refraction.snell") &&
+                       contains(solved.rules, "physics.optics.check-domain") &&
+                       contains(solved.rules, "physics.optics.sign-convention") &&
+                       contains(solved.rules, "physics.optics.check-dimensions") &&
+                       contains(solved.rules, "physics.optics.check-candidate") &&
+                       solved.result.has_critical_sine,
+                   "the optics families record the law each selects, the sign convention they "
+                   "report under, the domain the law is valid on and their dimension and candidate "
+                   "checks");
         t.check(solved.result.equation != kNoNode && solved.result.substituted != kNoNode &&
                     solved.result.unknown != kNoNode && solved.result.value != kNoNode,
                 "the typed refraction result retains the symbolic and substituted models");
@@ -236,6 +247,35 @@ void run_optics_tests(TestSink &t) {
                 "a fringe order between two integers is refused rather than reported");
         t.check(contains(fractional_order.result.detail, "a fringe order is an integer"),
                 "the refusal says the isolated order is not an integer");
+    }
+
+    // A refused fractional order reads the same under a wrong slit isolation, so these solve instead.
+    {
+        const Run integer_order =
+            run(problem(OpticsRelation::DoubleSlit, OpticsVariable::FringeOrder,
+                        {known(OpticsVariable::SlitSpacing, "1 mm"),
+                         known(OpticsVariable::SineFringe, "0.001"),
+                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(integer_order.result.outcome), "solved",
+                "the two-slit relation isolates the fringe order itself");
+        t.equal(integer_order.result.value_text, "2",
+                "a 500 nm source through a 1 mm spacing puts sin(t) = 0.001 on the second maximum");
+        t.equal(integer_order.unverified, "",
+                "every recorded two-slit order claim has passing evidence");
+    }
+
+    {
+        const Run minimum_order =
+            run(problem(OpticsRelation::SingleSlit, OpticsVariable::FringeOrder,
+                        {known(OpticsVariable::SlitSpacing, "1 mm"),
+                         known(OpticsVariable::SineFringe, "0.0015"),
+                         known(OpticsVariable::Wavelength, "0.0000005 m")}));
+        t.equal(optics_outcome_name(minimum_order.result.outcome), "solved",
+                "the single-slit relation isolates the diffraction order itself");
+        t.equal(minimum_order.result.value_text, "3",
+                "the same source through a 1 mm width puts sin(t) = 0.0015 on the third minimum");
+        t.equal(minimum_order.unverified, "",
+                "every recorded single-slit order claim has passing evidence");
     }
 
     {

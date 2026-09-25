@@ -304,6 +304,51 @@ void run_ranking_tests(TestSink &t) {
                     derivation.size() == 0,
                 "cancellation during comparisons stops without publishing an order");
     }
+    {
+        // Issue 416's shape here, where the family recorded no context of its own at all.
+        RankingModel model;
+        model.quantity_name = "average speed";
+        model.criteria.push_back(RankingCriterion{"distance covered", RankingDirection::Increasing});
+
+        RankingProblem problem;
+        problem.situations.push_back(situation("path 1", ranking_known(1)));
+        problem.situations.push_back(situation("path 2", ranking_known(2)));
+
+        Derivation derivation;
+        const RankingResult result = solve_ranking(derivation, model, problem);
+        t.equal(derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "a solved ranking names this family rather than leaving the field to a nested "
+                "engine");
+        t.equal(derivation.context.problem_family_envelope_version, "1",
+                "and records the envelope version the catalog declares");
+        t.check(derivation.context.derivation_status == result.status,
+                "the context binds to the outcome the ranking reached");
+        t.check(derivation.context.requested_method.find("criteria") != std::string::npos,
+                "the context states the method this family ran");
+
+        RankingProblem undecidable;
+        undecidable.situations.push_back(situation("path 1", ranking_unknown()));
+        undecidable.situations.push_back(situation("path 2", ranking_known(2)));
+        Derivation refused_derivation;
+        const RankingResult refused = solve_ranking(refused_derivation, model, undecidable);
+        t.equal(ranking_outcome_name(refused.outcome), "indeterminate order",
+                "the control on the line below, so the refusal really is a refusal");
+        t.equal(refused_derivation.context.problem_family_id, "physics.ranking.comparative-order",
+                "and a refused ranking names the family too, since a refusal is a walkthrough as "
+                "much as an answer is");
+        std::string assumptions;
+        for (const std::string &one : derivation.context.active_assumptions)
+            assumptions += one + " | ";
+        const CheckPayload *ordering = check_payload_for(derivation, "distance covered");
+        t.evidence("PHYS-025",
+                   assumptions.find("priority order") != std::string::npos &&
+                       !derivation.context.requested_method.empty() &&
+                       ordering != nullptr && !ordering->check_method.empty() &&
+                       derivation.context.problem_family_id ==
+                           "physics.ranking.comparative-order",
+                   "the ranking family records its priority-order condition, the comparison rule it "
+                   "applied and the justification step for each criterion");
+    }
 }
 
 }  // namespace nps
