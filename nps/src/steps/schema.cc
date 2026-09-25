@@ -118,6 +118,40 @@ const ObligationSchema kCasesAreComplete[] = {
      "every real value satisfying the equation is one of the cases recorded", kSplitIsComplete, 2},
 };
 
+// algebra.quadratic.formula.one-unknown. The degree bound is a precondition, not a detail of how.
+const EvidenceAlternative kDegreeBoundAndInterpolation[] = {
+    {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaStrategy[] = {
+    {"pre.quadratic.degree-two", "the equation is a polynomial of degree two in the unknown over "
+     "the rationals", kDegreeBoundAndInterpolation, 1},
+    {"pre.quadratic.exact-discriminant-root",
+     "the discriminant has an exact rational square root or is negative", kExactSquareRoot, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+
+const EvidenceAlternative kDiscriminantArithmetic[] = {
+    {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kDiscriminantDecides[] = {
+    {"obl.quadratic.discriminant-decides",
+     "the sign of the discriminant decides how many real roots the equation has",
+     kDiscriminantArithmetic, 1},
+};
+
+const EvidenceAlternative kCollectedPolynomialIsZero[] = {
+    {"exact evaluation of the collected polynomial", EvidenceStrength::StructurallyValid},
+};
+
+const ObligationSchema kFormulaCaseIsARoot[] = {
+    {"obl.quadratic.formula-case-is-a-root",
+     "this case makes a*x^2 + b*x + c zero at the coefficients that were read",
+     kCollectedPolynomialIsZero, 1},
+};
+
 // Every rewriting rule in the two calculus engines carries the same obligation and discharges it
 // the same way, through the rule_invariant helper each file has. It is one schema rather than
 // twenty because it is one obligation: the rule rewrote a subexpression into one with the same
@@ -369,7 +403,7 @@ const EvidenceAlternative kModelValidation[] = {
     {"problem-family model validation", EvidenceStrength::StructurallyValid},
 };
 const EvidenceAlternative kRouteSearch[] = {
-    {"exact route search through the linear solver", EvidenceStrength::StructurallyValid},
+    {"exact route search through the solving rules", EvidenceStrength::StructurallyValid},
 };
 const ObligationSchema kKinematicsStrategy[] = {
     {"pre.kinematics.constant-acceleration", "acceleration is constant over the interval",
@@ -413,6 +447,14 @@ const ObligationSchema kRoundingWithinHalfPlace[] = {
     {"obl.kinematics.rounding-within-half-place",
      "the reported value is within half a unit in the last place of the exact one",
      kUnroundedComparison, 1},
+};
+const EvidenceAlternative kStatedConditionComparison[] = {
+    {"exact comparison against the stated condition", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSelectedRootIsAdmissible[] = {
+    {"obl.kinematics.selected-root-is-admissible",
+     "the value reported is the only root the stated condition allows", kStatedConditionComparison,
+     1},
 };
 
 const EvidenceAlternative kForcesArrangement[] = {
@@ -1287,6 +1329,16 @@ const ObligationSchema kScalarProductBound[] = {
 const EvidenceAlternative kExactSignComparison[] = {
     {"exact sign comparison", EvidenceStrength::CandidateChecked},
 };
+// The slack in the comparison above is the square of the cross-product magnitude, so the angle is
+// atan2 of two exact numbers rather than an inverse cosine no exact rational route reaches.
+const EvidenceAlternative kBackendAngleIdentity[] = {
+    {"Giac atan2 against the exact Cauchy-Schwarz slack",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kScalarProductMeasuredAngle[] = {
+    {"obl.scalar-product.angle-satisfies-definition",
+     "the reported angle satisfies a b cos(phi) = a . b", kBackendAngleIdentity, 1},
+};
 const ObligationSchema kScalarProductAngle[] = {
     {"obl.scalar-product.angle-from-sign",
      "the sign of the scalar product places the angle against a right angle", kExactSignComparison,
@@ -1557,6 +1609,18 @@ const RuleSchema kRules[] = {
     {"eq.quadratic.cases-reconstruct-the-original", ClaimType::SolutionSetPreserved,
      kCasesAreComplete, 1, FailureBehavior::WithholdResult},
 
+    // algebra.quadratic.formula.one-unknown. A wrong discriminant misreports how many roots exist.
+    {"eq.quadratic.formula", ClaimType::NoClaim, kFormulaStrategy, 3,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.standard-form", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
+     FailureBehavior::CannotFail},
+    {"eq.quadratic.discriminant", ClaimType::NoClaim, kDiscriminantDecides, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.formula-case", ClaimType::SolutionSetNarrowed, kFormulaCaseIsARoot, 1,
+     FailureBehavior::WithholdResult},
+    {"eq.quadratic.reject-negative-discriminant", ClaimType::SolutionSetPreserved,
+     kRejectedCaseIsInfeasible, 1, FailureBehavior::CannotFail},
+
     // calculus.differentiate. Every rule below records its invariant unconditionally, which is what
     // CannotFail says: the rule matched the form or it was never reached, so there is no run in
     // which it applies and disagrees with itself.
@@ -1599,7 +1663,8 @@ const RuleSchema kRules[] = {
     {"calculus.check-giac", ClaimType::EquivalentExpression, kCalculusGiac, 1, FailureBehavior::WithholdResult},
 
     // calculus.tangent-line, CALC-010
-    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    // The point value outlives a refusal, and no refusal is reachable once the slope is recorded.
+    {"tangent.point-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
     {"tangent.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
@@ -1697,6 +1762,9 @@ const RuleSchema kRules[] = {
     {"kin.substitute", ClaimType::SolutionSetPreserved, kSubstitutionPreservesSolutions, 1,
      FailureBehavior::WithholdResult},
     {"kin.significant-figures", ClaimType::NoClaim, kRoundingWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+    // Dropping the root the problem did not ask about without saying why is what this prevents.
+    {"kin.select-physical-root", ClaimType::SolutionSetNarrowed, kSelectedRootIsAdmissible, 1,
      FailureBehavior::WithholdResult},
     {"kin.coupled.handover", ClaimType::NoClaim, nullptr, 0, FailureBehavior::CannotFail},
 
@@ -2082,6 +2150,8 @@ const RuleSchema kRules[] = {
     {"vec.dot.check-magnitude-bound", ClaimType::Definition, kScalarProductBound, 1,
      FailureBehavior::WithholdResult},
     {"vec.dot.interpret-angle", ClaimType::Definition, kScalarProductAngle, 1,
+     FailureBehavior::WithholdResult},
+    {"vec.dot.measure-angle", ClaimType::Definition, kScalarProductMeasuredAngle, 1,
      FailureBehavior::WithholdResult},
     // The reporting step raises the half-place obligation and nothing else: the value it reports is
     // one the steps above already verified.

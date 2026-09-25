@@ -61,7 +61,8 @@ Step envelope(const std::string &goal, const char *rule_id, const std::string &r
     s.rule_name = rule_name;
     s.explanation_short = why;
     s.claim = ClaimType::EquivalentExpression;
-    // Here rather than at each rule, because every rule in this file declares this one and no other.
+    // Here rather than at each rule, because every rule in this file declares this one except
+    // i.constant-of-integration, which clears it and declares obl.calculus.family-adds-a-constant.
     s.proof_obligations.push_back({"obl.calculus.rule-preserves-value",
                                    "the rewritten subexpression has the value the original had"});
     return s;

@@ -97,6 +97,35 @@ rule eq.quadratic.check-by-substitution fixture
 rule eq.quadratic.reject-negative-square fixture
 rule eq.quadratic.cases-reconstruct-the-original fixture
 
+family id algebra.quadratic.formula.one-unknown
+topic_and_level Degree-two equations in one unknown with a term of degree one, solved by the quadratic formula
+family_envelope_version 1
+accepted_expression_grammar the same equation grammar with the unknown at powers zero, one and two, so sums, products, negations and constant powers, and no other symbol in it
+accepted_input_forms an equation that is a polynomial of degree two in the unknown over the rationals, written in the project's own grammar
+domains_and_parameter_assumptions the real domain, and the coefficient of the square is read from the equation and checked to be non-zero before the formula is applied
+supported_branches_and_degenerate_cases two roots when the discriminant is positive, one repeated root when it is zero, and no real solution when it is negative
+exact_special_function_and_numerical_result_policy exact rationals only, refusing a discriminant whose root is irrational rather than reporting a decimal
+parser_module_ids src/core/parser.cc, src/steps/quadratic.cc, src/steps/linear.cc
+required_assumptions none, the degree is bounded structurally before the coefficients are read and the sign of the discriminant decides the case rather than being assumed
+test_group_ids quadratic
+proof_obligation_ids obl.eq.same-solutions, obl.quadratic.discriminant-decides, obl.quadratic.formula-case-is-a-root, obl.quadratic.candidate-satisfies, obl.quadratic.rejected-case-is-infeasible, obl.quadratic.cases-are-complete, obl.plan.preconditions-hold
+supported_methods bound the degree, read the three coefficients exactly, take the discriminant and record one case per real root
+unsupported_near_neighbors discriminants with no exact rational root, higher degree, complex roots, symbolic coefficients
+solution_soundness_status verified twice, each case is evaluated against the coefficients that were read and substituted into the equation as it was typed
+solution_completeness_status verified within the envelope, the recorded cases are multiplied back out and compared with the monic quadratic they were split from
+corpus_case_ids the golden fixtures naming this family
+device_performance_status not yet measured on the physical calculator
+direct_keypad_entry_status not yet entered from the calculator keypad
+isolated_runtime_status unqualified, host build results do not establish isolated calculator execution
+release_status unreleased
+rule eq.quadratic.formula fixture
+rule eq.quadratic.standard-form fixture
+rule eq.quadratic.discriminant fixture
+rule eq.quadratic.formula-case fixture
+rule eq.quadratic.reject-negative-discriminant fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+
 family id physics.kinematics.catch-up.equal-position
 reference_curriculum_set_ids StepCAS product requirements PHYS-002, PHYS-014, PHYS-015, PHYS-025, PHYS-026, PHYS-027, PHYS-028, PHYS-029, M1 archetype 4
 curriculum_source_locations StepCAS_Product_Requirements_Document.md sections 9.4 through 9.7, .Internal/agent-pack/tasks/M1_VERTICAL_SLICE.md archetype 4
@@ -436,19 +465,19 @@ rule vec.cross.report-precision fixture
 family id physics.vectors.cartesian-scalar-product
 topic_and_level The scalar product of two Cartesian vectors and the angle between them, PRD section 9 ALG-011 and chapter 3 of the PHYS 2410 scope
 accepted_expression_grammar existing vector grammar for each operand, either unit-vector form such as 1 i + 2 j m or an ordered tuple such as (1, 2) m
-accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form, of equal rank, with a flag asking for the angle as well as the product
+accepted_input_forms structured Vector values read from Cartesian unit-vector or ordered-tuple form, of equal rank, with a flag asking for the angle as well as the product and the unit the angle is wanted in, degrees or radians
 domains_and_parameter_assumptions both vectors have the same rank and the same named frame, dimensions that may differ and whose product fits the dimension table, and for the angle, neither vector is the zero vector
 supported_branches_and_degenerate_cases exact zero and negative components, a zero operand whose product is defined and whose angle is not, compatible dimensions that differ between the two operands, and compatible units with different SI scales
-exact_special_function_and_numerical_result_policy exact rational SI conversion and component summation, rounded only for final reporting. The angle is placed against a right angle from the exact sign of the product, since a numeric angle needs an inverse cosine no exact rational route reaches
+exact_special_function_and_numerical_result_policy exact rational SI conversion and component summation, rounded only for final reporting. The angle is placed against a right angle from the exact sign of the product without a backend. A supplied backend also measures it, through atan2 of the exact cross-product magnitude against the exact scalar product, which is where the inverse cosine route would have needed a square root that is not exact
 parser_module_ids src/units/units.cc, src/physics/scalar_product.cc
 required_assumptions each vector is expressed in the named Cartesian frame, carried per vector with the name in it, as in "first vector frame is lab", and the two readings are related by "the two readings of the scalar product name one quantity"
 test_group_ids scalar product, units
-proof_obligation_ids obl.scalar-product.ranks-match, obl.scalar-product.frames-match, obl.scalar-product.dimension-product, obl.scalar-product.nonzero, obl.scalar-product.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.scalar-product.sum-is-the-definition, obl.scalar-product.commutative, obl.scalar-product.within-magnitude-bound, obl.scalar-product.angle-from-sign, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
-supported_methods write both readings of the definition, substitute the declared vectors into the component one, convert exactly to SI, sum the matching component products through the existing nps vector_dot, then check the sum against a reversed dot product and against the bound the geometric reading puts on it
-unsupported_near_neighbors a numeric angle in degrees or radians, operands of unequal rank, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
+proof_obligation_ids obl.scalar-product.ranks-match, obl.scalar-product.frames-match, obl.scalar-product.dimension-product, obl.scalar-product.nonzero, obl.scalar-product.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.scalar-product.sum-is-the-definition, obl.scalar-product.commutative, obl.scalar-product.within-magnitude-bound, obl.scalar-product.angle-from-sign, obl.scalar-product.angle-satisfies-definition, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+supported_methods write both readings of the definition, substitute the declared vectors into the component one, convert exactly to SI, sum the matching component products through the existing nps vector_dot, then check the sum against a reversed dot product and against the bound the geometric reading puts on it, and with a backend take atan2 of the root of that bound's slack against the sum, checked by the cosine of the answer times the magnitude product coming back to the sum
+unsupported_near_neighbors a numeric angle with no backend supplied, operands of unequal rank, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
 solution_soundness_status verified by rank, frame and dimension-product checks, exact conversion, exact rational summation, an exact reversed dot product and an exact Cauchy-Schwarz comparison against the geometric reading
-solution_completeness_status partial. The product is complete for equal-rank Cartesian operands within exact int64 rational bounds, and the angle is placed against a right angle rather than measured, because an inverse cosine is not reachable without the backend
-corpus_case_ids scalar_product_torque_free_mixed_units, scalar_product_obtuse_angle
+solution_completeness_status partial. The product is complete for equal-rank Cartesian operands within exact int64 rational bounds, and the angle is placed against a right angle without a backend and measured in degrees or radians with one. Neither reading reaches a student yet, since the family has no Lua bridge
+corpus_case_ids scalar_product_torque_free_mixed_units, scalar_product_obtuse_angle, scalar_product_measured_angle
 device_performance_status not measured
 direct_keypad_entry_status not implemented, typed API only
 isolated_runtime_status not yet built for the device target
@@ -466,6 +495,7 @@ rule vec.dot.component-sum fixture
 rule vec.dot.check-commutative fixture
 rule vec.dot.check-magnitude-bound fixture
 rule vec.dot.interpret-angle fixture
+rule vec.dot.measure-angle fixture
 rule vec.dot.report-precision fixture
 
 family id physics.vectors.magnitude-components.two-dimension
@@ -700,8 +730,8 @@ required_assumptions "acceleration is constant" and "motion is along one axis, p
 test_group_ids kinematics, units
 # The linear solver's obligation appears here too, for the same reason its rules do: a kinematics
 # solve nests it and the record carries what it raised.
-proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold
-supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear solver
+proof_obligation_ids obl.kinematics.dimensions-agree, obl.kinematics.rounding-within-half-place, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.kinematics.conversion-preserves-solutions, obl.kinematics.substitution-preserves-solutions, obl.rearrange.same-solutions, obl.plan.preconditions-hold, obl.quadratic.discriminant-decides, obl.quadratic.formula-case-is-a-root, obl.quadratic.candidate-satisfies, obl.quadratic.cases-are-complete, obl.kinematics.selected-root-is-admissible
+supported_methods backward chaining over the four constant-acceleration equations, each candidate offered to the linear rule and then to the two degree-two rules
 unsupported_near_neighbors two bodies at equal position, forces, energy
 solution_soundness_status verified, dimensions checked and the answer substituted back by the linear solver
 solution_completeness_status partial, one body and one axis
@@ -727,6 +757,14 @@ rule eq.divide-both-sides fixture
 rule alg.rearrange.swap-sides fixture
 rule alg.rearrange.subtract-both-sides fixture
 rule alg.rearrange.divide-both-sides fixture
+# A kinematics record nests the quadratic rules for the same reason it nests the linear ones.
+rule eq.quadratic.formula fixture
+rule eq.quadratic.standard-form fixture
+rule eq.quadratic.discriminant fixture
+rule eq.quadratic.formula-case fixture
+rule eq.quadratic.check-by-substitution fixture
+rule eq.quadratic.cases-reconstruct-the-original fixture
+rule kin.select-physical-root fixture
 
 family id physics.kinematics.constant-acceleration.two-dimension
 topic_and_level Two-dimensional motion under a constant acceleration in any direction, PRD section 22.1 and PHYS-028's Event/State/Interval distinction

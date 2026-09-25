@@ -29,6 +29,7 @@
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/physics/kinematics.h"
+#include "nps/steps/calculus.h"
 #include "nps/steps/derivation.h"
 #include "nps/steps/differentiate.h"
 #include "nps/steps/integrate.h"
@@ -41,6 +42,7 @@
 
 using nps::Arena;
 using nps::Budget;
+using nps::CalculusResult;
 using nps::Derivation;
 using nps::DerivationStatus;
 using nps::DiffResult;
@@ -607,6 +609,39 @@ void run_kinematics(Arena &arena, const Case &c, bool refusal, Run *run) {
     read_derivation(arena, derivation, refusal, run);
 }
 
+// CALC-010, refusals only for the reason run_quadratic gives. The input is a whole command, since
+// the variable and the point are arguments rather than fields.
+void run_tangent(Arena &arena, const Case &c, bool refusal, Run *run) {
+    const NodeId invocation = parse_into(arena, c.value("input"), &run->detail);
+    const std::string variable_text = c.value("variable");
+    if (variable_text.empty()) {
+        run->could_not_run = "no variable field";
+        return;
+    }
+    run->shape = shape_text(arena, invocation, c.value("input"), variable_text);
+    if (invocation == kNoNode) {
+        run->outcome = "not parsed";
+        run->result_class = "none";
+        return;
+    }
+    Derivation derivation;
+    if (!c.numeric_mode(&derivation.request.numeric_mode)) {
+        run->could_not_run = "numeric mode has to be exact or decimal";
+        return;
+    }
+    derivation.request.original_expression = c.value("input");
+    const CalculusResult result = calculus_walkthrough(
+        arena, derivation, nps::parse_command(arena, c.value("input"), variable_text), c.budget());
+    run->outcome = calculus_outcome_name(result.outcome);
+    run->detail = result.detail;
+    run->answer = result.value;
+    run->has_answer = result.value != kNoNode;
+    if (run->has_answer)
+        run->answer_text = print(arena, result.value);
+    run->result_class = result_class_of(arena, result.value);
+    read_derivation(arena, derivation, refusal, run);
+}
+
 void run_case(const Case &c, Run *run) {
     Arena arena;
     const std::string family = c.family;
@@ -624,6 +659,8 @@ void run_case(const Case &c, Run *run) {
         run_integral(arena, c, refusal, run);
     else if (mode == "kinematics")
         run_kinematics(arena, c, refusal, run);
+    else if (mode == "tangent" || mode == "linearize")
+        run_tangent(arena, c, refusal, run);
     else
         run->could_not_run = "no runner for mode " + mode;
 }
@@ -756,6 +793,11 @@ nps::NodeId sum_of(Arena &arena, const char *left, const char *right) {
     return arena.binary(nps::Kind::Add, arena.integer(left), arena.integer(right));
 }
 
+bool refused_definition_flaw(const std::string &flaw) {
+    return flaw == "undeclared definition prefix" || flaw == "unverified definition prefix" ||
+           flaw == "unfinished definition";
+}
+
 // A record a well behaved engine would produce: a plan with a strategy, and one verified
 // transformation under it. The flaw argument names the one thing to leave out.
 void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
@@ -785,9 +827,10 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     // sides are 2 and 3 asserts that two is three, and a fixture standing in for a well behaved
     // engine cannot be built on one.
     payload.before = sum_of(arena, "2", "1");
-    payload.after = flaw == "exact value"          ? arena.decimal("3.0")
-                    : flaw == "false equivalence"  ? arena.integer("4")
-                                                   : arena.integer("3");
+    payload.after = flaw == "exact value"             ? arena.decimal("3.0")
+                    : flaw == "false equivalence"     ? arena.integer("4")
+                    : flaw == "unfinished definition" ? nps::kNoNode
+                                                      : arena.integer("3");
     payload.concrete_action = flaw == "action" ? "" : "Add one";
     payload.reversible = true;
 
@@ -799,8 +842,10 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     move.rule_name = "Selftest addition";
     move.explanation_short = "Adding one to a number";
     move.explanation_detailed = "Reach for this whenever a number needs to be one larger.";
-    move.claim = nps::ClaimType::EquivalentExpression;
-    if (flaw != "verification" && flaw != "halted unchecked step") {
+    move.claim = refused_definition_flaw(flaw) ? nps::ClaimType::Definition
+                                               : nps::ClaimType::EquivalentExpression;
+    if (flaw != "verification" && flaw != "halted unchecked step" &&
+        flaw != "unverified definition prefix") {
         nps::VerificationRecord v;
         v.method = "selftest arithmetic";
         v.outcome = nps::VerificationOutcome::Passed;
@@ -813,6 +858,9 @@ void build_derivation(Arena &arena, Derivation *d, const std::string &flaw) {
     // so criterion 8 has to separate the two rather than wave the whole halt through.
     if (flaw == "halted unchecked step")
         d->context.derivation_status = nps::DerivationStatus::ResourceLimitReached;
+
+    if (refused_definition_flaw(flaw))
+        d->context.derivation_status = nps::DerivationStatus::Unsupported;
 
     // A grandchild of the plan rather than a child, so it is not a major step. Criterion 5 asks
     // only about major steps, which is what leaves an arm that breaks STEP-002 and nothing else.
@@ -863,6 +911,11 @@ int selftest() {
         // see: a refusal whose status says it ran out, keeping a transformation nothing stands
         // behind. Criterion 4 fires on the same record, which is why both are named.
         {"4 and 8", "halted unchecked step", true},
+        // The three ways a definition is still refused a prefix. Its one way through is a real
+        // engine record in calculus_tests.cc.
+        {"8", "undeclared definition prefix", true},
+        {"4 and 8", "unverified definition prefix", true},
+        {"8 and STEP-002", "unfinished definition", true},
         {"STEP-002", "nested rule name", false},
         {"STEP-022", "generic rule name", false},
         // Both ways STEP-021 goes wrong. Saying nothing is the obvious one; saying the short

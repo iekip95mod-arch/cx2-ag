@@ -1,0 +1,212 @@
+problem: find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2
+variable: t
+outcome: solved
+result: 4 s
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.kinematics.constant-acceleration.one-dimension
+  envelope version: <not recorded>
+  normalized problem: (x = ((v0 * t) + (((1 * (2^(-1))) * a) * (t^2))))
+  requested method: select an equation, substitute in SI, solve as a linear equation
+  active assumption: acceleration is constant
+  active assumption: motion is along one axis, positive in the chosen direction
+  angle convention: radians
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, every quantity converted to SI before the equation is used; the answer is reported to the fewest significant figures among the measured givens, and nothing is rounded before then
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find t, the time
+    rule: physics.kinematics.constant-acceleration, Constant acceleration in one dimension
+    claim: no claim
+    explanation: Use x = v0*t + (1/2)*a*t^2: put the values in SI into it and solve for t
+    assumption before: acceleration is constant
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Constant acceleration in one dimension
+    applicability: acceleration is constant over the interval
+    applicability: motion is along one axis with one positive direction
+    applicability: every selected equation contains its target and only quantities known by that hop
+    fact: x = 44 m, the displacement
+    fact: v0 = 5 m/s, the initial velocity
+    fact: a = 3 m/s^2, the acceleration
+    fact: find t, the time
+    alternative: v = v0 + a*t: needs v, which is not given
+    alternative: v^2 = v0^2 + 2*a*x: does not contain t
+    alternative: x = (1/2)*(v0 + v)*t: needs v, which is not given
+    rationale: of the four constant-acceleration equations, x = v0*t + (1/2)*a*t^2 is the first that has t with every other quantity known and leaves a quadratic in it once the values are in; no symbolic engine is attached, so the rearrangement is shown with the values already in
+    verification: problem-family model validation, passed, the selected equation table is the constant-acceleration family
+    verification: problem-family model validation, passed, the typed problem uses the one-dimensional kinematics family
+    verification: exact route search through the solving rules, passed, x = v0*t + (1/2)*a*t^2 for t
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the dimensions
+      rule: physics.kinematics.check-dimensions, Dimensional analysis
+      claim: solution set preserved
+      explanation: Both sides of the equation must have the same dimension
+      detail: Each symbol carries a dimension. Multiplying adds exponents, dividing subtracts them, and a sum only makes sense between equal dimensions. An equation whose sides disagree is being misused, however the arithmetic comes out.
+      proof obligation: obl.kinematics.dimensions-agree, dimension of the left side equals dimension of the right side
+      target claim: x = v0*t + (1/2)*a*t^2 is dimensionally consistent
+      check method: dimensional analysis of both sides
+      expected: equal dimensions
+      observed: L on both sides
+      verification: dimensional analysis, passed, L on both sides
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Substitute the known values
+      rule: kin.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its value in SI units
+      detail: What remains is an equation in t alone, with numbers everywhere else, which the degree-two rule below takes from here.
+      proof obligation: obl.kinematics.substitution-preserves-solutions, putting a known quantity in place of its symbol leaves the equation's solutions alone
+      action: Substitute x = 44 m, v0 = 5 m/s, a = 3 m/s^2
+      before: (x = ((v0 * t) + (((1 * (2^(-1))) * a) * (t^2))))
+      after: (44 = ((5 * t) + (((1 * (2^(-1))) * 3) * (t^2))))
+      reversible: yes
+      verification: rule-local invariant, passed, every symbol but t has a known value
+      verified: yes
+    1.3 plan
+      phase: plan
+      goal: Solve for t
+      rule: eq.quadratic.formula, Read the coefficients and apply the quadratic formula
+      claim: no claim
+      explanation: Write the equation as a*t^2 + b*t + c = 0, then read off its roots
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Read the coefficients and apply the quadratic formula
+      applicability: the equation is a polynomial of degree two in t over the rationals
+      applicability: the discriminant has an exact rational square root or is negative
+      fact: one unknown, t
+      fact: degree two in t with a term of degree one
+      alternative: isolating the square, which this equation has no form for because a term of degree one leaves a bare t behind
+      rationale: the coefficients are exact rationals, so the discriminant is exact, and its sign says how many real values of t there are before any of them is written down
+      verification: structural degree bound and exact interpolation, passed, no power of t above the second occurs, and the coefficient of t^2 is (-(3 * (2^(-1))))
+      verification: exact rational square root, passed, the discriminant is a rational perfect square
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      1.3.1 transformation
+        phase: solve
+        goal: Write the equation as a*t^2 + b*t + c = 0
+        rule: eq.quadratic.standard-form, Standard form
+        claim: solution set preserved
+        explanation: Move everything to one side so the three coefficients are on show
+        detail: The formula is about a, b and c, so they have to be visible before it can be applied. Moving every term to one side changes how the equation is written and not what solves it.
+        proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+        action: Collect on the left: a = (-(3 * (2^(-1)))), b = (-5), c = 44
+        before: (44 = ((5 * t) + (((1 * (2^(-1))) * 3) * (t^2))))
+        after: (((((-(3 * (2^(-1)))) * (t^2)) + ((-5) * t)) + 44) = 0)
+        reversible: yes
+        verification: rule-local equality invariant, passed, the coefficients were read from the equation itself and put back in the same order
+        verified: yes
+        1.3.1.1 check
+          phase: check
+          goal: Work out the discriminant
+          rule: eq.quadratic.discriminant, Discriminant
+          claim: no claim
+          explanation: b^2 - 4*a*c is 289
+          detail: Reach for this before writing any root down. The formula takes the square root of this one number, so its sign decides whether there are two real values, one, or none, and nothing about the roots has to be guessed at to find out.
+          proof obligation: obl.quadratic.discriminant-decides, the sign of the discriminant decides how many real roots the equation has
+          target claim: the discriminant of the equation is 289
+          check method: b^2 - 4*a*c in exact rationals
+          expected: a discriminant with an exact rational square root
+          observed: 289 has the exact square root 17
+          verification: exact rational arithmetic, passed, b^2 - 4*a*c came out 289, whose exact square root is 17
+          verified: nothing claimed
+        1.3.1.2 branch
+          phase: solve
+          goal: Take the positive square root of the discriminant
+          rule: eq.quadratic.formula-case, Quadratic formula case
+          claim: solution set narrowed
+          explanation: t = (-(22 * (3^(-1)))) is one of the two values the formula gives
+          detail: The formula takes the square root of the discriminant with either sign, and a positive discriminant has one of each, so both cases are written to keep every solution.
+          proof obligation: obl.quadratic.formula-case-is-a-root, this case makes a*x^2 + b*x + c zero at the coefficients that were read
+          condition: (t = (-(22 * (3^(-1)))))
+          siblings exhaustive: yes
+          siblings exclusive: yes
+          siblings domain consistent: yes
+          exhaustive evidence: root-coefficient reconstruction
+          feasibility: feasible
+          resolution: solved
+          resolution evidence: substitution into the original equation
+          verification: exact evaluation of the collected polynomial, passed, a*t^2 + b*t + c came out zero at (-(22 * (3^(-1))))
+          verified: yes
+          1.3.1.2.1 check
+            phase: check
+            goal: Check this case
+            rule: eq.quadratic.check-by-substitution, Check by substitution
+            claim: solution set preserved
+            explanation: Put (-(22 * (3^(-1)))) back into the equation as it was typed
+            detail: Substituting into the original rather than into the collected form is what makes this a check: the collected form came from the step being checked, so agreeing with it would prove nothing about the answer.
+            proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+            target claim: t = (-(22 * (3^(-1)))) satisfies the equation
+            check method: substitute the case into the original equation
+            expected: left side equals right side
+            observed: both sides came out equal
+            verification: substitution, passed, both sides came out equal
+            verified: yes
+        1.3.1.3 branch
+          phase: solve
+          goal: Take the negative square root of the discriminant
+          rule: eq.quadratic.formula-case, Quadratic formula case
+          claim: solution set narrowed
+          explanation: t = 4 is one of the two values the formula gives
+          detail: The formula takes the square root of the discriminant with either sign, and a positive discriminant has one of each, so both cases are written to keep every solution.
+          proof obligation: obl.quadratic.formula-case-is-a-root, this case makes a*x^2 + b*x + c zero at the coefficients that were read
+          condition: (t = 4)
+          siblings exhaustive: yes
+          siblings exclusive: yes
+          siblings domain consistent: yes
+          exhaustive evidence: root-coefficient reconstruction
+          feasibility: feasible
+          resolution: solved
+          resolution evidence: substitution into the original equation
+          verification: exact evaluation of the collected polynomial, passed, a*t^2 + b*t + c came out zero at 4
+          verified: yes
+          1.3.1.3.1 check
+            phase: check
+            goal: Check this case
+            rule: eq.quadratic.check-by-substitution, Check by substitution
+            claim: solution set preserved
+            explanation: Put 4 back into the equation as it was typed
+            detail: Substituting into the original rather than into the collected form is what makes this a check: the collected form came from the step being checked, so agreeing with it would prove nothing about the answer.
+            proof obligation: obl.quadratic.candidate-satisfies, the candidate satisfies the original equation
+            target claim: t = 4 satisfies the equation
+            check method: substitute the case into the original equation
+            expected: left side equals right side
+            observed: both sides came out equal
+            verification: substitution, passed, both sides came out equal
+            verified: yes
+        1.3.1.4 check
+          phase: check
+          goal: Check that no case is missing
+          rule: eq.quadratic.cases-reconstruct-the-original, Completeness of the split
+          claim: solution set preserved
+          explanation: The cases multiply back out to the equation that was split
+          detail: Reach for this at the end of any split. Checking each case on its own says the answers given are right, and says nothing about an answer left out, so the cases are multiplied back together and compared with the equation they came from.
+          proof obligation: obl.quadratic.cases-are-complete, every real value satisfying the equation is one of the cases recorded
+          target claim: the cases recorded are every real solution of the equation
+          check method: rebuild the quadratic from the recorded cases and compare it
+          expected: the rebuilt quadratic is the one that was split
+          observed: the rebuilt quadratic is the one that was split
+          verification: root-coefficient reconstruction, passed, the 2 recorded cases rebuild t^2 + (10 * (3^(-1)))*t + (-(88 * (3^(-1)))) = 0
+          verified: yes
+    1.4 transformation
+      phase: solve
+      goal: Choose the root this problem asks for
+      rule: kin.select-physical-root, Physical root selection
+      claim: solution set narrowed
+      explanation: t = 4, because a time measured from the start of the interval is not negative
+      detail: The equation is satisfied by every root the algebra found. Which of them the problem is about is a question about the motion rather than about the equation, so the condition that decides it is stated here and the roots it rules out are named rather than quietly dropped.
+      assumption after: a time measured from the start of the interval is not negative
+      proof obligation: obl.kinematics.selected-root-is-admissible, the value reported is the only root the stated condition allows
+      action: Keep t = 4 and reject t = -22/3, since a time measured from the start of the interval is not negative
+      before: (44 = ((5 * t) + (((1 * (2^(-1))) * 3) * (t^2))))
+      after: (t = 4)
+      reversible: no
+      verification: exact comparison against the stated condition, passed, of the roots found, only t = 4 satisfies a time measured from the start of the interval is not negative
+      verified: yes

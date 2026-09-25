@@ -169,17 +169,17 @@ VerificationRecord verification(const char *method, const std::string &detail,
     return record;
 }
 
-std::string frame_of(const RelativityProblem &problem, RelativityVariable variable) {
-    return relativity_variable_in_moving_frame(variable) ? problem.moving_frame_name
-                                                         : problem.rest_frame_name;
+Frame frame_of(const RelativityProblem &problem, RelativityVariable variable) {
+    return relativity_variable_in_moving_frame(variable) ? problem.moving_frame
+                                                         : problem.rest_frame;
 }
 
 std::string convention_text(const RelativityProblem &problem, const Rational &beta) {
     Rational normalized;
     normalize_copy(beta, &normalized);
     const std::string direction = normalized.num < 0 ? "negative" : "positive";
-    return problem.moving_frame_name + " moves at beta = " + rational_text(normalized) +
-           " c along the " + direction + " x axis of " + problem.rest_frame_name +
+    return problem.moving_frame.name + " moves at beta = " + rational_text(normalized) +
+           " c along the " + direction + " x axis of " + problem.rest_frame.name +
            ", with parallel axes and origins coinciding at t = 0";
 }
 
@@ -452,12 +452,13 @@ Invariant check_invariant(RelativityRelation relation, const Rational &beta, con
 RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                             const RelativityProblem &problem, const Budget &budget,
                             const RelationShape &shape, Rational *beta_out, NodeId *model) {
-    if (problem.rest_frame_name.empty() || problem.moving_frame_name.empty())
+    if (problem.rest_frame.name.empty() || problem.moving_frame.name.empty())
         return failed(RelativityOutcome::FrameUndeclared, DerivationStatus::InvalidInput,
                       "both the rest frame and the moving frame need a name");
-    if (problem.rest_frame_name == problem.moving_frame_name)
+    const bool frames_distinct = problem.rest_frame != problem.moving_frame;
+    if (!frames_distinct)
         return failed(RelativityOutcome::FrameMismatch, DerivationStatus::InvalidInput,
-                      problem.rest_frame_name + " cannot be both frames of the same boost");
+                      problem.rest_frame.name + " cannot be both frames of the same boost");
 
     std::string invalid_detail;
     if (!valid_quantity(problem.boost, &invalid_detail))
@@ -560,8 +561,8 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     for (const RelativityKnown &known : problem.knowns)
         plan.matched_problem_facts.push_back(known_text(known));
     plan.matched_problem_facts.push_back("boost beta = " + rational_text(beta) + " c of " +
-                                         problem.moving_frame_name + " relative to " +
-                                         problem.rest_frame_name);
+                                         problem.moving_frame.name + " relative to " +
+                                         problem.rest_frame.name);
     plan.alternatives_considered.push_back("a Galilean relative-motion model");
     plan.selection_rationale =
         std::string(shape.written) +
@@ -569,8 +570,8 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         "at this speed rather than merely imprecise";
     Step plan_step;
     plan_step.phase = "plan";
-    plan_step.goal = std::string("Relate ") + problem.moving_frame_name + " and " +
-                     problem.rest_frame_name + " through " + shape.written;
+    plan_step.goal = std::string("Relate ") + problem.moving_frame.name + " and " +
+                     problem.rest_frame.name + " through " + shape.written;
     plan_step.rule_id = "physics.relativity.plan";
     plan_step.rule_name = relativity_relation_name(problem.relation);
     plan_step.explanation_short =
@@ -592,8 +593,8 @@ RelativityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         return RelativityResult();
     const StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
 
-    const std::string frames_observed = problem.moving_frame_name + " relative to " +
-                                        problem.rest_frame_name;
+    const std::string frames_observed = problem.moving_frame.name + " relative to " +
+                                        problem.rest_frame.name;
     if (!meter.step())
         return RelativityResult();
     {

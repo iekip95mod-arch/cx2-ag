@@ -168,6 +168,14 @@ std::string value_text(const Quantity &quantity) {
     return text;
 }
 
+// A ratio of two givens reported beside the answer, to the fewest figures among the two.
+std::string ratio_text(const Rational &ratio, const Precision &a, const Precision &b) {
+    Quantity reported;
+    reported.value = ratio;
+    reported.precision = precision_at_digits(ratio, precision_combine(a, b));
+    return value_text(reported);
+}
+
 std::string known_text(const OpticsKnown &known) {
     std::string text = std::string(optics_variable_name(known.variable)) + " = " +
                        value_text(known.quantity);
@@ -765,7 +773,9 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                              si_quantities[incident_index].value, &critical) &&
                 critical.num <= critical.den) {
                 result.has_critical_sine = true;
-                result.critical_sine_text = rational_text(critical);
+                result.critical_sine_text =
+                    ratio_text(critical, si_quantities[transmitted_index].precision,
+                               si_quantities[incident_index].precision);
             }
         }
         if (problem.unknown == OpticsVariable::SineTransmitted && candidate.num > candidate.den) {
@@ -895,7 +905,8 @@ OpticsResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         if (rational_sub(zero, si_quantities[2].value, &negated) &&
             rational_div(negated, si_quantities[1].value, &magnification)) {
             result.has_magnification = true;
-            result.magnification_text = rational_text(magnification);
+            result.magnification_text = ratio_text(magnification, si_quantities[2].precision,
+                                                   si_quantities[1].precision);
         }
     }
 

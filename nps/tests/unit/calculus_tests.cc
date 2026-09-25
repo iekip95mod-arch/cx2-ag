@@ -749,6 +749,68 @@ void run_calculus_tests(TestSink &t) {
                 "the tangent family refuses outside its envelope: " + std::string(text) + ": " +
                 std::string(calculus_outcome_name(result.outcome)));
     }
+    // x*tan(x) is exact at zero and its derivative is not, which is the only route that records
+    // verified work and then cannot finish. Every refusal above stops before the function is read.
+    for (const char *text : {"tangent(x*tan(x),x,0)", "linearize(x*tan(x),x,0)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        const std::string where = std::string(text) + ": ";
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                result.status == DerivationStatus::Unsupported,
+                where + "a slope with no exact value is refused rather than approximated");
+        t.equal(result.detail,
+                std::string("the derivative has no exact value at that point, so the slope is "
+                            "undefined there"),
+                where + "the refusal names the slope rather than the function value");
+        size_t kept = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "tangent.point-value" && recorded.verified())
+                ++kept;
+        }
+        t.check(kept == 1, where + "the verified function value survives the refusal");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        const bool has_answer = result.value != kNoNode;
+        audit.walk(arena, derivation, true, true, &broken, &has_answer);
+        t.check(broken.empty(),
+                where + "and the refusal invariants accept a definition the refusal cannot unmake" +
+                    (broken.empty() ? "" : ", got " + broken.front()));
+    }
+    // The same refused shape built from a successful run's own two definitions. Only the point value
+    // declares that it survives a refusal, and the assembled line is what criterion 8 is there for.
+    {
+        Arena arena;
+        Derivation solved;
+        const char *source = "tangent(x^2,x,3)";
+        solved.request.original_expression = source;
+        calculus_walkthrough(arena, solved, parse_command(arena, source, "x"));
+        for (const auto &expected : {std::pair{"tangent.point-value", false},
+                                     std::pair{"tangent.line", true}}) {
+            Derivation refused;
+            for (size_t i = 0; i < solved.size(); ++i) {
+                const StepId id = static_cast<StepId>(i);
+                if (solved.at(id).rule_id != expected.first)
+                    continue;
+                Step kept = solved.at(id);
+                refused.add_transformation(kNoStep, std::move(kept), *solved.transformation(id));
+            }
+            refused.context.derivation_status = DerivationStatus::Unsupported;
+            invariants::Pass audit;
+            std::vector<std::string> broken;
+            const bool has_answer = false;
+            audit.walk(arena, refused, true, true, &broken, &has_answer);
+            bool caught = false;
+            for (size_t i = 0; i < broken.size(); ++i)
+                caught = caught || broken[i].find("kept the transformation") != std::string::npos;
+            t.check(refused.size() == 1 && caught == expected.second,
+                    std::string("a refusal keeping ") + expected.first + " is " +
+                        (expected.second ? "reported" : "accepted"));
+        }
+    }
     {
         Arena arena;
         const Command missing = parse_command(arena, "tangent(x^2,x)", "x");
