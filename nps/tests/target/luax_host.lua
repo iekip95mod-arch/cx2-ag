@@ -244,6 +244,15 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
+-- The whole key set rather than the four values, because the fault this guards against was a fifth
+-- key the bridge invented and wrote on one branch only, which read as false in every state.
+do
+    local backend_keys = {}
+    for key in pairs(manifest.symbolic_backend) do backend_keys[#backend_keys + 1] = key end
+    table.sort(backend_keys)
+    check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
+          "and carries exactly the four fields SymbolicBackendCapability defines")
+end
 check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
@@ -2408,10 +2417,18 @@ check(type(failed_manifest.installed_modules) == "table" and
       #failed_manifest.installed_modules == 0,
       "the integrity-failed manifest exposes no installed solver or content module")
 check(failed_manifest.symbolic_backend.name == "Giac" and
-      failed_manifest.symbolic_backend.available == false and
       failed_manifest.symbolic_backend.interface_id == "unavailable" and
       failed_manifest.symbolic_backend.deployment == "integrity-rejected",
       "the integrity-failed manifest marks the bundled backend unavailable")
+-- Whether the backend is usable is what integrity_status answers, so the rejected manifest redacts
+-- the two identity fields and adds no key the verified one lacks.
+do
+    local failed_keys = {}
+    for key in pairs(failed_manifest.symbolic_backend) do failed_keys[#failed_keys + 1] = key end
+    table.sort(failed_keys)
+    check(table.concat(failed_keys, ",") == "deployment,interface_id,name,version",
+          "and redacts rather than adding an availability flag the manifest has no field for")
+end
 local v4_file = assert(io.open("lua/nps_v4.lua", "rb"))
 local v4_source = v4_file:read("*a")
 v4_file:close()
