@@ -475,6 +475,45 @@ void run_optics_tests(TestSink &t) {
         t.equal(optics_outcome_name(stopped.result.outcome), "cancelled",
                 "a cancelled optics solve reports cancellation rather than a failure");
     }
+
+    {
+        // Issue 330. The magnification and the critical sine carry the same measured figure count
+        // as the answer they are reported beside, and the exact rows above stay exact.
+        const Run lens = run(problem(OpticsRelation::ThinLens, OpticsVariable::ImageDistance,
+                                     {measured(OpticsVariable::FocalLength, "10.0 cm"),
+                                      measured(OpticsVariable::ObjectDistance, "15.0 cm")}));
+        t.equal(optics_outcome_name(lens.result.outcome), "solved", "a measured thin lens solves");
+        t.equal(lens.result.value_text, "0.300", "the measured image distance keeps three figures");
+        t.equal(lens.result.magnification_text, "-2.00",
+                "the measured magnification keeps the answer's three figures");
+
+        const Run fewest = run(problem(OpticsRelation::ThinLens, OpticsVariable::FocalLength,
+                                       {measured(OpticsVariable::ObjectDistance, "3.00 cm"),
+                                        measured(OpticsVariable::ImageDistance, "7.0 cm")}));
+        t.equal(optics_outcome_name(fewest.result.outcome), "solved",
+                "a measured lens asked for its focal length solves");
+        t.equal(fewest.result.magnification_text, "-2.3",
+                "the magnification rounds -7/3 to the fewest figures among the two distances");
+
+        const Run refracted =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                        {measured(OpticsVariable::IndexIncident, "1.50"),
+                         measured(OpticsVariable::SineIncident, "0.40"),
+                         measured(OpticsVariable::IndexTransmitted, "1.00")}));
+        t.check(refracted.result.has_critical_sine &&
+                    refracted.result.critical_sine_text == "0.667",
+                "the measured critical sine rounds 2/3 to the three figures of both indices");
+
+        const Run reflected =
+            run(problem(OpticsRelation::Refraction, OpticsVariable::SineTransmitted,
+                        {measured(OpticsVariable::IndexIncident, "1.50"),
+                         measured(OpticsVariable::SineIncident, "0.90"),
+                         measured(OpticsVariable::IndexTransmitted, "1.00")}));
+        t.equal(optics_outcome_name(reflected.result.outcome), "total internal reflection",
+                "a measured incident sine past the critical sine still refuses");
+        t.equal(reflected.result.critical_sine_text, "0.667",
+                "the refusal reports the measured critical sine it passed");
+    }
 }
 
 }  // namespace nps
