@@ -801,11 +801,15 @@ class Pass {
                     continue;
                 // A failed whole-path plan can still contain independently checked outer moves.
                 const TransformationPayload *move = derivation.transformation(step.id);
-                const bool preserves = step.claim == ClaimType::EquivalentExpression ||
-                                       step.claim == ClaimType::SolutionSetPreserved;
+                const RuleSchema *declared = rule_schema(step.rule_id);
+                const bool stands_alone =
+                    step.claim == ClaimType::EquivalentExpression ||
+                    step.claim == ClaimType::SolutionSetPreserved ||
+                    (step.claim == ClaimType::Definition && declared != nullptr &&
+                     declared->survives_refusal);
                 const bool complete = move && move->before != kNoNode && move->after != kNoNode &&
                                       move->before < arena.node_count() && move->after < arena.node_count();
-                if ((keeps_prefix || (refused_prefix && preserves && complete)) && step.verified()) {
+                if ((keeps_prefix || (refused_prefix && stands_alone && complete)) && step.verified()) {
                     ++survivors;
                     continue;
                 }
