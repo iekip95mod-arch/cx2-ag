@@ -1017,7 +1017,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
+    check(entries == 192, "every palette entry survives the regrouping: " .. entries .. " of 192")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4245,6 +4245,8 @@ do
         { "Calculus", "Maclaurin Polynomial  maclaurin(expr,var,n)", "maclaurin(sin(x),x,5)", "maclaurin", "sin(x)" },
         { "Templates", "Taylor polynomial at a point", "taylor(exp(x),x,0,3)", "taylor", "exp(x)" },
         { "Templates", "Maclaurin polynomial", "maclaurin(sin(x),x,3)", "maclaurin", "sin(x)" },
+        { "Calculus", "Convergence  convergence(term,var,start)", "convergence(1/n^2,n,1)", "convergence", "1/n^2" },
+        { "Templates", "Series convergence test", "convergence(1/n,n,1)", "convergence", "1/n" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }
@@ -6628,7 +6630,7 @@ do
             state.scroll = delta
             state.selected = state.scroll_selection or state.selected
             if state.failure == "missing selection" then return true end
-            if state.failure == "invalid selection" then return true, 25 end
+            if state.failure == "invalid selection" then return true, #state.labels + 1 end
             return state.failure ~= "scroll", state.selected
         end
         module.ui_menu_frame = function()
@@ -6701,7 +6703,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 24 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 25 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6721,12 +6723,14 @@ do
           state.descriptions[23]:find("remainder", 1, true) ~= nil and
           state.descriptions[24]:find("approximation", 1, true) ~= nil,
           "the Taylor templates are offered with guidance on the order, the remainder and the approximation")
+    check(state.labels[25] == "Series convergence test" and state.descriptions[25]:find("first index", 1, true) ~= nil,
+          "the convergence template is offered with guidance on the first index")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 24, "up from the first template reaches the final template")
+    check(state.selected == 25, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()

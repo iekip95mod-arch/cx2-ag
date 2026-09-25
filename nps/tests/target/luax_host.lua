@@ -244,7 +244,7 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -262,6 +262,7 @@ local expected_modules = {
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
     "calculus.taylor-polynomial.single-variable",
+    "calculus.series.convergence",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.catch-up.equal-position",
@@ -459,6 +460,33 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               record.taylor_remainder == nil and type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the Taylor envelope and says why")
+    end
+    -- CALC-011 convergence. The verdict is the answer, and the bridge names the test that decided it.
+    for _, case in ipairs({
+        {"convergence((1/2)^n,n,0)", "converges absolutely", "series.ratio-test", "2", "converges absolutely, sum = 2"},
+        {"convergence((-1)^n/n,n,1)", "converges conditionally", "series.alternating-test", nil, "converges conditionally"},
+        {"convergence(1/n,n,1)", "diverges", "series.p-comparison", nil, "diverges"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and record.mode == "convergence" and
+              command_has_rule(record, "series.terms-defined") and command_has_rule(record, case[3]) and
+              command_has_rule(record, "series.check-form"),
+              case[1] .. " exposes the native convergence walkthrough with its hypotheses and final check")
+        check(record.series_verdict == case[2] and record.series_test == case[3] and
+              record.series_sum == case[4] and record.result == case[5],
+              case[1] .. " reports its verdict, the test that decided it and a geometric sum")
+    end
+    for _, case in ipairs({
+        {"convergence(1/ln(n),n,2)", "unsupported form"},
+        {"convergence(1/(n-3),n,1)", "invalid input"},
+        {"convergence(1/n,n,1/2)", "invalid input"},
+    }) do
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.series_verdict == nil and type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the convergence envelope and says why")
     end
     do
         local record = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "decimal")

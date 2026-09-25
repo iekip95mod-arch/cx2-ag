@@ -1106,6 +1106,40 @@ rule taylor.polynomial fixture
 rule taylor.remainder fixture
 rule taylor.check-polynomial fixture
 
+family id calculus.series.convergence
+topic_and_level Convergence of an infinite series by the standard tests, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar a term in one index variable written as a product of numbers, fixed rational numbers raised to the index plus an integer shift, and a quotient of polynomials in the index
+accepted_input_forms convergence(term,index,first), with the first index an integer and the series running from it to infinity
+domains_and_parameter_assumptions every denominator is nonzero at every integer index from the first one on, which is proved by a Cauchy root bound and an exact check of each integer up to it before any test is applied
+supported_branches_and_degenerate_cases the zero series, geometric series with their exact sum, a geometric factor above or below one in absolute value by the ratio test, rational terms by the divergence test and by limit comparison with a p-series, and alternating rational terms by the alternating series test with conditional convergence named
+exact_special_function_and_numerical_result_policy exact rationals over int64, polynomial degrees up to 20 and at most 4096 indices checked for undefined terms, refusing rather than approximating beyond those limits
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc
+required_assumptions none carried for the family. Each test's hypotheses, eventually nonzero terms, one eventual sign or eventually decreasing absolute values, are recorded as domain restrictions on the step that uses them
+test_group_ids calculus, context
+supported_methods rewrite the term as a constant times a power of a fixed ratio times a rational function, prove every term exists, then decide by the ratio test, the divergence test, limit comparison with a p-series or the alternating series test, and sum a convergent geometric series
+unsupported_near_neighbors factorials and binomial coefficients, logarithms, roots and trigonometric factors in the term, the root, integral and direct comparison tests, power series and their radius or interval of convergence, sums of non-geometric convergent series, and products of more than one kind of growth such as n to the power n
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.series.test-hypotheses, obl.series.form-agreement
+solution_soundness_status the rewritten term is compared exactly with the original at four consecutive indices from the first one, and a geometric sum times one minus the ratio is compared with the first term, withholding the verdict on any disagreement
+solution_completeness_status complete within the envelope, since every term of the accepted form is decided by one of the tests, and partial for series in general
+corpus_case_ids series_geometric_sum, series_ratio_test, series_ratio_diverges, series_p_comparison, series_harmonic_diverges, series_alternating_conditional, series_divergence_test, series_zero_terms
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.series.convergence
+release_status in development, unreleased
+rule series.term-form fixture
+rule series.terms-defined fixture
+rule series.zero-terms fixture
+rule series.ratio-test fixture
+rule series.divergence-test fixture
+rule series.p-comparison fixture
+rule series.alternating-test fixture
+rule series.geometric-sum fixture
+rule series.check-form fixture
+
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022

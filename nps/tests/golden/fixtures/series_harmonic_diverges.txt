@@ -1,0 +1,76 @@
+problem: convergence(1/n,n,1)
+verdict: diverges
+test: series.p-comparison
+sum: 
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.series.convergence
+  envelope version: 1
+  normalized problem: convergence((1 * (n^(-1))), n, 1)
+  requested method: convergence
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Write the term in a testable form
+    rule: series.term-form, Write the term in a testable form
+    claim: equivalent expression
+    explanation: Each factor is either a fixed number raised to the index or a rational function of the index
+    detail: Every test below reads the term as a constant times r to the power of the index times a quotient of polynomials. Pull each constant power of the index out first, then combine the remaining factors over one denominator.
+    domain restriction: n is not zero for every integer n >= 1
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Pull the constant powers of n out of the term and combine the rest over one denominator
+    before: (1 * (n^(-1)))
+    after: (n^-1)
+    reversible: no
+    verification: rule-local invariant, passed, Each factor is either a fixed number raised to the index or a rational function of the index
+    verified: yes
+  2 transformation
+    phase: calculus
+    goal: Check that every term exists
+    rule: series.terms-defined, Check that every term exists
+    claim: equivalent expression
+    explanation: n has every root within 1, and no integer index from 1 up to that bound is a root
+    detail: A series only exists if every one of its terms does. Every root of a nonzero polynomial lies within one plus the largest ratio of a coefficient to the leading coefficient, so checking each integer index up to that bound finds every index where a denominator vanishes.
+    domain restriction: n is not zero for every integer n >= 1
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Check every integer index from 1 up to the root bound
+    before: convergence((1 * (n^(-1))), n, 1)
+    after: convergence((1 * (n^(-1))), n, 1)
+    reversible: no
+    verification: rule-local invariant, passed, n has every root within 1, and no integer index from 1 up to that bound is a root
+    verified: yes
+  3 check
+    phase: check
+    goal: Decide whether the series converges
+    rule: series.p-comparison, Limit comparison with a p-series
+    claim: no claim
+    explanation: The terms behave like a constant over n^1, and the p-series with p = 1 diverges
+    detail: For large n the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The terms keep one sign from some index on, so the limit comparison test applies, and the p-series converges exactly when p is greater than 1.
+    domain restriction: a(n) keeps one sign for every large enough n
+    proof obligation: obl.series.test-hypotheses, the test's hypotheses hold before its conclusion is used
+    target claim: the series has the reported convergence behavior
+    check method: Limit comparison with a p-series
+    expected: the terms keep one sign for every large enough n and their ratio to 1/n^1 has a nonzero finite limit
+    observed: p = 1
+    verification: exact degree and ratio analysis, passed, The terms behave like a constant over n^1, and the p-series with p = 1 diverges
+    verified: nothing claimed
+  4 check
+    phase: check
+    goal: Check the tested form against the original term
+    rule: series.check-form, Term agreement at consecutive indices
+    claim: equivalent expression
+    explanation: Evaluate the original term and the rewritten one at the first indices of the series
+    proof obligation: obl.series.form-agreement, the tested form is the original term at every index checked
+    target claim: the tested series is the requested series
+    check method: exact evaluation at consecutive indices
+    expected: equal terms at each index checked
+    observed: the rewritten term matches the original at 4 consecutive indices
+    verification: exact evaluation at consecutive indices, passed, the rewritten term matches the original at 4 consecutive indices
+    verified: yes

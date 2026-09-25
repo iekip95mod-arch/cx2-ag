@@ -62,6 +62,14 @@ const char *const coefficient_ceiling =
 constexpr int64_t kTaylorOrderCeiling = 19;
 const char *const taylor_ceiling =
     "the native Taylor engine handles orders up to 19 and this request is higher";
+// The definedness check walks every integer index up to the root bound, one exact evaluation each.
+constexpr int64_t kSeriesIndexCeiling = 4096;
+const char *const series_index_ceiling =
+    "the native convergence engine checks at most 4096 indices for undefined terms and this series needs more";
+const char *const series_unsupported =
+    "the native convergence tests handle a constant times a rational power of the index variable times a quotient of polynomials";
+
+Rational absolute(const Rational &value) { return {value.num < 0 ? -value.num : value.num, value.den}; }
 
 struct Calculation {
     Arena &arena;
@@ -252,6 +260,8 @@ struct Calculation {
         return command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin;
     }
 
+    bool series_family() const { return command.kind == CommandKind::Convergence; }
+
     NodeId call(NodeId expression) {
         if (linear_family())
             return arena.call(command_kind_name(command.kind),
@@ -262,6 +272,8 @@ struct Calculation {
             return arena.call("taylor", {expression, command.variable, command.point, command.order});
         if (command.kind == CommandKind::Maclaurin)
             return arena.call("maclaurin", {expression, command.variable, command.order});
+        if (series_family())
+            return arena.call("convergence", {expression, command.variable, command.lower});
         std::vector<NodeId> arguments{expression, command.variable, command.point};
         if (command.direction != 0) arguments.push_back(arena.integer(std::to_string(command.direction)));
         return arena.call("limit", arguments);
@@ -301,6 +313,12 @@ struct Calculation {
             entry.explanation_detailed = "The coefficient of the power k of the distance from the center is the k-th derivative at the center divided by k factorial. Adding those terms up to the requested order gives the polynomial that matches the function and its first derivatives at the center.";
         else if (id == "taylor.remainder")
             entry.explanation_detailed = "Lagrange's form of the remainder says what the polynomial leaves out. The next derivative is evaluated at some point c strictly between the center and x, which the theorem guarantees exists but does not name. It holds wherever the function has that next derivative on the interval between the center and x.";
+        else if (id == "series.term-form")
+            entry.explanation_detailed = "Every test below reads the term as a constant times r to the power of the index times a quotient of polynomials. Pull each constant power of the index out first, then combine the remaining factors over one denominator.";
+        else if (id == "series.terms-defined")
+            entry.explanation_detailed = "A series only exists if every one of its terms does. Every root of a nonzero polynomial lies within one plus the largest ratio of a coefficient to the leading coefficient, so checking each integer index up to that bound finds every index where a denominator vanishes.";
+        else if (id == "series.geometric-sum")
+            entry.explanation_detailed = "A geometric series whose ratio has absolute value below one adds up to its first term divided by one minus the ratio. The ratio test has already shown that it converges.";
         else if (id == "limit.continuity")
             entry.explanation_detailed = "Direct substitution determines a limit only when the expression is continuous at the approach point. Check denominators and real function domains before substituting.";
         else if (id == "limit.real-domain")
@@ -1115,6 +1133,372 @@ struct Calculation {
         return false;
     }
 
+    // CALC-011 convergence. The envelope is a term C*r^n*R(n) with r a nonzero rational and R a
+    // quotient of polynomials in the index. Every such series is decided exactly by one of the
+    // standard tests below, and each test's hypotheses are established before its conclusion is used.
+    bool index_affine(NodeId exponent, int64_t *shift) {
+        unsigned degree = 0;
+        Rational at_zero, at_one, slope;
+        if (polynomial(exponent, &degree) != Form::Ok || degree != 1 ||
+            !evaluate_rational(arena, exponent, {{command.variable_name, {0, 1}}}, &at_zero) ||
+            !evaluate_rational(arena, exponent, {{command.variable_name, {1, 1}}}, &at_one) ||
+            !rational_sub(at_one, at_zero, &slope))
+            return false;
+        *shift = at_zero.num;
+        return slope.num == 1 && slope.den == 1 && at_zero.den == 1;
+    }
+
+    // r^(n+k), or that raised to a fixed integer, which is how a power of the index reads in a
+    // denominator. The constant r^k it carries is returned in scale.
+    bool geometric(NodeId factor, Rational *ratio, Rational *scale) {
+        if (arena.at(factor).kind != Kind::Pow) return false;
+        NodeId base = arena.children(factor)[0];
+        NodeId exponent = arena.children(factor)[1];
+        int64_t outer = 1;
+        if (arena.at(base).kind == Kind::Pow && folded_integer(arena, exponent, &outer)) {
+            exponent = arena.children(base)[1];
+            base = arena.children(base)[0];
+        }
+        Rational r;
+        int64_t shift = 0;
+        if (!evaluate_rational(arena, base, {}, &r) || !index_affine(exponent, &shift)) return false;
+        return rational_power(r, outer, ratio) && rational_power(*ratio, shift, scale);
+    }
+
+    // The coefficients of a polynomial the form checks accepted, read from its derivatives at zero.
+    Form coefficients(NodeId expression, unsigned bound, std::vector<Rational> *out) {
+        out->clear();
+        if (bound > 20) return Form::BeyondCapacity;
+        Rational factorial{1, 1};
+        for (unsigned order = 0; order <= bound; ++order) {
+            Rational at_zero, coefficient;
+            if (order > 0 && !rational_mul(factorial, {static_cast<int64_t>(order), 1}, &factorial))
+                return Form::BeyondCapacity;
+            if (!work() || !evaluate_rational(arena, expression, {{command.variable_name, {}}}, &at_zero) ||
+                !rational_div(at_zero, factorial, &coefficient))
+                return Form::BeyondCapacity;
+            out->push_back(coefficient);
+            if (order == bound) break;
+            Derivation scratch;
+            const DiffResult differentiated = differentiate(arena, scratch, expression, command.variable, meter);
+            if (differentiated.outcome != DiffOutcome::Differentiated) return Form::BeyondCapacity;
+            expression = folded(differentiated.derivative);
+        }
+        while (!out->empty() && out->back().num == 0) out->pop_back();
+        return Form::Ok;
+    }
+
+    void invalid(const std::string &detail) {
+        result.outcome = CalculusOutcome::InvalidInput;
+        result.status = DerivationStatus::InvalidInput;
+        result.detail = detail;
+    }
+
+    StepId decide(const char *rule, const std::string &title, const std::string &reason,
+                  const std::string &detailed, const std::string &hypotheses, const std::string &observed) {
+        if (arena.failed() || !meter.step()) return kNoStep;
+        result.test = rule;
+        Step check;
+        check.phase = "check";
+        check.goal = "Decide whether the series converges";
+        check.rule_id = rule;
+        check.rule_name = title;
+        check.claim = ClaimType::NoClaim;
+        check.explanation_short = reason;
+        check.explanation_detailed = detailed;
+        check.proof_obligations.push_back({"obl.series.test-hypotheses", "the test's hypotheses hold before its conclusion is used"});
+        VerificationRecord evidence;
+        evidence.method = "exact degree and ratio analysis";
+        evidence.outcome = VerificationOutcome::Passed;
+        evidence.strength = EvidenceStrength::StructurallyValid;
+        evidence.detail = reason;
+        check.verifications.push_back(std::move(evidence));
+        CheckPayload payload;
+        payload.target_claim = "the series has the reported convergence behavior";
+        payload.check_method = title;
+        payload.expected_relation = hypotheses;
+        payload.observed_result = observed;
+        return derivation.add_check(kNoStep, std::move(check), std::move(payload));
+    }
+
+    void convergence() {
+        const std::string n = command.variable_name;
+        const std::string start = std::to_string(command.index_start);
+        Rational constant{1, 1}, ratio{1, 1};
+        NodeId term = command.expression;
+        if (arena.at(term).kind == Kind::Neg) {
+            constant = {-1, 1};
+            term = arena.children(term)[0];
+        }
+        std::vector<NodeId> factors, rest;
+        if (arena.at(term).kind == Kind::Mul)
+            for (NodeId child : arena.children(term)) factors.push_back(child);
+        else
+            factors.push_back(term);
+        for (NodeId factor : factors) {
+            Rational r, scale;
+            if (!work()) return;
+            if (geometric(factor, &r, &scale)) {
+                if (!rational_mul(ratio, r, &ratio) || !rational_mul(constant, scale, &constant)) {
+                    refuse(coefficient_ceiling);
+                    return;
+                }
+            } else {
+                rest.push_back(factor);
+            }
+        }
+        if (ratio.num == 0) {
+            refuse(Form::Unsupported, coefficient_ceiling, "a geometric factor needs a nonzero ratio");
+            return;
+        }
+        const NodeId remaining = rest.empty() ? arena.integer("1")
+                               : rest.size() == 1 ? rest[0] : arena.nary(Kind::Mul, rest);
+        Fraction rational;
+        std::vector<NodeId> exclusions;
+        unsigned numerator_bound = 0, denominator_bound = 0;
+        Form form = fraction(remaining, &rational, &exclusions);
+        if (form == Form::Ok) form = polynomial(rational.numerator, &numerator_bound);
+        if (form == Form::Ok) form = polynomial(rational.denominator, &denominator_bound);
+        std::vector<Rational> top, bottom;
+        if (form == Form::Ok) form = coefficients(rational.numerator, numerator_bound, &top);
+        if (form == Form::Ok) form = coefficients(rational.denominator, denominator_bound, &bottom);
+        if (form != Form::Ok) {
+            refuse(form, coefficient_ceiling, series_unsupported);
+            return;
+        }
+        if (bottom.empty()) {
+            invalid("the term's denominator is identically zero");
+            return;
+        }
+        // Every denominator the original term divides by has to be nonzero at every index, not only
+        // the combined one, because a factor that cancels still leaves that term undefined.
+        exclusions.push_back(rational.denominator);
+        std::vector<std::string> conditions;
+        std::string bounds;
+        for (NodeId excluded : exclusions) {
+            unsigned bound = 0;
+            std::vector<Rational> excluded_coefficients;
+            Form excluded_form = polynomial(excluded, &bound);
+            if (excluded_form == Form::Ok) excluded_form = coefficients(excluded, bound, &excluded_coefficients);
+            if (excluded_form != Form::Ok) {
+                refuse(excluded_form, coefficient_ceiling, series_unsupported);
+                return;
+            }
+            if (excluded_coefficients.empty()) {
+                invalid("the term's denominator is identically zero");
+                return;
+            }
+            if (excluded_coefficients.size() == 1) continue;
+            const std::string condition = print(arena, folded(excluded)) + " is not zero for every integer " + n + " >= " + start;
+            if (std::find(conditions.begin(), conditions.end(), condition) != conditions.end()) continue;
+            Rational largest;
+            for (size_t i = 0; i + 1 < excluded_coefficients.size(); ++i) {
+                Rational quotient_value;
+                if (!rational_div(excluded_coefficients[i], excluded_coefficients.back(), &quotient_value)) {
+                    refuse(coefficient_ceiling);
+                    return;
+                }
+                if (compare(absolute(quotient_value), largest) > 0) largest = absolute(quotient_value);
+            }
+            Rational cauchy;
+            if (!rational_add(largest, {1, 1}, &cauchy)) {
+                refuse(coefficient_ceiling);
+                return;
+            }
+            const int64_t upper = cauchy.num / cauchy.den;
+            const int64_t lower = std::max(command.index_start, -upper);
+            if (upper >= lower && upper - lower >= kSeriesIndexCeiling) {
+                refuse(series_index_ceiling);
+                return;
+            }
+            for (int64_t index = lower; index <= upper; ++index) {
+                Rational value;
+                if (!work()) return;
+                if (!evaluate_rational(arena, excluded, {{n, {index, 1}}}, &value)) {
+                    refuse(coefficient_ceiling);
+                    return;
+                }
+                if (value.num == 0) {
+                    invalid("the term is undefined at " + n + " = " + std::to_string(index) +
+                            ", which the series includes");
+                    return;
+                }
+            }
+            conditions.push_back(condition);
+            if (!bounds.empty()) bounds += ", ";
+            bounds += print(arena, folded(excluded)) + " has every root within " + print(arena, number(arena, cauchy));
+        }
+        const NodeId question = call(command.expression);
+        const NodeId power = compare(ratio, {1, 1}) == 0 ? kNoNode
+            : arena.binary(Kind::Pow, number(arena, ratio), command.variable);
+        std::vector<NodeId> parts;
+        if (compare(constant, {1, 1}) != 0) parts.push_back(number(arena, constant));
+        if (power != kNoNode) parts.push_back(power);
+        const NodeId remaining_quotient = quotient(rational.numerator, rational.denominator);
+        Rational unit;
+        if (parts.empty() || !evaluate_rational(arena, remaining_quotient, {}, &unit) || compare(unit, {1, 1}) != 0)
+            parts.push_back(remaining_quotient);
+        const NodeId model = parts.size() == 1 ? parts[0] : arena.nary(Kind::Mul, parts);
+        if (!work()) return;
+        const StepId shaped = step("series.term-form", "Write the term in a testable form", command.expression, model,
+            "Pull the constant powers of " + n + " out of the term and combine the rest over one denominator",
+            "Each factor is either a fixed number raised to the index or a rational function of the index");
+        if (shaped == kNoStep) return;
+        for (const std::string &condition : conditions) derivation.restrictions_at(shaped).push_back(condition);
+        const StepId defined = step("series.terms-defined", "Check that every term exists", question, question,
+            conditions.empty() ? "Note that no denominator depends on " + n
+                               : "Check every integer index from " + start + " up to the root bound",
+            conditions.empty() ? "Every term is defined because nothing divides by an expression in " + n
+                               : bounds + ", and no integer index from " + start + " up to that bound is a root");
+        if (defined == kNoStep) return;
+        for (const std::string &condition : conditions) derivation.restrictions_at(defined).push_back(condition);
+
+        const std::string ratio_text = print(arena, number(arena, ratio));
+        const bool unit_ratio = compare(absolute(ratio), {1, 1}) == 0;
+        const int numerator_degree = static_cast<int>(top.size()) - 1;
+        const int denominator_degree = static_cast<int>(bottom.size()) - 1;
+        const int gap = denominator_degree - numerator_degree;
+        NodeId sum = kNoNode;
+        if (top.empty()) {
+            if (decide("series.zero-terms", "Every term is zero",
+                       "Every term is zero, so every partial sum is zero",
+                       "A series whose terms are all zero converges, and its sum is zero.",
+                       "every term is zero", "sum 0") == kNoStep) return;
+            result.verdict = SeriesVerdict::ConvergesAbsolutely;
+            sum = arena.integer("0");
+        } else if (!unit_ratio) {
+            const bool converges = compare(absolute(ratio), {1, 1}) < 0;
+            const StepId decided = decide("series.ratio-test", "Ratio test",
+                "The quotient of consecutive terms tends to " + ratio_text + " in absolute value, which is " +
+                    (converges ? "less" : "greater") + " than 1",
+                "The ratio test compares consecutive terms. Here the quotient is r times R(n+1)/R(n), and R(n+1) and R(n) have the same degree and leading coefficient, so that quotient tends to 1 and the whole ratio tends to the absolute value of r. A limit below 1 proves absolute convergence and a limit above 1 proves divergence.",
+                "the terms are nonzero for every large enough " + n + ", which holds because a nonzero rational function has finitely many roots",
+                "limit of |a(" + n + "+1)/a(" + n + ")| = " + print(arena, number(arena, absolute(ratio))));
+            if (decided == kNoStep) return;
+            derivation.restrictions_at(decided).push_back("a(" + n + ") is not zero for every large enough " + n);
+            result.verdict = converges ? SeriesVerdict::ConvergesAbsolutely : SeriesVerdict::Diverges;
+            if (converges && top.size() == 1 && bottom.size() == 1) {
+                Rational first, lead, one_minus, total;
+                if (!rational_div(top[0], bottom[0], &lead) || !rational_mul(constant, lead, &lead) ||
+                    !rational_power(ratio, command.index_start, &first) || !rational_mul(lead, first, &first) ||
+                    !rational_sub({1, 1}, ratio, &one_minus) || !rational_div(first, one_minus, &total)) {
+                    refuse(coefficient_ceiling);
+                    return;
+                }
+                sum = number(arena, total);
+                if (step("series.geometric-sum", "Sum the geometric series", question, sum,
+                         "Divide the first term " + print(arena, number(arena, first)) + " by 1 - " + ratio_text,
+                         "The series is geometric with ratio " + ratio_text + " and first term " +
+                             print(arena, number(arena, first))) == kNoStep) return;
+            }
+        } else if (gap <= 0) {
+            Rational limit_value;
+            if (!rational_div(top.back(), bottom.back(), &limit_value) ||
+                !rational_mul(limit_value, constant, &limit_value)) {
+                refuse(coefficient_ceiling);
+                return;
+            }
+            if (decide("series.divergence-test", "Divergence test",
+                       "The terms do not tend to zero, because the numerator's degree " + std::to_string(numerator_degree) +
+                           " is at least the denominator's degree " + std::to_string(denominator_degree),
+                       "If a series converges, its terms tend to zero. So terms that approach a nonzero number or grow without bound prove the series diverges. The test says nothing when the terms do tend to zero.",
+                       "the terms do not tend to zero",
+                       gap < 0 ? "|a(" + n + ")| grows without bound"
+                               : "|a(" + n + ")| tends to " + print(arena, number(arena, absolute(limit_value)))) == kNoStep) return;
+            result.verdict = SeriesVerdict::Diverges;
+        } else {
+            const bool absolute_converges = gap >= 2;
+            const std::string p = std::to_string(gap);
+            const StepId compared = decide("series.p-comparison", "Limit comparison with a p-series",
+                std::string(ratio.num < 0 ? "The absolute values of the terms behave" : "The terms behave") +
+                    " like a constant over " + n + "^" + p + ", and the p-series with p = " + p +
+                    (absolute_converges ? " converges" : " diverges"),
+                "For large n the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The terms keep one sign from some index on, so the limit comparison test applies, and the p-series converges exactly when p is greater than 1.",
+                "the terms keep one sign for every large enough " + n + " and their ratio to 1/" + n + "^" + p + " has a nonzero finite limit",
+                "p = " + p);
+            if (compared == kNoStep) return;
+            derivation.restrictions_at(compared).push_back(ratio.num > 0
+                ? "a(" + n + ") keeps one sign for every large enough " + n
+                : "a(" + n + ") is not zero for every large enough " + n);
+            if (absolute_converges || ratio.num > 0) {
+                result.verdict = absolute_converges ? SeriesVerdict::ConvergesAbsolutely : SeriesVerdict::Diverges;
+            } else {
+                const StepId alternating = decide("series.alternating-test", "Alternating series test",
+                    "The terms alternate in sign and their absolute values decrease to zero from some index on",
+                    "An alternating series converges when the absolute values of its terms eventually decrease and tend to zero. A rational function of degree gap at least one tends to zero and is monotone from some index on, because its derivative has finitely many roots. Since the absolute values behave like 1/n, the convergence is conditional rather than absolute.",
+                    "the signs alternate and |a(" + n + ")| eventually decreases to zero",
+                    "converges, but not absolutely");
+                if (alternating == kNoStep) return;
+                derivation.restrictions_at(alternating).push_back("|a(" + n + ")| decreases for every large enough " + n);
+                result.verdict = SeriesVerdict::ConvergesConditionally;
+            }
+        }
+        if (!verify_series(model, sum, ratio)) {
+            result.verdict = SeriesVerdict::None;
+            result.test.clear();
+            return;
+        }
+        result.outcome = CalculusOutcome::Evaluated;
+        result.value = sum;
+    }
+
+    // The final check. The tests read the rewritten term, so it is compared exactly with the
+    // original at consecutive indices, and a geometric sum is checked against its first term.
+    bool verify_series(NodeId model, NodeId sum, const Rational &ratio) {
+        bool read = true, matched = true;
+        const int64_t count = 4;
+        for (int64_t offset_index = 0; offset_index < count && read; ++offset_index) {
+            const Rational index{command.index_start + offset_index, 1};
+            Rational original, rewritten;
+            if (!evaluate_rational(arena, command.expression, {{command.variable_name, index}}, &original) ||
+                !evaluate_rational(arena, model, {{command.variable_name, index}}, &rewritten)) {
+                read = false;
+                break;
+            }
+            if (compare(original, rewritten) != 0) matched = false;
+        }
+        std::string observed = "the rewritten term matches the original at " + std::to_string(count) + " consecutive indices";
+        if (read && sum != kNoNode) {
+            Rational total, first, one_minus, product;
+            read = evaluate_rational(arena, sum, {}, &total) &&
+                   evaluate_rational(arena, command.expression, {{command.variable_name, {command.index_start, 1}}}, &first) &&
+                   rational_sub({1, 1}, ratio, &one_minus) && rational_mul(total, one_minus, &product);
+            if (read && compare(product, first) != 0) matched = false;
+            observed += ", and the sum times 1 minus the ratio is the first term";
+        }
+        matched = matched && read;
+        if (!work() || !meter.step()) return false;
+        Step check;
+        check.phase = "check";
+        check.goal = "Check the tested form against the original term";
+        check.rule_id = "series.check-form";
+        check.rule_name = "Term agreement at consecutive indices";
+        check.claim = ClaimType::EquivalentExpression;
+        check.explanation_short = "Evaluate the original term and the rewritten one at the first indices of the series";
+        check.proof_obligations.push_back({"obl.series.form-agreement", "the tested form is the original term at every index checked"});
+        VerificationRecord evidence;
+        evidence.method = "exact evaluation at consecutive indices";
+        evidence.outcome = matched ? VerificationOutcome::Passed
+                         : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive;
+        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+        evidence.detail = matched ? observed
+                        : read ? "the rewritten term or the sum disagrees with the original series"
+                               : "the terms could not be evaluated exactly";
+        check.verifications.push_back(std::move(evidence));
+        CheckPayload payload;
+        payload.target_claim = "the tested series is the requested series";
+        payload.check_method = "exact evaluation at consecutive indices";
+        payload.expected_relation = "equal terms at each index checked";
+        payload.observed_result = matched ? observed : evidence.detail;
+        derivation.add_check(kNoStep, std::move(check), std::move(payload));
+        if (matched) return true;
+        if (!work()) return false;
+        result.outcome = CalculusOutcome::VerificationFailed;
+        result.status = DerivationStatus::VerificationFailed;
+        result.detail = "the tested form failed its check against the original term, so the verdict is withheld";
+        return false;
+    }
+
     void record_comparison(VerificationOutcome outcome, const std::string &detail,
                            CheckPayload comparison_record) {
         Step check;
@@ -1168,7 +1552,7 @@ struct Calculation {
     }
 
     void cross_check(Backend &backend) {
-        if (linear_family() || taylor_family()) return;
+        if (linear_family() || taylor_family() || series_family()) return;
         if (arena.failed() || meter.stopped() || result.infinity != 0 || result.does_not_exist ||
             (result.value == kNoNode && result.status != DerivationStatus::Unsupported &&
              result.status != DerivationStatus::PartiallySolved)) return;
@@ -1239,11 +1623,15 @@ struct Calculation {
             result.value = kNoNode;
             result.infinity = 0;
             result.does_not_exist = false;
+            result.verdict = SeriesVerdict::None;
+            result.test.clear();
+            result.remainder = kNoNode;
             result.outcome = meter.halt() == Halt::Cancelled ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded;
             result.status = meter.halt() == Halt::Cancelled ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached;
             result.detail = arena.failed() ? status_name(arena.status()) : halt_name(meter.halt());
             keep_verified_prefix(derivation, mark, arena);
-        } else if (!result.answer_only && (result.value != kNoNode || result.infinity != 0 || result.does_not_exist)) {
+        } else if (!result.answer_only && (result.value != kNoNode || result.infinity != 0 || result.does_not_exist ||
+                                           result.verdict != SeriesVerdict::None)) {
             result.status = derivation.outcome_from(mark);
         } else if (result.detail.empty()) {
             result.detail = "the native calculation could not establish a complete verified result";
@@ -1255,6 +1643,7 @@ struct Calculation {
           : command.kind == CommandKind::Linearize ? "calculus.linearization.single-variable"
           : command.kind == CommandKind::Limit ? "calculus.limit.single-variable"
           : taylor_family() ? "calculus.taylor-polynomial.single-variable"
+          : series_family() ? "calculus.series.convergence"
                                                : "calculus.integral.definite.single-variable";
         context.requested_method = command_kind_name(command.kind);
         context.original_expression = derivation.request.original_expression;
@@ -1289,6 +1678,16 @@ const char *calculus_outcome_name(CalculusOutcome outcome) {
     return "unknown";
 }
 
+const char *series_verdict_name(SeriesVerdict verdict) {
+    switch (verdict) {
+        case SeriesVerdict::None: return "none";
+        case SeriesVerdict::ConvergesAbsolutely: return "converges absolutely";
+        case SeriesVerdict::ConvergesConditionally: return "converges conditionally";
+        case SeriesVerdict::Diverges: return "diverges";
+    }
+    return "unknown";
+}
+
 CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const Command &command,
                                    const Budget &budget, Backend *backend) {
     Calculation calculation(arena, derivation, command, budget, backend);
@@ -1301,6 +1700,7 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
           present(command.point)) ||
          ((command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) &&
           present(command.point) && present(command.order)) ||
+         (command.kind == CommandKind::Convergence && present(command.lower)) ||
          (command.kind == CommandKind::Limit && present(command.point) && command.direction >= -1 && command.direction <= 1));
     if (!complete) {
         calculation.result.outcome = CalculusOutcome::InvalidInput;
@@ -1315,6 +1715,8 @@ CalculusResult calculus_walkthrough(Arena &arena, Derivation &derivation, const 
             calculation.tangent();
         else if (command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin)
             calculation.taylor();
+        else if (command.kind == CommandKind::Convergence)
+            calculation.convergence();
     }
     if (backend && complete && derivation.request.numeric_mode == NumericMode::Exact)
         calculation.cross_check(*backend);

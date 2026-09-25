@@ -213,6 +213,21 @@ const ObligationSchema kTaylorAgreement[] = {
      kTaylorAgreementEvidence, 1},
 };
 
+const EvidenceAlternative kSeriesTestEvidence[] = {
+    {"exact degree and ratio analysis", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSeriesTest[] = {
+    {"obl.series.test-hypotheses", "the test's hypotheses hold before its conclusion is used",
+     kSeriesTestEvidence, 1},
+};
+const EvidenceAlternative kSeriesFormEvidence[] = {
+    {"exact evaluation at consecutive indices", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+};
+const ObligationSchema kSeriesForm[] = {
+    {"obl.series.form-agreement", "the tested form is the original term at every index checked",
+     kSeriesFormEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -1356,6 +1371,17 @@ const RuleSchema kRules[] = {
     {"taylor.polynomial", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"taylor.remainder", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"taylor.check-polynomial", ClaimType::EquivalentExpression, kTaylorAgreement, 1, FailureBehavior::WithholdResult},
+
+    // calculus.series.convergence, CALC-011
+    {"series.term-form", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.terms-defined", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.zero-terms", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.ratio-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.divergence-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.p-comparison", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.alternating-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.geometric-sum", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.check-form", ClaimType::EquivalentExpression, kSeriesForm, 1, FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,

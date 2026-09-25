@@ -2678,7 +2678,11 @@ int calculus_into(lua_State *L) {
     if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
         return expression_resource_failure(L, why);
     derivation.context.normalized_expression = normalization;
-    const std::string answer = result.value != kNoNode ? print(arena, result.value)
+    // A convergence verdict is the answer, with the sum beside it when the series is geometric.
+    const std::string answer = result.verdict != SeriesVerdict::None
+        ? std::string(series_verdict_name(result.verdict)) +
+              (result.value != kNoNode ? ", sum = " + print(arena, result.value) : std::string())
+        : result.value != kNoNode ? print(arena, result.value)
         : result.infinity > 0 ? "+infinity" : result.infinity < 0 ? "-infinity"
         : result.does_not_exist ? "does not exist" : "";
     // The engine answered, which is what every sibling producer's solved means. Whether the answer
@@ -2709,6 +2713,11 @@ int calculus_into(lua_State *L) {
         command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
         set_field(L, "approximation", result.approximate);
         set_field(L, "relation", result.approximate ? "approximately equal" : "equal");
+    }
+    if (result.verdict != SeriesVerdict::None) {
+        set_field(L, "series_verdict", series_verdict_name(result.verdict));
+        set_field(L, "series_test", result.test);
+        if (result.value != kNoNode) set_field(L, "series_sum", print(arena, result.value));
     }
     // The Taylor family names the order it was asked for and what the polynomial leaves out.
     if (command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
@@ -2772,7 +2781,8 @@ int l_walkthrough(lua_State *L) {
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
             kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
-            kind != CommandKind::Taylor && kind != CommandKind::Maclaurin) {
+            kind != CommandKind::Taylor && kind != CommandKind::Maclaurin &&
+            kind != CommandKind::Convergence) {
         lua_settop(L, 3);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2783,7 +2793,8 @@ int l_walkthrough(lua_State *L) {
     }
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
         kind == CommandKind::Tangent || kind == CommandKind::Linearize ||
-        kind == CommandKind::Taylor || kind == CommandKind::Maclaurin)
+        kind == CommandKind::Taylor || kind == CommandKind::Maclaurin ||
+        kind == CommandKind::Convergence)
         return calculus_into(L);
     int count;
     if (kind == CommandKind::Solve)

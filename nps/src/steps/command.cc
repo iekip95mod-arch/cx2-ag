@@ -18,6 +18,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "linearize") return CommandKind::Linearize;
     if (name == "taylor") return CommandKind::Taylor;
     if (name == "maclaurin") return CommandKind::Maclaurin;
+    if (name == "convergence") return CommandKind::Convergence;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
     if (name == "factor") return CommandKind::Factor;
@@ -42,6 +43,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Linearize: return "linearize";
         case CommandKind::Taylor: return "taylor";
         case CommandKind::Maclaurin: return "maclaurin";
+        case CommandKind::Convergence: return "convergence";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
         case CommandKind::Factor: return "factor";
@@ -133,9 +135,10 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
     const bool limit = command.kind == CommandKind::Limit;
     const bool tangent = command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
     const bool taylor = command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin;
+    const bool series = command.kind == CommandKind::Convergence;
     const size_t minimum = command.kind == CommandKind::Taylor ? 4
-                         : limit || tangent || taylor ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
-    const size_t maximum = tangent || command.kind == CommandKind::Maclaurin ? 3
+                         : limit || tangent || taylor || series ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
+    const size_t maximum = tangent || series || command.kind == CommandKind::Maclaurin ? 3
                          : limit || taylor || command.kind == CommandKind::Integrate ? 4
                          : command.kind == CommandKind::Differentiate ? 3 : rewrite ? 1 : 2;
     if (arguments.size() < minimum || arguments.size() > maximum) {
@@ -146,6 +149,8 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
                              ? "Taylor polynomials require an expression, a variable, the center and the order"
                          : command.kind == CommandKind::Maclaurin
                              ? "Maclaurin polynomials require an expression, a variable and the order"
+                         : series
+                             ? "convergence tests require the term, the index variable and the first index"
                          : command.kind == CommandKind::Integrate
                              ? "integrals require an expression, a variable and optional lower and upper bounds"
                          : command.kind == CommandKind::Differentiate
@@ -172,6 +177,15 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         command.upper = arguments[3];
     }
     if (tangent) command.point = arguments[2];
+    if (series) {
+        command.lower = arguments[2];
+        if (!folded_integer(arena, command.lower, &command.index_start)) {
+            command.status = arena.failed() ? CommandStatus::ResourceExceeded : CommandStatus::Invalid;
+            command.detail = arena.failed() ? "the command exceeded the expression limits"
+                                            : "the first index of a series must be an integer";
+            return command;
+        }
+    }
     if (taylor) {
         command.point = command.kind == CommandKind::Taylor ? arguments[2] : arena.integer("0");
         command.order = arguments[arguments.size() - 1];

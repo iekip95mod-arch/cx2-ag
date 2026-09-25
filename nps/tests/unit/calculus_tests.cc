@@ -812,7 +812,144 @@ void run_calculus_tests(TestSink &t) {
         t.check(result.outcome == CalculusOutcome::Evaluated && backend.commands.empty() && !result.backend_attempted,
                 "the Taylor family does not send its question to the backend");
     }
+    // CALC-011 convergence. Each case names the test that has to decide it, so a series decided by
+    // the wrong test fails here even when the verdict happens to be right.
+    struct SeriesCase {
+        const char *golden;
+        const char *text;
+        SeriesVerdict verdict;
+        const char *test;
+        bool has_sum;
+        Rational sum;
+    };
+    for (const SeriesCase &fixture : {
+             SeriesCase{"series_geometric_sum", "convergence((1/2)^n,n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {2, 1}},
+             SeriesCase{"series_ratio_test", "convergence(n/2^n,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", false, {}},
+             SeriesCase{"series_ratio_diverges", "convergence(3^n/n^2,n,1)", SeriesVerdict::Diverges, "series.ratio-test", false, {}},
+             SeriesCase{"series_p_comparison", "convergence(1/n^2,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"series_harmonic_diverges", "convergence(1/n,n,1)", SeriesVerdict::Diverges, "series.p-comparison", false, {}},
+             SeriesCase{"series_alternating_conditional", "convergence((-1)^n/n,n,1)", SeriesVerdict::ConvergesConditionally, "series.alternating-test", false, {}},
+             SeriesCase{"series_divergence_test", "convergence(n/(n+1),n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"series_zero_terms", "convergence(0,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.zero-terms", true, {0, 1}},
+             SeriesCase{"", "convergence((-1)^n/n^2,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"", "convergence(3*(-2/3)^(n+1),n,1)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {4, 5}},
+             SeriesCase{"", "convergence(1/(n^2-4),n,3)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"", "convergence(-(n^2+1)/(2*n^2),n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"", "convergence((-1)^n*n^3,n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = fixture.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, fixture.text, "n"));
+        const std::string sum = result.value == kNoNode ? std::string() : print(arena, result.value);
+        Rational observed;
+        const bool sum_matches = !fixture.has_sum
+            ? result.value == kNoNode
+            : result.value != kNoNode && evaluate_rational(arena, result.value, {}, &observed) &&
+                  observed.num == fixture.sum.num && observed.den == fixture.sum.den;
+        t.check(result.outcome == CalculusOutcome::Evaluated && result.status == DerivationStatus::SolvedAndVerified &&
+                result.verdict == fixture.verdict && result.test == fixture.test && sum_matches,
+                "the convergence family decides " + std::string(fixture.text) + " by " + fixture.test + ": " +
+                series_verdict_name(result.verdict) + " by " + result.test + " sum " + sum + ": " + result.detail);
+        const std::string rendered = render_derivation(arena, derivation);
+        t.check(rendered.find("series.terms-defined") != std::string::npos &&
+                rendered.find("series.check-form") != std::string::npos &&
+                rendered.find("series.terms-defined") < rendered.find(fixture.test),
+                "the convergence family checks the terms exist before its test and records its final check: " +
+                std::string(fixture.text));
+        if (*fixture.golden)
+            check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nverdict: " +
+                         series_verdict_name(result.verdict) + "\ntest: " + result.test + "\nsum: " + sum + "\n" + rendered);
+    }
+    struct SeriesRefusal {
+        const char *text;
+        CalculusOutcome outcome;
+        DerivationStatus status;
+    };
+    for (const SeriesRefusal &refusal : {
+             SeriesRefusal{"convergence(1/ln(n),n,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(sin(n)/n^2,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(1/n^n,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(0^n,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(1/(n-3),n,1)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/(n^2-100),n,1)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence((n-2)/(n-2),n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/n,n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/(n-5000),n,1)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = refusal.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, refusal.text, "n"));
+        t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None && !result.detail.empty() &&
+                result.outcome == refusal.outcome && result.status == refusal.status,
+                "the convergence family refuses for the right reason: " + std::string(refusal.text) + ": " +
+                calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
+    {
+        // The first index decides which terms exist, so the same term is fine from a later start.
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult later = calculus_walkthrough(arena, derivation, parse_command(arena, "convergence(1/(n-3),n,4)", "n"));
+        t.check(later.verdict == SeriesVerdict::Diverges && later.status == DerivationStatus::SolvedAndVerified,
+                "a term undefined before the first index does not stop the series: " + later.detail);
+    }
+    for (const auto &malformed : {std::pair{"convergence(1/n,n,1/2)", CommandStatus::Invalid},
+                                  std::pair{"convergence(1/n,n)", CommandStatus::Unsupported},
+                                  std::pair{"convergence(1/n,n,1,2)", CommandStatus::Unsupported}}) {
+        Arena arena;
+        const Command command = parse_command(arena, malformed.first, "n");
+        t.check(command.status == malformed.second && !command.detail.empty(),
+                "a malformed convergence request is refused before any work: " + std::string(malformed.first) + ": " +
+                command.detail);
+    }
+    for (const char *text : {"convergence((1/2)^n,n,0)", "convergence((-1)^n/n,n,1)"}) {
+        for (unsigned failure = 0; failure < 3; ++failure) {
+            Arena arena;
+            Derivation derivation;
+            Budget budget;
+            if (failure == 0) budget.max_steps = 2;
+            if (failure == 1) budget.max_rewrites = 4;
+            if (failure == 2) budget.poll = [](void *) { return true; };
+            const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "n"), budget);
+            t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None &&
+                    result.outcome == (failure == 2 ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded) &&
+                    result.status == (failure == 2 ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached),
+                    "the convergence family stops for cancellation and for its budgets: " + std::string(text) +
+                    " failure " + std::to_string(failure) + ": " + result.detail);
+        }
+    }
+    {
+        // CALC-011 asks for both halves, so its evidence joins a verified polynomial with every test.
+        Arena arena;
+        Derivation polynomial_record;
+        const CalculusResult polynomial = calculus_walkthrough(arena, polynomial_record,
+            parse_command(arena, "maclaurin(exp(x),x,3)", "x"));
+        Rational at_one;
+        bool decided = polynomial.status == DerivationStatus::SolvedAndVerified && polynomial.remainder != kNoNode &&
+                       evaluate_rational(arena, polynomial.value, {{"x", Rational{1, 1}}}, &at_one) &&
+                       at_one.num == 8 && at_one.den == 3;
+        for (const auto &series : {std::pair{"convergence(n/2^n,n,1)", "series.ratio-test"},
+                                   std::pair{"convergence(n/(n+1),n,1)", "series.divergence-test"},
+                                   std::pair{"convergence(1/n^2,n,1)", "series.p-comparison"},
+                                   std::pair{"convergence((-1)^n/n,n,1)", "series.alternating-test"}}) {
+            Derivation record;
+            const CalculusResult result = calculus_walkthrough(arena, record, parse_command(arena, series.first, "n"));
+            decided = decided && result.status == DerivationStatus::SolvedAndVerified && result.test == series.second;
+        }
+        t.evidence("CALC-011", decided,
+                   "a verified Taylor polynomial with its remainder, and the ratio, divergence, "
+                   "p-comparison and alternating tests each deciding a series after checking its hypotheses");
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        CalculusBackend backend;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "convergence(1/n^2,n,1)", "n"), Budget(), &backend);
+        t.check(result.verdict == SeriesVerdict::ConvergesAbsolutely && backend.commands.empty() && !result.backend_attempted,
+                "the convergence family does not send its question to the backend");
+    }
 }
+
 
 
 }
