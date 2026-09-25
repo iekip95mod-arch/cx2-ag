@@ -783,7 +783,7 @@ solution_soundness_status verified by rank, frame, stage and dimension checks an
 solution_completeness_status partial, one body under one constant acceleration over one interval
 corpus_case_ids planar_kinematics_general_two_dimension
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
+direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics without the projectile flag, reachable from the Ki V4 menu's guided physics browser as the steady sideways wind fixture since #226
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
 # The projectile-plan, check-projectile and check-apex-routes rules belong to the specialization below.
