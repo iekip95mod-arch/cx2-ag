@@ -46,6 +46,8 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "calculus.limit.single-variable"},
     {"solver", "calculus.tangent-line.single-variable"},
     {"solver", "calculus.linearization.single-variable"},
+    {"solver", "calculus.derivative.implicit"},
+    {"solver", "calculus.ode.separable.first-order"},
     {"solver", "physics.kinematics.constant-acceleration.one-dimension"},
     {"solver", "physics.kinematics.constant-acceleration.projectile.two-dimension"},
     {"solver", "physics.kinematics.constant-acceleration.two-dimension"},

@@ -2252,6 +2252,7 @@ menu = {
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
          { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
          { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
+         { "Implicit derivative dy/dx", function() template("implicit(,x,y)", 5) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2359,6 +2360,7 @@ menu = {
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
+       	 { "Implicit Derivative  implicit(eq,x,y)",	function() menustring( "implicit(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -3394,6 +3396,7 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
+    ["Implicit derivative dy/dx"] = "Fill an equation in x and y. The answer is dydx in both variables, with its conditions.",
 }
 
 function openTemplatePicker()
