@@ -79,6 +79,7 @@ const struct {
     const char *what;
 } kGroupsWithNoFamily[] = {
     {"acceptance corpus", "the corpus audit's own evidence"},
+    {"attempt", "judging a learner's own step against any family's route"},
     {"canonical", "core normalization every family shares"},
     {"coverage", "this tool's own evidence"},
     {"derivation", "the derivation record itself"},

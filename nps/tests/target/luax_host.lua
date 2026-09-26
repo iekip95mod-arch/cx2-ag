@@ -44,6 +44,42 @@ do
     check(nps.math_display("3/4") == "(3 / 4)", "math display remains usable after refusal")
 end
 do
+    local judged = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "2*x - 4 = 0", "x = 2" }, "x")
+    evidence("STEP-013", type(judged) == "table" and judged.equivalence == "equivalent" and
+             judged.method == "comparison of the single solutions" and
+             judged.strength == "symbolically equivalent under assumptions",
+             "judge_attempt copies an exact equivalence verdict into Lua")
+    evidence("STEP-014", judged.usefulness == "valid not on route" and judged.reaches == 0,
+             "judge_attempt reports usefulness apart from validity")
+    local next_state = nps.judge_attempt("2*x + 3 = 7", "2*x - 4 = 0", { "2*x - 4 = 0", "x = 2" }, "x")
+    check(next_state.usefulness == "advances" and next_state.reaches == 1,
+          "judge_attempt reads the route it was handed")
+    local slipped = nps.judge_attempt("2*x + 3 = 7", "2*x = 10", nil, "x")
+    check(slipped.equivalence == "not equivalent" and slipped.usefulness == "not judged" and
+          slipped.detail == "the attempt's solution is 5 and the state's is 2",
+          "judge_attempt copies a refutation and its detail")
+    local other = nps.judge_attempt("2*y + 3 = 7", "2*y = 4", {}, "y")
+    check(other.equivalence == "equivalent", "judge_attempt honours the variable it is given")
+    local unparsed, why = nps.judge_attempt("2*x + 3 = 7", "2*x ==", {}, "x")
+    check(unparsed == nil and type(why) == "string" and why:find("attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused and named")
+    local badroute, routewhy = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "x = (" }, "x")
+    check(badroute == nil and routewhy:find("route state: ", 1, true) == 1,
+          "a route state that does not parse is refused and named")
+    local badvar, varwhy = nps.judge_attempt("x", "x", {}, "two words")
+    check(badvar == nil and type(varwhy) == "string", "a variable that is not an identifier is refused")
+    check(not pcall(nps.judge_attempt, "x\0y", "x", {}, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { 3 }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { "x\0" }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", "x", "x"),
+          "judge_attempt rejects invalid Lua arguments before owning native resources")
+    local long = {}
+    for i = 1, 513 do long[i] = "x" end
+    check(not pcall(nps.judge_attempt, "x", "x", long, "x"), "judge_attempt bounds the route it reads")
+    check(nps.judge_attempt("x + x", "2*x", {}, "x").equivalence ~= nil,
+          "judge_attempt remains usable after refusal")
+end
+do
     local fills = {}
     local gc = {
         setColorRGB = function() end,
@@ -2543,7 +2579,7 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "judge_attempt" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
