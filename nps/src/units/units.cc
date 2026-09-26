@@ -121,6 +121,47 @@ const BaseUnit *base_units(size_t *count) {
     return table;
 }
 
+Dimension velocity_dimension() {
+    Dimension d;
+    d.length = 1;
+    d.time = -1;
+    return d;
+}
+
+Dimension acceleration_dimension() {
+    Dimension d;
+    d.length = 1;
+    d.time = -2;
+    return d;
+}
+
+struct NamedQuantity {
+    const char *name;
+    Dimension dimension;
+};
+
+// Beside the unit table so a new unit and the name of what it measures arrive together.
+const NamedQuantity *named_quantities(size_t *count) {
+    static const NamedQuantity table[] = {
+        {"pure number", Dimension()},
+        {"length", length_dimension()},
+        {"mass", mass_dimension()},
+        {"time", time_dimension()},
+        {"electric current", current_dimension()},
+        {"velocity", velocity_dimension()},
+        {"acceleration", acceleration_dimension()},
+        {"force", force_dimension()},
+        {"energy", energy_dimension()},
+        {"power", power_dimension()},
+        {"electric charge", charge_dimension()},
+        {"electric potential", potential_dimension()},
+        {"resistance", resistance_dimension()},
+        {"capacitance", capacitance_dimension()},
+    };
+    *count = sizeof(table) / sizeof(table[0]);
+    return table;
+}
+
 const BaseUnit *find_base(const std::string &symbol) {
     size_t count;
     const BaseUnit *table = base_units(&count);
@@ -476,6 +517,16 @@ std::string dimension_text(const Dimension &d) {
         out += with_power(names[i], powers[i]);
     }
     return out.empty() ? "1" : out;
+}
+
+const char *quantity_name(const Dimension &d) {
+    size_t count;
+    const NamedQuantity *table = named_quantities(&count);
+    for (size_t i = 0; i < count; ++i) {
+        if (table[i].dimension == d)
+            return table[i].name;
+    }
+    return nullptr;
 }
 
 std::string si_unit_text(const Dimension &d) {

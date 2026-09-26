@@ -44,6 +44,47 @@ do
     check(nps.math_display("3/4") == "(3 / 4)", "math display remains usable after refusal")
 end
 do
+    local rule = nps.rule_definition("eq.linear.check-by-substitution")
+    evidence("UI-009", type(rule) == "table" and rule.rule == "eq.linear.check-by-substitution" and
+             rule.claim == "solution set preserved" and rule.on_failure == "withhold the result" and
+             #rule.obligations == 1 and rule.obligations[1].id == "obl.linear.candidate-satisfies" and
+             rule.obligations[1].text == "the candidate satisfies the original equation" and
+             #rule.obligations[1].evidence == 1 and
+             rule.obligations[1].evidence[1].method == "substitution" and
+             rule.obligations[1].evidence[1].strength == "candidate checked" and
+             rule.obligations[1].evidence[1].may_corroborate == false,
+             "rule_definition reads a rule's claim, obligations and evidence from its registration")
+    local strategy = nps.rule_definition("eq.linear.inverse-operations")
+    check(type(strategy) == "table" and strategy.claim == "no claim" and #strategy.obligations == 3,
+          "rule_definition answers for a strategy's plan as well as for a rule")
+    local collect = nps.rule_definition("eq.collect-like-terms")
+    check(collect.on_failure == "cannot fail" and
+          collect.obligations[1].evidence[1].method == "rule-local equality invariant",
+          "rule_definition carries a rule that cannot fail its obligation")
+    local missing, why = nps.rule_definition("eq.no-such-rule")
+    check(missing == nil and why == "no rule is registered under that id",
+          "an unregistered rule id is refused rather than invented")
+    check(not pcall(nps.rule_definition, "eq\0x") and not pcall(nps.rule_definition, {}),
+          "rule_definition rejects invalid Lua arguments")
+
+    local newton = nps.unit_definition("N")
+    evidence("UI-009", type(newton) == "table" and newton.quantity == "force" and
+             newton.dimension == "L M T^-2" and newton.si_unit == "kg m/s^2" and newton.scale == "1",
+             "unit_definition names the quantity a unit measures and its SI spelling")
+    local kmh = nps.unit_definition("km/h")
+    check(kmh.quantity == "velocity" and kmh.scale == "5/18" and kmh.si_unit == "m/s",
+          "unit_definition gives the exact scale to SI")
+    local product = nps.unit_definition("m*s")
+    check(type(product) == "table" and product.quantity == nil and product.si_unit == "m s",
+          "a unit no quantity is named for is still defined, without a name")
+    local unknown, unknown_why = nps.unit_definition("parsec")
+    check(unknown == nil and unknown_why == "unknown unit parsec", "an unknown unit is refused by name")
+    check(not pcall(nps.unit_definition, "m\0s") and not pcall(nps.unit_definition, {}),
+          "unit_definition rejects invalid Lua arguments")
+    local long, long_why = nps.unit_definition(string.rep("m", 4097))
+    check(long == nil and long_why == "unit exceeds the input limit", "unit_definition bounds its input")
+end
+do
     local fills = {}
     local gc = {
         setColorRGB = function() end,
@@ -2543,7 +2584,7 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "rule_definition", "unit_definition" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
