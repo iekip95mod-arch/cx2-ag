@@ -1503,6 +1503,45 @@ rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
 
+family id calculus.ode.separable.first-order
+reference_curriculum_set_ids StepCAS product requirements CALC-012
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 CALC-012
+topic_and_level Separable first-order differential equations with an optional initial condition, PRD section 9 CALC-012
+family_envelope_version 1
+accepted_expression_grammar a right side over numbers, the two named variables, pi and e, built from sums, products, integer powers and calls, where every factor of the right side mentions at most one of the variables
+accepted_input_forms desolve(y'=f,x,y) or desolve(diff(y,x)=f,x,y), with the derivative on either side, and desolve([y'=f,y(x0)=y0],x,y) with x0 and y0 exact rationals. Any other desolve shape is left to Giac
+domains_and_parameter_assumptions the dependent factor is not zero where the equation is divided by it, and each side keeps the domain restrictions its antiderivative records, such as a positive argument for a logarithm
+supported_branches_and_degenerate_cases a right side free of the dependent variable, which integrates straight to an explicit solution. A dependent factor of y or y^2, whose relation is solved for y through the exponential or the reciprocal. Any other dependent factor, whose relation is kept implicit. An initial point, which fixes the constant as its own checked step
+exact_special_function_and_numerical_result_policy exact symbolic antiderivatives from the rule engine and an exact constant read from the initial point, including a logarithm such as ln(2) where the point needs one. Exact mode only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/separable.cc, src/steps/integrate.cc, src/steps/differentiate.cc
+required_assumptions the dependent factor is non-zero where the equation is divided by it, as in "y != 0", and the branch the dependent side integrates on, as in "y > 0" for a logarithm
+test_group_ids separable
+word_language_profile_ids none, typed entry only
+strategy_ids ode.separable.plan
+supported_methods check the equation is first order with a separable right side, divide by the dependent factor, integrate each side with the registered antiderivative rules, add one constant, solve for the dependent variable when its side is y, a logarithm or a reciprocal, fix the constant from an initial point, then differentiate the solution and compare it with the equation
+unsupported_near_neighbors a right side whose factors mix both variables such as x + y or exp(x + y), a parameter other than the two variables, second and higher order equations, linear first-order equations that need an integrating factor, the constant solutions at zeros of the dependent factor that separation divides away, an initial point where the dependent factor vanishes or that lies off the recorded branch, logarithms of absolute values, and antiderivatives the integral engine has no rule for
+proof_obligation_ids obl.plan.preconditions-hold, obl.ode.separation-divides-nonzero, obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.ode.integrals-differ-by-constant, obl.ode.explicit-inverts-relation, obl.ode.initial-condition-holds, obl.ode.solution-satisfies-equation
+solution_soundness_status the explicit solution is differentiated by rule and compared in canonical form with the right side evaluated on it, and an implicit relation is differentiated side by side and compared with the separated factors. A mismatch withholds the solution as unconfirmed rather than calling it wrong, because canonical forms can miss an equality. The constant an initial point gives is substituted back into the relation before it is used
+solution_completeness_status partial, separable right sides whose two factors the integral engine can integrate, with the explicit form limited to the three inverses named above
+corpus_case_ids separable_explicit, separable_implicit, separable_initial_condition
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status the existing desolve menu entry reaches the native walkthrough. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.ode.separable.first-order
+release_status in development, unreleased
+rule ode.separable.plan fixture
+rule ode.separable.separate fixture
+rule calculus.integrate.rules fixture
+rule i.power fixture
+rule i.reciprocal fixture
+rule calculus.integrate.check-by-differentiation fixture
+rule ode.separable.integrate-both-sides fixture
+rule ode.separable.solve-explicit fixture
+rule ode.separable.initial-condition fixture
+rule ode.separable.check-solution fixture
+
 family id calculus.derivative.implicit
 topic_and_level Implicit differentiation of a relation between two variables, PRD section 9 CALC-007
 family_envelope_version 1
