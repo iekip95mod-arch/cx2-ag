@@ -15,6 +15,7 @@
 #include "sha256.h"
 
 #include "device_readings.h"
+#include "scratch_directory.h"
 
 // Writes down what a handheld run came back with, and nothing else. No threshold lives here and no
 // verdict is computed here: nps_device_evidence reads the record and decides, because a reader
@@ -200,12 +201,6 @@ void expect(bool ok, const char *what) {
     std::cout << "device run selftest: " << (ok ? "ok   " : "FAIL ") << what << "\n";
 }
 
-std::string temporary_directory() {
-    char pattern[] = "/tmp/nps_device_run_XXXXXX";
-    const char *made = ::mkdtemp(pattern);
-    return made ? std::string(made) : std::string();
-}
-
 std::vector<char *> argv_of(const std::vector<std::string> &arguments) {
     static std::vector<std::string> held;
     held = arguments;
@@ -333,7 +328,8 @@ int selftest() {
     expect(rows == nps_tools::reading_count(),
            "with one reading line per reading in the table and no more");
 
-    const std::string directory = temporary_directory();
+    const nps::ScratchDirectory scratch("nps_device_run_");
+    const std::string &directory = scratch.path();
     if (directory.empty()) {
         expect(false, "a temporary directory could be made");
     } else {
@@ -428,7 +424,8 @@ int selftest() {
     }
 
     for (bool partial_write : {false, true}) {
-        const std::string fault_directory = temporary_directory();
+        const nps::ScratchDirectory fault_scratch("nps_device_run_");
+        const std::string &fault_directory = fault_scratch.path();
         if (fault_directory.empty()) {
             expect(false, "the failed-write fixture directory can be created");
             continue;

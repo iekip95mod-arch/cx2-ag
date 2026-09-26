@@ -1696,6 +1696,18 @@ if(NOT CMAKE_CROSSCOMPILING)
     # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
 
+    # Their staging directories go in the build tree rather than /tmp, which parallel lanes share,
+    # and each selftest removes its own. The audit runs all four against an empty root of its own and
+    # fails on anything they leave there.
+    set_tests_properties(device_evidence_selftest device_run_selftest coverage_selftest
+                         traceability_selftest PROPERTIES
+                         ENVIRONMENT "NPS_SCRATCH_DIR=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch")
+    add_test(NAME selftest_scratch_cleanup
+             COMMAND "${CMAKE_COMMAND}"
+                     "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch-audit"
+                     "-DSELFTESTS=$<TARGET_FILE:nps_device_evidence>;$<TARGET_FILE:nps_device_run>;$<TARGET_FILE:nps_coverage>;$<TARGET_FILE:nps_traceability>"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/selftest_scratch_cleanup.cmake")
+
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
     # claim line in turn and the suite has to fail while it is gone.
     add_test(NAME evidence_mutation
