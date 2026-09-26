@@ -1565,7 +1565,7 @@ corpus_case_ids not yet filed, the two golden fixtures optics_refraction_transmi
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.refraction.snell
 release_status in development, unreleased
@@ -1637,7 +1637,7 @@ corpus_case_ids not yet filed, the golden fixture optics_spherical_mirror_image 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.spherical-mirror.image
 release_status in development, unreleased
@@ -1673,7 +1673,7 @@ corpus_case_ids not yet filed, the golden fixture optics_double_slit_wavelength 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.double-slit.maxima
 release_status in development, unreleased
@@ -1710,7 +1710,7 @@ corpus_case_ids not yet filed, the golden fixture optics_single_slit_minimum rec
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.single-slit.minima
 release_status in development, unreleased
