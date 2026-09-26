@@ -1336,6 +1336,44 @@ rule int.gcd-sign fixture
 rule int.gcd-remainder fixture
 rule int.gcd-conclusion fixture
 
+family id algebra.powers-and-radicals.one-variable
+reference_curriculum_set_ids none, this family answers PRD ALG-006 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-006
+topic_and_level Simplifying powers and radicals in one variable over the real numbers, keeping the condition each law needs
+family_envelope_version 1
+accepted_expression_grammar sums, products, negations and quotients of integers and one variable, whole and rational powers with least common exponent denominator at most 12, square roots and absolute values, where every rational power and every square root is taken of a single term
+accepted_input_forms the powsimp(expr) menu command, for example powsimp(sqrt(x^2)) or powsimp(sqrt(12)), in exact mode
+domains_and_parameter_assumptions the real domain. Odd roots of negative numbers are real and negative, even roots are taken only of values that are not negative, and a negative exponent needs its base not zero
+supported_branches_and_degenerate_cases a square root is written as a power of one half, a root of a number has its largest perfect power taken out, a power of a power multiplies the exponents with an absolute value when an even power meets an even root, a power of a product is split over its factors, powers of a common base add their exponents, a first power is its base, and a power of one half is written back as a square root. An expression with nothing to rewrite is already in form, and an even root of a negative number is refused as having no real value
+exact_special_function_and_numerical_result_policy exact integers and rationals only. Irrational roots of numbers stay as roots and are compared exactly, never evaluated in floating point
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/power.cc
+required_assumptions a law that needs a condition publishes it, as "x is not zero" for a negative exponent and "x >= 0" for an even root of an odd power of the variable
+test_group_ids power, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.power.same-values
+strategy_ids plan.power-laws
+supported_methods every step applies one named power law to one subterm. Each step and the result are checked by substituting plus and minus t to the power twice the least common exponent denominator for the variable, which makes both sides sums of powers of t with coefficients in the span of roots of primes, and comparing them exactly at more points than their difference could vanish at. Roots of distinct primes are linearly independent over the rationals, so equal representations are a proof
+unsupported_near_neighbors two or more variables, roots of sums, functions other than sqrt and abs, decimals, exponent denominators whose least common multiple exceeds 12, and numbers under a root with a factor past the trial division bound of 100000
+solution_soundness_status every step and the result are checked by exact evaluation on each branch of the real domain beyond the degree, which is a proof rather than a sample
+solution_completeness_status the rewrite stops when no power law applies, with each law's condition published. Cancellation and Meter limits retain the verified prefix without a final result
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch from the new Simplify Powers menu entry, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.powers-and-radicals.one-variable
+release_status in development, unreleased
+rule plan.power-laws fixture
+rule pow.root-as-power fixture
+rule pow.numeric-root fixture
+rule pow.power-of-power fixture
+rule pow.product-power fixture
+rule pow.same-base fixture
+rule pow.first-power fixture
+rule pow.power-as-root fixture
+rule pow.check-values fixture
+
 family id matrix.ref.rational
 reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
 curriculum_source_locations docs/menu-walkthrough-plan.md, Matrix and Vector menu inventory

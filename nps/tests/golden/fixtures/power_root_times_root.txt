@@ -1,0 +1,91 @@
+problem: sqrt(x)*sqrt(x)
+outcome: rewritten
+result: x
+detail: each power law applied with its real-domain condition
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.powers-and-radicals.one-variable
+  envelope version: 1
+  normalized problem: (sqrt(x) * sqrt(x))
+  requested method: powsimp
+  active assumption: x >= 0
+  angle convention: not applicable
+  branch convention: real domain, real odd roots, even roots only of values that are not negative
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Simplify the powers and roots in (sqrt(x) * sqrt(x))
+    rule: plan.power-laws, Apply the power laws one at a time
+    claim: no claim
+    explanation: Write roots as powers, apply one law at a time with its condition, then write square roots back.
+    detail: Each law is checked for the condition it needs over the real numbers before it is used.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply the power laws one at a time
+    applicability: the expression is built from numbers and one variable with powers and roots of single terms
+    fact: (sqrt(x) * sqrt(x))
+    rationale: The expression is built from numbers and one variable with powers and roots of single terms.
+    verification: one-variable shape reading, passed, Simplify the powers and roots in (sqrt(x) * sqrt(x))
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Simplify
+      goal: Apply one power law
+      rule: pow.root-as-power, Write a square root as a power
+      claim: equivalent expression
+      explanation: The law used is sqrt(u) = u^(1/2).
+      detail: It holds wherever the expression has a real value, so no condition is needed.
+      proof obligation: obl.power.same-values, the new form has the value of the old one wherever the old one is real
+      action: Write sqrt(x) as a power of one half.
+      before: (sqrt(x) * sqrt(x))
+      after: ((x^(1 * (2^-1))) * sqrt(x))
+      reversible: yes
+      verification: exact evaluation on each branch beyond the degree, passed, both forms agree on every branch of the old form's real domain, at more points than their difference could have roots
+      verified: yes
+    1.2 transformation
+      phase: Simplify
+      goal: Apply one power law
+      rule: pow.root-as-power, Write a square root as a power
+      claim: equivalent expression
+      explanation: The law used is sqrt(u) = u^(1/2).
+      detail: It holds wherever the expression has a real value, so no condition is needed.
+      proof obligation: obl.power.same-values, the new form has the value of the old one wherever the old one is real
+      action: Write sqrt(x) as a power of one half.
+      before: ((x^(1 * (2^-1))) * sqrt(x))
+      after: ((x^(1 * (2^-1))) * (x^(1 * (2^-1))))
+      reversible: yes
+      verification: exact evaluation on each branch beyond the degree, passed, both forms agree on every branch of the old form's real domain, at more points than their difference could have roots
+      verified: yes
+    1.3 transformation
+      phase: Simplify
+      goal: Apply one power law
+      rule: pow.same-base, Add the exponents of a common base
+      claim: equivalent expression
+      explanation: The law used is u^a u^b = u^(a+b), keeping u not zero for a negative exponent and not negative for an even root.
+      detail: It holds only under the condition recorded on this step, which the result keeps.
+      domain restriction: x >= 0
+      proof obligation: obl.power.same-values, the new form has the value of the old one wherever the old one is real
+      action: Add the exponents of x.
+      before: ((x^(1 * (2^-1))) * (x^(1 * (2^-1))))
+      after: x
+      reversible: no
+      verification: exact evaluation on each branch beyond the degree, passed, both forms agree on every branch of the old form's real domain, at more points than their difference could have roots
+      verified: yes
+    1.4 check
+      phase: Check
+      goal: Check the result against the expression as typed
+      rule: pow.check-values, Check the result on the real domain
+      claim: equivalent expression
+      explanation: Compare both at enough points of each sign to fix a difference of this degree.
+      detail: Substituting a power of t for the variable turns both sides into sums of powers of t, which agree everywhere once they agree at more points than such a sum can vanish.
+      proof obligation: obl.power.same-values, the new form has the value of the old one wherever the old one is real
+      target claim: x equals (sqrt(x) * sqrt(x)) wherever it is real
+      check method: exact evaluation on each branch beyond the degree
+      expected: equal values
+      observed: both forms agree on every branch of the old form's real domain, at more points than their difference could have roots
+      verification: exact evaluation on each branch beyond the degree, passed, both forms agree on every branch of the old form's real domain, at more points than their difference could have roots
+      verified: yes

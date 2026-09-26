@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 33,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -261,6 +261,7 @@ local expected_modules = {
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
     "number.integer-method.literal",
+    "algebra.powers-and-radicals.one-variable",
     "matrix.ref.rational",
     "matrix.rref.rational",
     "matrix.det.rational",
@@ -637,6 +638,28 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+do
+    giac_calls = 0
+    local simplified = nps.walkthrough("powsimp(sqrt(x^2))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(simplified) == "table" and simplified.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-006", type(simplified) == "table" and simplified.mode == "powsimp" and simplified.solved and
+             simplified.result == "abs(x)" and simplified.status == "solved and verified" and
+             rules["pow.power-of-power"] and rules["pow.check-values"],
+             "a radical reaches the native walkthrough through the bridge with its sign condition kept")
+    local root = nps.walkthrough("powsimp(sqrt(12))", "x", "exact")
+    check(type(root) == "table" and root.solved and root.result == "(2 * sqrt(3))" and
+          root.status == "solved and verified",
+          "powsimp takes the largest square out of a numeric root through the bridge")
+    local refused = nps.walkthrough("powsimp(sqrt(-4))", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "no real value" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "an even root of a negative number is a native refusal with no steps")
+    local decimal = nps.walkthrough("powsimp(sqrt(x^2))", "x", "decimal")
+    check(type(decimal) == "table" and not decimal.solved and decimal.mode == "powsimp",
+          "powsimp refuses decimal mode")
+    check(giac_calls == 0, "powsimp never asks Giac")
+end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and

@@ -875,6 +875,8 @@ int main_body() {
     run_derivation_tests(sink);
     sink.begin_group("linear");
     run_linear_tests(sink);
+    sink.begin_group("power");
+    run_power_tests(sink);
     sink.begin_group("quadratic");
     run_quadratic_tests(sink);
     sink.begin_group("rearrange");

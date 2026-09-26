@@ -27,6 +27,7 @@
 #include "nps/physics/vector_cross.h"
 #include "nps/physics/work.h"
 #include "nps/steps/linear.h"
+#include "nps/steps/power.h"
 #include "nps/steps/quadratic.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
@@ -143,6 +144,18 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
         answer += print(arena, result.solutions[i]);
     }
     return header(equation, name, quadratic_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string power_record(const char *expression, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const PowerResult result = simplify_powers(arena, derivation, parsed.root, budget);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(expression, "", power_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -998,6 +1011,15 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "rearrange_even_power_refused", rearrange_record("y = x^2", "x", Budget()));
     check_golden(t, "rearrange_repeated_variable", rearrange_record("y = x + x", "x", Budget()));
     check_golden(t, "rearrange_step_budget_halt", rearrange_record("v = u + a*t", "t", one_step()));
+    check_golden(t, "power_root_of_square", power_record("sqrt(x^2)", Budget()));
+    check_golden(t, "power_root_times_root", power_record("sqrt(x)*sqrt(x)", Budget()));
+    check_golden(t, "power_numeric_root", power_record("sqrt(12)", Budget()));
+    check_golden(t, "power_irrational_coefficient", power_record("sqrt(18*x^2)", Budget()));
+    check_golden(t, "power_quotient", power_record("x^3/x", Budget()));
+    check_golden(t, "power_odd_root", power_record("(x^3)^(1/3)", Budget()));
+    check_golden(t, "power_first_power", power_record("x^(3/3)", Budget()));
+    check_golden(t, "power_no_real_value", power_record("sqrt(-4)", Budget()));
+    check_golden(t, "power_outside_envelope", power_record("x*y", Budget()));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));
