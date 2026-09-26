@@ -85,6 +85,7 @@ const struct {
     {"integrity", "package staging and digests"},
     {"luax", "the Lua bridge vehicle"},
     {"native menu", "the native menu surface"},
+    {"problem ir", "the word-problem schema and commit boundary, which solves through existing families"},
     {"solve_task", "dispatch onto the algebra families their own groups name"},
     {"task", "the core task and coroutine drivers"},
     {"ui canvas", "host canvas rendering"},
