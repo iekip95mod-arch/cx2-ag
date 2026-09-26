@@ -36,6 +36,8 @@ enum class Kind : uint8_t {
     // Invalid retains its original value when new kinds are appended.
     Invalid,
     List,
+    // Two endpoint children, with each end's openness in the node text, so [1..3] and [1..3) differ.
+    Interval,
 };
 
 using NodeId = uint32_t;
@@ -169,6 +171,7 @@ class Arena {
     NodeId nary(Kind kind, const std::vector<NodeId> &args);
     NodeId call(const std::string &name, const std::vector<NodeId> &args);
     NodeId list(const std::vector<NodeId> &items);
+    NodeId interval(NodeId lower, NodeId upper, bool lower_closed, bool upper_closed);
 
     // A failed arena answers every request with kNoNode, and kNoNode read as an index reached past
     // the end of the chunk table and dereferenced whatever was there. Refused once here rather than
