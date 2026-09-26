@@ -90,9 +90,13 @@ inline NodeId rational_node(Arena &arena, const Rational &rational) {
 inline NodeId dimension_node(Arena &arena, const Dimension &dimension) {
     int powers[kDimensionCount];
     dimension_powers(dimension, powers);
+    int written = kDimensionCount;
+    // Trailing zero powers past current are left out so records from before PHYS-018 read unchanged.
+    while (written > 4 && powers[written - 1] == 0)
+        --written;
     std::vector<NodeId> exponents;
-    for (int power : powers)
-        exponents.push_back(arena.integer(integer_text(power)));
+    for (int i = 0; i < written; ++i)
+        exponents.push_back(arena.integer(integer_text(powers[i])));
     return arena.call("dimension", exponents);
 }
 

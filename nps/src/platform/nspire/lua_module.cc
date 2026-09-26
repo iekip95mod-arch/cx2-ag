@@ -41,10 +41,14 @@
 #include "nps/steps/integrate.h"
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
+#include "nps/physics/fluids.h"
+#include "nps/physics/gravitation.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/optics.h"
+#include "nps/physics/oscillation.h"
 #include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
+#include "nps/physics/thermal.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
@@ -3202,6 +3206,123 @@ int l_optics(lua_State *L) {
     return 1;
 }
 
+// The model names its own terms, so the names Lua passes are read against those rather than a table.
+bool relation_variable(const RelationModel &model, std::string_view name, size_t *index) {
+    for (size_t i = 0; i < relation_term_count(model); ++i) {
+        if (name == relation_term(model, i).name) {
+            *index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+using RelationSolver = RelationResult (*)(Arena &, Derivation &, const RelationProblem &,
+                                          const Budget &);
+
+// Two known pairs are required and a third is optional, which covers every relation of up to four terms.
+int relation_into(lua_State *L, const RelationModel &model, RelationSolver solve) {
+    const char *unknown_text = scalar_string_argument(L, 1);
+    const char *names[3] = {scalar_string_argument(L, 2), scalar_string_argument(L, 4),
+                            scalar_string_argument(L, 6, "")};
+    const char *values[3] = {scalar_string_argument(L, 3), scalar_string_argument(L, 5),
+                             scalar_string_argument(L, 7, "")};
+    GcPause paused(L);
+
+    RelationProblem problem;
+    std::string why;
+    bool parsed = relation_variable(model, unknown_text, &problem.unknown);
+    if (!parsed)
+        why = "unknown variable " + std::string(unknown_text) + " in " + model.equation_text;
+    for (size_t i = 0; parsed && i < 3; ++i) {
+        if (*names[i] == '\0' && *values[i] == '\0')
+            continue;
+        RelationKnown known;
+        if (!relation_variable(model, names[i], &known.index)) {
+            parsed = false;
+            why = "unknown variable " + std::string(names[i]) + " in " + model.equation_text;
+            break;
+        }
+        if (!parse_quantity(values[i], &known.quantity, &why)) {
+            parsed = false;
+            break;
+        }
+        problem.knowns.push_back(std::move(known));
+    }
+    if (!parsed)
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const RelationResult r = solve(arena, d, problem, interactive_budget());
+    const char *unknown_name = relation_term(model, problem.unknown).name;
+
+    lua_newtable(L);
+    set_field(L, "outcome", relation_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == RelationOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    set_field(L, "unknown", unknown_name);
+    if (r.outcome == RelationOutcome::Solved) {
+        set_field(L, "result", std::string(unknown_name) + " = " + r.value_text + " " + r.unit_text);
+        set_field(L, "value", r.value_text);
+        set_field(L, "exact_value", rational_text(r.quantity.value));
+        set_field(L, "unit", r.unit_text);
+        set_precision(L, r.quantity.precision);
+    }
+    if (r.equation != kNoNode)
+        set_field(L, "equation", print(arena, r.equation));
+    if (r.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, r.substituted));
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
+int l_gravitation(lua_State *L) {
+    return relation_into(L, gravitation_model(), solve_gravitation);
+}
+
+int l_oscillation(lua_State *L) {
+    return relation_into(L, oscillation_model(), solve_oscillation);
+}
+
+int l_wave(lua_State *L) {
+    return relation_into(L, wave_model(), solve_wave);
+}
+
+int l_pressure(lua_State *L) {
+    return relation_into(L, pressure_model(), solve_pressure);
+}
+
+int l_hydrostatic(lua_State *L) {
+    return relation_into(L, hydrostatic_model(), solve_hydrostatic);
+}
+
+int l_buoyancy(lua_State *L) {
+    return relation_into(L, buoyancy_model(), solve_buoyancy);
+}
+
+int l_continuity(lua_State *L) {
+    return relation_into(L, continuity_model(), solve_continuity);
+}
+
+int l_sensible_heat(lua_State *L) {
+    return relation_into(L, sensible_heat_model(), solve_sensible_heat);
+}
+
+int l_latent_heat(lua_State *L) {
+    return relation_into(L, latent_heat_model(), solve_latent_heat);
+}
+
+int l_ideal_gas(lua_State *L) {
+    return relation_into(L, ideal_gas_model(), solve_ideal_gas);
+}
+
 int l_vector_addition(lua_State *L) {
     const char *first_text = scalar_string_argument(L, 1);
     const char *second_text = scalar_string_argument(L, 2);
@@ -4025,6 +4146,16 @@ const luaL_Reg lib[] = {
     {"unit_conversion", l_unit_conversion},
     {"density", l_density},
     {"optics", l_optics},
+    {"gravitation", l_gravitation},
+    {"oscillation", l_oscillation},
+    {"wave", l_wave},
+    {"pressure", l_pressure},
+    {"hydrostatic", l_hydrostatic},
+    {"buoyancy", l_buoyancy},
+    {"continuity", l_continuity},
+    {"sensible_heat", l_sensible_heat},
+    {"latent_heat", l_latent_heat},
+    {"ideal_gas", l_ideal_gas},
     {"vector_addition", l_vector_addition},
     {"vector_cross", l_vector_cross},
     {"relative_motion", l_relative_motion},

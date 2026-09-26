@@ -968,8 +968,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the four positions of the two-body law
 corpus_case_ids gravitation_two_point_masses
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.gravitation.point-masses
 release_status unreleased
 rule physics.gravitation.definition fixture
 rule physics.gravitation.check-dimensions fixture
@@ -997,8 +998,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the restoring-force relation only
 corpus_case_ids oscillation_restoring_force
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.oscillation.restoring-force
 release_status unreleased
 rule physics.oscillation.definition fixture
 rule physics.oscillation.check-dimensions fixture
@@ -1026,14 +1028,232 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the traveling-wave relation only
 corpus_case_ids wave_speed_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.wave.speed-frequency-wavelength
 release_status unreleased
 rule physics.wave.definition fixture
 rule physics.wave.check-dimensions fixture
 rule physics.wave.convert-units fixture
 rule physics.wave.substitute fixture
 rule physics.wave.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.fluids.pressure.force-area
+topic_and_level Pressure as a normal force spread over an area, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds P = F*A^-1
+accepted_input_forms one typed RelationProblem naming the pressure or the force as unknown and giving the other two as quantities, in Pa, kPa, N and square metres or prefixed lengths squared
+domains_and_parameter_assumptions the force acts perpendicular to the surface and is spread uniformly over it
+supported_branches_and_degenerate_cases the pressure or the force as the unknown, and an area in square centimetres, which reaches the conversion step
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/fluids.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the loading is stated rather than inferred, carried as "the force acts perpendicular to the surface" and "the force is spread uniformly over the area, so one pressure describes it"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.fluids.pressure.dimensions-agree, physics.fluids.pressure.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors an unknown area, which sits at power minus one and is refused by the linear path, forces at an angle to the surface and pressure that varies across it
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the pressure and the force only, since the area sits at power minus one
+corpus_case_ids fluids_pressure_mixed_units
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.fluids.pressure.force-area
+release_status unreleased
+rule physics.fluids.pressure.definition fixture
+rule physics.fluids.pressure.check-dimensions fixture
+rule physics.fluids.pressure.convert-units fixture
+rule physics.fluids.pressure.substitute fixture
+rule physics.fluids.pressure.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.fluids.hydrostatic-pressure
+topic_and_level Gauge pressure at a depth in a fluid at rest, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds P = rho*g*h
+accepted_input_forms one typed RelationProblem naming which of the gauge pressure, the fluid density, the gravitational acceleration and the depth is unknown and giving the other three as quantities
+domains_and_parameter_assumptions the fluid is at rest and incompressible with one uniform density, g is uniform and supplied by the learner rather than assumed, and the pressure is gauge pressure relative to the free surface
+supported_branches_and_degenerate_cases any of the four positions as the unknown, a gauge pressure in kPa, which reaches the conversion step, and a measured g, which reaches the significant-figures report
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/fluids.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the fluid and the pressure reference are stated, carried as "the fluid is at rest and incompressible, with one uniform density", "the gravitational acceleration is uniform over the depth" and "the pressure is gauge pressure, measured relative to the pressure at the free surface"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.fluids.hydrostatic.dimensions-agree, physics.fluids.hydrostatic.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors absolute pressure with an atmospheric term, which is a sum, compressible fluids and layered fluids of different densities
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the gauge form only
+corpus_case_ids fluids_hydrostatic_depth
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.fluids.hydrostatic-pressure
+release_status unreleased
+rule physics.fluids.hydrostatic.definition fixture
+rule physics.fluids.hydrostatic.check-dimensions fixture
+rule physics.fluids.hydrostatic.convert-units fixture
+rule physics.fluids.hydrostatic.substitute fixture
+rule physics.fluids.hydrostatic.check-candidate fixture
+rule physics.fluids.hydrostatic.significant-figures fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.fluids.buoyancy.archimedes
+topic_and_level Archimedes' principle for the buoyant force on a submerged volume, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds F = rho*V*g
+accepted_input_forms one typed RelationProblem naming which of the buoyant force, the fluid density, the displaced volume and the gravitational acceleration is unknown and giving the other three as quantities, with volumes in cubic metres, L or mL
+domains_and_parameter_assumptions the fluid is at rest with one uniform density, the displaced volume is the submerged part of the body, and g is uniform and supplied by the learner
+supported_branches_and_degenerate_cases any of the four positions as the unknown, and a volume in litres, which reaches the conversion step
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/fluids.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the fluid and the displaced volume are stated, carried as "the fluid is at rest with one uniform density", "the displaced volume is the part of the body below the surface" and "the gravitational acceleration is uniform over the body"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.fluids.buoyancy.dimensions-agree, physics.fluids.buoyancy.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors floating equilibrium, which balances the buoyant force against the weight as a second relation, and apparent weight, which is a difference
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the single relation only
+corpus_case_ids fluids_buoyancy_litres
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.fluids.buoyancy.archimedes
+release_status unreleased
+rule physics.fluids.buoyancy.definition fixture
+rule physics.fluids.buoyancy.check-dimensions fixture
+rule physics.fluids.buoyancy.convert-units fixture
+rule physics.fluids.buoyancy.substitute fixture
+rule physics.fluids.buoyancy.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.fluids.continuity.incompressible
+topic_and_level Continuity of a steady incompressible flow between two cross sections, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds v2 = A1*v1*A2^-1
+accepted_input_forms one typed RelationProblem naming the outlet speed, the inlet area or the inlet speed as unknown and giving the other three as quantities
+domains_and_parameter_assumptions the flow is steady and incompressible, the speed is uniform across each section, and nothing enters or leaves between the sections
+supported_branches_and_degenerate_cases the outlet speed, the inlet area or the inlet speed as the unknown, and areas in square centimetres, which reach the conversion step
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/fluids.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the flow is stated rather than inferred, carried as "the flow is steady and the fluid is incompressible", "the speed is uniform across each cross section" and "no fluid enters or leaves between the two cross sections"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.fluids.continuity.dimensions-agree, physics.fluids.continuity.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors an unknown outlet area, which sits at power minus one, Bernoulli's equation, which is a sum, and mass flow of a compressible fluid
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, three of the four positions, since the outlet area sits at power minus one
+corpus_case_ids fluids_continuity_narrowing
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.fluids.continuity.incompressible
+release_status unreleased
+rule physics.fluids.continuity.definition fixture
+rule physics.fluids.continuity.check-dimensions fixture
+rule physics.fluids.continuity.convert-units fixture
+rule physics.fluids.continuity.substitute fixture
+rule physics.fluids.continuity.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.thermal.sensible-heat
+topic_and_level Heat to change the temperature of a mass with a constant specific heat, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds Q = m*c*dT
+accepted_input_forms one typed RelationProblem naming which of the heat, the mass, the specific heat and the temperature change is unknown and giving the other three as quantities, with the temperature change in K
+domains_and_parameter_assumptions no phase change happens, the specific heat is constant over the range, and the temperature change is given in kelvin. Celsius and Fahrenheit are not in the unit table, because their scales are affine
+supported_branches_and_degenerate_cases any of the four positions as the unknown, and a mass in grams, which reaches the conversion step
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/thermal.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the conditions of the heat capacity relation are stated, carried as "no phase change happens over the temperature change", "the specific heat is constant over the temperature range" and "the temperature change is given in kelvin, which is the same size as a change in degrees Celsius"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.thermal.sensible-heat.dimensions-agree, physics.thermal.sensible-heat.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors temperatures in degrees Celsius or Fahrenheit, mixing problems that balance two bodies, which is a sum, and a specific heat that varies with temperature
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the single relation only
+corpus_case_ids thermal_sensible_heat_grams
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.thermal.sensible-heat
+release_status unreleased
+rule physics.thermal.sensible-heat.definition fixture
+rule physics.thermal.sensible-heat.check-dimensions fixture
+rule physics.thermal.sensible-heat.convert-units fixture
+rule physics.thermal.sensible-heat.substitute fixture
+rule physics.thermal.sensible-heat.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.thermal.latent-heat
+topic_and_level Heat for a mass to change phase at its transition temperature, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds Q = m*L
+accepted_input_forms one typed RelationProblem naming which of the heat, the mass and the latent heat is unknown and giving the other two as quantities
+domains_and_parameter_assumptions the substance stays at its transition temperature and the whole mass changes phase
+supported_branches_and_degenerate_cases any of the three positions as the unknown
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/thermal.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the phase change is stated, carried as "the substance stays at its transition temperature throughout" and "the whole mass changes phase and nothing else absorbs the heat"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.thermal.latent-heat.dimensions-agree, physics.thermal.latent-heat.candidate-satisfies, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors heating across a transition, which adds a sensible term to the latent one, and partial melting
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, the single relation only
+corpus_case_ids thermal_latent_heat_melting
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.thermal.latent-heat
+release_status unreleased
+rule physics.thermal.latent-heat.definition fixture
+rule physics.thermal.latent-heat.check-dimensions fixture
+rule physics.thermal.latent-heat.substitute fixture
+rule physics.thermal.latent-heat.check-candidate fixture
+rule eq.linear.inverse-operations fixture
+rule eq.collect-like-terms fixture
+rule eq.divide-both-sides fixture
+rule eq.linear.check-by-substitution fixture
+
+family id physics.thermal.ideal-gas
+topic_and_level The ideal gas law with the exact molar gas constant, PRD section 9 PHYS-018
+accepted_expression_grammar no expression grammar of its own, because the problem arrives as typed quantities and the engine builds P = n*R*T*V^-1
+accepted_input_forms one typed RelationProblem naming the pressure, the amount of gas or the absolute temperature as unknown and giving the other three as quantities, in Pa or kPa, mol, K and cubic metres, L or mL
+domains_and_parameter_assumptions the gas is ideal and in equilibrium, the temperature is absolute in kelvin, and R is the exact SI value 8.31446261815324 J mol^-1 K^-1
+supported_branches_and_degenerate_cases the pressure, the amount or the temperature as the unknown, and a pressure in kPa with a volume in litres, which reach the conversion step
+exact_special_function_and_numerical_result_policy exact rational SI conversion and exact rational isolation, with measured precision applied only to the reported value
+parser_module_ids src/units/units.cc, src/physics/thermal.cc, src/physics/relation.cc, src/steps/linear.cc
+required_assumptions the gas model and the constant are stated, carried as "the gas is ideal, with negligible molecular volume and no forces between molecules", "the temperature is absolute, in kelvin" and "the molar gas constant 8.31446261815324 J mol^-1 K^-1 is exact in the SI, so nothing is approximated by using it"
+test_group_ids fluids-thermal
+proof_obligation_ids obl.plan.preconditions-hold, physics.thermal.ideal-gas.dimensions-agree, physics.thermal.ideal-gas.candidate-satisfies, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.eq.same-solutions, obl.linear.candidate-satisfies
+supported_methods check the relation's dimensions, convert any prefixed quantity exactly to SI, substitute the knowns, isolate the unknown with the existing linear engine and check the candidate in the original relation
+unsupported_near_neighbors an unknown volume, which sits at power minus one, real gases, temperatures in degrees Celsius, and the kinetic theory rms speed, which needs a square root
+solution_soundness_status verified, the dimensions are checked before substitution, each conversion is checked against its table scale and the candidate is put back into the original relation
+solution_completeness_status partial, three of the four positions, since the volume sits at power minus one
+corpus_case_ids thermal_ideal_gas_temperature
+device_performance_status not measured
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.thermal.ideal-gas
+release_status unreleased
+rule physics.thermal.ideal-gas.definition fixture
+rule physics.thermal.ideal-gas.check-dimensions fixture
+rule physics.thermal.ideal-gas.convert-units fixture
+rule physics.thermal.ideal-gas.substitute fixture
+rule physics.thermal.ideal-gas.check-candidate fixture
 rule eq.linear.inverse-operations fixture
 rule eq.collect-like-terms fixture
 rule eq.divide-both-sides fixture

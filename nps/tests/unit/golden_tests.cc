@@ -11,6 +11,8 @@
 #include "nps/physics/density.h"
 #include "nps/physics/forces.h"
 #include "nps/physics/gravitation.h"
+#include "nps/physics/fluids.h"
+#include "nps/physics/thermal.h"
 #include "nps/physics/oscillation.h"
 #include "nps/physics/position_motion.h"
 #include "nps/physics/ranking.h"
@@ -524,6 +526,20 @@ std::string relation_record(const RelationModel &model, const RelationProblem &p
     return header(problem_text, relation_term(model, problem.unknown).name,
                   relation_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
+}
+
+// A relation problem from typed pairs of model position and quantity text, for the PHYS-018 fixtures.
+RelationProblem typed_relation(size_t unknown, std::initializer_list<std::pair<size_t, const char *>> knowns) {
+    RelationProblem problem;
+    problem.unknown = unknown;
+    for (const auto &[index, text] : knowns) {
+        RelationKnown known;
+        known.index = index;
+        std::string why;
+        parse_quantity(text, &known.quantity, &why);
+        problem.knowns.push_back(known);
+    }
+    return problem;
 }
 
 std::string circular_motion_record(const CircularMotionProblem &problem,
@@ -1228,6 +1244,36 @@ void run_golden_tests(TestSink &t) {
         RelationProblem wave = wave_problem(WaveVariable::Speed);
         wave.knowns.push_back(wave_known(WaveVariable::Frequency, frequency));
         wave.knowns.push_back(wave_known(WaveVariable::Wavelength, wavelength));
+        check_golden(t, "fluids_pressure_mixed_units",
+                     relation_record(pressure_model(), typed_relation(0, {{1, "300 N"}, {2, "1000 cm^2"}}),
+                                     "300 N spread over 1000 cm^2; find the pressure", solve_pressure, Budget()));
+        check_golden(t, "fluids_hydrostatic_depth",
+                     relation_record(hydrostatic_model(),
+                                     typed_relation(3, {{0, "49 kPa"}, {1, "1000 kg/m^3"}, {2, "9.8 m/s^2"}}),
+                                     "a gauge pressure of 49 kPa in water with g = 9.8 m/s^2; find the depth",
+                                     solve_hydrostatic, Budget()));
+        check_golden(t, "fluids_buoyancy_litres",
+                     relation_record(buoyancy_model(),
+                                     typed_relation(0, {{1, "1000 kg/m^3"}, {2, "2 L"}, {3, "10 m/s^2"}}),
+                                     "2 L of water displaced with g = 10 m/s^2; find the buoyant force",
+                                     solve_buoyancy, Budget()));
+        check_golden(t, "fluids_continuity_narrowing",
+                     relation_record(continuity_model(),
+                                     typed_relation(0, {{1, "4 cm^2"}, {2, "3 m/s"}, {3, "2 cm^2"}}),
+                                     "flow at 3 m/s through 4 cm^2 narrows to 2 cm^2; find the outlet speed",
+                                     solve_continuity, Budget()));
+        check_golden(t, "thermal_sensible_heat_grams",
+                     relation_record(sensible_heat_model(),
+                                     typed_relation(0, {{1, "500 g"}, {2, "4186 J/(kg*K)"}, {3, "10 K"}}),
+                                     "500 g of water warmed by 10 K; find the heat", solve_sensible_heat, Budget()));
+        check_golden(t, "thermal_latent_heat_melting",
+                     relation_record(latent_heat_model(), typed_relation(0, {{1, "2 kg"}, {2, "334000 J/kg"}}),
+                                     "2 kg of ice melting at 0 C; find the heat", solve_latent_heat, Budget()));
+        check_golden(t, "thermal_ideal_gas_temperature",
+                     relation_record(ideal_gas_model(),
+                                     typed_relation(2, {{0, "100 kPa"}, {1, "1 mol"}, {3, "25 L"}}),
+                                     "1 mol of gas at 100 kPa in 25 L; find the temperature", solve_ideal_gas,
+                                     Budget()));
         check_golden(t, "wave_speed_mixed_units",
                      relation_record(wave_model(), wave,
                                      "a wave at 50 s^-1 with a 40 cm wavelength; find the speed",

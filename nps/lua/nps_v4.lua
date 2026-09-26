@@ -63,6 +63,16 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "gravitation", "physics.gravitation.point-masses" },
+	{ "oscillation", "physics.oscillation.restoring-force" },
+	{ "wave", "physics.wave.speed-frequency-wavelength" },
+	{ "pressure", "physics.fluids.pressure.force-area" },
+	{ "hydrostatic", "physics.fluids.hydrostatic-pressure" },
+	{ "buoyancy", "physics.fluids.buoyancy.archimedes" },
+	{ "continuity", "physics.fluids.continuity.incompressible" },
+	{ "sensible_heat", "physics.thermal.sensible-heat" },
+	{ "latent_heat", "physics.thermal.latent-heat" },
+	{ "ideal_gas", "physics.thermal.ideal-gas" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
@@ -2763,6 +2773,103 @@ PHYSICS_FIXTURES = {
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
+		end,
+	},
+	{
+		label = "Find how hard two masses pull together",
+		problem = "Everything with mass pulls on everything else. Two bags of 2 and 3 kilograms " ..
+		          "a metre apart do too, but so weakly that nobody ever feels it.",
+		mode = "gravitation",
+		run = function()
+			return nps_nspire.gravitation("gravitational force", "first mass", "2.0 kg",
+			                              "second mass", "3.0 kg", "separation", "1.0 m")
+		end,
+	},
+	{
+		label = "Find how hard a stretched spring pulls back",
+		problem = "A spring needs 200 newtons for every metre it is stretched. Pull it 5 " ..
+		          "centimetres and it pulls back. How hard?",
+		mode = "oscillation",
+		run = function()
+			return nps_nspire.oscillation("restoring force", "stiffness", "200 N/m",
+			                              "displacement", "5 cm")
+		end,
+	},
+	{
+		label = "Find how far apart the crests of a sound are",
+		problem = "A note shakes the air 170 times a second and the sound moves at 340 metres " ..
+		          "per second. How far apart are its crests?",
+		mode = "wave",
+		run = function()
+			return nps_nspire.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+		end,
+	},
+	{
+		label = "Find how hard a crate presses on the floor",
+		problem = "A crate weighing 300 newtons stands on a base of 1000 square centimetres. " ..
+		          "How hard does each square metre of floor get pushed?",
+		mode = "pressure",
+		run = function()
+			return nps_nspire.pressure("pressure", "force", "300 N", "area", "1000 cm^2")
+		end,
+	},
+	{
+		label = "Find how deep a diver is",
+		problem = "The water pushes on a diver 49 kilopascals harder than at the surface. Water " ..
+		          "has 1000 kilograms in each cubic metre and g is 9.8. How deep is the diver?",
+		mode = "hydrostatic",
+		run = function()
+			return nps_nspire.hydrostatic("depth", "gauge pressure", "49 kPa", "fluid density",
+			                              "1000 kg/m^3", "gravitational acceleration", "9.8 m/s^2")
+		end,
+	},
+	{
+		label = "Find how hard water lifts a bottle",
+		problem = "A 2 litre bottle is held right under water. The water pushes up with the " ..
+		          "weight of the water the bottle moved aside. How hard, with g as 10?",
+		mode = "buoyancy",
+		run = function()
+			return nps_nspire.buoyancy("buoyant force", "fluid density", "1000 kg/m^3",
+			                           "displaced volume", "2 L", "gravitational acceleration", "10 m/s^2")
+		end,
+	},
+	{
+		label = "Find how fast water leaves a nozzle",
+		problem = "Water moves at 3 metres per second along a hose 4 square centimetres across, " ..
+		          "then squeezes through a nozzle 2 square centimetres across. How fast does it leave?",
+		mode = "continuity",
+		run = function()
+			return nps_nspire.continuity("outlet speed", "inlet area", "4 cm^2", "inlet speed",
+			                             "3 m/s", "outlet area", "2 cm^2")
+		end,
+	},
+	{
+		label = "Find the heat to warm a cup of water",
+		problem = "Each kilogram of water needs 4186 joules to get one degree warmer. How much " ..
+		          "heat warms 500 grams of it by 10 degrees?",
+		mode = "sensible_heat",
+		run = function()
+			return nps_nspire.sensible_heat("heat", "mass", "500 g", "specific heat", "4186 J/(kg*K)",
+			                                "temperature change", "10 K")
+		end,
+	},
+	{
+		label = "Find the heat to melt a block of ice",
+		problem = "Ice already at its melting point needs 334000 joules for each kilogram to " ..
+		          "turn to water. How much heat melts 2 kilograms?",
+		mode = "latent_heat",
+		run = function()
+			return nps_nspire.latent_heat("heat", "mass", "2 kg", "latent heat", "334000 J/kg")
+		end,
+	},
+	{
+		label = "Find how hot a trapped gas is",
+		problem = "One mole of gas fills a 25 litre box and pushes at 100 kilopascals. How hot " ..
+		          "is it, counted up from absolute zero?",
+		mode = "ideal_gas",
+		run = function()
+			return nps_nspire.ideal_gas("absolute temperature", "pressure", "100 kPa",
+			                            "amount of gas", "1.00 mol", "volume", "25.0 L")
 		end,
 	},
 }

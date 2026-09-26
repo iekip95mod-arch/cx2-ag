@@ -764,6 +764,99 @@ const ObligationSchema kWaveCandidate[] = {
      kSubstituteOriginalRelation, 1},
 };
 
+// PHYS-018 fluids and thermal relations, one block per model in the shape the relation engine emits.
+const ObligationSchema kFluidPressureStrategy[] = {
+    {"physics.fluids.pressure.compatible-dimensions", "every quantity in P = F*A^-1 uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.fluids.pressure.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kFluidPressureDimensions[] = {
+    {"physics.fluids.pressure.dimensions-agree", "both sides of P = F*A^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kFluidPressureCandidate[] = {
+    {"physics.fluids.pressure.candidate-satisfies", "the candidate satisfies P = F*A^-1", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kFluidHydrostaticStrategy[] = {
+    {"physics.fluids.hydrostatic.compatible-dimensions", "every quantity in P = rho*g*h uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.fluids.hydrostatic.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kFluidHydrostaticDimensions[] = {
+    {"physics.fluids.hydrostatic.dimensions-agree", "both sides of P = rho*g*h have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kFluidHydrostaticCandidate[] = {
+    {"physics.fluids.hydrostatic.candidate-satisfies", "the candidate satisfies P = rho*g*h", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kFluidBuoyancyStrategy[] = {
+    {"physics.fluids.buoyancy.compatible-dimensions", "every quantity in F = rho*V*g uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.fluids.buoyancy.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kFluidBuoyancyDimensions[] = {
+    {"physics.fluids.buoyancy.dimensions-agree", "both sides of F = rho*V*g have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kFluidBuoyancyCandidate[] = {
+    {"physics.fluids.buoyancy.candidate-satisfies", "the candidate satisfies F = rho*V*g", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kFluidContinuityStrategy[] = {
+    {"physics.fluids.continuity.compatible-dimensions", "every quantity in v2 = A1*v1*A2^-1 uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.fluids.continuity.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kFluidContinuityDimensions[] = {
+    {"physics.fluids.continuity.dimensions-agree", "both sides of v2 = A1*v1*A2^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kFluidContinuityCandidate[] = {
+    {"physics.fluids.continuity.candidate-satisfies", "the candidate satisfies v2 = A1*v1*A2^-1", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kSensibleHeatStrategy[] = {
+    {"physics.thermal.sensible-heat.compatible-dimensions", "every quantity in Q = m*c*dT uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.thermal.sensible-heat.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kSensibleHeatDimensions[] = {
+    {"physics.thermal.sensible-heat.dimensions-agree", "both sides of Q = m*c*dT have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kSensibleHeatCandidate[] = {
+    {"physics.thermal.sensible-heat.candidate-satisfies", "the candidate satisfies Q = m*c*dT", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kLatentHeatStrategy[] = {
+    {"physics.thermal.latent-heat.compatible-dimensions", "every quantity in Q = m*L uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.thermal.latent-heat.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kLatentHeatDimensions[] = {
+    {"physics.thermal.latent-heat.dimensions-agree", "both sides of Q = m*L have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kLatentHeatCandidate[] = {
+    {"physics.thermal.latent-heat.candidate-satisfies", "the candidate satisfies Q = m*L", kSubstituteOriginalRelation, 1},
+};
+const ObligationSchema kIdealGasStrategy[] = {
+    {"physics.thermal.ideal-gas.compatible-dimensions", "every quantity in P = n*R*T*V^-1 uses compatible dimensions",
+     kDimensionalAnalysis, 1},
+    {"physics.thermal.ideal-gas.linear-unknown", "the relation is linear in the requested unknown", kRelationPositionModel, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kIdealGasDimensions[] = {
+    {"physics.thermal.ideal-gas.dimensions-agree", "both sides of P = n*R*T*V^-1 have the same dimension", kDimensionalAnalysis, 1},
+};
+const ObligationSchema kIdealGasCandidate[] = {
+    {"physics.thermal.ideal-gas.candidate-satisfies", "the candidate satisfies P = n*R*T*V^-1", kSubstituteOriginalRelation, 1},
+};
+
 // modern
 const EvidenceAlternative kModernRelationModel[] = {
     {"registered relation model", EvidenceStrength::StructurallyValid},
@@ -1896,6 +1989,84 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"physics.wave.check-candidate", ClaimType::Implication, kWaveCandidate, 1,
      FailureBehavior::WithholdResult},
+
+    // physics.fluids.pressure.force-area
+    {"physics.fluids.pressure.definition", ClaimType::NoClaim, kFluidPressureStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.fluids.pressure.check-dimensions", ClaimType::Definition, kFluidPressureDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.pressure.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.pressure.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.pressure.check-candidate", ClaimType::Implication, kFluidPressureCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.pressure.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.fluids.hydrostatic-pressure
+    {"physics.fluids.hydrostatic.definition", ClaimType::NoClaim, kFluidHydrostaticStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.fluids.hydrostatic.check-dimensions", ClaimType::Definition, kFluidHydrostaticDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.hydrostatic.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.hydrostatic.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.hydrostatic.check-candidate", ClaimType::Implication, kFluidHydrostaticCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.hydrostatic.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.fluids.buoyancy.archimedes
+    {"physics.fluids.buoyancy.definition", ClaimType::NoClaim, kFluidBuoyancyStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.fluids.buoyancy.check-dimensions", ClaimType::Definition, kFluidBuoyancyDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.buoyancy.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.buoyancy.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.buoyancy.check-candidate", ClaimType::Implication, kFluidBuoyancyCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.buoyancy.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.fluids.continuity.incompressible
+    {"physics.fluids.continuity.definition", ClaimType::NoClaim, kFluidContinuityStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.fluids.continuity.check-dimensions", ClaimType::Definition, kFluidContinuityDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.continuity.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.continuity.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.fluids.continuity.check-candidate", ClaimType::Implication, kFluidContinuityCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.fluids.continuity.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.thermal.sensible-heat
+    {"physics.thermal.sensible-heat.definition", ClaimType::NoClaim, kSensibleHeatStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.thermal.sensible-heat.check-dimensions", ClaimType::Definition, kSensibleHeatDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.sensible-heat.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.sensible-heat.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.sensible-heat.check-candidate", ClaimType::Implication, kSensibleHeatCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.sensible-heat.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.thermal.latent-heat
+    {"physics.thermal.latent-heat.definition", ClaimType::NoClaim, kLatentHeatStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.thermal.latent-heat.check-dimensions", ClaimType::Definition, kLatentHeatDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.latent-heat.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.latent-heat.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.latent-heat.check-candidate", ClaimType::Implication, kLatentHeatCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.latent-heat.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
+    // physics.thermal.ideal-gas
+    {"physics.thermal.ideal-gas.definition", ClaimType::NoClaim, kIdealGasStrategy, 3, FailureBehavior::WithholdResult},
+    {"physics.thermal.ideal-gas.check-dimensions", ClaimType::Definition, kIdealGasDimensions, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.ideal-gas.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.ideal-gas.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.thermal.ideal-gas.check-candidate", ClaimType::Implication, kIdealGasCandidate, 1, FailureBehavior::WithholdResult},
+    {"physics.thermal.ideal-gas.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
+     FailureBehavior::WithholdResult},
+
 
     // physics.modern.photon-wavelength, physics.modern.photoelectric and
     // physics.modern.mass-energy. One plan rule each, and one shared set of steps after it.

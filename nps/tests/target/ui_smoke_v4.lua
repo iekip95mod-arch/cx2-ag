@@ -627,7 +627,8 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, work = 0, components = 0,
-    forces = 0, optics = 0,
+    forces = 0, optics = 0, gravitation = 0, oscillation = 0, wave = 0,
+    pressure = 0, hydrostatic = 0, buoyancy = 0, continuity = 0, sensible_heat = 0, latent_heat = 0, ideal_gas = 0,
     catch_up = 0, relative_motion = 0, planar_kinematics = 0,
     resource_profile_begin = 0, resource_profile_finish = 0,
     solve_begin = 0, solve_advance = 0, solve_cancel = 0,
@@ -690,6 +691,16 @@ local fake_manifest = {
         { kind = "solver", id = "physics.optics.spherical-mirror.image" },
         { kind = "solver", id = "physics.optics.double-slit.maxima" },
         { kind = "solver", id = "physics.optics.single-slit.minima" },
+        { kind = "solver", id = "physics.gravitation.point-masses" },
+        { kind = "solver", id = "physics.oscillation.restoring-force" },
+        { kind = "solver", id = "physics.wave.speed-frequency-wavelength" },
+        { kind = "solver", id = "physics.fluids.pressure.force-area" },
+        { kind = "solver", id = "physics.fluids.hydrostatic-pressure" },
+        { kind = "solver", id = "physics.fluids.buoyancy.archimedes" },
+        { kind = "solver", id = "physics.fluids.continuity.incompressible" },
+        { kind = "solver", id = "physics.thermal.sensible-heat" },
+        { kind = "solver", id = "physics.thermal.latent-heat" },
+        { kind = "solver", id = "physics.thermal.ideal-gas" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
     },
@@ -770,6 +781,161 @@ nps_split = {
     end,
     density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
     optics = function(...) calls.optics = calls.optics + 1 last_args = { ... } return fake_optics end,
+    -- The three relation families copy the strings luax_host asserts the real bridge emits.
+    gravitation = function(...)
+        calls.gravitation = calls.gravitation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "gravitational force",
+            result = "gravitational force = 0.00000000040 kg m/s^2", value = "0.00000000040",
+            exact_value = "0.00000000040044", unit = "kg m/s^2",
+            precision = { kind = "measured", significant_digits = 2 },
+            nodes = 30, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Newton's law of gravitation", goal = "Find the gravitational force",
+                  short = "Use F = G*m1*m2/r^2", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
+    oscillation = function(...)
+        calls.oscillation = calls.oscillation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "restoring force",
+            result = "restoring force = 10 kg m/s^2", value = "10", exact_value = "10",
+            unit = "kg m/s^2", precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Simple harmonic restoring force",
+                  goal = "Find the restoring force", short = "Use F = k*x", claim = "no claim",
+                  verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    wave = function(...)
+        calls.wave = calls.wave + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "wavelength",
+            result = "wavelength = 2 m", value = "2", exact_value = "2", unit = "m",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Mechanical wave relation", goal = "Find the wavelength",
+                  short = "Use v = f*lambda", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
+    pressure = function(...)
+        calls.pressure = calls.pressure + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "pressure",
+            result = "pressure = 3000 kg/(m s^2)", value = "3000", exact_value = "3000", unit = "kg/(m s^2)",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Pressure as force per area", goal = "Find the pressure", short = "Use P = F/A",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    hydrostatic = function(...)
+        calls.hydrostatic = calls.hydrostatic + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "depth",
+            result = "depth = 5.0 m", value = "5.0", exact_value = "5.0", unit = "m",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Hydrostatic gauge pressure", goal = "Find the depth", short = "Use P = rho*g*h",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    buoyancy = function(...)
+        calls.buoyancy = calls.buoyancy + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "buoyant force",
+            result = "buoyant force = 20 kg m/s^2", value = "20", exact_value = "20", unit = "kg m/s^2",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Archimedes' principle", goal = "Find the buoyant force", short = "Use F = rho*V*g",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    continuity = function(...)
+        calls.continuity = calls.continuity + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "outlet speed",
+            result = "outlet speed = 6 m/s", value = "6", exact_value = "6", unit = "m/s",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Continuity of an incompressible flow", goal = "Find the outlet speed", short = "Use A1*v1 = A2*v2",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    sensible_heat = function(...)
+        calls.sensible_heat = calls.sensible_heat + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "heat",
+            result = "heat = 20930 kg m^2/s^2", value = "20930", exact_value = "20930", unit = "kg m^2/s^2",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Heat for a temperature change", goal = "Find the heat", short = "Use Q = m*c*dT",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    latent_heat = function(...)
+        calls.latent_heat = calls.latent_heat + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "heat",
+            result = "heat = 668000 kg m^2/s^2", value = "668000", exact_value = "668000", unit = "kg m^2/s^2",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Heat for a phase change", goal = "Find the heat", short = "Use Q = m*L",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    ideal_gas = function(...)
+        calls.ideal_gas = calls.ideal_gas + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "absolute temperature",
+            result = "absolute temperature = 301 K", value = "301", exact_value = "301", unit = "K",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Ideal gas law", goal = "Find the absolute temperature", short = "Use P*V = n*R*T",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
     vector_addition = function(...)
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
@@ -1158,7 +1324,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 25 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 35 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -2921,6 +3087,64 @@ do
     on.escapeKey()
 end
 
+-- Each relation family is found by mode, then has to reach its own bridge with names its model uses.
+do
+    local relation_cases = {
+        { mode = "gravitation", args = { "gravitational force", "first mass", "2.0 kg",
+                                          "second mass", "3.0 kg", "separation", "1.0 m" },
+          result = "gravitational force = 0.00000000040 kg m/s^2" },
+        { mode = "oscillation", args = { "restoring force", "stiffness", "200 N/m",
+                                          "displacement", "5 cm" },
+          result = "restoring force = 10 kg m/s^2" },
+        { mode = "wave", args = { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" },
+          result = "wavelength = 2 m" },
+        { mode = "pressure", args = { "pressure", "force", "300 N", "area", "1000 cm^2" },
+          result = "pressure = 3000 kg/(m s^2)" },
+        { mode = "hydrostatic", args = { "depth", "gauge pressure", "49 kPa", "fluid density", "1000 kg/m^3", "gravitational acceleration", "9.8 m/s^2" },
+          result = "depth = 5.0 m" },
+        { mode = "buoyancy", args = { "buoyant force", "fluid density", "1000 kg/m^3", "displaced volume", "2 L", "gravitational acceleration", "10 m/s^2" },
+          result = "buoyant force = 20 kg m/s^2" },
+        { mode = "continuity", args = { "outlet speed", "inlet area", "4 cm^2", "inlet speed", "3 m/s", "outlet area", "2 cm^2" },
+          result = "outlet speed = 6 m/s" },
+        { mode = "sensible_heat", args = { "heat", "mass", "500 g", "specific heat", "4186 J/(kg*K)", "temperature change", "10 K" },
+          result = "heat = 20930 kg m^2/s^2" },
+        { mode = "latent_heat", args = { "heat", "mass", "2 kg", "latent heat", "334000 J/kg" },
+          result = "heat = 668000 kg m^2/s^2" },
+        { mode = "ideal_gas", args = { "absolute temperature", "pressure", "100 kPa", "amount of gas", "1.00 mol", "volume", "25.0 L" },
+          result = "absolute temperature = 301 K" },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(relation_cases) do
+        local index = nil
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == case.mode then index = position end
+        end
+        check(index ~= nil, "the guided browser carries a " .. case.mode .. " fixture")
+        local before = calls[case.mode]
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls[case.mode] == before + 1 and steps.result.mode == case.mode,
+              "the " .. case.mode .. " fixture runs through its native bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, "the " .. case.mode .. " fixture names the unknown and knowns its model uses")
+        check(steps.result.result == case.result,
+              "the " .. case.mode .. " fixture keeps the answer the bridge returned")
+        painted()
+        check(mathBoxExact(case.result) ~= nil,
+              "the " .. case.mode .. " answer renders whole with its unit in the viewer")
+        check(#steps.histText == history_before + 1,
+              "the " .. case.mode .. " fixture joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
+end
+
 -- Every guided entry has to tell a student who has not taken the course what it does. That is a
 -- judgement, but two halves of it are mechanical and are the halves that rot: a label full of the
 -- vocabulary the student came here to learn, and a label the screen cuts off.
@@ -3639,6 +3863,9 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "gravitation", "physics.gravitation.point-masses" },
+        { "oscillation", "physics.oscillation.restoring-force" },
+        { "wave", "physics.wave.speed-frequency-wavelength" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()

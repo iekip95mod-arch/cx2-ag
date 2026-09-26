@@ -915,6 +915,8 @@ int main_body() {
     run_relativity_tests(sink);
     sink.begin_group("gravitation");
     run_gravitation_tests(sink);
+    sink.begin_group("fluids-thermal");
+    run_fluids_thermal_tests(sink);
     sink.begin_group("oscillation");
     run_oscillation_tests(sink);
     sink.begin_group("circular motion");
