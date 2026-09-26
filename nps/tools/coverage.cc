@@ -19,6 +19,7 @@
 
 #include "catalog.h"
 #include "evidence.h"
+#include "scratch_directory.h"
 
 using nps_tools::append_evidence;
 using nps_tools::count_text;
@@ -221,13 +222,13 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
 
 // Staged catalogs test reader conventions and reporting without changing the release catalog.
 int selftest() {
-    char pattern[] = "/tmp/nps_coverage_XXXXXX";
-    const char *made = ::mkdtemp(pattern);
-    if (made == nullptr) {
+    const nps::ScratchDirectory scratch("nps_coverage_");
+    const std::string &made = scratch.path();
+    if (made.empty()) {
         std::cout << "coverage selftest: no temporary directory\n";
         return 1;
     }
-    const std::string path = std::string(made) + "/families.md";
+    const std::string path = made + "/families.md";
     std::ofstream out(path.c_str());
     out << "family id calculus.derivative\n"
         << "proof_obligation_ids none, every rule here rewrites the expression in place\n"
@@ -300,9 +301,9 @@ int selftest() {
         std::cout << "coverage selftest: " << (checks[i].ok ? "ok   " : "FAIL ") << checks[i].what
                   << "\n";
     }
-    const std::string metadata_path = std::string(made) + "/metadata.md";
-    const std::string fixtures_dir = std::string(made) + "/fixtures";
-    const std::string report_path = std::string(made) + "/report.md";
+    const std::string metadata_path = made + "/metadata.md";
+    const std::string fixtures_dir = made + "/fixtures";
+    const std::string report_path = made + "/report.md";
     std::filesystem::create_directory(fixtures_dir);
     std::ofstream fixture(fixtures_dir + "/metadata.txt");
     fixture << "problem family: staged.complete\nrule: eq.divide-both-sides, staged rule\n";
@@ -310,7 +311,7 @@ int selftest() {
 
     // The evidence word on a rule line names a closed set, so an unknown one is a typo that took the
     // device path at every consumer and removed the rule from the join with nothing said about it.
-    const std::string evidence_catalog = std::string(made) + "/evidence-class.md";
+    const std::string evidence_catalog = made + "/evidence-class.md";
     const struct {
         const char *rule_line;
         bool reads;
@@ -363,7 +364,7 @@ int selftest() {
     }
     // A consumer of the catalog refuses that input rather than reporting over it, so no report is
     // written for a catalog whose evidence class nobody defined.
-    const std::string refused_report = std::string(made) + "/refused.md";
+    const std::string refused_report = made + "/refused.md";
     {
         std::ofstream staged(evidence_catalog.c_str());
         staged << "family id staged.evidence\nrule eq.divide-both-sides devicex\n";
@@ -375,7 +376,7 @@ int selftest() {
         std::cout << "coverage selftest: " << (refused ? "ok   " : "FAIL ")
                   << "the coverage report is not written over an unknown evidence class\n";
     }
-    const std::string header_catalog = std::string(made) + "/family-header.md";
+    const std::string header_catalog = made + "/family-header.md";
     const struct {
         const char *header_line;
         bool reads;
@@ -490,9 +491,9 @@ int selftest() {
                   << " is distinguished from the complete schema union\n";
     }
     // The group join is staged, because the catalog in the tree can never show the check firing.
-    const std::string group_catalog = std::string(made) + "/group-join.md";
-    const std::string group_evidence = std::string(made) + "/group-evidence.txt";
-    const std::string group_report = std::string(made) + "/group-report.md";
+    const std::string group_catalog = made + "/group-join.md";
+    const std::string group_evidence = made + "/group-evidence.txt";
+    const std::string group_report = made + "/group-report.md";
     const struct {
         const char *group_line;
         const char *ran;
@@ -663,6 +664,53 @@ int selftest() {
             ++failures;
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
                   << family_cases[i].what << "\n";
+    }
+    // MATH-013 claims the required assumptions are declared, so a line the run faults cannot pass it.
+    for (const bool malformed : {false, true}) {
+        {
+            std::ofstream staged(group_catalog.c_str());
+            staged << "family id staged.complete\n";
+            for (const char *field : kSection27Fields) {
+                if (std::string(field) == "id")
+                    continue;
+                if (std::string(field) == "rule_ids") {
+                    staged << "rule eq.divide-both-sides fixture\n";
+                    continue;
+                }
+                if (malformed && std::string(field) == "required_assumptions") {
+                    staged << "required_assumptions the solver assumes \"unclosed\n";
+                    continue;
+                }
+                staged << field << " none, this field is unused in the staged catalog\n";
+            }
+            staged << "test_group_ids staged group\n";
+        }
+        {
+            std::ofstream staged(group_evidence.c_str());
+            staged << "group\tacceptance corpus\ngroup\tstaged group\n"
+                   << "family\tstaged.complete\nfamily\tstaged.exempt\n";
+        }
+        std::filesystem::remove(group_report);
+        const int status = coverage(group_catalog, fixtures_dir, group_report,
+                                    group_evidence.c_str(), nullptr, staged_awaiting,
+                                    staged_no_engine, staged_no_run_none);
+        std::ifstream written(group_evidence.c_str());
+        std::string verdict;
+        std::string line;
+        const std::string key = "evidence\tMATH-013\t";
+        while (std::getline(written, line)) {
+            if (line.rfind(key, 0) == 0)
+                verdict = line.substr(key.size(), line.find('\t', key.size()) - key.size());
+        }
+        const bool as_expected = status == (malformed ? 1 : 0) &&
+                                 verdict == (malformed ? "fail" : "pass");
+        if (!as_expected)
+            ++failures;
+        std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                  << (malformed ? "a required_assumptions line the run faults writes MATH-013 as "
+                                  "fail, saw "
+                                : "a well formed envelope writes MATH-013 as pass, saw ")
+                  << (verdict.empty() ? "no row" : verdict) << "\n";
     }
     std::cout << "coverage selftest: " << count_text(static_cast<size_t>(failures)) << " failed\n";
     return failures == 0 ? 0 : 1;
@@ -1197,7 +1245,8 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     bool evidence_refused = false;
     if (evidence_path != nullptr) {
         const std::string row =
-            std::string("evidence\tMATH-013\t") + (envelope_gaps == 0 ? "pass" : "fail") +
+            std::string("evidence\tMATH-013\t") +
+            (envelope_gaps == 0 && assumption_faults == 0 ? "pass" : "fail") +
             "\tcoverage\tevery one of " + count_text(families.size()) +
             " catalogued families declares its own accepted expression grammar, domains and "
             "parameter assumptions, required assumptions, exact and special-function and numerical "

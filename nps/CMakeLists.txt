@@ -72,6 +72,7 @@ set(CORE_SOURCES
     src/steps/differentiate.cc
     src/steps/integrate.cc
     src/steps/calculus.cc
+    src/steps/implicit.cc
     src/steps/separable.cc
     src/physics/catch_up.cc
     src/physics/density.cc
@@ -121,6 +122,7 @@ set(TEST_SOURCES
     tests/unit/differentiate_tests.cc
     tests/unit/integrate_tests.cc
     tests/unit/calculus_tests.cc
+    tests/unit/implicit_tests.cc
     tests/unit/separable_tests.cc
     tests/unit/ui_canvas_tests.cc
     tests/unit/integrity_tests.cc
@@ -376,8 +378,8 @@ else()
     target_link_libraries(nps_gmp INTERFACE PkgConfig::NPS_GMP)
 endif()
 
-# Inputs that #222 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
-# bytes depend on them. The check below cannot hold those to the tracked-source rule until #222 moves
+# Inputs that #490 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
+# bytes depend on them. The check below cannot hold those to the tracked-source rule until #490 moves
 # those hashes onto sources, so the call that hashed one says so here. Naming the call rather than a
 # path pattern keeps the exemption from covering a tracked source that happens to sit beside one.
 function(nps_defer_manifest_inputs)
@@ -458,7 +460,7 @@ function(nps_hash_ndl_inputs output)
         "${sdk}/toolchain/install/bin/arm-none-eabi-ld"
         "${sdk}/toolchain/install/include/gmp.h"
         "${sdk}/toolchain/install/lib/libgmp.a")
-    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #222.
+    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #490.
     nps_defer_manifest_inputs(${inputs})
     nps_hash_inputs(hash ${inputs})
     set(${output} "${hash}" PARENT_SCOPE)
@@ -482,7 +484,7 @@ function(nps_hash_giac_inputs output)
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
-    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #222.
+    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #490.
     nps_defer_manifest_inputs(
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
@@ -1695,6 +1697,18 @@ if(NOT CMAKE_CROSSCOMPILING)
     # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
     # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
+
+    # Their staging directories go in the build tree rather than /tmp, which parallel lanes share,
+    # and each selftest removes its own. The audit runs all four against an empty root of its own and
+    # fails on anything they leave there.
+    set_tests_properties(device_evidence_selftest device_run_selftest coverage_selftest
+                         traceability_selftest PROPERTIES
+                         ENVIRONMENT "NPS_SCRATCH_DIR=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch")
+    add_test(NAME selftest_scratch_cleanup
+             COMMAND "${CMAKE_COMMAND}"
+                     "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch-audit"
+                     "-DSELFTESTS=$<TARGET_FILE:nps_device_evidence>;$<TARGET_FILE:nps_device_run>;$<TARGET_FILE:nps_coverage>;$<TARGET_FILE:nps_traceability>"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/selftest_scratch_cleanup.cmake")
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
     # claim line in turn and the suite has to fail while it is gone.

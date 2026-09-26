@@ -104,6 +104,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "limit" || name == "lim") return CommandKind::Limit;
     if (name == "tangent") return CommandKind::Tangent;
     if (name == "linearize") return CommandKind::Linearize;
+    if (name == "implicit") return CommandKind::Implicit;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
     if (name == "factor") return CommandKind::Factor;
@@ -127,6 +128,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Limit: return "limit";
         case CommandKind::Tangent: return "tangent";
         case CommandKind::Linearize: return "linearize";
+        case CommandKind::Implicit: return "implicit";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
         case CommandKind::Factor: return "factor";
@@ -217,6 +219,23 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
             return command;
         }
         command.expression = arguments[0];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
+    if (command.kind == CommandKind::Implicit) {
+        if (arguments.size() != 3) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "implicit differentiation requires an equation, the independent variable and the dependent one";
+            return command;
+        }
+        if (arena.at(arguments[1]).kind != Kind::Symbol || arena.at(arguments[2]).kind != Kind::Symbol) {
+            command.detail = "the variables must be single identifiers";
+            return command;
+        }
+        command.expression = arguments[0];
+        command.variable = arguments[1];
+        command.variable_name = arena.text(command.variable);
+        command.dependent = arguments[2];
         command.status = CommandStatus::Ready;
         return command;
     }

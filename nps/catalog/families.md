@@ -783,7 +783,7 @@ solution_soundness_status verified by rank, frame, stage and dimension checks an
 solution_completeness_status partial, one body under one constant acceleration over one interval
 corpus_case_ids planar_kinematics_general_two_dimension
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
+direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics without the projectile flag, reachable from the Ki V4 menu's guided physics browser as the steady sideways wind fixture since #226
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
 # The projectile-plan, check-projectile and check-apex-routes rules belong to the specialization below.
@@ -819,7 +819,7 @@ solution_soundness_status verified by rank, frame, stage and dimension checks, t
 solution_completeness_status partial, one body under constant acceleration with the horizontal axis unaccelerated
 corpus_case_ids planar_kinematics_projectile_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics, reachable from the Ki V4 menu's guided physics browser as of #382
+direct_keypad_entry_status native Lua bridge implemented as nps.planar_kinematics with the projectile flag set, reachable from the Ki V4 menu's guided physics browser as the thrown-ball fixture since #226. The binding without that flag reports the general two-dimension family instead
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
 rule physics.planar-kinematics.projectile-plan fixture
@@ -1539,6 +1539,46 @@ rule ode.separable.integrate-both-sides fixture
 rule ode.separable.solve-explicit fixture
 rule ode.separable.initial-condition fixture
 rule ode.separable.check-solution fixture
+
+family id calculus.derivative.implicit
+topic_and_level Implicit differentiation of a relation between two variables, PRD section 9 CALC-007
+family_envelope_version 1
+accepted_expression_grammar an equation whose two sides are expressions the native differentiation engine supports in the independent and the dependent variable, with a typed decimal read as the fraction it names
+accepted_input_forms implicit(equation,x,y), where x is the independent variable and y the dependent one, and the derivative is written dydx
+domains_and_parameter_assumptions the dependent variable is a differentiable function of the independent one near the point of interest, recorded as a restriction on the step that differentiates both sides. The coefficient the derivative is divided by is recorded as nonzero by the rearrangement family and carried as an assumption of the answer
+supported_branches_and_degenerate_cases an explicit relation y equal to an expression in x, which gives the ordinary derivative, and a relation whose derivative does not depend on x
+exact_special_function_and_numerical_result_policy exact symbolic derivative with no approximation. The final check evaluates exactly at sample points and is reported as sample agreement rather than proof
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/implicit.cc, src/steps/differentiate.cc, src/steps/rearrange.cc
+required_assumptions the answer holds where the coefficient of dydx is nonzero, carried as an active assumption naming that coefficient, as in "(2 * y) is not zero" for the circle and "x is not zero" for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
+test_group_ids implicit
+supported_methods differentiate both sides with respect to the independent variable, applying the chain rule to the dependent variable through its partial derivative times dydx, collect the dydx terms on one side, and isolate dydx with the rearrangement family
+unsupported_near_neighbors second implicit derivatives, the slope at a named point, systems of implicit relations, relations with a third free variable treated as dependent, relations whose dydx terms cancel, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.implicit.rule-preserves-relation, obl.implicit.chain-identity, obl.calculus.rule-preserves-value, obl.plan.preconditions-hold, obl.rearrange.same-solutions, obl.rearrange.substitution-identity
+solution_soundness_status the relation left minus right is differentiated afresh and its x part plus its y part times the answer is evaluated exactly at up to twelve sample points, withholding the result when any is nonzero. That is sample agreement, and a relation where no sample point or no isolation check point can be evaluated is reported as solved but unchecked rather than as failed
+solution_completeness_status partial, first derivatives of relations the differentiation engine covers
+corpus_case_ids implicit_circle, implicit_product, implicit_mixed, implicit_trig
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.derivative.implicit
+release_status in development, unreleased
+rule implicit.differentiate-both-sides fixture
+rule implicit.chain-rule fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.sum fixture
+rule d.variable fixture
+rule implicit.collect fixture
+rule implicit.isolate fixture
+rule alg.rearrange.inverse-operations fixture
+rule alg.rearrange.divide-both-sides fixture
+rule alg.rearrange.check-by-substitution fixture
+rule implicit.check fixture
 
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set

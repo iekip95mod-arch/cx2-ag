@@ -28,6 +28,7 @@ void run_task_tests(TestSink &sink);
 void run_solve_task_tests(TestSink &sink);
 void run_command_tests(TestSink &sink);
 void run_calculus_tests(TestSink &sink);
+void run_implicit_tests(TestSink &sink);
 void run_separable_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
@@ -886,6 +887,8 @@ int main_body() {
     run_command_tests(sink);
     sink.begin_group("calculus");
     run_calculus_tests(sink);
+    sink.begin_group("implicit");
+    run_implicit_tests(sink);
     sink.begin_group("separable");
     run_separable_tests(sink);
     sink.begin_group("ui canvas");

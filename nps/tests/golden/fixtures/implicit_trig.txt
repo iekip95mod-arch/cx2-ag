@@ -1,0 +1,203 @@
+problem: implicit(sin(y)=x,x,y)
+result: (1 * (cos(y)^(-1)))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.derivative.implicit
+  envelope version: 1
+  normalized problem: implicit((sin(y) = x), x, y)
+  requested method: implicit
+  active assumption: cos(y) is not zero
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved but unchecked
+steps
+  1 transformation
+    phase: implicit
+    goal: Differentiate both sides
+    rule: implicit.differentiate-both-sides, Differentiate both sides
+    claim: implication
+    explanation: Both sides are equal for every x on the curve, so their derivatives are equal too
+    detail: The equation holds along the curve, where y is a function of x. Two functions that are equal everywhere on an interval have equal derivatives there, so differentiating both sides keeps a true equation.
+    domain restriction: y is a differentiable function of x near the point of interest
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Take the derivative of each side with respect to x
+    before: (sin(y) = x)
+    after: ((dydx * cos(y)) = 1)
+    reversible: no
+    verification: rule-local invariant, passed, Both sides are equal for every x on the curve, so their derivatives are equal too
+    verified: yes
+    1.1 transformation
+      phase: implicit
+      goal: Differentiate one side with y depending on x
+      rule: implicit.chain-rule, Differentiate one side with y depending on x
+      claim: definition
+      explanation: Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      detail: Read y as an unknown function of x. Terms in x alone differentiate as usual. A term in y differentiates like any other function and then picks up one more factor, the derivative of y itself, because of the chain rule.
+      proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+      action: Differentiate with respect to x as usual, then add the derivative with respect to y multiplied by dydx
+      before: d(sin(y), x)
+      after: (dydx * cos(y))
+      reversible: no
+      verification: rule-local invariant, passed, Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      verified: yes
+      1.1.1 plan
+        phase: plan
+        goal: Differentiate sin(y) with respect to y
+        rule: calculus.differentiate.rules, Differentiate by rule
+        claim: no claim
+        explanation: Work outwards in, applying the rule that matches each form
+        proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+        strategy: Differentiate by rule
+        applicability: every form in the expression has a derivative rule
+        fact: differentiate with respect to y
+        rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+        verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+        verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+        verified: nothing claimed
+        1.1.1.1 transformation
+          phase: differentiate
+          goal: Differentiate sin(y)
+          rule: d.function, Trigonometric derivative
+          claim: equivalent expression
+          explanation: Use the known derivative of this function
+          detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Apply the derivative of sin
+          before: d(sin(y), y)
+          after: cos(y)
+          reversible: no
+          verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+          verified: yes
+    1.2 transformation
+      phase: implicit
+      goal: Differentiate one side with y depending on x
+      rule: implicit.chain-rule, Differentiate one side with y depending on x
+      claim: definition
+      explanation: Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      detail: Read y as an unknown function of x. Terms in x alone differentiate as usual. A term in y differentiates like any other function and then picks up one more factor, the derivative of y itself, because of the chain rule.
+      proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+      action: Differentiate with respect to x as usual, then add the derivative with respect to y multiplied by dydx
+      before: d(x, x)
+      after: 1
+      reversible: no
+      verification: rule-local invariant, passed, Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      verified: yes
+      1.2.1 plan
+        phase: plan
+        goal: Differentiate x with respect to x
+        rule: calculus.differentiate.rules, Differentiate by rule
+        claim: no claim
+        explanation: Work outwards in, applying the rule that matches each form
+        proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+        strategy: Differentiate by rule
+        applicability: every form in the expression has a derivative rule
+        fact: differentiate with respect to x
+        rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+        verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+        verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+        verified: nothing claimed
+        1.2.1.1 transformation
+          phase: differentiate
+          goal: Differentiate x
+          rule: d.variable, Derivative of the variable
+          claim: equivalent expression
+          explanation: The variable changes at the same rate as itself
+          detail: Reach for this when the expression is the bare variable and nothing else. If x grows by some amount then x grows by exactly that amount, so the rate of change is one. It is the power rule with an exponent of one, written out separately because it comes up constantly as the last step of a longer derivative.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Replace the derivative of the variable with one
+          before: d(x, x)
+          after: 1
+          reversible: no
+          verification: rule-local invariant, passed, the expression is the variable itself
+          verified: yes
+  2 transformation
+    phase: implicit
+    goal: Collect the derivative terms
+    rule: implicit.collect, Collect the derivative terms
+    claim: solution set preserved
+    explanation: Adding the same terms to both sides keeps the equation, and the derivative appears only to the first power
+    detail: After differentiating, the unknown derivative appears only to the first power. Gather its terms on one side and factor it out, the same way a linear equation is collected before dividing.
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Move every term with dydx to the left and every other term to the right, then factor out dydx
+    before: ((dydx * cos(y)) = 1)
+    after: ((cos(y) * dydx) = 1)
+    reversible: no
+    verification: rule-local invariant, passed, Adding the same terms to both sides keeps the equation, and the derivative appears only to the first power
+    verified: yes
+  3 transformation
+    phase: implicit
+    goal: Isolate the derivative
+    rule: implicit.isolate, Isolate the derivative
+    claim: solution set preserved
+    explanation: The rearrangement rules undo the product around the derivative, recording the divisor as a restriction
+    detail: Once the derivative terms are collected, isolating it is a rearrangement: divide by its coefficient, which has to be nonzero where the answer is used.
+    domain restriction: cos(y) is not zero
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Divide both sides by the coefficient of dydx
+    before: ((cos(y) * dydx) = 1)
+    after: (dydx = (1 * (cos(y)^(-1))))
+    reversible: no
+    verification: rule-local invariant, passed, The rearrangement rules undo the product around the derivative, recording the divisor as a restriction
+    verified: yes
+    3.1 plan
+      phase: plan
+      goal: Rearrange for dydx
+      rule: alg.rearrange.inverse-operations, Undo the operations around the variable
+      claim: no claim
+      explanation: Peel the operations off dydx one at a time
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Undo the operations around the variable
+      applicability: dydx appears exactly once
+      applicability: every operation around dydx has an inverse rule
+      fact: dydx appears once in the formula
+      rationale: each operation wrapped around dydx is undone on both sides in turn, innermost last, and every move is reversible, so the rearranged formula says the same thing as the one it came from
+      verification: occurrence count, passed, one occurrence was found in the formula
+      verification: registered inverse-operation dispatch, passed, every operation met a registered inverse rule
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      3.1.1 transformation
+        phase: rearrange
+        goal: Isolate dydx
+        rule: alg.rearrange.divide-both-sides, Division property of equality
+        claim: solution set preserved
+        explanation: Dividing both sides by the same non-zero expression keeps them equal
+        detail: The factors beside dydx are divided out of both sides. Division needs a non-zero divisor, so a divisor that is not a number is carried as a stated restriction rather than assumed.
+        domain restriction: cos(y) is not zero
+        proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+        action: Divide both sides by cos(y)
+        before: ((cos(y) * dydx) = 1)
+        after: (dydx = (1 * (cos(y)^(-1))))
+        reversible: yes
+        verification: rule-local equality invariant, passed, the divisor is recorded as non-zero and contains no dydx
+        verified: yes
+      3.1.2 check
+        phase: check
+        goal: Check the rearrangement
+        rule: alg.rearrange.check-by-substitution, Check by substitution
+        claim: solution set preserved
+        explanation: Put the rearranged right side back where dydx was
+        detail: The rearranged formula is right when putting its right side back where dydx stood leaves the two sides of the original equal. Both sides are worked out at several exact values, which can show the two differ but cannot on its own prove they agree everywhere, so a backend is asked as well when one is supplied.
+        proof obligation: obl.rearrange.substitution-identity, the original formula holds once dydx is replaced by the rearranged right side
+        target claim: (cos(y) * dydx) = 1 holds with dydx replaced by (1 * (cos(y)^(-1)))
+        check method: substitute the rearranged side back and evaluate both sides exactly at several assignments
+        expected: the two sides of the original formula stay equal
+        observed: no assignment could be worked out
+        verification: exact evaluation at 6 rational assignments, inconclusive, no assignment gave both sides a value, so nothing was compared
+        verified: no
+  4 check
+    phase: check
+    goal: Check the derivative against the original relation
+    rule: implicit.check, Chain rule identity at sample points
+    claim: equivalent expression
+    explanation: Differentiate left minus right again and check that its x part plus its y part times the answer is zero
+    proof obligation: obl.implicit.chain-identity, the derivative satisfies the chain rule identity of the original relation
+    target claim: the isolated derivative satisfies the differentiated relation
+    check method: exact evaluation of the chain rule identity at sample points
+    expected: zero at every sample point where the answer is defined
+    observed: the identity is exactly zero at 2 sample points
+    verification: exact evaluation of the chain rule identity at sample points, passed, the identity is exactly zero at 2 sample points
+    verified: yes

@@ -16,6 +16,7 @@
 
 #include "device_readings.h"
 #include "evidence.h"
+#include "scratch_directory.h"
 
 namespace {
 
@@ -498,12 +499,6 @@ std::vector<std::string> records_in(const std::string &directory) {
     return found;
 }
 
-std::string temporary_directory() {
-    char pattern[] = "/tmp/nps_device_evidence_XXXXXX";
-    const char *made = ::mkdtemp(pattern);
-    return made ? std::string(made) : std::string();
-}
-
 bool write_file(const std::string &path, const std::string &contents) {
     std::ofstream out(path.c_str(), std::ios::binary);
     if (!out)
@@ -757,7 +752,8 @@ int sweep(const std::string &directory);
 // accepted is indistinguishable from no gate.
 int selftest() {
     selftest_verdicts();
-    const std::string directory = temporary_directory();
+    const nps::ScratchDirectory scratch("nps_device_evidence_");
+    const std::string &directory = scratch.path();
     if (directory.empty()) {
         std::cout << "device evidence selftest: no temporary directory\n";
         return 1;
@@ -975,7 +971,8 @@ int selftest() {
     write_file(directory + "/nps_manifest_config.h", manifest_header_text());
 
     // The sweep, on a directory of its own so the ordering can be seen rather than argued about.
-    const std::string swept = temporary_directory();
+    const nps::ScratchDirectory swept_scratch("nps_device_evidence_");
+    const std::string &swept = swept_scratch.path();
     if (swept.empty()) {
         expect(false, "a second temporary directory could be made");
     } else {
@@ -1003,7 +1000,8 @@ int selftest() {
     }
 
     // The gate and the evidence file fail for different reasons and answer with different codes.
-    const std::string appended = temporary_directory();
+    const nps::ScratchDirectory appended_scratch("nps_device_evidence_");
+    const std::string &appended = appended_scratch.path();
     if (appended.empty()) {
         expect(false, "a third temporary directory could be made");
     } else {

@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -270,9 +270,11 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.derivative.implicit",
     "calculus.ode.separable.first-order",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
+    "physics.kinematics.constant-acceleration.two-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
@@ -459,6 +461,34 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -1562,6 +1592,53 @@ check(planar_rules["physics.planar-kinematics.component-i"] and
       planar_rules["physics.planar-kinematics.check-shared-time"],
       "the planar-kinematics bridge retains both axis and shared-time provenance")
 
+check(planar_rules["physics.planar-kinematics.plan"] and
+      not planar_rules["physics.planar-kinematics.projectile-plan"] and
+      not planar_rules["physics.planar-kinematics.check-projectile"],
+      "an unset projectile flag selects the general planar plan")
+
+-- The same inputs with a horizontal acceleration, which only the general family accepts.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = {
+        x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "2 s",
+})
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the planar-kinematics bridge solves an accelerated horizontal axis")
+check(r.result == "(10 i - 12 j) m" and r.displacement.exact_x == "10" and
+      r.displacement.exact_y == "-12" and r.final_velocity.result == "(7 i - 16 j) m/s" and
+      r.final_velocity.exact_x == "7" and r.final_velocity.exact_y == "-16",
+      "the general planar family carries the horizontal acceleration into both reports")
+local general_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then general_rules[s.rule] = true end end
+check(general_rules["physics.planar-kinematics.plan"] and
+      not general_rules["physics.planar-kinematics.check-projectile"],
+      "the general planar family records no projectile precondition")
+
+-- The positive control for the two absences above: the same shape with the flag set reaches the
+-- projectile plan and its extra check, so those assertions are about the flag rather than the path.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = planar_kinematics_input.acceleration,
+    elapsed_time = "2 s",
+    projectile = true,
+})
+check(r.solved == true and r.result == "(6 i - 12 j) m",
+      "the projectile specialization solves the unaccelerated horizontal axis")
+local projectile_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then projectile_rules[s.rule] = true end end
+check(projectile_rules["physics.planar-kinematics.projectile-plan"] and
+      projectile_rules["physics.planar-kinematics.check-projectile"] and
+      not projectile_rules["physics.planar-kinematics.plan"],
+      "a set projectile flag selects the projectile plan and its precondition")
+
 r = nps.planar_kinematics({
     body_name = "ball",
     initial_velocity = planar_kinematics_input.initial_velocity,
@@ -2382,23 +2459,42 @@ check(collectgarbage("count") - before <= 4096, "the collector runs after a pars
 -- the session. Asked at the moment of the read rather than after it: the metatable records the state
 -- it can see and then raises, and the host cannot answer afterwards because LuaJIT unwinds through
 -- C++ and runs the destructor on the way out.
+-- Every entry point is offered the probe in each argument position rather than a list of the ones
+-- known to take a table, so an entry point added later is swept the day it is written.
 do
-    local table_arguments = {
+    local names = {}
+    for name, value in pairs(nps) do
+        if type(value) == "function" then names[#names + 1] = name end
+    end
+    table.sort(names)
+    local readers = {}
+    for _, name in ipairs(names) do
+        for position = 1, 3 do
+            local running = nil
+            local probe = setmetatable({}, {
+                __index = function()
+                    running = collectgarbage("isrunning")
+                    error("the field read that this entry point starts with")
+                end,
+            })
+            local arguments = { "x", "x", "x" }
+            arguments[position] = probe
+            pcall(nps[name], arguments[1], arguments[2], arguments[3])
+            if running ~= nil then
+                readers[name] = true
+                check(running == true,
+                      name .. " reads its table argument " .. position ..
+                          " before it stops the collector, saw " .. tostring(running))
+            end
+        end
+    end
+    -- A sweep that reached no reader would pass by asserting nothing, so the known ones must appear.
+    for _, name in ipairs({
         "catch_up", "relative_motion", "relative_motion_local", "work", "work_local",
-        "planar_kinematics", "magnitude_angle_to_components", "components_to_magnitude_angle",
-    }
-    for _, name in ipairs(table_arguments) do
-        local running = nil
-        local probe = setmetatable({}, {
-            __index = function()
-                running = collectgarbage("isrunning")
-                error("the field read that this entry point starts with")
-            end,
-        })
-        pcall(nps[name], probe)
-        check(running == true,
-              name .. " reads its table argument before it stops the collector, saw " ..
-                  tostring(running))
+        "planar_kinematics", "forces", "magnitude_angle_to_components",
+        "components_to_magnitude_angle",
+    }) do
+        check(readers[name] == true, "the table argument sweep reached " .. name)
     end
 end
 
