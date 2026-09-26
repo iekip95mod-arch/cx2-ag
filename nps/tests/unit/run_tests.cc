@@ -185,6 +185,27 @@ void test_shapes() {
         const ParseResult malformed = parse(arena, "2\xE2\x88\x92@");
         check(!malformed.ok() && malformed.offset == 4, "TI minus preserves original byte offsets on errors");
     }
+    equal(parse_print("3\xC3\x97" "2"), "(3 * 2)", "MathPrint times is multiplication");
+    equal(parse_print("2\xC2\xB7" "x"), "(2 * x)", "a middle dot is multiplication");
+    equal(parse_print("2\xE2\x8B\x85" "x"), "(2 * x)", "a dot operator is multiplication");
+    equal(parse_print("6\xC3\xB7" "2"), "(6 * (2^(-1)))", "MathPrint divide is division");
+    equal(parse_print("\xE2\x88\x9A(4)"), "sqrt(4)", "a radical sign followed by a bracket is a square root");
+    equal(parse_print("x\xC2\xB2"), "(x^2)", "a superscript two is a square");
+    equal(parse_print("x\xC2\xB3+1"), "((x^3) + 1)", "a superscript three binds before addition");
+    equal(parse_print("x\xC2\xB9\xE2\x81\xB0"), "(x^10)", "superscript digits read as one exponent");
+    equal(parse_print("x\xE2\x81\xBB\xC2\xB9"), "(x^(-1))", "a superscript minus makes a negative power");
+    equal(parse_print("2x\xC2\xB2"), "(2 * (x^2))", "a superscript binds to its base before an implied product");
+    equal(parse_print("x\xE2\x89\xA4" "2"), "(x <= 2)", "a less-or-equal sign is the ASCII relation");
+    equal(parse_print("x\xE2\x89\xA5" "2"), "(x >= 2)", "a greater-or-equal sign is the ASCII relation");
+    for (const char *invalid : {"x\xE2\x81\xBB", "\xC2\xB2", "x\xC2", "\xE2\x88\x9A", "x\xE2\x89\xA0" "2"}) {
+        Arena arena;
+        check(!parse(arena, invalid).ok(), "a lone superscript minus, a bare superscript, a cut character, a bare radical and an unsupported not-equal are refused");
+    }
+    {
+        Arena arena;
+        const ParseResult cut = parse(arena, "2\xC3\x97@");
+        check(!cut.ok() && cut.offset == 3, "MathPrint operators keep original byte offsets on errors: " + std::to_string(cut.offset));
+    }
     for (const char *invalid : {"\xE2\x88", "\xE2\x88\x92", "1e\xE2\x88\x92",
                                "1\xE2\x80\x93" "2", "1\xE2\x80\x94" "2"}) {
         Arena arena;
