@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Implicit };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
@@ -15,6 +15,7 @@ struct Command {
     NodeId variable = kNoNode;
     NodeId lower = kNoNode;
     NodeId upper = kNoNode;
+    NodeId dependent = kNoNode;
     NodeId point = kNoNode;
     int direction = 0;
     std::string operand_text;

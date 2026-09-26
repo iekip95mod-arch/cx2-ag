@@ -51,8 +51,11 @@ function(nps_expect name expect_pass expect_text inputs deferred)
                     "-DSOURCE_DIR=${SOURCE_DIR}"
                     -P "${CHECKER}"
                     RESULT_VARIABLE status ERROR_VARIABLE diagnostics OUTPUT_VARIABLE report)
+    string(FIND "${report}${diagnostics}" "${expect_text}" named)
     if(expect_pass AND NOT status EQUAL 0)
         list(APPEND failures "${name}: expected a pass, got ${status}\n${diagnostics}")
+    elseif(expect_pass AND named LESS 0)
+        list(APPEND failures "${name}: the pass did not say ${expect_text}\n${report}")
     elseif(NOT expect_pass AND status EQUAL 0)
         list(APPEND failures "${name}: expected a failure, got a pass")
     elseif(NOT expect_pass AND NOT "${diagnostics}" MATCHES "${expect_text}")
@@ -64,15 +67,16 @@ endfunction()
 # A build product hashed into a manifest fails, which is the rule the check exists for.
 nps_expect(untracked OFF "does not track" "${tracked_input};${build_product}" "")
 
-# The same input passes once the hash that recorded it declares the deferral issue 222 owns.
-nps_expect(deferred ON "" "${tracked_input};${build_product}" "${build_product}")
+# The same input passes once the hash that recorded it declares the deferral, and the status line
+# names the open issue that owns it rather than the closed one it grew out of.
+nps_expect(deferred ON "deferred to issue 490" "${tracked_input};${build_product}" "${build_product}")
 
 # A deferral no hash recorded is stale, so the exemption cannot outlive its input.
 nps_expect(unrecorded OFF "no manifest hash recorded"
            "${tracked_input};${build_product}" "${build_product};${SOURCE_DIR}/tools/tidy.sh")
 
-# A deferral set that is tracked all through covers nothing, which is how landing 222 removes it.
-nps_expect(obsolete OFF "drop the deferral"
+# A deferral set that is tracked all through covers nothing, which is how landing 490 removes it.
+nps_expect(obsolete OFF "drop the deferral and close 490"
            "${tracked_input};${SOURCE_DIR}/tools/tidy.sh" "${tracked_input}")
 
 # A deferral beside a tracked input of the same hash stays legitimate while a build product remains.

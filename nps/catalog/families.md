@@ -29,8 +29,10 @@ coverage run does not establish that the release meets section 27.
 A field whose answer is nothing opens with the word none and then says why. That is a different
 statement from a line left out, which is the question nobody answered, and the eight fields section
 5.5 calls the family envelope have to carry one or the other for every family. On
-proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so a
-family that raises no obligation says so and the join still fails the day a fixture raises one.
+proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so
+a family that raises no obligation says so and the join still fails the day a fixture raises one.
+A line whose first word is family is always read as a family header, so prose here never opens a
+line with that word, and a malformed header anywhere in the file refuses the whole read.
 
 The required_assumptions field is prose and an assumption is a sentence, so the join is over the
 engine strings the line puts in double quotes. Each quoted string has to be recorded by a fixture of that family,
@@ -1500,6 +1502,46 @@ rule d.power fixture
 rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
+
+family id calculus.derivative.implicit
+topic_and_level Implicit differentiation of a relation between two variables, PRD section 9 CALC-007
+family_envelope_version 1
+accepted_expression_grammar an equation whose two sides are expressions the native differentiation engine supports in the independent and the dependent variable, with a typed decimal read as the fraction it names
+accepted_input_forms implicit(equation,x,y), where x is the independent variable and y the dependent one, and the derivative is written dydx
+domains_and_parameter_assumptions the dependent variable is a differentiable function of the independent one near the point of interest, recorded as a restriction on the step that differentiates both sides. The coefficient the derivative is divided by is recorded as nonzero by the rearrangement family and carried as an assumption of the answer
+supported_branches_and_degenerate_cases an explicit relation y equal to an expression in x, which gives the ordinary derivative, and a relation whose derivative does not depend on x
+exact_special_function_and_numerical_result_policy exact symbolic derivative with no approximation. The final check evaluates exactly at sample points and is reported as sample agreement rather than proof
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/implicit.cc, src/steps/differentiate.cc, src/steps/rearrange.cc
+required_assumptions the answer holds where the coefficient of dydx is nonzero, carried as an active assumption naming that coefficient, as in "(2 * y) is not zero" for the circle and "x is not zero" for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
+test_group_ids implicit
+supported_methods differentiate both sides with respect to the independent variable, applying the chain rule to the dependent variable through its partial derivative times dydx, collect the dydx terms on one side, and isolate dydx with the rearrangement family
+unsupported_near_neighbors second implicit derivatives, the slope at a named point, systems of implicit relations, relations with a third free variable treated as dependent, relations whose dydx terms cancel, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.implicit.rule-preserves-relation, obl.implicit.chain-identity, obl.calculus.rule-preserves-value, obl.plan.preconditions-hold, obl.rearrange.same-solutions, obl.rearrange.substitution-identity
+solution_soundness_status the relation left minus right is differentiated afresh and its x part plus its y part times the answer is evaluated exactly at up to twelve sample points, withholding the result when any is nonzero. That is sample agreement, and a relation where no sample point or no isolation check point can be evaluated is reported as solved but unchecked rather than as failed
+solution_completeness_status partial, first derivatives of relations the differentiation engine covers
+corpus_case_ids implicit_circle, implicit_product, implicit_mixed, implicit_trig
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.derivative.implicit
+release_status in development, unreleased
+rule implicit.differentiate-both-sides fixture
+rule implicit.chain-rule fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.sum fixture
+rule d.variable fixture
+rule implicit.collect fixture
+rule implicit.isolate fixture
+rule alg.rearrange.inverse-operations fixture
+rule alg.rearrange.divide-both-sides fixture
+rule alg.rearrange.check-by-substitution fixture
+rule implicit.check fixture
 
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set

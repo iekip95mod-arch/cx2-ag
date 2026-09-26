@@ -270,6 +270,7 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.derivative.implicit",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.constant-acceleration.two-dimension",
@@ -435,6 +436,34 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
