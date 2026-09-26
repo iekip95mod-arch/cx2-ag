@@ -116,8 +116,8 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4135), `vector_addition` (lua_module.cc:4138),
-`vector_cross` (lua_module.cc:4139), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4170), `vector_addition` (lua_module.cc:4173),
+`vector_cross` (lua_module.cc:4174), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
@@ -136,8 +136,8 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4107, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:2883-2884. Its menu entry is still needed, and a shape the family does not read still
+lua_module.cc:4142, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:2918-2919. Its menu entry is still needed, and a shape the family does not read still
 returns nil so the shell falls back to Giac.
 
 ## What the shell can reach

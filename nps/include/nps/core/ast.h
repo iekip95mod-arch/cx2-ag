@@ -92,6 +92,10 @@ std::string integer_text(int64_t v);
 // Whether the variable occurs anywhere in the expression. Every rule engine sorts its constants
 // from its varying parts with this, so there is one answer to what counts as constant.
 bool depends_on(const Arena &arena, NodeId id, NodeId variable);
+// Whether a trigonometric function or its inverse takes or gives an angle that varies with the
+// variable, which is what makes a calculus rule depend on the angle unit. With no variable it asks
+// whether any such function appears at all.
+bool angle_dependent(const Arena &arena, NodeId id, NodeId variable = kNoNode);
 // Includes lists nested in calls, arithmetic and relations.
 bool contains_list(const Arena &arena, NodeId id);
 

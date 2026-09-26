@@ -23,9 +23,10 @@ struct Run {
     std::vector<std::string> broken;
 
     explicit Run(const std::string &text, const Budget &budget = Budget(),
-                 NumericMode mode = NumericMode::Exact) {
+                 NumericMode mode = NumericMode::Exact, AngleMode angle = AngleMode::Radians) {
         derivation.request.original_expression = text;
         derivation.request.numeric_mode = mode;
+        derivation.request.angle_mode = angle;
         command = parse_command(arena, text, "x");
         result = solve_separable(arena, derivation, command, budget);
         if (result.solution != kNoNode) solution = print(arena, result.solution);
@@ -173,6 +174,18 @@ void run_separable_tests(TestSink &t) {
     {
         Run run("desolve(y'=x*y,x,y)", Budget(), NumericMode::Decimal);
         t.equal(run.outcome(), "unsupported form", "Decimal mode is refused rather than approximated");
+    }
+    {
+        // MATH-007's promise reaches here too: a degree-mode request names the mode it ran under,
+        // and an equation that leans on a trig identity is refused rather than read as radians.
+        Run run("desolve(y'=x*y,x,y)", Budget(), NumericMode::Exact, AngleMode::Degrees);
+        t.check(run.outcome() == std::string("solved") && run.derivation.context.angle_convention == "degrees",
+                "separation without trig solves in degree mode and records it");
+        Run trig("desolve(y'=sin(x),x,y)", Budget(), NumericMode::Exact, AngleMode::Degrees);
+        t.check(trig.result.solution == kNoNode &&
+                    trig.outcome() == std::string("unsupported form") &&
+                    trig.derivation.context.angle_convention == "degrees",
+                "separation refuses a trigonometric equation in degree mode rather than reading it as radians");
     }
     {
         Budget budget;

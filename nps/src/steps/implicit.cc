@@ -289,7 +289,7 @@ struct Implicit {
         context.normalized_problem_model = arena.failed() || result.status == DerivationStatus::InvalidInput
             ? kNoNode : arena.call("implicit", {equation, x, y});
         context.active_assumptions = result.restrictions;
-        context.angle_convention = "radians";
+        context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";
         context.resource_policy = budget_policy(meter.budget());
@@ -337,6 +337,9 @@ ImplicitResult implicit_differentiate(Arena &arena, Derivation &derivation, Node
     } else if (derivation.request.numeric_mode != NumericMode::Exact) {
         run.stop(ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported,
                  "implicit differentiation walkthroughs currently require Exact mode");
+    } else if (derivation.request.angle_mode == AngleMode::Degrees && angle_dependent(arena, equation)) {
+        run.stop(ImplicitOutcome::UnsupportedForm, DerivationStatus::Unsupported,
+                 "the trigonometric derivative rules assume radians, and degree mode is active");
     } else {
         const std::string name = "d" + arena.text(dependent) + "d" + arena.text(independent);
         run.symbol = arena.symbol(name);

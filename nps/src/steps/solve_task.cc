@@ -28,7 +28,7 @@ SolveTask::SolveTask(SolveOperation operation, SolveRequest request, std::string
     inputs.requested_method = "inverse operations";
     inputs.original_expression = working_.request.original_expression;
     inputs.numeric_mode = working_.request.numeric_mode;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(working_.request.angle_mode);
     inputs.branch_convention = "real domain";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);
