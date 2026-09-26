@@ -1746,7 +1746,7 @@ if(NOT CMAKE_CROSSCOMPILING)
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
                 nps_manifest_probe_test nps_manifest_split_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
-                nps_acceptance_corpus nps_device_run
+                nps_acceptance_corpus nps_device_run nps_wp_validate
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)
         add_dependencies(check nps_retained_ui_test nps_retained_menu_test)
