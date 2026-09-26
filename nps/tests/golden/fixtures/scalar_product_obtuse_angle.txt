@@ -8,11 +8,11 @@ context
   problem family: physics.vectors.cartesian-scalar-product
   envelope version: <not recorded>
   normalized problem: dot(framed_vector(vector(2, 0), 1, lab, dimension(1, 0, 0, 0)), framed_vector(vector(-1, 1), 1, lab, dimension(1, 0, 0, 0)))
-  requested method: convert components to SI, sum the component products, and read the angle from its sign
+  requested method: convert components to SI, sum the component products, read the angle from its sign, and measure it as atan2(|a x b|, a . b) when a backend is supplied
   active assumption: first vector frame is lab
   active assumption: second vector frame is lab
   active assumption: the two readings of the scalar product name one quantity
-  angle convention: <not recorded>
+  angle convention: degrees
   branch convention: <not recorded>
   unit policy: exact SI conversion and component arithmetic, final-only precision
   detail projection: standard

@@ -1,4 +1,6 @@
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "nps/core/print.h"
 #include "nps/physics/scalar_product.h"
@@ -6,6 +8,41 @@
 
 namespace nps {
 namespace {
+
+// The scripted backend relative_motion_tests.cc drives its own cross-check through. Copied rather
+// than shared because that file keeps it in its anonymous namespace, as position_motion_tests.cc
+// already does for the same reason.
+class SequenceBackend : public Backend {
+  public:
+    explicit SequenceBackend(std::vector<std::string> replies) : replies_(std::move(replies)) {}
+
+    bool eval(const std::string &command, std::string *out, std::string *error) override {
+        commands.push_back(command);
+        if (next_ >= replies_.size()) {
+            *error = "no scripted reply";
+            return false;
+        }
+        *out = replies_[next_++];
+        return true;
+    }
+
+    std::vector<std::string> commands;
+
+  private:
+    std::vector<std::string> replies_;
+    size_t next_ = 0;
+};
+
+class FailingBackend : public Backend {
+  public:
+    bool eval(const std::string &command, std::string *, std::string *error) override {
+        commands.push_back(command);
+        *error = "backend down";
+        return false;
+    }
+
+    std::vector<std::string> commands;
+};
 
 Vector parsed_vector(const std::string &text, const char *frame = nullptr) {
     Vector value;
@@ -22,12 +59,14 @@ Vector parsed_vector(const std::string &text, const char *frame = nullptr) {
 
 struct Run {
     Run(const Vector &first, const Vector &second, bool angle = false,
-        const Budget &budget = Budget()) {
+        const Budget &budget = Budget(), Backend *giac = nullptr,
+        AngleUnit angle_unit = AngleUnit::Degrees) {
         ScalarProductProblem problem;
         problem.first = first;
         problem.second = second;
         problem.angle = angle;
-        result = solve_scalar_product(arena, derivation, problem, budget);
+        problem.angle_unit = angle_unit;
+        result = solve_scalar_product(arena, derivation, problem, budget, giac);
     }
 
     Arena arena;
@@ -50,6 +89,19 @@ const TransformationPayload *moved_by(const Derivation &derivation, const char *
             return derivation.transformation(id);
     }
     return nullptr;
+}
+
+std::string check_outcome(const Derivation &derivation, const char *rule) {
+    for (size_t i = 0; i < derivation.size(); ++i) {
+        const StepId id = static_cast<StepId>(i);
+        if (derivation.at(id).rule_id == rule && !derivation.at(id).verifications.empty())
+            return verification_outcome_name(derivation.at(id).verifications[0].outcome);
+    }
+    return "no such rule";
+}
+
+bool contains(const std::string &text, const std::string &part) {
+    return text.find(part) != std::string::npos;
 }
 
 std::string check_detail(const Derivation &derivation, const char *rule) {
@@ -221,6 +273,99 @@ void run_scalar_product_tests(TestSink &t) {
                 "a halted scalar product offers no value");
         t.equal(derivation_status_name(stopped.result.status), "resource limit reached",
                 "the halt is recorded as a resource limit rather than a refusal");
+    }
+    {
+        SequenceBackend giac({"phi", "0", "53.13010235415598"});
+        Run measured(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true, Budget(),
+                     &giac);
+        t.equal(scalar_product_outcome_name(measured.result.outcome), "solved",
+                "a supplied backend measures the angle rather than refusing the product");
+        t.check(giac.commands.size() == 3, "the measurement costs one atan2, one check and one "
+                                           "approximation");
+        t.equal(giac.commands.empty() ? "no command" : giac.commands[0], "atan2(sqrt(400),15)",
+                "the angle comes from atan2 of the exact cross-product magnitude against the "
+                "exact scalar product, in that order");
+        t.check(giac.commands.size() > 1 && contains(giac.commands[1], "cos(phi)") &&
+                    contains(giac.commands[1], "sqrt(625)"),
+                "the check sent is the cosine of the answer against the magnitude product and the "
+                "scalar product, rather than the backend confirming its own answer");
+        t.check(giac.commands.size() > 2 && contains(giac.commands[2], "180"),
+                "a degrees request converts before it approximates");
+        t.equal(measured.result.numeric_angle_text, "53.13010235415598 degrees",
+                "the reported angle is the number the backend returned, in the unit asked for");
+        t.check(measured.result.has_numeric_angle &&
+                    measured.result.numeric_angle != kNoNode,
+                "the measured angle is offered as an expression as well as text");
+        t.equal(scalar_angle_name(measured.result.angle), "acute",
+                "the exact sign reading still runs alongside the measurement");
+        t.check(has_rule(measured.derivation, "vec.dot.measure-angle") &&
+                    has_rule(measured.derivation, "vec.dot.interpret-angle"),
+                "both readings are recorded, since one is exact and the other is not");
+        t.equal(derivation_status_name(measured.result.status), "solved and verified",
+                "a measurement the identity confirmed leaves the walkthrough verified");
+    }
+    {
+        SequenceBackend giac({"phi", "0", "0.9272952180016122"});
+        Run measured(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true, Budget(),
+                     &giac, AngleUnit::Radians);
+        t.equal(giac.commands.size() > 2 ? giac.commands[2] : "no command", "evalf(phi)",
+                "a radians request approximates the atan2 answer with no conversion in front of "
+                "it");
+        t.equal(measured.result.numeric_angle_text, "0.9272952180016122 radians",
+                "the unit named in the report is the unit that was asked for");
+    }
+    {
+        SequenceBackend giac({"phi", "0", "53.13010235415598"});
+        Run product_only(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), false,
+                         Budget(), &giac);
+        t.check(giac.commands.empty() && !product_only.result.has_numeric_angle,
+                "a product that was not asked for an angle calls no backend");
+        Run no_backend(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true);
+        t.check(!no_backend.result.has_numeric_angle &&
+                    no_backend.result.numeric_angle_text.empty() &&
+                    !has_rule(no_backend.derivation, "vec.dot.measure-angle"),
+                "without a backend there is no number and no step claiming one");
+        t.equal(scalar_angle_name(no_backend.result.angle), "acute",
+                "the exact reading is what an absent backend leaves behind, not nothing");
+    }
+    {
+        FailingBackend giac;
+        Run measured(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true, Budget(),
+                     &giac);
+        t.equal(scalar_product_outcome_name(measured.result.outcome), "solved",
+                "a backend that will not answer costs the number, not the product");
+        t.check(!measured.result.has_numeric_angle,
+                "a backend failure reports no angle rather than an unchecked one");
+        t.check(has_rule(measured.derivation, "vec.dot.measure-angle"),
+                "the attempt is recorded, so a missing number is visible rather than silent");
+        t.equal(check_outcome(measured.derivation, "vec.dot.measure-angle"), "inconclusive",
+                "a backend that never answered is inconclusive, not a failed verification");
+        t.equal(derivation_status_name(measured.result.status), "solved but unchecked",
+                "and the walkthrough says so, rather than reporting itself verified");
+    }
+    {
+        SequenceBackend giac({"phi", "1"});
+        Run measured(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true, Budget(),
+                     &giac);
+        t.equal(scalar_product_outcome_name(measured.result.outcome), "verification failed",
+                "an angle that does not satisfy a b cos(phi) = a . b is withheld");
+        t.check(!measured.result.has_numeric_angle && giac.commands.size() == 2,
+                "the approximation is never asked for once the identity has failed");
+        t.equal(check_outcome(measured.derivation, "vec.dot.measure-angle"), "failed",
+                "the disagreement is recorded as a failed verification rather than an absence");
+        t.equal(derivation_status_name(measured.result.status), "verification failed",
+                "a failed identity is a verification failure rather than a resource one");
+    }
+    {
+        Budget budget;
+        budget.max_backend_calls = 0;
+        SequenceBackend giac({"phi", "0", "53.13010235415598"});
+        Run stopped(parsed_vector("3 i + 4 j m"), parsed_vector("5 i + 0 j m"), true, budget,
+                    &giac);
+        t.equal(scalar_product_outcome_name(stopped.result.outcome), "resource exceeded",
+                "a spent backend budget halts rather than reporting an angle nothing measured");
+        t.check(giac.commands.empty(),
+                "the budget is checked before the call, so nothing reaches the backend");
     }
 }
 

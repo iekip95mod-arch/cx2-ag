@@ -1,0 +1,20 @@
+problem: 2 kg block on an incline whose sine and cosine are not an exact pair
+variable: acceleration
+outcome: incline angle not exact
+detail: the incline needs an exact sine and cosine with a non-negative sine, a positive cosine and sin^2 + cos^2 = 1
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.forces.newton-second-law
+  envelope version: <not recorded>
+  requested method: inventory the forces on one body, resolve them onto the surface axes, sum each axis under Newton's second law and solve for the requested unknown
+  active assumption: surface is incline
+  active assumption: friction model is frictionless
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact SI conversion throughout, newtons reported exactly
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: invalid input
+steps
+  none

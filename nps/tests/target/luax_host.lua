@@ -244,7 +244,16 @@ check(manifest.symbolic_backend.name == "Giac" and
        manifest.symbolic_backend.interface_id == "lua5.1.luagiac.caseval-v1" and
        manifest.symbolic_backend.deployment == "external-required-unvalidated",
       "the split manifest does not claim an unchecked external Giac version")
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
+-- The whole key set rather than the four values, because the fault this guards against was a fifth
+-- key the bridge invented and wrote on one branch only, which read as false in every state.
+do
+    local backend_keys = {}
+    for key in pairs(manifest.symbolic_backend) do backend_keys[#backend_keys + 1] = key end
+    table.sort(backend_keys)
+    check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
+          "and carries exactly the four fields SymbolicBackendCapability defines")
+end
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -261,8 +270,11 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.derivative.implicit",
+    "calculus.ode.separable.first-order",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
+    "physics.kinematics.constant-acceleration.two-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
@@ -417,6 +429,30 @@ do
         check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
               case[1] .. " names the family it answered")
     end
+    -- CALC-012. A separable desolve runs natively and one the family refuses returns nil for Giac.
+    for _, case in ipairs({
+        {"desolve(y'=x*y,x,y)", "(y = exp((((x^2) * (2^-1)) + C)))", true, nil},
+        {"desolve(y'=x/y^2,x,y)", "(((y^3) * (3^-1)) = (((x^2) * (2^-1)) + C))", false, nil},
+        {"desolve([y'=x*y,y(0)=2],x,y)", "(y = exp((((x^2) * (2^-1)) + ln(2))))", true, "ln(2)"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(type(record) == "table" and record.solved and record.has_result and
+              not record.answer_only and record.status == "solved and verified" and
+              record.result == case[2],
+              case[1] .. " is solved natively and verified")
+        check(record.mode == "differential equation" and record.outcome == "solved" and
+              record.explicit_solution == case[3] and record.constant == case[4] and
+              record.request_expression == case[1],
+              case[1] .. " reports its form, its constant and the request it answered")
+        check(command_has_rule(record, "ode.separable.separate") and
+              command_has_rule(record, "ode.separable.check-solution") and giac_calls == 0,
+              case[1] .. " carries the separation and the final check without asking Giac")
+    end
+    for _, text in ipairs({"desolve(y'=x+y,x,y)", "desolve(y''=y,x,y)", "desolve(y'=x*y)"}) do
+        check(nps.walkthrough(text, "x", "exact") == nil,
+              text .. " is left to Giac rather than refused natively")
+    end
     for _, case in ipairs({
         {"tangent(1/x,x,0)", "unsupported form"},
         {"tangent(x^2,x)", "unsupported form"},
@@ -451,6 +487,34 @@ do
               "the same trigonometric derivative still answers and cross-checks in radian mode")
         local ok = pcall(nps.walkthrough, "diff(x^2,x)", "x", "exact", "gradians")
         check(not ok, "an unknown angle mode is an error rather than a silent radian")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -1554,6 +1618,53 @@ check(planar_rules["physics.planar-kinematics.component-i"] and
       planar_rules["physics.planar-kinematics.check-shared-time"],
       "the planar-kinematics bridge retains both axis and shared-time provenance")
 
+check(planar_rules["physics.planar-kinematics.plan"] and
+      not planar_rules["physics.planar-kinematics.projectile-plan"] and
+      not planar_rules["physics.planar-kinematics.check-projectile"],
+      "an unset projectile flag selects the general planar plan")
+
+-- The same inputs with a horizontal acceleration, which only the general family accepts.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = {
+        x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "2 s",
+})
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the planar-kinematics bridge solves an accelerated horizontal axis")
+check(r.result == "(10 i - 12 j) m" and r.displacement.exact_x == "10" and
+      r.displacement.exact_y == "-12" and r.final_velocity.result == "(7 i - 16 j) m/s" and
+      r.final_velocity.exact_x == "7" and r.final_velocity.exact_y == "-16",
+      "the general planar family carries the horizontal acceleration into both reports")
+local general_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then general_rules[s.rule] = true end end
+check(general_rules["physics.planar-kinematics.plan"] and
+      not general_rules["physics.planar-kinematics.check-projectile"],
+      "the general planar family records no projectile precondition")
+
+-- The positive control for the two absences above: the same shape with the flag set reaches the
+-- projectile plan and its extra check, so those assertions are about the flag rather than the path.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = planar_kinematics_input.acceleration,
+    elapsed_time = "2 s",
+    projectile = true,
+})
+check(r.solved == true and r.result == "(6 i - 12 j) m",
+      "the projectile specialization solves the unaccelerated horizontal axis")
+local projectile_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then projectile_rules[s.rule] = true end end
+check(projectile_rules["physics.planar-kinematics.projectile-plan"] and
+      projectile_rules["physics.planar-kinematics.check-projectile"] and
+      not projectile_rules["physics.planar-kinematics.plan"],
+      "a set projectile flag selects the projectile plan and its precondition")
+
 r = nps.planar_kinematics({
     body_name = "ball",
     initial_velocity = planar_kinematics_input.initial_velocity,
@@ -1810,12 +1921,13 @@ check(r.outcome == "invalid input", "a problem with no unknown is refused")
 check(type(r.steps) == "table" and #r.steps == 0, "with an empty steps table")
 check(r.answer_only == false and r.result == nil, "invalid kinematics is not answer-only success")
 
-local quadratic_problem = "find t; x = 4 m; v0 = 4 m/s; a = -2 m/s^2"
+-- A discriminant of 377 stops the local rules at the envelope, leaving a candidate for the backend.
+local quadratic_problem = "find t; x = 44 m; v0 = 5 m/s; a = 4 m/s^2"
 script("[[2]]")
 r = nps.kinematics(quadratic_problem)
 check(r.outcome == "no applicable equation" and r.status == "unsupported" and
       r.answer_only == true,
-      "a locally refused one-root kinematics equation can return a Giac answer")
+      "a kinematics equation refused at the exact-root envelope can return a Giac answer")
 check(r.result == "t = 2 s" and r.value == "2" and r.unit == "s" and r.giac_tag == "exact",
       "the answer-only kinematics result carries its quantity, unit and Giac tag")
 check(r.has_result == true, "backend-only kinematics publishes has_result")
@@ -1823,6 +1935,21 @@ check(type(r.steps) == "table" and #r.steps == 0 and r.step_count == 0,
       "answer-only kinematics carries no derivation")
 check(r.detail:find("fully specified and dimensionally valid", 1, true) ~= nil,
       "and records why that exact equation was offered")
+
+-- Issue 412: the bridge carries the degree-two record, root selection included.
+local before_quadratic_solve = giac_calls
+r = nps.kinematics_local("find t; x = 44 m; v0 = 5 m/s; a = 3 m/s^2")
+check(r.outcome == "solved" and r.result == "t = 4 s" and r.has_result == true,
+      "the bridge solves a kinematics unknown at exponent two")
+check(giac_calls == before_quadratic_solve and r.answer_only == false,
+      "from the local rules alone, with no backend answer behind it")
+local selected, formula = false, false
+for _, step in ipairs(r.steps) do
+    if step.rule == "kin.select-physical-root" then selected = true end
+    if step.rule == "eq.quadratic.formula" then formula = true end
+end
+check(formula, "and the record carries the quadratic formula the answer came from")
+check(selected, "and the step that says which root the problem asked for")
 
 for _, sample in ipairs({
     {"3*x^2-12=0", "[-2,2]", true},
@@ -2361,23 +2488,42 @@ check(collectgarbage("count") - before <= 4096, "the collector runs after a pars
 -- the session. Asked at the moment of the read rather than after it: the metatable records the state
 -- it can see and then raises, and the host cannot answer afterwards because LuaJIT unwinds through
 -- C++ and runs the destructor on the way out.
+-- Every entry point is offered the probe in each argument position rather than a list of the ones
+-- known to take a table, so an entry point added later is swept the day it is written.
 do
-    local table_arguments = {
+    local names = {}
+    for name, value in pairs(nps) do
+        if type(value) == "function" then names[#names + 1] = name end
+    end
+    table.sort(names)
+    local readers = {}
+    for _, name in ipairs(names) do
+        for position = 1, 3 do
+            local running = nil
+            local probe = setmetatable({}, {
+                __index = function()
+                    running = collectgarbage("isrunning")
+                    error("the field read that this entry point starts with")
+                end,
+            })
+            local arguments = { "x", "x", "x" }
+            arguments[position] = probe
+            pcall(nps[name], arguments[1], arguments[2], arguments[3])
+            if running ~= nil then
+                readers[name] = true
+                check(running == true,
+                      name .. " reads its table argument " .. position ..
+                          " before it stops the collector, saw " .. tostring(running))
+            end
+        end
+    end
+    -- A sweep that reached no reader would pass by asserting nothing, so the known ones must appear.
+    for _, name in ipairs({
         "catch_up", "relative_motion", "relative_motion_local", "work", "work_local",
-        "planar_kinematics", "magnitude_angle_to_components", "components_to_magnitude_angle",
-    }
-    for _, name in ipairs(table_arguments) do
-        local running = nil
-        local probe = setmetatable({}, {
-            __index = function()
-                running = collectgarbage("isrunning")
-                error("the field read that this entry point starts with")
-            end,
-        })
-        pcall(nps[name], probe)
-        check(running == true,
-              name .. " reads its table argument before it stops the collector, saw " ..
-                  tostring(running))
+        "planar_kinematics", "forces", "magnitude_angle_to_components",
+        "components_to_magnitude_angle",
+    }) do
+        check(readers[name] == true, "the table argument sweep reached " .. name)
     end
 end
 
@@ -2437,10 +2583,18 @@ check(type(failed_manifest.installed_modules) == "table" and
       #failed_manifest.installed_modules == 0,
       "the integrity-failed manifest exposes no installed solver or content module")
 check(failed_manifest.symbolic_backend.name == "Giac" and
-      failed_manifest.symbolic_backend.available == false and
       failed_manifest.symbolic_backend.interface_id == "unavailable" and
       failed_manifest.symbolic_backend.deployment == "integrity-rejected",
       "the integrity-failed manifest marks the bundled backend unavailable")
+-- Whether the backend is usable is what integrity_status answers, so the rejected manifest redacts
+-- the two identity fields and adds no key the verified one lacks.
+do
+    local failed_keys = {}
+    for key in pairs(failed_manifest.symbolic_backend) do failed_keys[#failed_keys + 1] = key end
+    table.sort(failed_keys)
+    check(table.concat(failed_keys, ",") == "deployment,interface_id,name,version",
+          "and redacts rather than adding an availability flag the manifest has no field for")
+end
 local v4_file = assert(io.open("lua/nps_v4.lua", "rb"))
 local v4_source = v4_file:read("*a")
 v4_file:close()

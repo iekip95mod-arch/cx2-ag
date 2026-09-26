@@ -14,6 +14,7 @@
 #include "nps/core/budgets.h"
 #include "nps/core/capability_manifest.h"
 #include "nps/core/canonical.h"
+#include "nps/core/context.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/steps/linear.h"
@@ -27,6 +28,8 @@ void run_task_tests(TestSink &sink);
 void run_solve_task_tests(TestSink &sink);
 void run_command_tests(TestSink &sink);
 void run_calculus_tests(TestSink &sink);
+void run_implicit_tests(TestSink &sink);
+void run_separable_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
@@ -682,13 +685,12 @@ void test_math004_relations() {
         return c == kNoNode ? std::string("did not canonicalize") : print(a, c);
     };
     // Asked as a comparison rather than against a literal, because the interesting claim is that
-    // the relation is the only thing that differs. Canonicalization reorders both sides the same
+    // the relation is the only thing that differs. Canonicalization collects both sides the same
     // way whichever relation sits between them, so an approximation coming back equalized would
-    // show up here as the two agreeing. Like terms are not collected at this stage, by either
-    // relation, which is the collect rule's job and not this one's.
-    equal(canonical_shape("2x + x ~= 3"), "((x + (2 * x)) ~= 3)",
+    // show up here as the two agreeing.
+    equal(canonical_shape("2x + x ~= 3"), "((3 * x) ~= 3)",
           "MATH-004: canonicalizing an approximation keeps it an approximation");
-    equal(canonical_shape("2x + x == 3"), "((x + (2 * x)) == 3)",
+    equal(canonical_shape("2x + x == 3"), "((3 * x) == 3)",
           "and canonicalizing an identity keeps it an identity");
     check(canonical_shape("2x + x ~= 3") != canonical_shape("2x + x = 3"),
           "so an approximation and the equality written over the same sides stay apart");
@@ -836,6 +838,9 @@ void write_evidence(const TestSink &s) {
     }
     for (const std::string &g : s.groups_run)
         fprintf(f, "group\t%s\n", g.c_str());
+    // Every family id this run stamped, so the coverage join can ask after a family rather than a group.
+    for (const std::string &family : family_census())
+        fprintf(f, "family\t%s\n", family.c_str());
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());
@@ -882,6 +887,10 @@ int main_body() {
     run_command_tests(sink);
     sink.begin_group("calculus");
     run_calculus_tests(sink);
+    sink.begin_group("implicit");
+    run_implicit_tests(sink);
+    sink.begin_group("separable");
+    run_separable_tests(sink);
     sink.begin_group("ui canvas");
     run_ui_canvas_tests(sink);
     sink.begin_group("integer");

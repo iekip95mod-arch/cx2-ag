@@ -64,6 +64,7 @@ local requiredSolvers = {
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -102,7 +103,7 @@ local function manifestCompatibility(manifest)
 	if type(manifest.installed_modules) ~= "table" then
 		return "StepCAS manifest malformed (installed_modules)"
 	end
-	if #manifest.installed_modules > 32 then return "StepCAS manifest malformed (too many modules)" end
+	if #manifest.installed_modules > 128 then return "StepCAS manifest malformed (too many modules)" end
 	local installed = {}
 	for index, entry in ipairs(manifest.installed_modules) do
 		if type(entry) ~= "table" or type(entry.id) ~= "string" then
@@ -2251,6 +2252,7 @@ menu = {
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
          { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
          { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
+         { "Implicit derivative dy/dx", function() template("implicit(,x,y)", 5) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2359,6 +2361,7 @@ menu = {
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
+       	 { "Implicit Derivative  implicit(eq,x,y)",	function() menustring( "implicit(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -2745,6 +2748,24 @@ PHYSICS_FIXTURES = {
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+				projectile = true,
+			})
+		end,
+	},
+	{
+		label = "Find where a ball goes in a steady sideways wind",
+		problem = "A ball is thrown up and forward while a steady wind pushes it sideways the " ..
+		          "whole way and gravity pulls it down. It rises, slows, and is falling again " ..
+		          "by the time two seconds are up. Find where it has got to and how fast it is going.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "ball",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
@@ -3377,6 +3398,7 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
+    ["Implicit derivative dy/dx"] = "Fill an equation in x and y. The answer is dydx in both variables, with its conditions.",
 }
 
 function openTemplatePicker()
@@ -3605,6 +3627,12 @@ local function physicsFixtureAnswer(r)
 		local p = r.polar
 		if type(p.magnitude) == "string" and type(p.angle) == "string" and
 		   type(p.unit) == "string" and type(p.angle_unit) == "string" then
+			-- A rank three direction needs both angles and the axis each is measured from, in the
+			-- wording golden_tests.cc:646 already uses, since the azimuth alone names another vector.
+			if type(p.polar_angle) == "string" then
+				return p.magnitude .. " " .. p.unit .. " at polar " .. p.polar_angle .. " " ..
+				       p.angle_unit .. " from z, azimuth " .. p.angle .. " " .. p.angle_unit
+			end
 			return p.magnitude .. " " .. p.unit .. " at " .. p.angle .. " " .. p.angle_unit
 		end
 	end
@@ -4432,14 +4460,16 @@ local function resultLines()
 		out[#out + 1] = { text = text, color = color }
 	end
 	add("Input: " .. (r.input or ""), {90, 90, 90})
-	local answer = finalResultVisible(r) and answerText(r)
-	if answer then
-		out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
-		                  math = answer, color = {0, 0, 140} }
+	if finalResultVisible(r) then
+		local answer = answerText(r)
+		if answer then
+			out[#out + 1] = { slot = "answer", label = r.answer_only and "CAS answer:" or "Answer:",
+			                  math = answer, color = {0, 0, 140} }
+		end
+		add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
+		if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
+		if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	end
-	add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
-	if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
-	if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	return out
 end
 

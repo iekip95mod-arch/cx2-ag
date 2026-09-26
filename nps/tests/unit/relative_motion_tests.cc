@@ -429,6 +429,42 @@ void run_relative_motion_tests(TestSink &t) {
                 "a zero relative velocity has no nearest cardinal and asks the backend nothing");
     }
     {
+        // Issue 416's shape here, where the bearing's converter overwrote the identity solve's context.
+        SequenceBackend bearing_backend({"-95/2", "-349/18", "51.3047", "0", "51.3047",
+                                         "atan2(349/18,95/2)", "0", "atan2(349/18,95/2)*180/pi",
+                                         "0", "22.2"});
+        IdentityRun reported(identity(RelativeMotionUnknown::MediumRelativeToReference), Budget(),
+                             &bearing_backend);
+        t.equal(relative_motion_outcome_name(reported.result.outcome), "solved",
+                "the control for the lines below, so the bearing really did run");
+        t.check(reported.result.bearing.has_bearing,
+                "and the converter really was reached, which is what overwrote the context");
+        t.equal(reported.derivation.context.problem_family_id,
+                "physics.kinematics.relative-motion.components.two-dimension",
+                "a solved identity names this family rather than the component converter that "
+                "wrote the context last");
+        t.equal(reported.derivation.context.problem_family_envelope_version, "1",
+                "and records the envelope version the catalog declares");
+        // A fresh context would name the family and drop these, so the family id alone proves nothing.
+        t.check(reported.derivation.context.active_assumptions.size() == 2,
+                "and keeps the frame and axis assumptions the inner solve recorded rather than "
+                "replacing them with a thinner context");
+        t.equal(reported.derivation.context.angle_convention, reported.result.bearing.convention,
+                "while the bearing adds the cardinal its angle is measured from");
+
+        // The standalone entry point, which has no solve in front of it to be overwritten.
+        SequenceBackend alone({"0", "atan2(3,4)", "0", "atan2(3,4)*180/pi", "0"});
+        Arena bearing_arena;
+        Derivation bearing_derivation;
+        const RelativeBearing west = relative_motion_bearing(
+            bearing_arena, bearing_derivation, parsed_vector("(-4, -3) km/h", "ground"),
+            AngleUnit::Degrees, alone);
+        t.check(west.has_bearing, "the control, so the standalone bearing really did convert");
+        t.equal(bearing_derivation.context.problem_family_id,
+                "physics.kinematics.relative-motion.components.two-dimension",
+                "and a bearing asked for on its own names this family too");
+    }
+    {
         Run solved(problem(parsed_vector("(10, -2) m/s"), parsed_vector("(4, 3) m/s")));
         t.evidence("PHYS-001", relative_motion_outcome_name(solved.result.outcome), "solved",
                    "two framed velocity vectors produce an exact relative velocity");
@@ -568,6 +604,16 @@ void run_relative_motion_tests(TestSink &t) {
                     "(6 i - 5 j) m/s",
                     "and names both of the values it was between, which a literal outcome could "
                     "not have done");
+            t.check(step.claim == ClaimType::NoClaim && step.proof_obligations.size() == 1 &&
+                        step.proof_obligations[0].id ==
+                            "obl.relative-motion.rounding-within-half-place" &&
+                        step.proof_obligations[0].text ==
+                            "the reported value is within half a unit in its last place of the exact value" &&
+                        step.verifications[0].evidence_id ==
+                            "obl.relative-motion.rounding-within-half-place" &&
+                        step.verifications[0].strength == EvidenceStrength::CandidateChecked &&
+                        step.verifications[0].outcome == VerificationOutcome::Passed,
+                    "the exact comparison discharges the significant-figures obligation");
         }
     }
     {

@@ -1,0 +1,172 @@
+problem: 2 kg block at rest on a 3-4-5 ramp, mu_s = 1
+variable: friction force
+outcome: solved
+result: 12 N
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.forces.newton-second-law
+  envelope version: <not recorded>
+  normalized problem: forces_problem(block, 2, 10, incline, (3 * (5^-1)), (4 * (5^-1)), static, 1, undeclared, friction force)
+  requested method: inventory the forces on one body, resolve them onto the surface axes, sum each axis under Newton's second law and solve for the requested unknown
+  active assumption: the body is a particle, so every force acts at one point
+  active assumption: the axes run along the supporting surface and across it
+  active assumption: the surface stays in contact, so the across-axis acceleration is zero
+  active assumption: surface is incline
+  active assumption: friction model is static
+  angle convention: <not recorded>
+  branch convention: <not recorded>
+  unit policy: exact SI conversion throughout, newtons reported exactly
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find the friction force on block
+    rule: physics.forces.plan, Free-body plan
+    claim: no claim
+    explanation: Inventory the forces, resolve them onto the axes and sum each axis
+    assumption before: the body is a particle, so every force acts at one point
+    assumption before: the axes run along the supporting surface and across it
+    assumption before: the surface stays in contact, so the across-axis acceleration is zero
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Newton's second law on axes along and across the surface
+    applicability: exactly one body carries the force inventory
+    applicability: the incline angle has an exact sine and cosine
+    applicability: every supplied quantity has its required dimension
+    applicability: the friction model and, for kinetic friction, the direction of motion are declared
+    fact: body: block
+    fact: mass: 2 kg
+    fact: surface: incline
+    fact: friction: static
+    fact: unknown: friction force
+    alternative: energy methods, which do not give the normal force
+    alternative: a connected-body system, which is outside the envelope
+    rationale: the force inventory on a single body determines both axis sums, and the requested unknown appears linearly in one of them
+    verification: arrangement check, passed, checked before the plan was recorded
+    verification: trigonometric identity, passed, checked before the plan was recorded
+    verification: dimensional analysis, passed, checked before the plan was recorded
+    verification: declaration check, passed, checked before the plan was recorded
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check every supplied quantity's dimension
+      rule: physics.forces.check-input-dimensions, Input dimensions
+      claim: definition
+      explanation: A mass, a field strength and a force each have one dimension
+      proof obligation: obl.forces.input-dimensions, every supplied quantity carries its required dimension
+      target claim: the supplied quantities have their required dimensions
+      check method: dimensional analysis
+      expected: each quantity matches its dimension
+      observed: mass, field strength and forces all matched
+      verification: dimensional analysis, passed, mass in M, gravity in L T^-2 and every force in L M T^-2
+      verified: yes
+    1.2 check
+      phase: check
+      goal: Check the incline angle is exactly representable
+      rule: physics.forces.check-angle, Exact incline angle
+      claim: definition
+      explanation: Resolving the weight needs exact trigonometric values
+      proof obligation: obl.forces.exact-angle, the angle's sine and cosine are exact rationals
+      target claim: the incline angle is exactly representable
+      check method: trigonometric identity
+      expected: sin^2 + cos^2 = 1
+      observed: sin = 0.6, cos = 0.8 satisfy sin^2 + cos^2 = 1 exactly
+      verification: trigonometric identity, passed, sin = 0.6, cos = 0.8 satisfy sin^2 + cos^2 = 1 exactly
+      verified: yes
+    1.3 transformation
+      phase: solve
+      goal: Resolve the weight onto the axes
+      rule: physics.forces.weight, Weight
+      claim: equivalent expression
+      explanation: The weight is m g downward, resolved by the incline angle
+      detail: Every force on the body goes onto the inventory before any axis is summed, and the weight is the one force that is always present. It acts vertically, so on an incline it splits into a component down the slope and a component pressing into the surface.
+      proof obligation: obl.forces.weight-components, weight is mass times gravity and its components are its exact incline projections
+      action: W = 2 * 10 = 20 N
+      before: (2 * 10)
+      after: 20
+      reversible: yes
+      verification: exact rational product, passed, W = 20 N with components -12 N along and -16 N across
+      verified: yes
+    1.4 transformation
+      phase: solve
+      goal: Sum the across axis and solve for the normal force
+      rule: physics.forces.normal-force, Normal force from the across-axis sum
+      claim: solution set preserved
+      explanation: The body stays on the surface, so the across components sum to zero
+      detail: The across axis is the one with no acceleration on it while the body keeps contact. That makes its sum an equation with one unknown, and the normal force falls out of it before friction needs it.
+      proof obligation: obl.forces.normal-from-balance, the normal force makes the exact across-axis sum zero
+      action: N = 16 N from N + (-16 N) = 0
+      before: ((N + -16) = 0)
+      after: (N = 16)
+      reversible: yes
+      verification: exact across-axis sum, passed, N = 16 N
+      verified: yes
+    1.5 check
+      phase: check
+      goal: Name each contact force's third-law partner
+      rule: physics.forces.third-law-pairs, Third-law interaction pairs
+      claim: definition
+      explanation: A third-law partner acts on the other body, so it never joins this sum
+      proof obligation: obl.forces.pairs-separate, no third-law reaction appears in the inventory of this body
+      target claim: the third-law partners are kept off this body's force sum
+      check method: inventory and pair comparison
+      expected: the pair list and the inventory are disjoint
+      observed: two pairs recorded, neither summed on block
+      verification: inventory and pair comparison, passed, block feels N and W while ramp and the Earth feel their equal and opposite partners
+      verified: yes
+    1.6 check
+      phase: check
+      goal: Compare the friction equilibrium needs with the most static friction available
+      rule: physics.forces.static-friction-limit, Static friction against its limit
+      claim: definition
+      explanation: Static friction takes the value the balance needs, up to mu_s N
+      proof obligation: obl.forces.static-within-limit, the friction equilibrium requires does not exceed mu_s N
+      target claim: the assumed equilibrium is consistent with static friction
+      check method: exact comparison of required friction against mu_s N
+      expected: the required friction is at most mu_s N
+      observed: the balance needs 12 N against a maximum of 16 N
+      verification: exact comparison of required friction against mu_s N, passed, the balance needs 12 N against a maximum of 16 N
+      verified: yes
+    1.7 transformation
+      phase: solve
+      goal: Solve the force-balance equation for the friction force
+      rule: physics.forces.solve-unknown, Solve the equation of motion
+      claim: solution set preserved
+      explanation: The unknown appears linearly, so one rearrangement isolates it
+      detail: The force balance has one unknown. Isolating it is ordinary rearrangement, and the residual check below puts the answer back into the same sum.
+      proof obligation: obl.forces.unknown-isolated, exact rearrangement isolates the requested unknown from its force-balance equation
+      action: Isolate the friction force to get 12 N
+      before: ((-12 + f) = 0)
+      after: (f = 12)
+      reversible: yes
+      verification: exact rearrangement, passed, friction force = 12 N
+      verified: yes
+    1.8 check
+      phase: check
+      goal: Substitute the answer back into the axis sum
+      rule: physics.forces.check-residual, Force-balance residual
+      claim: definition
+      explanation: A correct answer leaves the along-axis sum exactly equal to m a
+      proof obligation: obl.forces.residual-zero, the along-axis force sum minus m a is exactly zero
+      target claim: the reported answer satisfies the equation it came from
+      check method: exact substitution into the along-axis sum
+      expected: a zero residual
+      observed: the along-axis residual is 0 N
+      verification: exact substitution into the along-axis sum, passed, the along-axis residual is 0 N
+      verified: yes
+    1.9 check
+      phase: check
+      goal: Check the answer's dimension
+      rule: physics.forces.check-result-dimension, Result dimension
+      claim: definition
+      explanation: A force sum divided by a mass is an acceleration
+      proof obligation: obl.forces.result-dimension, the reported answer has the dimension its unit claims
+      target claim: the answer's unit matches its dimension
+      check method: dimensional analysis
+      expected: N is the SI unit of L M T^-2
+      observed: kg m/s^2
+      verification: dimensional analysis, passed, friction force has dimension L M T^-2
+      verified: yes

@@ -40,7 +40,7 @@ steps
     rationale: of the four constant-acceleration equations, v = v0 + a*t is the first that has t with every other quantity known and is linear in it once the values are in; no symbolic engine is attached, so the rearrangement is shown with the values already in
     verification: problem-family model validation, passed, the selected equation table is the constant-acceleration family
     verification: problem-family model validation, passed, the typed problem uses the one-dimensional kinematics family
-    verification: exact route search through the linear solver, passed, v = v0 + a*t for t
+    verification: exact route search through the solving rules, passed, v = v0 + a*t for t
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
     verified: nothing claimed
     1.1 check

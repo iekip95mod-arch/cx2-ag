@@ -114,10 +114,10 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4135), `vector_addition` (lua_module.cc:4138),
+`vector_cross` (lua_module.cc:4139), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
@@ -134,18 +134,45 @@ Two things an agent adding a binding needs to know, both learned from a review t
 **An engine existing is not the same as it being callable, and being callable is not the same as being
 reachable.** A family needs three separate things: the engine, a `lib[]` entry, and a menu entry.
 
+A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
+`walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
+lua_module.cc:4107, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:2883-2884. Its menu entry is still needed, and a shape the family does not read still
+returns nil so the shell falls back to Giac.
+
 ## What the shell can reach
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-16, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`source`: read on 2026-09-24, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
 `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
 `work`.
 
-`planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
-engines on main with no binding and no menu entry. That remaining gap is #382. When it closes, this
+`planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
+single entry point and the family is chosen by an optional flag, so one menu entry per family is what
+makes both of them reachable.
+
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+ball in a sideways wind reaches the general family.
+nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+physics.kinematics.constant-acceleration.projectile.two-dimension or
+physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
+nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
+menu entry that cannot run.
+
+`position_motion` and `ranking` still have working
+engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
+nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
+with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
+
+Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:105 and every StepCAS surface stays
+off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
+that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
 
@@ -162,7 +189,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path, used at nps/lua/nps_v4.lua:1435.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156, measureMath
+sets the expression at :3190, and the history editor sets its expression at :1437.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -224,13 +252,13 @@ place is not evidence for the other.
 
 ## What the host build does not cover
 
-<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt -->
+<!-- covers: .github/workflows/check.yml, nps/CMakeLists.txt, nps/tools/device_evidence.cc -->
 
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1330 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 723 and `nps_nspire_module` at line 929,
+`source`: nps/CMakeLists.txt:1334 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 725 and `nps_nspire_module` at line 931,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines
@@ -243,6 +271,27 @@ lua_module.cc appears in the build graph only as a phony source node rather than
 
 So on a machine or runner without luajit, **a change to the Lua bridge is never compiled**. Check
 `ninja -t targets all | grep nps_luax` before believing a green build.
+
+Two rows need a device build that a host configure never produces. device_evidence sweeps the device
+build tree for offline audit and device run records, and report_size sizes the ARM image. Without one
+they both report Skipped, so the absent device stage stays visible rather than reading as coverage of
+the device requirements.
+
+`source`: nps/CMakeLists.txt sets SKIP_RETURN_CODE 77 on device_evidence, which is what the sweep in
+tools/device_evidence.cc returns when the directory holds no records, and the branch beside report_size
+registers a row whose echoed text is the literal its SKIP_REGULAR_EXPRESSION matches.
+
+The sweep answers 0 when every record was ingested, 1 when the gate refused one, 3 when a record was
+accepted and its rows could not be appended to the evidence file, and 77 when there was nothing to
+sweep. Only 77 is a skip, so an unwritable evidence file reports the row as Failed rather than hiding
+behind the refusal count.
+
+`measured` on 2026-09-25: with no device tree, ctest -R '^(device_evidence|report_size)$' reports two
+Skipped rows and exits 0. Both Pass instead when the ndl SDK is present and NPS_DEVICE_BUILD_DIR names
+a tree holding nps_nspire.elf, nps_nspire.offline-audit.txt and the nps_nspire.luax.tns that record's
+digest is checked against. Stage only the audit record and device_evidence refuses it for a missing
+artifact rather than passing. Sweeping that same tree with NPS_EVIDENCE naming a path under a
+directory that does not exist reports 0 refused, 1 not written and exits 3.
 
 What gates those suites is a separate question from what they compile. `full` and `emulator` wait on
 `fast` alone. They used to wait on `review-ready` as well, which was right while an approving review

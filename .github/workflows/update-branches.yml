@@ -1,12 +1,14 @@
 name: Update issue branches
+# Disabled 2026-09-21. The hosted agent workflow is abandoned, see docs/agent-workflow-archive.md.
+# The automatic triggers are kept here commented out rather than deleted.
 on:
-  push:
-    branches: [main]
-  pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review]
-  workflow_run:
-    workflows: [check]
-    types: [completed]
+#  push:
+#    branches: [main]
+#  pull_request_target:
+#    types: [opened, reopened, synchronize, ready_for_review]
+#  workflow_run:
+#    workflows: [check]
+#    types: [completed]
   workflow_dispatch:
 
 permissions:

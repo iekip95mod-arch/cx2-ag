@@ -29,6 +29,8 @@
 #include "nps/steps/derivation.h"
 #include "nps/steps/command.h"
 #include "nps/steps/calculus.h"
+#include "nps/steps/implicit.h"
+#include "nps/steps/separable.h"
 #include "nps/ui/canvas.h"
 #include "nps/ui/bitmap.h"
 #include "nps/steps/integer.h"
@@ -596,9 +598,9 @@ bool dependency_failure_tag(const std::string &tag) {
 }
 
 // A cancellation leads, because the learner asking to stop is the one terminal condition that is
-// not a statement about the backend. It is read before the dependency and comparison cases for the
-// same reason section 15 keeps the four apart: a stop nobody recorded reads as a check that merely
-// could not run, and the two are different facts.
+// not a statement about the backend. It is read first because PRD PERF-009 forbids a cancel that
+// leaves a mislabeled derivation, and AGENTS.md keeps cancellation distinct: a stop nobody recorded
+// reads as a check that merely could not run, and the two are different facts.
 DerivationStatus cross_checked_status(DerivationStatus local, const CrossCheck &check) {
     if (check.cancelled)
         return DerivationStatus::Cancelled;
@@ -1131,8 +1133,9 @@ int l_capability_manifest(lua_State *L) {
     lua_newtable(L);
     set_field(L, "name", manifest.symbolic_backend.name);
     set_field(L, "version", manifest.symbolic_backend.version);
+    // No availability key: SymbolicBackendCapability has no such field and integrity_status already
+    // answers that question, so an invented one would have read false in every state.
     if (integrity_failed) {
-        set_field(L, "available", false);
         set_field(L, "interface_id", "unavailable");
         set_field(L, "deployment", "integrity-rejected");
     } else {
@@ -1403,16 +1406,11 @@ int parse_failed(lua_State *L, const ParseResult &r) {
 }
 
 // canonicalize answers kNoNode for a form it does not handle as well as for a limit it hit, and the
-// arena is the only thing that knows which. Naming the limit unconditionally sent a reader to
-// shorten an expression whose size was never the problem.
+// arena is the only thing that knows which. Both the reading and its wording live in core, where a
+// starved arena can be built on purpose and no caller here can reach either arm.
 int canonical_refused(lua_State *L, const Arena &arena) {
     lua_pushnil(L);
-    if (canonical_refusal(arena) == CanonicalRefusal::Unsupported) {
-        lua_pushliteral(L, "this expression has no canonical form in StepCAS");
-        return 2;
-    }
-    std::string msg = "the expression outgrew the limits while being put in canonical form: ";
-    msg += status_name(arena.status());
+    const std::string msg = canonical_refusal_message(arena);
     lua_pushlstring(L, msg.data(), msg.size());
     return 2;
 }
@@ -2764,6 +2762,110 @@ int calculus_into(lua_State *L) {
     return 1;
 }
 
+// CALC-007. The derivative is an expression in both variables, so the bridge also names the symbol
+// that stood for it in the walkthrough and the conditions the answer carries.
+int implicit_into(lua_State *L) {
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 1, &size);
+    const NumericMode mode = mode_argument(L, 3);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable)) return 2;
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    derivation.request.original_expression.assign(text, size);
+    derivation.request.numeric_mode = mode;
+    const Command command = parse_command(arena, derivation.request.original_expression, variable);
+    const ImplicitResult result = implicit_differentiate(arena, derivation, command.expression, command.variable,
+                                                         command.dependent, interactive_budget());
+    std::string normalization;
+    std::string why;
+    if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
+        return expression_resource_failure(L, why);
+    derivation.context.normalized_expression = normalization;
+    const std::string answer = result.derivative == kNoNode ? std::string() : print(arena, result.derivative);
+    const std::string symbol = result.symbol == kNoNode ? std::string() : arena.text(result.symbol);
+    lua_newtable(L);
+    set_field(L, "mode", command_kind_name(command.kind));
+    set_field(L, "outcome", implicit_outcome_name(result.outcome));
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == ImplicitOutcome::Differentiated);
+    set_field(L, "has_result", !answer.empty());
+    set_field(L, "answer_only", false);
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_field(L, "request_expression", derivation.request.original_expression);
+    set_expression_context(L, derivation.context);
+    if (!answer.empty()) set_field(L, "result", answer);
+    if (!symbol.empty()) set_field(L, "derivative_symbol", symbol);
+    lua_newtable(L);
+    for (size_t i = 0; i < result.restrictions.size(); ++i) {
+        lua_pushlstring(L, result.restrictions[i].data(), result.restrictions[i].size());
+        lua_rawseti(L, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(L, -2, "restrictions");
+    set_field(L, "result_form", result_form_name(primary_result_form(!answer.empty(), false, result.status,
+                                                                     ResultForm::NoResult)));
+    set_field(L, "giac_tag", "unavailable");
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    if (derivation.size() == 0) push_no_steps(L);
+    else push_steps(L, arena, derivation);
+    return 1;
+}
+
+// A form refused or left unconfirmed returns nil so the shell falls back to Giac as before.
+int separable_into(lua_State *L) {
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 1, &size);
+    const NumericMode mode = mode_argument(L, 3);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable)) return 2;
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    derivation.request.original_expression.assign(text, size);
+    derivation.request.numeric_mode = mode;
+    const Command command = parse_command(arena, derivation.request.original_expression, variable);
+    const SeparableResult result =
+        solve_separable(arena, derivation, command, interactive_budget());
+    if (result.outcome == SeparableOutcome::UnsupportedForm ||
+        result.outcome == SeparableOutcome::Refused) {
+        lua_pushnil(L);
+        return 1;
+    }
+    std::string normalization;
+    std::string why;
+    if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
+        return expression_resource_failure(L, why);
+    derivation.context.normalized_expression = normalization;
+    const std::string answer = result.solution != kNoNode ? print(arena, result.solution) : "";
+    lua_newtable(L);
+    set_field(L, "mode", command_kind_name(command.kind));
+    set_field(L, "outcome", separable_outcome_name(result.outcome));
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == SeparableOutcome::Solved);
+    set_field(L, "has_result", !answer.empty());
+    set_field(L, "answer_only", false);
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_field(L, "request_expression", derivation.request.original_expression);
+    set_expression_context(L, derivation.context);
+    if (!answer.empty()) {
+        set_field(L, "result", answer);
+        set_field(L, "explicit_solution", result.explicit_solution);
+    }
+    if (result.constant != kNoNode) set_field(L, "constant", print(arena, result.constant));
+    set_field(L, "result_form",
+              result_form_name(primary_result_form(!answer.empty(), false, result.status,
+                                                   ResultForm::NoResult)));
+    set_field(L, "giac_tag", "unavailable");
+    set_field(L, "giac_form", result_form_name(ResultForm::NoResult));
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    if (derivation.size() == 0) push_no_steps(L);
+    else push_steps(L, arena, derivation);
+    return 1;
+}
+
 int l_walkthrough(lua_State *L) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
@@ -2795,7 +2897,8 @@ int l_walkthrough(lua_State *L) {
             return 1;
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
-            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
+            kind != CommandKind::Implicit && kind != CommandKind::Desolve) {
         lua_settop(L, 4);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2807,6 +2910,9 @@ int l_walkthrough(lua_State *L) {
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
         kind == CommandKind::Tangent || kind == CommandKind::Linearize)
         return calculus_into(L);
+    if (kind == CommandKind::Implicit) return implicit_into(L);
+    if (kind == CommandKind::Desolve)
+        return separable_into(L);
     int count;
     if (kind == CommandKind::Solve)
         count = solve_into(L, true);
