@@ -1,0 +1,75 @@
+problem: simpsum(x^4, x, 0, 1, 2)
+outcome: approximated
+result: (5 * (24^-1)) within (1 * (120^-1))
+detail: the exact integral is (1 * (5^-1)), and the approximation is within the bound of it
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.numerical-integral.polynomial
+  envelope version: 1
+  normalized problem: simpsum((x^4), x, 0, 1, 2)
+  requested method: simpsum
+  active assumption: the function is a polynomial, so it is continuous and differentiable everywhere
+  angle convention: not applicable
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: numerically approximated
+steps
+  1 plan
+    phase: Plan
+    goal: Approximate with Simpson's rule
+    rule: plan.numeric-simpson, Simpson's rule
+    claim: no claim
+    explanation: The learner asked for this method by name, so the answer is an approximation with a stated bound.
+    detail: Every value is computed exactly as a fraction, so the only error is the method's own.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Simpson's rule
+    applicability: the function is a polynomial in one variable, so it is continuous
+    fact: simpsum((x^4), x, 0, 1, 2)
+    rationale: The method was requested explicitly, as CALC-019 requires.
+    verification: polynomial shape reading, passed, Approximate with Simpson's rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.quad-sum, Sum Simpson's weights
+      claim: definition
+      explanation: h/3 times the ends plus four times each odd node plus twice each even interior node
+      detail: Replace the curve on each pair of intervals by a parabola, whose area is exact.
+      proof obligation: obl.numeric.rule-sum, the approximation is the weighted sum the rule prescribes
+      action: h/3 times the ends plus four times each odd node plus twice each even interior node
+      before: simpsum((x^4), x, 0, 1, 2)
+      after: (5 * (24^-1))
+      reversible: no
+      verification: exact rational weighted sum, passed, h/3 times the ends plus four times each odd node plus twice each even interior node
+      verified: yes
+    1.2 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.quad-bound, State the error bound
+      claim: implication
+      explanation: (b-a) h^4 max|f''''| / 180, with max|f''''| bounded from the coefficients
+      detail: The rule's error grows with how sharply the function bends, which a higher derivative measures.
+      proof obligation: obl.numeric.error-bound, the error is at most the rule's bound
+      action: (b-a) h^4 max|f''''| / 180, with max|f''''| bounded from the coefficients
+      before: (5 * (24^-1))
+      after: (1 * (120^-1))
+      reversible: no
+      verification: derivative bound from the coefficients, passed, (b-a) h^4 max|f''''| / 180, with max|f''''| bounded from the coefficients
+      verified: yes
+    1.3 check
+      phase: Check
+      goal: Check the stated bound
+      rule: num.quad-check, Compare with the exact integral
+      claim: implication
+      explanation: A polynomial has an exact antiderivative, so the bound can be checked rather than trusted.
+      proof obligation: obl.numeric.bound-holds, the exact value lies within the stated bound of the answer
+      target claim: the exact integral lies within the bound of the approximation
+      check method: exact integral comparison
+      expected: within the bound
+      observed: the exact integral is (1 * (5^-1)), and the approximation is within the bound of it
+      verification: exact integral comparison, passed, the exact integral is (1 * (5^-1)), and the approximation is within the bound of it
+      verified: yes

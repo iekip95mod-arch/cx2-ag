@@ -335,6 +335,59 @@ const ObligationSchema kEquationSameSolutions[] = {
      kEqualityInvariant, 1},
 };
 
+// calculus.numerical-root.polynomial and calculus.numerical-integral.polynomial
+const EvidenceAlternative kPolynomialShape[] = {
+    {"polynomial shape reading", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kExactSign[] = {
+    {"exact sign evaluation", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kIntermediateValue[] = {
+    {"sign change by the intermediate value theorem", EvidenceStrength::StructurallyValid},
+    {"exact integral comparison", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kPowerRuleCoefficients[] = {
+    {"power rule on each coefficient", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kNewtonUpdate[] = {
+    {"exact Newton update rounded to the working grid", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kWeightedSum[] = {
+    {"exact rational weighted sum", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kDerivativeBound[] = {
+    {"derivative bound from the coefficients", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kBisectionStrategy[] = {
+    {"pre.numeric.polynomial", "the function is a polynomial in one variable, so it is continuous", kPolynomialShape, 1},
+    {"pre.numeric.sign-change", "the function has opposite signs at the two ends, or a zero at one", kExactSign, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kNumericStrategy[] = {
+    {"pre.numeric.polynomial", "the function is a polynomial in one variable, so it is continuous", kPolynomialShape, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kRootInBracket[] = {
+    {"obl.numeric.root-in-bracket", "a root lies in the new bracket", kExactSign, 1},
+};
+const ObligationSchema kBoundHolds[] = {
+    {"obl.numeric.bound-holds", "the answer is within the stated bound of the true value", kIntermediateValue, 2},
+};
+const ObligationSchema kNumericDerivative[] = {
+    {"obl.numeric.derivative", "the derivative is read from the coefficients by the power rule", kPowerRuleCoefficients, 1},
+};
+const ObligationSchema kNewtonStep[] = {
+    {"obl.numeric.newton-update", "the next iterate is x - f(x)/f'(x) rounded to the working grid", kNewtonUpdate, 1},
+};
+const ObligationSchema kRuleSum[] = {
+    {"obl.numeric.rule-sum", "the approximation is the weighted sum the rule prescribes", kWeightedSum, 1},
+};
+const ObligationSchema kErrorBound[] = {
+    {"obl.numeric.error-bound", "the error is at most the rule's bound", kDerivativeBound, 1},
+};
+
 // The physics families share a vocabulary of checks, so the alternatives below are named once and
 // referred to by several obligations. Each is the method string the engine records, and the
 // strength it declares when it passes.
@@ -1741,6 +1794,18 @@ const RuleSchema kRules[] = {
      FailureBehavior::CannotFail},
     {"alg.rearrange.check-by-substitution", ClaimType::SolutionSetPreserved, kSubstitutionIdentity,
      1, FailureBehavior::WithholdResult},
+    {"plan.numeric-bisection", ClaimType::NoClaim, kBisectionStrategy, 3, FailureBehavior::WithholdResult},
+    {"plan.numeric-newton", ClaimType::NoClaim, kNumericStrategy, 2, FailureBehavior::WithholdResult},
+    {"plan.numeric-trapezoid", ClaimType::NoClaim, kNumericStrategy, 2, FailureBehavior::WithholdResult},
+    {"plan.numeric-simpson", ClaimType::NoClaim, kNumericStrategy, 2, FailureBehavior::WithholdResult},
+    {"num.bisect-halve", ClaimType::Implication, kRootInBracket, 1, FailureBehavior::WithholdResult},
+    {"num.bisect-check", ClaimType::Implication, kBoundHolds, 1, FailureBehavior::WithholdResult},
+    {"num.newton-derivative", ClaimType::Definition, kNumericDerivative, 1, FailureBehavior::WithholdResult},
+    {"num.newton-iterate", ClaimType::Definition, kNewtonStep, 1, FailureBehavior::WithholdResult},
+    {"num.newton-check", ClaimType::Implication, kBoundHolds, 1, FailureBehavior::WithholdResult},
+    {"num.quad-sum", ClaimType::Definition, kRuleSum, 1, FailureBehavior::WithholdResult},
+    {"num.quad-bound", ClaimType::Implication, kErrorBound, 1, FailureBehavior::WithholdResult},
+    {"num.quad-check", ClaimType::Implication, kBoundHolds, 1, FailureBehavior::WithholdResult},
 
     // numeric mode
     {"num.decimal-to-rational", ClaimType::EquivalentExpression, kDecimalReadsAsWritten, 1,
