@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 188, "every palette entry survives the regrouping: " .. entries .. " of 188")
+    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
