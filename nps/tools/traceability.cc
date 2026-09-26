@@ -17,6 +17,7 @@
 
 #include "catalog.h"
 #include "evidence.h"
+#include "scratch_directory.h"
 
 using nps_tools::count_text;
 using nps_tools::Family;
@@ -474,6 +475,16 @@ int analyse(const std::string &prd, const std::string &evidence_path,
     report << "An unmet row may carry the reason no check in this repository evidences it: a device "
               "stage it does not run, a governance rule no run can exhibit, or a requirement only "
               "partly checked. A reason is not evidence, and those rows count as unmet.\n\n";
+    // Issue 423 asked whether a family gap should fail the run. It should not, and the report says
+    // why where a reader of a green suite will see it.
+    report << "This run fails on faults, which are an unknown requirement id, failing evidence, a "
+              "catalog test group that did not run, a module scope it cannot read, or a reason "
+              "that has gone stale. A family missing from an `Every <domain> module shall` "
+              "requirement is a gap rather than a fault: the requirement's row says unmet and "
+              "names the family, it is not counted as evidenced, and like every other unmet "
+              "requirement it is left for the release gate in PRD sections 20 and 28 rather than "
+              "failing the run. This run found "
+           << count_text(outcome.universal_family_gaps) << " such gaps.\n\n";
 
     size_t evidenced = 0;
     size_t prioritised = 0;
@@ -627,14 +638,14 @@ int analyse(const std::string &prd, const std::string &evidence_path,
 // On staged inputs, since the PRD and catalog in the tree list each requirement once and hold no
 // structural fault, and a refusal that has never fired is indistinguishable from no refusal.
 int selftest() {
-    char pattern[] = "/tmp/nps_traceability_XXXXXX";
-    const char *made = ::mkdtemp(pattern);
-    if (made == nullptr) {
+    const nps::ScratchDirectory scratch("nps_traceability_");
+    const std::string &made = scratch.path();
+    if (made.empty()) {
         std::cout << "traceability selftest: no temporary directory\n";
         return 1;
     }
-    const std::string once_path = std::string(made) + "/once.md";
-    const std::string twice_path = std::string(made) + "/twice.md";
+    const std::string once_path = made + "/once.md";
+    const std::string twice_path = made + "/twice.md";
     {
         std::ofstream out(once_path.c_str());
         out << "| ID | Priority | Requirement |\n|---|---|---|\n"
@@ -650,19 +661,19 @@ int selftest() {
             << "| MATH-001 | P2 | The first again, at another priority |\n";
     }
 
-    const std::string good_prd = std::string(made) + "/prd-good.md";
-    const std::string malformed_prd = std::string(made) + "/prd-malformed.md";
-    const std::string unmatched_prd = std::string(made) + "/prd-unmatched.md";
-    const std::string wide_domain_prd = std::string(made) + "/prd-wide-domain.md";
-    const std::string short_scope_prd = std::string(made) + "/prd-short-scope.md";
-    const std::string late_module_prd = std::string(made) + "/prd-late-module.md";
-    const std::string unshalled_prd = std::string(made) + "/prd-unshalled.md";
-    const std::string good_catalog = std::string(made) + "/catalog-good.md";
-    const std::string unevidenced_catalog = std::string(made) + "/catalog-unevidenced.md";
-    const std::string untagged_catalog = std::string(made) + "/catalog-untagged.md";
-    const std::string absent_catalog = std::string(made) + "/catalog-absent.md";
-    const std::string evidence_file = std::string(made) + "/evidence.txt";
-    const std::string report = std::string(made) + "/report.md";
+    const std::string good_prd = made + "/prd-good.md";
+    const std::string malformed_prd = made + "/prd-malformed.md";
+    const std::string unmatched_prd = made + "/prd-unmatched.md";
+    const std::string wide_domain_prd = made + "/prd-wide-domain.md";
+    const std::string short_scope_prd = made + "/prd-short-scope.md";
+    const std::string late_module_prd = made + "/prd-late-module.md";
+    const std::string unshalled_prd = made + "/prd-unshalled.md";
+    const std::string good_catalog = made + "/catalog-good.md";
+    const std::string unevidenced_catalog = made + "/catalog-unevidenced.md";
+    const std::string untagged_catalog = made + "/catalog-untagged.md";
+    const std::string absent_catalog = made + "/catalog-absent.md";
+    const std::string evidence_file = made + "/evidence.txt";
+    const std::string report = made + "/report.md";
     {
         std::ofstream out(good_prd.c_str());
         out << "| ID | Priority | Requirement |\n|---|---|---|\n"
@@ -791,14 +802,14 @@ int selftest() {
     Outcome absent;
     const int absent_status = analyse(good_prd, evidence_file, absent_catalog, report, &absent);
 
-    const std::string familyless_catalog = std::string(made) + "/catalog-familyless.md";
+    const std::string familyless_catalog = made + "/catalog-familyless.md";
     {
         // A catalog that reads and names no family, which leaves the requirements linked to nothing.
         std::ofstream out(familyless_catalog.c_str());
         out << "This catalog names no family.\n";
     }
-    const std::string absent_evidence = std::string(made) + "/evidence-that-no-run-wrote.txt";
-    const std::string unwritable_report = std::string(made) + "/no-such-directory/report.md";
+    const std::string absent_evidence = made + "/evidence-that-no-run-wrote.txt";
+    const std::string unwritable_report = made + "/no-such-directory/report.md";
 
     // The three input refusals, each handed an Outcome carrying counts no run produced, so a return
     // that leaves the out-parameter alone is visible instead of reading back as a clean run.
@@ -854,6 +865,7 @@ int selftest() {
     Outcome stale;
     const int stale_status = analyse(reason_prd, reason_evidence, good_catalog, report, &stale,
                                      governance_on_evidenced);
+    const std::string stale_report = file_text(report);
     Outcome unknown_named;
     const int unknown_named_status = analyse(reason_prd, reason_evidence, good_catalog, report,
                                              &unknown_named, unknown_reason);
@@ -881,6 +893,9 @@ int selftest() {
         {gap_report.find("unmet, missing family evidence: physics.probe.unevidenced") !=
              std::string::npos,
          "that gap is still written into the report row"},
+        {gap_report.find("is a gap rather than a fault") != std::string::npos &&
+             gap_report.find("This run found 1 such gaps.") != std::string::npos,
+         "and the report says the gap is not enforced by the run, and how many there are"},
         {malformed_status == 1 && malformed.universal_scope_faults == 1 &&
              malformed.universal_family_gaps == 0,
          "a PRD scope the tool cannot parse is a fault that fails the run"},
@@ -940,6 +955,8 @@ int selftest() {
          "and without one the same row is the bare absence it was, which is the control"},
         {stale_status == 1 && stale.stale_reasons == 1,
          "a governance reason on a requirement that is evidenced is stale and fails the run"},
+        {stale_report.find("or a reason that has gone stale") != std::string::npos,
+         "and the report's fault list names that as the reason the run failed"},
         {unknown_named_status == 1 && unknown_named.stale_reasons == 1,
          "a reason for a requirement the PRD does not have fails the run"},
         {device_evidenced_status == 0 && device_evidenced.stale_reasons == 0 &&

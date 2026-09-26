@@ -4,11 +4,14 @@
 # configure refuses an input that does not exist yet. Reads the list the configure recorded, so
 # adding an input to a hash brings it under this check without a second edit here.
 #
-# The bootstrapped SDK and cross toolchain artifacts are hashed today and are not tracked, which is
-# issue 222. Until that hash moves onto sources, the calls that hash them declare them through
+# The bootstrapped SDK and cross toolchain artifacts a device configure hashes are not tracked, which
+# is issue 490. Until that hash moves onto sources, the calls that hash them declare them through
 # nps_defer_manifest_inputs and this check skips exactly those. It does not skip a path pattern, and
 # a deferral no hash recorded fails here, and so does a deferral set the repository has come to track
-# in full, so landing 222 is what removes the exemption rather than a later reader deciding to.
+# in full, so landing 490 is what removes the exemption rather than a later reader deciding to.
+
+# The issue that owns the deferral, named once so every message points at the same open work.
+set(owner_issue 490)
 
 if(NOT DEFINED INPUTS)
     message(FATAL_ERROR "INPUTS was not supplied")
@@ -61,7 +64,7 @@ endfunction()
 # A deferral earns its exemption by naming an input some hash actually recorded. The declaring call
 # names a whole hash, and part of that hash is tracked source already, so a tracked entry in here is
 # ordinary. What is not ordinary is every entry being tracked, because then the exemption covers
-# nothing and 222 is finished.
+# nothing and the owning issue is finished.
 set(unrecorded "")
 set(still_untracked "")
 foreach(input IN LISTS deferred)
@@ -121,11 +124,11 @@ if(missing OR untracked OR unrecorded OR obsolete)
         string(APPEND report "deferred inputs no manifest hash recorded:\n  ${unrecorded_text}\n")
     endif()
     if(obsolete)
-        string(APPEND report "every deferred input is tracked now, so drop the deferral and close 222:\n  ${obsolete_text}\n")
+        string(APPEND report "every deferred input is tracked now, so drop the deferral and close ${owner_issue}:\n  ${obsolete_text}\n")
     endif()
     message(FATAL_ERROR "${report}a manifest input is a tracked source, not a build product")
 endif()
 
 list(LENGTH checked checked_count)
 list(LENGTH still_untracked deferred_count)
-message(STATUS "${checked_count} manifest inputs, all tracked, and ${deferred_count} build products deferred to issue 222")
+message(STATUS "${checked_count} manifest inputs, all tracked, and ${deferred_count} build products deferred to issue ${owner_issue}")
