@@ -143,11 +143,30 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
 `work`.
 
-`planar_kinematics` is now reachable from that menu. `position_motion` and `ranking` still have working
+`planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
+single entry point and the family is chosen by an optional flag, so one menu entry per family is what
+makes both of them reachable.
+
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+ball in a sideways wind reaches the general family.
+nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+physics.kinematics.constant-acceleration.projectile.two-dimension or
+physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
+nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
+menu entry that cannot run.
+
+`position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
 nps/src/platform/nspire/lua_module.cc on 2026-09-24. #382 asked for all three and closed through #405
 with only `planar_kinematics` wired, so no open issue tracks the other two. When either is wired, this
 paragraph is wrong and has to change with it.
+
+Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:105 and every StepCAS surface stays
+off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
+that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
 
