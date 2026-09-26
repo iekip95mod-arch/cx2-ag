@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 188, "every palette entry survives the regrouping: " .. entries .. " of 188")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4475,6 +4475,8 @@ do
         { "Templates", "Derivative, how fast something changes", "(x^2,x)", "differentiate", "x^2" },
         { "Templates", "Integral, the area under a curve", "∫(1/x,x)", "integrate", "1/x" },
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
+        { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
+        { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }
@@ -4860,6 +4862,34 @@ if os.getenv("NPS_COMMAND_MODULE") then
         check(env.steps.active and record and record.mode == "determinant" and not record.solved and
               record.result == nil and #record.steps == 0 and evaluated == before_evaluation,
               "a nonsquare determinant stays a native refusal in the walkthrough viewer")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
+    -- CALC-012. The desolve menu entry runs natively and still reaches Giac outside the family.
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Differential Equation") and env.fctEditor:getExpression() == "desolve(",
+          "the existing differential equation menu inserts desolve")
+    env.fctEditor:addString("y'=x*y,x,y)")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation,
+              "a separable equation from the menu executes natively without a CAS fallback")
+        check(env.steps.active and record and record.solved and
+              record.mode == "differential equation" and
+              record.request_expression == "desolve(y'=x*y,x,y)" and
+              record.result == "(y = exp((((x^2) * (2^-1)) + C)))" and #record.steps > 0,
+              "the native separable walkthrough opens with its explicit solution")
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+        env.fctEditor.editor:setExpression("\\0el {desolve(y'=x+y,x,y)}")
+        before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation + 1,
+              "an equation the separable family does not read falls back to Giac as before")
         if env.steps.active then env.on.escapeKey() end
     end
 
@@ -6858,7 +6888,7 @@ do
             state.scroll = delta
             state.selected = state.scroll_selection or state.selected
             if state.failure == "missing selection" then return true end
-            if state.failure == "invalid selection" then return true, 25 end
+            if state.failure == "invalid selection" then return true, #state.labels + 1 end
             return state.failure ~= "scroll", state.selected
         end
         module.ui_menu_frame = function()
@@ -6931,7 +6961,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 22 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 23 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6946,12 +6976,15 @@ do
     check(state.labels[21] == "Tangent line at a point" and state.labels[22] == "Linearization at a point" and
           state.descriptions[22]:find("approximation", 1, true) ~= nil,
           "the tangent templates are offered and the linearization says it approximates")
+    -- CALC-007. The implicit template says what the answer is written in.
+    check(state.labels[23] == "Implicit derivative dy/dx" and state.descriptions[23]:find("dydx", 1, true) ~= nil,
+          "the implicit template is offered and names the derivative symbol")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 22, "up from the first template reaches the final template")
+    check(state.selected == 23, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()

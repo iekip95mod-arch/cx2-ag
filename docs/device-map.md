@@ -114,16 +114,16 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4065), `vector_addition` (lua_module.cc:4068),
-`vector_cross` (lua_module.cc:4069), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, `export_text` (lua_module.cc:4036), and a set of platform entry points for
+`optics`, `unit_conversion` (lua_module.cc:4175), `vector_addition` (lua_module.cc:4178),
+`vector_cross` (lua_module.cc:4179), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4146), and a set of platform entry points for
 memory, tracing, integrity and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
-library. `source`: read on 2026-09-25, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:3941, and
+library. `source`: read on 2026-09-26, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4051, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -139,6 +139,12 @@ Two things an agent adding a binding needs to know, both learned from a review t
 **An engine existing is not the same as it being callable, and being callable is not the same as being
 reachable.** A family needs three separate things: the engine, a `lib[]` entry, and a menu entry.
 
+A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
+`walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
+lua_module.cc:4147, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:2883-2884. Its menu entry is still needed, and a shape the family does not read still
+returns nil so the shell falls back to Giac.
+
 ## What the shell can reach
 
 <!-- covers: nps/lua/nps_v4.lua -->
@@ -152,13 +158,13 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2749 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2760-2767 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/src/core/capability_manifest.cc:42-43 and required of the loaded module at
 nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
@@ -170,7 +176,7 @@ paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
 manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
-off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
+off. The build fails first, at nps/src/core/capability_manifest.cc:66, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
@@ -188,8 +194,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3176, measureMath
-sets the expression at :3210, and the history editor sets its expression at :1438.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3178, measureMath
+sets the expression at :3212, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -256,8 +262,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1332 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 723 and `nps_nspire_module` at line 929,
+`source`: nps/CMakeLists.txt:1336 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 727 and `nps_nspire_module` at line 933,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines
