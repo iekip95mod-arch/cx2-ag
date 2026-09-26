@@ -193,6 +193,16 @@ void test_laws(TestSink &t) {
         t.check(r.result.status == DerivationStatus::Unsupported && r.result.expression == kNoNode,
                 "and offers nothing: " + status(r));
     }
+    {
+        const Run r = run("x^1000000000*x");
+        t.equal(outcome(r), "outside envelope", "an enormous exponent is outside the envelope");
+        t.check(r.result.detail.find("1024") != std::string::npos && r.rules.empty(),
+                "and is refused by its size before any step or check runs: " + r.result.detail);
+        std::string why;
+        const PowerReading reading = compare("x^2000", "x^2000", &why);
+        t.check(reading == PowerReading::Unreadable && why.find("outside") != std::string::npos,
+                "nor does the checker try to evaluate it: " + why);
+    }
     t.equal(outcome(run("x*y")), "outside envelope", "two variables are outside the envelope");
     t.equal(outcome(run("sin(x)^2")), "outside envelope", "a function other than a root is outside it");
     t.equal(outcome(run("1.5*x")), "outside envelope", "a decimal is outside it");

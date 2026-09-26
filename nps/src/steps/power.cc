@@ -17,6 +17,7 @@ namespace {
 
 constexpr size_t kValueBits = 20000;
 constexpr int64_t kMaxLcm = 12;
+constexpr int64_t kMaxExponent = 1024;
 
 // A GMP rational that can be copied, for values carried through the evaluator.
 class Q {
@@ -436,6 +437,8 @@ bool read_shape(const Arena &arena, NodeId id, Shape *shape, Rational *degree, i
             if (!constant_exponent(arena, kids[1], &exponent) || !read_shape(arena, kids[0], shape, &base, depth + 1))
                 return false;
             if (exponent.den != 1 && !monomial(arena, kids[0]))
+                return false;
+            if (exponent.num > kMaxExponent || exponent.num < -kMaxExponent)
                 return false;
             shape->lcm = std::lcm(shape->lcm, exponent.den);
             const Rational magnitude{exponent.num < 0 ? -exponent.num : exponent.num, exponent.den};
@@ -924,6 +927,12 @@ PowerResult simplify_powers(Arena &arena, Derivation &derivation, NodeId express
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode, "enter an expression");
     Shape shape;
     Rational degree;
+    if (arena.any_node(expression, [&arena](NodeId n) {
+            Rational e;
+            return arena.at(n).kind == Kind::Pow && constant_exponent(arena, arena.children(n)[1], &e) &&
+                   (e.num > kMaxExponent || e.num < -kMaxExponent);
+        }))
+        return run.finish(PowerOutcome::OutsideEnvelope, kNoNode, "an exponent whose numerator exceeds 1024 in size is outside the envelope");
     if (!read_shape(arena, expression, &shape, &degree))
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode,
                           "every part has to be built from numbers and one variable with sums, products, whole or "

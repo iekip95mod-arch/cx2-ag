@@ -1341,7 +1341,7 @@ reference_curriculum_set_ids none, this family answers PRD ALG-006 beyond the MV
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-006
 topic_and_level Simplifying powers and radicals in one variable over the real numbers, keeping the condition each law needs
 family_envelope_version 1
-accepted_expression_grammar sums, products, negations and quotients of integers and one variable, whole and rational powers with least common exponent denominator at most 12, square roots and absolute values, where every rational power and every square root is taken of a single term
+accepted_expression_grammar sums, products, negations and quotients of integers and one variable, whole and rational powers with least common exponent denominator at most 12 and every exponent numerator at most 1024 in size, square roots and absolute values, where every rational power and every square root is taken of a single term
 accepted_input_forms the powsimp(expr) menu command, for example powsimp(sqrt(x^2)) or powsimp(sqrt(12)), in exact mode
 domains_and_parameter_assumptions the real domain. Odd roots of negative numbers are real and negative, even roots are taken only of values that are not negative, and a negative exponent needs its base not zero
 supported_branches_and_degenerate_cases a square root is written as a power of one half, a root of a number has its largest perfect power taken out, a power of a power multiplies the exponents with an absolute value when an even power meets an even root, a power of a product is split over its factors, powers of a common base add their exponents, a first power is its base, and a power of one half is written back as a square root. An expression with nothing to rewrite is already in form, and an even root of a negative number is refused as having no real value
@@ -1353,7 +1353,7 @@ test_group_ids power, command
 proof_obligation_ids obl.plan.preconditions-hold, obl.power.same-values
 strategy_ids plan.power-laws
 supported_methods every step applies one named power law to one subterm. Each step and the result are checked by substituting plus and minus t to the power twice the least common exponent denominator for the variable, which makes both sides sums of powers of t with coefficients in the span of roots of primes, and comparing them exactly at more points than their difference could vanish at. Roots of distinct primes are linearly independent over the rationals, so equal representations are a proof
-unsupported_near_neighbors two or more variables, roots of sums, functions other than sqrt and abs, decimals, exponent denominators whose least common multiple exceeds 12, and numbers under a root with a factor past the trial division bound of 100000
+unsupported_near_neighbors two or more variables, roots of sums, functions other than sqrt and abs, decimals, exponent denominators whose least common multiple exceeds 12, exponent numerators above 1024 in size, and numbers under a root with a factor past the trial division bound of 100000
 solution_soundness_status every step and the result are checked by exact evaluation on each branch of the real domain beyond the degree, which is a proof rather than a sample
 solution_completeness_status the rewrite stops when no power law applies, with each law's condition published. Cancellation and Meter limits retain the verified prefix without a final result
 corpus_case_ids the golden fixtures naming this family
