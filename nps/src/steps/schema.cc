@@ -1594,7 +1594,7 @@ const ObligationSchema kMatrixDeterminantResult[] = {
 const RuleSchema kRules[] = {
     // algebra.linear-equation.one-unknown
     {"eq.linear.inverse-operations", ClaimType::NoClaim, kLinearStrategy, 3,
-     FailureBehavior::WithholdResult},
+     FailureBehavior::WithholdResult, false, "algebra.linear-equation.one-unknown"},
     {"eq.collect-like-terms", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
      FailureBehavior::CannotFail},
     {"eq.divide-both-sides", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
@@ -1609,7 +1609,7 @@ const RuleSchema kRules[] = {
     // already checked non-zero, and the rejection is only recorded for a square already read as
     // negative. The three that withhold are the three that can come back false about the answer.
     {"eq.quadratic.square-root", ClaimType::NoClaim, kSquareRootStrategy, 3,
-     FailureBehavior::WithholdResult},
+     FailureBehavior::WithholdResult, false, "algebra.quadratic.pure-square.one-unknown"},
     {"eq.quadratic.isolate-the-square", ClaimType::SolutionSetPreserved, kSameSolutions, 1,
      FailureBehavior::CannotFail},
     {"eq.quadratic.square-root-case", ClaimType::SolutionSetNarrowed, kCaseIsARoot, 1,

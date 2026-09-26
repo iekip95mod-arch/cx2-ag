@@ -77,6 +77,8 @@ struct RuleSchema {
     // instantiated at a point and a physical law applied to build the very equation that then
     // failed, and only the first survives.
     bool survives_refusal = false;
+    // The problem_family_id a strategy's record_context writes on every exit, refusal included. Null for a non-strategy rule.
+    const char *family = nullptr;
 };
 
 // Null when the rule has not been declared yet, which the invariant pass counts rather than treats

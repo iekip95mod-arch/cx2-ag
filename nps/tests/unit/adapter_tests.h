@@ -70,17 +70,20 @@ inline bool rule_case_holds(const Derivation &derivation, const std::string &rul
                          status != DerivationStatus::Cancelled &&
                          status != DerivationStatus::ResourceLimitReached &&
                          status != DerivationStatus::DependencyUnavailable;
-    // Only a strategy answers for a refusal before any step, since its preconditions refused.
+    // Only a strategy answers for a refusal before any step, and only the one its family names.
     bool strategy = false;
+    bool refusal_is_own = false;
     if (const RuleSchema *schema = rule_schema(rule_id)) {
         for (size_t o = 0; o < schema->obligation_count; ++o)
             strategy = strategy || std::string(schema->obligations[o].id).rfind("pre.", 0) == 0;
+        refusal_is_own =
+            schema->family != nullptr && derivation.context.problem_family_id == schema->family;
     }
     switch (kind) {
         case nps_tools::RuleCaseKind::Positive:
             return reached && !failed && answered;
         case nps_tools::RuleCaseKind::Negative:
-            return reached ? failed : refused && strategy;
+            return reached ? failed : refused && strategy && refusal_is_own;
         case nps_tools::RuleCaseKind::Boundary:
             return reached;
         case nps_tools::RuleCaseKind::Regression:
