@@ -1709,6 +1709,37 @@ histME1 = {}
 histME2 = {}
 local HISTORY_MAX_ENTRIES = 50
 
+-- VER-020. The build a history row was computed under, or nil when no StepCAS module is loaded.
+function currentBuild()
+	if stepManifest and type(stepManifest.id) == "string" and stepManifest.id ~= "" then
+		return stepManifest.id
+	end
+	return nil
+end
+
+-- The distinguishing tail of a manifest id, short enough for the status line.
+function shortBuild(id)
+	local build = id:match("([^.]+)$") or id
+	if #build > 27 then build = build:sub(1, 12) .. "..." .. build:sub(-12) end
+	return build
+end
+
+-- What a history row is: computed now, archived from a saved document, or recomputed to match.
+function historyRecordText(row)
+	if type(row) ~= "table" then return nil end
+	local build = row.build and shortBuild(row.build)
+	if row.state == "revalidated" then return "revalidated under this build, " .. build end
+	if row.state == "diverged" then
+		return "archived under " .. (build or "an unrecorded build") ..
+		       ", this build gives a different result"
+	end
+	if row.state == "archived" then
+		return (build and "archived under " .. build or "archived, build not recorded") ..
+		       ", not revalidated under this build"
+	end
+	return build and "computed under this build, " .. build or "computed with no StepCAS build loaded"
+end
+
 local function removeHistoryAt(index)
 	local first, second = histME1[index], histME2[index]
 	if not first or not second or not steps.histText[index] then return false end
@@ -1748,7 +1779,7 @@ function addME(expr, res)
 
 	table.insert(histME1, mee)
 	table.insert(histME2, mer)
-	table.insert(steps.histText, { expr, res })
+	table.insert(steps.histText, { expr, res, build = currentBuild(), state = "live" })
 	theView:add(mee)
 	theView:add(mer)
 	if #histME1 > HISTORY_MAX_ENTRIES then removeHistoryAt(1) end
@@ -1819,6 +1850,29 @@ function backSpaceHandler(widget)
 	end
 end
 
+-- VER-020. An archived row entered again under this build is revalidated only if the answer matches.
+function revalidateHistory(expr, res)
+	local build = currentBuild()
+	if not build then return end
+	local matched, differed
+	for index = 1, #steps.histText - 1 do
+		local row = steps.histText[index]
+		if row.state == "archived" and row[1] == expr then
+			if row[2] == res then
+				row.state, row.build, matched = "revalidated", build, true
+			else
+				row.state, differed = "diverged", row
+			end
+		end
+	end
+	if differed then
+		steps.status = "archived result differs under " .. shortBuild(build) .. ": was" ..
+		               differed[2] .. ", now" .. res
+	elseif matched then
+		steps.status = "archived result revalidated under " .. shortBuild(build)
+	end
+end
+
 function enterHandler(widget)
 	local expr, exprkeep
 	local svar
@@ -1854,6 +1908,8 @@ function enterHandler(widget)
 				expr = " " .. expr
 				expr = expr:gsub("^%s+", " ")
 				addME(expr, res)
+				-- A solve still running has only its progress in the row, which is not an answer.
+				if not incrementalSolve.active then revalidateHistory(expr, res) end
 			end
 		end
 	end
@@ -3808,9 +3864,7 @@ function runSteps(mode, text)
 		   type(backend.version) ~= "string" or backend.version == "" or type(modules) ~= "table" then
 			return "capability manifest invalid"
 		end
-		local build = stepManifest.id:match("([^.]+)$") or stepManifest.id
-		if #build > 27 then build = build:sub(1, 12) .. "..." .. build:sub(-12) end
-		return stepManifest.artifact .. " " .. build .. ", " .. backend.name .. " " ..
+		return stepManifest.artifact .. " " .. shortBuild(stepManifest.id) .. ", " .. backend.name .. " " ..
 		       backend.version .. ", " .. tostring(#modules) .. " modules"
 	end
 	if mode == "help" then
@@ -4562,6 +4616,7 @@ function readFullText()
 		if selected then
 			add("Input: ", selected[1])
 			add("Result: ", selected[2])
+			add("Record: ", historyRecordText(selected))
 		elseif fctEditor then
 			add("Input: ", fctEditor:getExpression())
 		end
@@ -4787,7 +4842,11 @@ local function replayHistory()
 		local pending = steps.pendingHistory
 		steps.pendingHistory = nil
 		dispinfos = false
-		for _, pair in ipairs(pending) do addME(pair[1], pair[2]) end
+		for _, pair in ipairs(pending) do
+			addME(pair[1], pair[2])
+			local row = steps.histText[#steps.histText]
+			row.build, row.state = pair.build, "archived"
+		end
 	end
 	if steps.pendingExpression and fctEditor then
 		local text = steps.pendingExpression
@@ -5012,6 +5071,26 @@ end)
 -- recomputed on the next request rather than saved, since the core is deterministic and a saved
 -- record would be a copy of what it produces. A restored table is data (section 17): every field
 -- is type checked and ranged before it is used.
+-- VER-020. Reopened rows are announced as archived, naming the builds when they are not this one.
+function archivedHistoryStatus(rows)
+	local build = currentBuild()
+	local from, mixed = nil, false
+	for _, row in ipairs(rows) do
+		if row.build ~= build then
+			local name = row.build and shortBuild(row.build) or "an unrecorded build"
+			if from and from ~= name then mixed = true end
+			from = from or name
+		end
+	end
+	local text = "reopened " .. tostring(#rows) .. " archived results"
+	if mixed then
+		text = text .. " from several other builds"
+	elseif from then
+		text = text .. " from " .. from
+	end
+	return text .. ", not revalidated under " .. (build and shortBuild(build) or "no loaded build")
+end
+
 function on.save()
 	local expression
 	local variable = isStepsVariable(steps.variable) and steps.variable or "x"
@@ -5019,9 +5098,12 @@ function on.save()
 		local typed = fctEditor:getExpression()
 		if type(typed) == "string" and typed ~= "" then expression = typed end
 	end
+	-- A row keeps its build and drops its state, since a reopened row is archived whatever it was.
+	local history = {}
+	for index, row in ipairs(steps.histText) do history[index] = { row[1], row[2], build = row.build } end
 	return { variable = variable, mode = steps.mode, detail = steps.detail,
 	         progression = steps.progression, automatic = steps.automatic,
-	         history = steps.histText, expression = expression }
+	         history = history, expression = expression }
 end
 
 function on.restore(saved)
@@ -5046,7 +5128,10 @@ function on.restore(saved)
 		for _, pair in ipairs(saved.history) do
 			if type(pair) == "table" and type(pair[1]) == "string" and type(pair[2]) == "string" then
 				if #pending == HISTORY_MAX_ENTRIES then table.remove(pending, 1) end
-				pending[#pending + 1] = { pair[1], pair[2] }
+				-- A build that is not a bounded string is unrecorded, never taken for this one.
+				local build = type(pair.build) == "string" and pair.build ~= "" and #pair.build <= 256 and
+				              pair.build or nil
+				pending[#pending + 1] = { pair[1], pair[2], build = build }
 			end
 		end
 		if #pending > 0 then steps.pendingHistory = pending end
@@ -5059,4 +5144,5 @@ function on.restore(saved)
 	elseif not steps.automatic then
 		steps.status = "plain Giac"
 	end
+	if steps.pendingHistory then steps.status = archivedHistoryStatus(steps.pendingHistory) end
 end

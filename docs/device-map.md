@@ -153,8 +153,8 @@ returns nil so the shell falls back to Giac.
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2747 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2758-2765 carries no projectile key at all, which is how the
+`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2803 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2814-2821 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -170,7 +170,7 @@ with only `planar_kinematics` wired, so no open issue tracks the other two. When
 paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
-manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:105 and every StepCAS surface stays
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
 off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
@@ -189,8 +189,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3156, measureMath
-sets the expression at :3190, and the history editor sets its expression at :1437.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3231, measureMath
+sets the expression at :3265, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
