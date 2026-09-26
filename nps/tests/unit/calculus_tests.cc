@@ -734,6 +734,139 @@ void run_calculus_tests(TestSink &t) {
         check_golden(t, fixture.second ? "tangent_linearization" : "tangent_line",
                      "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" + rendered);
     }
+    // CALC-013's parametric slope, #509, dy/dt over dx/dt only where dx/dt is not zero.
+    {
+        const std::string text = "paramslope(t^2,t^3,t,2)";
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command.kind == CommandKind::ParamSlope,
+                "paramslope parses as the parametric slope command");
+        const CalculusResult result = calculus_walkthrough(arena, derivation, command);
+        t.check(result.outcome == CalculusOutcome::Evaluated &&
+                    result.status == DerivationStatus::SolvedAndVerified && result.value != kNoNode &&
+                    print(arena, result.value) == "3" && result.slope == result.value,
+                "a parametric slope is dy/dt over dx/dt at the parameter value: " + text + ": " +
+                    result.detail);
+        size_t definitions = 0;
+        bool restricted = false;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if ((recorded.rule_id == "param.dx-dt" || recorded.rule_id == "param.dy-dt" ||
+                 recorded.rule_id == "param.slope") && recorded.claim == ClaimType::Definition &&
+                recorded.verified())
+                ++definitions;
+            if (recorded.rule_id == "param.slope")
+                for (const std::string &condition : recorded.domain_restrictions)
+                    restricted = restricted || condition == "dx/dt != 0 at t = 2";
+        }
+        t.check(definitions == 3, "both rates and their ratio are recorded as verified definitions");
+        t.check(restricted, "and the ratio records that dx/dt is not zero at the parameter value");
+        t.check(records_verified_rule(derivation, "param.check-slope"),
+                "and the final check multiplies the slope back by dx/dt");
+        t.check(records_verified_rule(derivation, "d.power"),
+                "the component derivatives come from the registered derivative rules");
+        t.equal(derivation.context.problem_family_id, "calculus.parametric-slope.single-parameter",
+                "the derivation names the parametric slope family");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        audit.walk(arena, derivation, false, false, &broken);
+        t.check(broken.empty(), "the parametric slope derivation satisfies the step invariants" +
+                                    (broken.empty() ? std::string() : ": " + broken.front()));
+        check_golden(t, "paramslope_polynomial",
+                     "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" +
+                         render_derivation(arena, derivation));
+    }
+    {
+        // A vertical tangent. Both rates are exact and dx/dt is zero, so there is no dy/dx to give.
+        const std::string text = "paramslope(t^2,t,t,0)";
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                           parse_command(arena, text, "x"));
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                    result.status == DerivationStatus::Unsupported &&
+                    result.detail.find("vertical") != std::string::npos,
+                "a parameter value where dx/dt is zero is refused as a vertical tangent: " +
+                    result.detail);
+        t.check(records_verified_rule(derivation, "param.dx-dt") &&
+                    records_verified_rule(derivation, "param.dy-dt") &&
+                    !records_verified_rule(derivation, "param.slope"),
+                "the refusal keeps the two rates it read and records no ratio");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        const bool has_answer = false;
+        audit.walk(arena, derivation, true, true, &broken, &has_answer);
+        t.check(broken.empty(), "and the refusal invariants accept what it kept" +
+                                    (broken.empty() ? std::string() : ": " + broken.front()));
+        check_golden(t, "paramslope_vertical",
+                     "problem: " + text + "\nresult: none\n" + render_derivation(arena, derivation));
+    }
+    {
+        // Both rates zero is 0/0 rather than a vertical tangent, and the refusal says which.
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "paramslope(t^2,t^3,t,0)", "x"));
+        t.check(result.value == kNoNode && result.status == DerivationStatus::Unsupported &&
+                    result.detail.find("0/0") != std::string::npos &&
+                    result.detail.find("vertical") == std::string::npos,
+                "a parameter value where both rates vanish is refused as 0/0, not as vertical: " +
+                    result.detail);
+    }
+    for (const char *text : {"paramslope(t,t^2,t,sqrt(2))", "paramslope(1/t,t,t,0)",
+                             "paramslope(t,t*tan(t),t,1)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                           parse_command(arena, text, "x"));
+        t.check(result.value == kNoNode && !result.detail.empty() &&
+                    result.status == DerivationStatus::Unsupported,
+                "the parametric slope refuses outside its envelope: " + std::string(text) + ": " +
+                    result.detail);
+    }
+    for (const char *text : {"paramslope(t,t^2,t)", "paramslope(t,t^2,2,1)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.kind == CommandKind::ParamSlope && command.status != CommandStatus::Ready,
+                "a parametric slope without four arguments or with a non-identifier parameter is not "
+                "ready: " + std::string(text));
+    }
+    {
+        // Cancellation and a step budget each stop the family with their own status.
+        const std::string text = "paramslope(t^2,t^3,t,2)";
+        for (const bool cancel : {true, false}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.original_expression = text;
+            Budget budget;
+            size_t polls = 0;
+            if (cancel) {
+                // The third poll lands after the first component, so the stop falls inside the family.
+                budget.poll = [](void *context) { return ++*static_cast<size_t *>(context) > 2; };
+                budget.poll_context = &polls;
+            } else {
+                budget.max_steps = 4;
+            }
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"), budget);
+            t.check(result.value == kNoNode &&
+                        result.outcome == (cancel ? CalculusOutcome::Cancelled
+                                                  : CalculusOutcome::ResourceExceeded) &&
+                        result.status == (cancel ? DerivationStatus::Cancelled
+                                                 : DerivationStatus::ResourceLimitReached),
+                    std::string("a parametric slope stopped by ") +
+                        (cancel ? "cancellation" : "its step budget") + " reports that stop: " +
+                        result.detail);
+            t.check(records_verified_rule(derivation, "d.power") &&
+                        !records_verified_rule(derivation, "param.slope"),
+                    std::string("and keeps the verified work from before the ") +
+                        (cancel ? "cancellation" : "budget ran out") + " with no ratio");
+        }
+    }
     // Neighboring refusals. A point outside the domain, a value that is not exact there, and a form
     // the differentiation engine has no rule for are each refused rather than answered.
     for (const char *text : {"tangent(1/x,x,0)", "linearize(1/x,x,0)", "tangent(sqrt(x),x,2)",

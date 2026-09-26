@@ -246,6 +246,14 @@ const ObligationSchema kTangentAgreement[] = {
      kTangentAgreementEvidence, 1},
 };
 
+const EvidenceAlternative kParametricSlopeEvidence[] = {
+    {"exact product of the slope and dx/dt against dy/dt", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kParametricSlopeAgreement[] = {
+    {"obl.calculus.parametric-slope", "the slope times dx/dt equals dy/dt at the parameter value",
+     kParametricSlopeEvidence, 1},
+};
+
 const ObligationSchema kImplicitPreservesRelation[] = {
     {"obl.implicit.rule-preserves-relation",
      "the rule keeps the relation between the variables and their derivative", kRuleInvariant, 1},
@@ -1736,6 +1744,13 @@ const RuleSchema kRules[] = {
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
+    // calculus.parametric-slope, CALC-013
+    {"param.dx-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
+    {"param.dy-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
+    {"param.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"param.check-slope", ClaimType::EquivalentExpression, kParametricSlopeAgreement, 1,
+     FailureBehavior::WithholdResult},
+
     // calculus.ode.separable.first-order, CALC-012
     {"ode.separable.plan", ClaimType::NoClaim, kSeparableStrategy, 3, FailureBehavior::WithholdResult},
     {"ode.separable.separate", ClaimType::Implication, kSeparationDividesNonzero, 1, FailureBehavior::CannotFail},
