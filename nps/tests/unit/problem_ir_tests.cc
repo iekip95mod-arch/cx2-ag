@@ -152,6 +152,34 @@ void test_invariants(TestSink &t) {
     }
     {
         wp::ProblemIR ir = cart.ir;
+        wp::Quantity zero = ir.quantities[1];
+        zero.id = "q-a-inferred";
+        zero.provenance.explicit_fact = false;
+        zero.provenance.supporting_source_spans.clear();
+        ir.quantities.push_back(zero);
+        t.equal(fault(ir, source), "unconfirmed inference", "an inferred quantity with no confirmation is refused");
+        ir.quantities.back().provenance.confirmation_record_id = ir.confirmation_record.id;
+        t.equal(fault(ir, source), "valid", "and is accepted once the confirmation names it");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.selected_candidate_id = "grammar-1";
+        ir.confirmation_record.source_content_hash = ir.source_content_hash;
+        ir.confirmation_record.selected_candidate_id = "grammar-1";
+        ir.confirmation_record.problem_revision = ir.revision;
+        t.equal(fault(ir, source), "valid", "a confirmation bound to this source, candidate and revision is accepted");
+        wp::ProblemIR other_hash = ir;
+        other_hash.confirmation_record.source_content_hash = wp::source_hash("a different text");
+        t.equal(fault(other_hash, source), "confirmation mismatch", "one that approved a different source text is refused");
+        wp::ProblemIR other_candidate = ir;
+        other_candidate.confirmation_record.selected_candidate_id = "grammar-2";
+        t.equal(fault(other_candidate, source), "confirmation mismatch", "and so is one that approved another candidate");
+        wp::ProblemIR other_revision = ir;
+        other_revision.confirmation_record.problem_revision = ir.revision + 1;
+        t.equal(fault(other_revision, source), "confirmation mismatch", "or another revision");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
         ir.confirmation_record.confirmed = false;
         wp::IrValidation why;
         t.check(fault(ir, source) == "valid" && !wp::commit(ir, source, &why) && why.fault == wp::IrFault::NotConfirmed,
@@ -174,6 +202,20 @@ void test_reading(TestSink &t) {
     const size_t at = bad_revision.find("revision=1");
     bad_revision.replace(at, 10, "revision=x");
     t.equal(status(bad_revision), "malformed", "a revision that is not a number is malformed");
+    std::string bound = good;
+    const std::string line = "confirmation id=c-block by=author confirmed=yes";
+    const size_t confirmation = bound.find(line) + line.size();
+    bound.insert(confirmation, " hash=abc candidate=grammar-1 revision=1 assumptions=a-one,q-two versions=wp1-lexicon");
+    const wp::IrReadResult read_bound = wp::read_problem_ir(bound);
+    const wp::ConfirmationRecord &record = read_bound.ir.confirmation_record;
+    t.check(read_bound.status == wp::IrReadStatus::Ok && record.source_content_hash == "abc" &&
+                record.selected_candidate_id == "grammar-1" && record.problem_revision == 1 &&
+                record.material_assumption_ids.size() == 2 && record.material_assumption_ids[1] == "q-two" &&
+                record.parser_versions == "wp1-lexicon",
+            "a confirmation line reads what it bound: " + read_bound.detail);
+    std::string bad_bound = good;
+    bad_bound.insert(confirmation, " revision=0");
+    t.equal(status(bad_bound), "malformed", "a confirmed revision of zero is malformed");
 }
 
 void test_correction(TestSink &t) {

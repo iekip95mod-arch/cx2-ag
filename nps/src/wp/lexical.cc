@@ -36,15 +36,6 @@ bool is_letter(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 char lower(char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; }
 
-bool same_word(std::string_view a, std::string_view b) {
-    if (a.size() != b.size())
-        return false;
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (lower(a[i]) != lower(b[i]))
-            return false;
-    }
-    return true;
-}
 
 enum class TokenKind : uint8_t { Word, Number, Symbol, Foreign };
 
@@ -104,6 +95,9 @@ const Phrase kPhrases[] = {
     {"uniform acceleration", "constant_acceleration"},
     {"constant acceleration", "constant_acceleration"},
     {"accelerates uniformly", "constant_acceleration"},
+    {"constant speed", "zero_acceleration"},
+    {"steady speed", "zero_acceleration"},
+    {"constant velocity", "zero_acceleration"},
     {"slows down", "acceleration_opposes_velocity"},
     {"instantaneous rate", "derivative_at_state"},
     {"total accumulated", "definite_integral"},
@@ -208,7 +202,7 @@ class Reader {
     }
 
     bool word(size_t k, std::string_view w) const {
-        return k < tokens_.size() && tokens_[k].kind == TokenKind::Word && same_word(text(k), w);
+        return k < tokens_.size() && tokens_[k].kind == TokenKind::Word && words_equal(text(k), w);
     }
 
     bool numeral(size_t k) const { return k < tokens_.size() && tokens_[k].kind == TokenKind::Number; }
@@ -236,7 +230,7 @@ class Reader {
 
     static const char *number_word(std::string_view w) {
         for (const NumberWord &n : kNumberWords) {
-            if (same_word(w, n.word))
+            if (words_equal(w, n.word))
                 return n.digits;
         }
         return nullptr;
@@ -246,7 +240,7 @@ class Reader {
         if (k >= tokens_.size() || tokens_[k].kind != TokenKind::Word)
             return std::string();
         for (const UnitWord &u : kUnitWords) {
-            if (same_word(text(k), u.word))
+            if (words_equal(text(k), u.word))
                 return u.symbol;
         }
         Unit unit;
@@ -437,6 +431,16 @@ std::string at_text(const Span &span) {
 }
 
 }  // namespace
+
+bool words_equal(std::string_view a, std::string_view b) {
+    if (a.size() != b.size())
+        return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (lower(a[i]) != lower(b[i]))
+            return false;
+    }
+    return true;
+}
 
 SourceDocument normalize_source(const std::string &source_id, const std::string &original_utf8) {
     SourceDocument doc;

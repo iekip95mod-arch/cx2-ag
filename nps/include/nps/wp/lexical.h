@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "nps/units/units.h"
@@ -12,11 +13,14 @@ namespace nps::wp {
 
 // PRD section 26.16, WP Milestone 1. Reads prose into grounded quantities, units and lexicon concepts
 // with spans into the original text. It proposes nothing about the problem and never solves it.
-constexpr const char *kLexiconVersion = "wp1-lexicon 1";
+constexpr const char *kLexiconVersion = "wp1-lexicon 2";
 constexpr const char *kNormalizationProfile = "wp1-normalize 1";
 
 // WP-040. The normalized text, with each normalized byte mapped to the original bytes it came from.
 SourceDocument normalize_source(const std::string &source_id, const std::string &original_utf8);
+
+// ASCII letters compared without regard to case, as the lexicon matches its phrases.
+bool words_equal(std::string_view a, std::string_view b);
 
 // A normalized half-open range back in the original text, with the original surface.
 Span span_from_normalized(const SourceDocument &source, size_t normalized_begin, size_t normalized_end);

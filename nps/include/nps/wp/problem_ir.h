@@ -92,10 +92,16 @@ struct Assumption {
     Provenance provenance;
 };
 
+// WP-043. What the user approved, bound to the source, candidate, revision and versions it was shown.
 struct ConfirmationRecord {
     std::string id;
     std::string confirmed_by;
     bool confirmed = false;
+    std::string source_content_hash;
+    std::string selected_candidate_id;
+    uint32_t problem_revision = 0;
+    std::vector<std::string> material_assumption_ids;
+    std::string parser_versions;
 };
 
 // Untrusted. A candidate's ranking evidence orders proposals and never authorizes solving.
@@ -170,6 +176,7 @@ enum class IrFault : uint8_t {
     ProvenanceMismatch,
     MissingProvenance,
     NotConfirmed,
+    ConfirmationMismatch,
 };
 
 const char *ir_fault_name(IrFault fault);
@@ -182,6 +189,9 @@ struct IrValidation {
 
 // The hex SHA-256 of the original text, which the IR's source hash has to match.
 std::string source_hash(const std::string &original_utf8);
+
+// The dimension a semantic type requires and the symbol the kinematics engine gives it, if any.
+bool semantic_type_info(const std::string &type, Dimension *dimension, std::string *kinematics_symbol);
 
 // True when the span's original offsets lie inside the source and cover exactly its surface text.
 bool span_matches(const Span &span, const SourceDocument &source);
