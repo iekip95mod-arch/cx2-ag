@@ -47,6 +47,47 @@ struct UniversalCoverage {
     bool malformed = false;
 };
 
+// Why a requirement no check here can evidence stays unmet, which is never counted as evidence.
+enum class Unevidenced {
+    DeviceStage,
+    Governance,
+    PartlyChecked,
+};
+
+struct UnevidencedReason {
+    std::string id;
+    Unevidenced kind = Unevidenced::DeviceStage;
+    std::string reason;
+};
+
+const char *unevidenced_name(Unevidenced kind) {
+    switch (kind) {
+        case Unevidenced::DeviceStage: return "needs a device stage the host suite does not reach";
+        case Unevidenced::Governance: return "a governance rule no run can exhibit";
+        case Unevidenced::PartlyChecked: return "partly checked";
+    }
+    return "unexplained";
+}
+
+const std::vector<UnevidencedReason> kUnevidencedReasons = {
+    {"PLAT-007", Unevidenced::DeviceStage,
+     "every released feature running on the calculator after installation is a claim about the "
+     "handheld, which host, package and emulator runs do not establish"},
+    {"PLAT-008", Unevidenced::DeviceStage,
+     "the offline audit that evidences it is written only by a tree that ran the ARM package build"},
+    {"PLAT-011", Unevidenced::DeviceStage,
+     "the isolated-device run with no USB link or host process is a physical handheld run, and "
+     "PLAT-003 already evidences the offline audit half from device records"},
+    {"PERF-011", Unevidenced::DeviceStage,
+     "performance has to be measured on the release configuration resident on the calculator"},
+    {"PERF-012", Unevidenced::Governance,
+     "it constrains how a budget may be revised, so its evidence is a documented baseline change "
+     "in nps/benchmarks/BUDGETS.md rather than a check"},
+    {"PERF-016", Unevidenced::PartlyChecked,
+     "module unload is checked by tests/ui/retained_surface_tests.cc, and document close, resize "
+     "and failure have no check yet"},
+};
+
 enum class UniversalScope {
     NotUniversal,
     Valid,
@@ -63,6 +104,7 @@ struct Outcome {
     size_t untagged_groups = 0;
     size_t universal_family_gaps = 0;
     size_t universal_scope_faults = 0;
+    size_t stale_reasons = 0;
     bool input_refused = false;
 };
 
@@ -85,6 +127,7 @@ Outcome poisoned(bool refused) {
     out.untagged_groups = 7;
     out.universal_family_gaps = 7;
     out.universal_scope_faults = 7;
+    out.stale_reasons = 7;
     out.input_refused = refused;
     return out;
 }
@@ -94,7 +137,8 @@ bool counts_equal(const Outcome &left, const Outcome &right) {
            left.missing_groups == right.missing_groups &&
            left.untagged_groups == right.untagged_groups &&
            left.universal_family_gaps == right.universal_family_gaps &&
-           left.universal_scope_faults == right.universal_scope_faults;
+           left.universal_scope_faults == right.universal_scope_faults &&
+           left.stale_reasons == right.stale_reasons;
 }
 
 std::vector<std::string> split(const std::string &line, char on) {
@@ -256,7 +300,8 @@ UniversalScope universal_domain(const Requirement &requirement, std::string *dom
 // The whole run, from the three inputs to the report and the exit status, so a check can stage its
 // own inputs and read back what the gate decided rather than only what the report says.
 int analyse(const std::string &prd, const std::string &evidence_path,
-            const std::string &catalog_path, const std::string &report_path, Outcome *out) {
+            const std::string &catalog_path, const std::string &report_path, Outcome *out,
+            const std::vector<UnevidencedReason> &reasons = {}) {
 
     std::vector<Requirement> requirements;
     std::string repeated;
@@ -387,6 +432,29 @@ int analyse(const std::string &prd, const std::string &evidence_path,
         }
     }
 
+    // A reason is stale once evidence answers it, except a device-stage one a device tree evidences.
+    std::map<std::string, const UnevidencedReason *> reason_of;
+    for (size_t i = 0; i < reasons.size(); ++i) {
+        bool listed = false;
+        for (size_t r = 0; r < requirements.size() && !listed; ++r)
+            listed = requirements[r].id == reasons[i].id;
+        if (!listed) {
+            ++outcome.stale_reasons;
+            std::cout << "traceability: a reason is written for " << reasons[i].id
+                      << ", which is not a requirement in the PRD\n";
+            continue;
+        }
+        if (evidenced_by(by_requirement, reasons[i].id)) {
+            if (reasons[i].kind != Unevidenced::DeviceStage) {
+                ++outcome.stale_reasons;
+                std::cout << "traceability: " << reasons[i].id
+                          << " is evidenced now, so its written reason is stale\n";
+            }
+            continue;
+        }
+        reason_of[reasons[i].id] = &reasons[i];
+    }
+
     std::ofstream report(report_path.c_str());
     if (!report) {
         std::cout << "traceability: could not write " << report_path << "\n";
@@ -404,14 +472,18 @@ int analyse(const std::string &prd, const std::string &evidence_path,
               "asks for three more links this report does not carry: implementation components, "
               "device evidence and release status. Nothing here should be read as coverage of "
               "those.\n\n";
+    report << "An unmet row may carry the reason no check in this repository evidences it: a device "
+              "stage it does not run, a governance rule no run can exhibit, or a requirement only "
+              "partly checked. A reason is not evidence, and those rows count as unmet.\n\n";
     // Issue 423 asked whether a family gap should fail the run. It should not, and the report says
     // why where a reader of a green suite will see it.
     report << "This run fails on faults, which are an unknown requirement id, failing evidence, a "
-              "catalog test group that did not run and a module scope it cannot read. A family "
-              "missing from an `Every <domain> module shall` requirement is a gap rather than a "
-              "fault: the requirement's row says unmet and names the family, it is not counted as "
-              "evidenced, and like every other unmet requirement it is left for the release gate in "
-              "PRD sections 20 and 28 rather than failing the run. This run found "
+              "catalog test group that did not run, a module scope it cannot read, or a reason "
+              "that has gone stale. A family missing from an `Every <domain> module shall` "
+              "requirement is a gap rather than a fault: the requirement's row says unmet and "
+              "names the family, it is not counted as evidenced, and like every other unmet "
+              "requirement it is left for the release gate in PRD sections 20 and 28 rather than "
+              "failing the run. This run found "
            << count_text(outcome.universal_family_gaps) << " such gaps.\n\n";
 
     size_t evidenced = 0;
@@ -473,7 +545,12 @@ int analyse(const std::string &prd, const std::string &evidence_path,
         std::map<std::string, UniversalCoverage>::const_iterator universal =
             universal_coverage.find(r.id);
         if (found == by_requirement.end() && universal == universal_coverage.end()) {
-            report << "unmet, no evidence | | |\n";
+            std::map<std::string, const UnevidencedReason *>::const_iterator why = reason_of.find(r.id);
+            if (why == reason_of.end())
+                report << "unmet, no evidence | | |\n";
+            else
+                report << "unmet, " << unevidenced_name(why->second->kind) << ": "
+                       << why->second->reason << " | | |\n";
             continue;
         }
         bool all_passed = found != by_requirement.end();
@@ -544,12 +621,14 @@ int analyse(const std::string &prd, const std::string &evidence_path,
               << count_text(outcome.missing_groups) << " catalog groups that did not run, "
               << count_text(outcome.untagged_groups) << " that ran with nothing tagged, "
               << count_text(outcome.universal_scope_faults) << " universal scope faults, "
-              << count_text(outcome.universal_family_gaps)
-              << " universal family evidence gaps, report in " << report_path << "\n";
+              << count_text(outcome.universal_family_gaps) << " universal family evidence gaps, "
+              << count_text(reason_of.size()) << " unmet with a written reason, "
+              << count_text(outcome.stale_reasons) << " stale reasons, report in " << report_path
+              << "\n";
     if (out != nullptr)
         *out = outcome;
     return outcome.unknown == 0 && outcome.failing == 0 && outcome.missing_groups == 0 &&
-                   outcome.universal_scope_faults == 0
+                   outcome.universal_scope_faults == 0 && outcome.stale_reasons == 0
                ? 0
                : 1;
 }
@@ -755,6 +834,48 @@ int selftest() {
     std::string twice_repeated;
     const bool twice_read = read_requirements(twice_path, &twice, &twice_repeated);
 
+    // Staged reasons, so the checks below do not depend on which requirements the tree leaves unmet.
+    const std::vector<UnevidencedReason> device_reason = {
+        {"PHYS-025", Unevidenced::DeviceStage, "STAGED_DEVICE_REASON"}};
+    const std::vector<UnevidencedReason> governance_on_evidenced = {
+        {"MATH-001", Unevidenced::Governance, "STAGED_GOVERNANCE_REASON"}};
+    const std::vector<UnevidencedReason> unknown_reason = {
+        {"MATH-999", Unevidenced::PartlyChecked, "STAGED_UNKNOWN_REASON"}};
+    const std::string reason_evidence = std::string(made) + "/evidence-reason.txt";
+    {
+        std::ofstream staged(reason_evidence.c_str());
+        staged << "group\tcatch up\ngroup\tlinear\n"
+               << "evidence\tMATH-001\tpass\tlinear\tthe thing\n";
+    }
+    const std::string reason_prd = std::string(made) + "/prd-reason.md";
+    {
+        std::ofstream staged(reason_prd.c_str());
+        staged << "| ID | Priority | Requirement |\n|---|---|---|\n"
+               << "| MATH-001 | P0 | The solver shall do the thing. |\n"
+               << "| PHYS-025 | INV | The calculator shall do the device thing. |\n";
+    }
+    Outcome reasoned;
+    const int reasoned_status = analyse(reason_prd, reason_evidence, good_catalog, report,
+                                        &reasoned, device_reason);
+    const std::string reasoned_report = file_text(report);
+    Outcome unreasoned;
+    const int unreasoned_status = analyse(reason_prd, reason_evidence, good_catalog, report,
+                                          &unreasoned, {});
+    const std::string unreasoned_report = file_text(report);
+    Outcome stale;
+    const int stale_status = analyse(reason_prd, reason_evidence, good_catalog, report, &stale,
+                                     governance_on_evidenced);
+    const std::string stale_report = file_text(report);
+    Outcome unknown_named;
+    const int unknown_named_status = analyse(reason_prd, reason_evidence, good_catalog, report,
+                                             &unknown_named, unknown_reason);
+    Outcome device_evidenced;
+    const std::vector<UnevidencedReason> device_on_evidenced = {
+        {"MATH-001", Unevidenced::DeviceStage, "STAGED_DEVICE_REASON"}};
+    const int device_evidenced_status = analyse(reason_prd, reason_evidence, good_catalog, report,
+                                                &device_evidenced, device_on_evidenced);
+    const std::string device_evidenced_report = file_text(report);
+
     int failures = 0;
     const struct {
         bool ok;
@@ -825,6 +946,23 @@ int selftest() {
         {unwritable_status == 1 && !unwritable.input_refused && unwritable.missing_groups == 1 &&
              counts_equal(unwritable, absent),
          "a report the tool cannot write keeps the counts it reached and is no input refusal"},
+        {reasoned_status == 0 && reasoned.stale_reasons == 0 &&
+             reasoned_report.find("| PHYS-025 | INV | unmet, needs a device stage the host suite "
+                                  "does not reach: STAGED_DEVICE_REASON |") != std::string::npos,
+         "an unevidenced requirement with a written reason says why in its row and stays unmet"},
+        {unreasoned_status == 0 &&
+             unreasoned_report.find("| PHYS-025 | INV | unmet, no evidence |") != std::string::npos,
+         "and without one the same row is the bare absence it was, which is the control"},
+        {stale_status == 1 && stale.stale_reasons == 1,
+         "a governance reason on a requirement that is evidenced is stale and fails the run"},
+        {stale_report.find("or a reason that has gone stale") != std::string::npos,
+         "and the report's fault list names that as the reason the run failed"},
+        {unknown_named_status == 1 && unknown_named.stale_reasons == 1,
+         "a reason for a requirement the PRD does not have fails the run"},
+        {device_evidenced_status == 0 && device_evidenced.stale_reasons == 0 &&
+             device_evidenced_report.find("| MATH-001 | P0 | evidenced |") != std::string::npos &&
+             device_evidenced_report.find("STAGED_DEVICE_REASON") == std::string::npos,
+         "a device-stage reason on a requirement a device tree evidences reads evidenced"},
     };
     for (size_t i = 0; i < sizeof(checks) / sizeof(checks[0]); ++i) {
         if (!checks[i].ok)
@@ -845,5 +983,5 @@ int main(int argc, char **argv) {
                      "       nps_traceability --selftest\n";
         return 2;
     }
-    return analyse(argv[1], argv[2], argv[3], argv[4], nullptr);
+    return analyse(argv[1], argv[2], argv[3], argv[4], nullptr, kUnevidencedReasons);
 }
