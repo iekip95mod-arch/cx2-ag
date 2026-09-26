@@ -2707,6 +2707,44 @@ local function writeEvidence()
           "luax evidence preserves prior TSV and emits its own requirement links")
 end
 
+-- UI-011's writer. The shell composes the text and the module writes it, since the shell has no io.
+do
+    local scratch = os.tmpname()
+    os.remove(scratch)
+    local directory = scratch:match("^(.*/)") or "./"
+    local stem = "luax-export-" .. tostring(os.time() % 100000) .. "-" .. tostring(math.random(1000, 9999))
+    nps.test_documents_directory(directory)
+    local text = "StepCAS derivation export, format 1\nOutcome: partial\n" .. string.rep("x", 1000)
+    local path, why = nps.export_text(stem, text)
+    local read = path and io.open(path, "rb")
+    local written = read and read:read("*a")
+    if read then read:close() end
+    check(path == directory .. stem .. ".txt.tns" and written == text,
+          "export_text writes the text it was given, byte for byte, to a .txt.tns in the documents directory")
+    if path then os.remove(path) end
+
+    for _, name in ipairs({ "", "../escape", "a/b", "Upper", "has space", string.rep("a", 33) }) do
+        local refused, reason = nps.export_text(name, "text")
+        check(refused == nil and type(reason) == "string" and reason:find("export name", 1, true),
+              "export_text refuses the name " .. string.format("%q", name) .. " before touching a file")
+    end
+    check(nps.export_text(string.rep("a", 32), "text") ~= nil, "and accepts a 32 character name")
+    os.remove(directory .. string.rep("a", 32) .. ".txt.tns")
+    local large, large_reason = nps.export_text(stem, string.rep("y", 64 * 1024 + 1))
+    check(large == nil and tostring(large_reason):find("64 KiB", 1, true) ~= nil,
+          "export_text refuses text larger than its limit rather than writing part of it")
+    check(nps.export_text(stem, string.rep("y", 64 * 1024)) ~= nil, "and writes text exactly at it")
+    os.remove(directory .. stem .. ".txt.tns")
+    check(not pcall(nps.export_text, stem) and not pcall(nps.export_text, {}, "text") and
+              not pcall(nps.export_text, "a\0b", "text"),
+          "export_text raises on a missing text, a non-string name or an embedded NUL")
+
+    nps.test_documents_directory("/nonexistent-documents/")
+    local unopened, unopened_reason = nps.export_text(stem, "text")
+    check(unopened == nil and unopened_reason == "could not open the export file",
+          "a documents directory that cannot be written reports the refusal rather than a path")
+end
+
 writeEvidence()
 
 print(string.format("luax host: %d checks, %d failed", checks, failures))

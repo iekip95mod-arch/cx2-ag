@@ -6,6 +6,12 @@
 bool nps_test_escape_pressed = false;
 unsigned nps_test_msgbox_reply = 1;
 
+#include <string>
+
+// Where export_text writes on the host, since /documents only exists on the calculator.
+std::string nps_test_documents_directory = "/nonexistent-documents/";
+#define NPS_DOCUMENTS_DIRECTORY nps_test_documents_directory
+
 #define main stepcas_device_main
 #include "../../src/platform/nspire/lua_module.cc"
 #undef main
@@ -78,6 +84,11 @@ int test_native_artifact_package_scheme(lua_State *L) {
     return 0;
 }
 
+int set_documents_directory(lua_State *L) {
+    nps_test_documents_directory = luaL_checkstring(L, 1);
+    return 0;
+}
+
 extern "C" int luaopen_nps_split(lua_State *L) {
     if (!lua_number_abi_works(L))
         return luaL_error(L, "StepCAS module rejected an incompatible Ndl Lua number ABI");
@@ -90,5 +101,7 @@ extern "C" int luaopen_nps_split(lua_State *L) {
     lua_setfield(L, -2, "test_integrity_failure_surface");
     lua_pushcfunction(L, test_native_artifact_package_scheme);
     lua_setfield(L, -2, "test_native_artifact_package_scheme");
+    lua_pushcfunction(L, set_documents_directory);
+    lua_setfield(L, -2, "test_documents_directory");
     return 1;
 }

@@ -2802,6 +2802,7 @@ function stepRequest(expr)
 		-- the host, so this is where its evidence comes from: it runs every allowlisted operation
 		-- through the typed path and the string path and reports where they differ.
 		if letter == "t" then return { mode = "typedcheck", text = rest } end
+		if letter == "x" then return { mode = "export", text = rest } end
 		local m = STEP_MODES[letter]
 		-- An empty solver prefix selects its mode without invoking the solver.
 		if m and rest == "" then return { mode = "setmode", text = m.key } end
@@ -3791,6 +3792,17 @@ function runSteps(mode, text)
 		openSteps()
 		return steps.status or "steps"
 	end
+	if mode == "export" then
+		if not steps.result then return "no steps to export yet" end
+		if not hasSteps or type(nps_nspire.export_text) ~= "function" then
+			return "no export in this build"
+		end
+		local ok, path, why = pcall(nps_nspire.export_text, text ~= "" and text or "stepcas-export",
+		                            derivationExportText(steps.result))
+		steps.status = ok and path and "exported to " .. path or
+		               "export refused: " .. tostring(ok and why or conciseFailure(path))
+		return steps.status
+	end
 	if mode == "typedcheck" then
 		if not hasSteps or not nps_nspire.typed_check then return "no typed path in this build" end
 		-- The module writes the report to /ndl/typedcheck.txt.tns itself, because this Lua has
@@ -3815,7 +3827,8 @@ function runSteps(mode, text)
 	end
 	if mode == "help" then
 		return "!d !i !s expr, !k find v; v0 = 5 m/s; ..., bare !d !i !s !k sets the mode, " ..
-		       "!g plain Giac, !v name, !h on|off, !! last steps, !m manifest, !t typed check. " ..
+		       "!g plain Giac, !v name, !h on|off, !! last steps, !x name exports them, " ..
+		       "!m manifest, !t typed check. " ..
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end
@@ -4409,6 +4422,40 @@ local function stepInfo(r, index, detailed)
 		add("Normalized input: " .. r.normalized_expression, blue)
 	end
 	return out
+end
+
+-- UI-011. The viewer's text for every step it would show, so the file withholds what it withholds.
+function derivationExportText(r)
+	local lines = { "StepCAS derivation export, format 1" }
+	local function add(label, value)
+		if value ~= nil and tostring(value) ~= "" then lines[#lines + 1] = label .. tostring(value) end
+	end
+	local shown, total = exposedStepCount(r), canonicalStepCount(r)
+	add("Build: ", stepManifest and stepManifest.id or "no StepCAS build loaded")
+	add("Input: ", r.input)
+	add("Normalized input: ", r.normalized_expression)
+	add("Variable: ", steps.variable)
+	add("Operation: ", stepModeLabel(r.mode))
+	if finalResultVisible(r) then
+		add("Outcome: ", resultNote(r))
+		add("Answer: ", answerText(r))
+		add("Assumes: ", r.assumptions)
+		add("Meaning: ", r.interpretation)
+	else
+		-- The class and status carry no value, so a partial record still reads as partial here.
+		add("Outcome: ", resultClass(r) .. "  |  " .. tostring(r.status or "unavailable"))
+		add("Answer: ", "withheld in hint mode until every step is revealed")
+	end
+	add("Steps: ", string.format("%d of %d shown", shown, total))
+	local normalized = r.normalized_expression and "Normalized input: " .. r.normalized_expression
+	for index = 1, shown do
+		lines[#lines + 1] = ""
+		for _, item in ipairs(stepInfo(r, index, true)) do
+			local text = item.math and item.label .. " " .. item.math or item.text
+			if text ~= normalized then lines[#lines + 1] = text end
+		end
+	end
+	return table.concat(lines, "\n") .. "\n"
 end
 
 local function resultLines()
