@@ -1,0 +1,170 @@
+# WP Milestone 3 pursuit corpus for physics.kinematics.catch-up.equal-position. Each case names its
+# construction and kind. Offsets are byte ranges of the text, computed apart from the reader.
+case depart-later
+family physics.kinematics.catch-up.equal-position
+construction a later departure from the same place
+kind positive
+text A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. When does the truck catch up with the car?
+expect outcome interpreted
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect event meeting from "catch up" at 102..110
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 60..64 by later
+expect given truck initial_velocity 30 m/s from "30 m/s" at 74..80 by speed-of-subject
+expect inferred q-start_time-car 0 s by clock-origin
+expect stated q-start_position-car 0 m by same-place
+expect stated q-start_position-truck 0 m by same-place
+expect inferred assumption both bodies move the same way along one line
+expect goal meeting_time from "When" at 82..86
+end
+case pronoun
+family physics.kinematics.catch-up.equal-position
+construction "It" after a sentence naming one body
+kind boundary
+text A car leaves a town at 20 m/s. A truck leaves the same town 10 s later. It drives at 30 m/s. Where does the truck catch up?
+expect outcome interpreted
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect event meeting from "catch up" at 114..122
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 60..64 by later
+expect given truck initial_velocity 30 m/s from "30 m/s" at 85..91 by speed-of-subject
+expect inferred q-start_time-car 0 s by clock-origin
+expect stated q-start_position-car 0 m by same-place
+expect stated q-start_position-truck 0 m by same-place
+expect inferred assumption both bodies move the same way along one line
+expect goal meeting_position from "Where" at 93..98
+end
+case head-start
+family physics.kinematics.catch-up.equal-position
+construction a head start ahead of the other body, same direction stated
+kind positive
+text A cyclist rides at 5 m/s, 100 m ahead of a runner. The runner runs at 7 m/s in the same direction. How long until the runner catches the cyclist?
+expect outcome interpreted
+expect body cyclist from "cyclist" at 2..9
+expect body runner from "runner" at 43..49
+expect event meeting from "catches" at 125..132
+expect given cyclist initial_velocity 5 m/s from "5 m/s" at 19..24 by speed-of-subject
+expect given cyclist start_position 100 m from "100 m" at 26..31 by ahead
+expect inferred runner start_position 0 m by origin-at-reference
+expect given runner initial_velocity 7 m/s from "7 m/s" at 70..75 by speed-of-subject
+expect inferred q-start_time-cyclist 0 s by same-start-time
+expect inferred q-start_time-runner 0 s by same-start-time
+expect stated assumption both bodies move the same way along one line from "same direction"
+expect goal meeting_time from "How long" at 99..107
+end
+case ambiguous-it
+family physics.kinematics.catch-up.equal-position
+construction "It" after a sentence naming both bodies
+kind ambiguous
+text A car leaves a town at 20 m/s. A truck follows the car 10 s later. It drives at 30 m/s. When does the truck catch up?
+expect outcome needs clarification: 1 to settle
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event meeting from "catch up" at 108..116
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 55..59 by later
+expect given c1 initial_velocity 30 m/s from "30 m/s" at 80..86 by speed-of-subject
+expect goal meeting_time from "When" at 88..92
+expect clarify c1 does "It" at 67..69 mean the truck or the car?
+end
+case plural
+family physics.kinematics.catch-up.equal-position
+construction a plural subject
+kind negative
+text A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. They drive on. When does the truck catch up?
+expect outcome unsupported: a plural subject is not read
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 60..64 by later
+expect given truck initial_velocity 30 m/s from "30 m/s" at 74..80 by speed-of-subject
+end
+case it-first
+family physics.kinematics.catch-up.equal-position
+construction "It" with nothing before it
+kind negative
+text It leaves a town at 20 m/s. A truck leaves 10 s later at 30 m/s. When does the truck catch up?
+expect outcome unsupported: "It" refers further back than the sentence before it
+end
+case three-bodies
+family physics.kinematics.catch-up.equal-position
+construction a third body
+kind negative
+text A car leaves a town at 20 m/s. A truck leaves 10 s later at 30 m/s. A bus leaves 20 s later at 40 m/s. When does the bus catch up?
+expect outcome unsupported: more than two bodies are named
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 46..50 by later
+expect given truck initial_velocity 30 m/s from "30 m/s" at 60..66 by speed-of-subject
+end
+case towards
+family physics.kinematics.catch-up.equal-position
+construction bodies moving towards each other
+kind negative
+text A car leaves a town at 20 m/s. A truck drives towards the car at 30 m/s. When do they meet?
+expect outcome unsupported: bodies moving towards each other are not read yet
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+end
+case no-speed
+family physics.kinematics.catch-up.equal-position
+construction a body with no speed
+kind negative
+text A car leaves a town at 20 m/s. A truck leaves the same town 10 s later. When does the truck catch up?
+expect outcome unsupported: the truck has no speed
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect event meeting from "catch up" at 92..100
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 60..64 by later
+expect goal meeting_time from "When" at 72..76
+end
+case unplaced-time
+family physics.kinematics.catch-up.equal-position
+construction a time with no departure to attach to
+kind negative
+text A car leaves a town at 20 m/s for 5 s. A truck leaves 10 s later at 30 m/s. When does the truck catch up?
+expect outcome unsupported: the grammar cannot place 5 s in the motion of either body
+expect body car from "car" at 2..5
+expect event depart-car from "leaves" at 6..12
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+end
+case not-meeting
+family physics.kinematics.catch-up.equal-position
+construction a question that is not about the meeting
+kind negative
+text A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. How fast is the truck?
+expect outcome unsupported: the question does not ask when or where the bodies meet
+expect body car from "car" at 2..5
+expect body truck from "truck" at 33..38
+expect event depart-car from "leaves" at 6..12
+expect event depart-truck from "leaves" at 39..45
+expect given car initial_velocity 20 m/s from "20 m/s" at 23..29 by speed-of-subject
+expect given truck start_time 10 s from "10 s" at 60..64 by later
+expect given truck initial_velocity 30 m/s from "30 m/s" at 74..80 by speed-of-subject
+end
+case ahead-of-nothing
+family physics.kinematics.catch-up.equal-position
+construction a head start with no reference body
+kind negative
+text A cyclist rides at 5 m/s, 100 m ahead. A runner runs at 7 m/s. How long until the runner catches the cyclist?
+expect outcome unsupported: ahead of what is not said
+expect body cyclist from "cyclist" at 2..9
+expect given cyclist initial_velocity 5 m/s from "5 m/s" at 19..24 by speed-of-subject
+end

@@ -26,6 +26,10 @@ const SemanticType kSemanticTypes[] = {
     {"mass", 0, 1, 0, nullptr, static_cast<int>(DensityVariable::Mass)},
     {"volume", 3, 0, 0, nullptr, static_cast<int>(DensityVariable::Volume)},
     {"density", -3, 1, 0, nullptr, static_cast<int>(DensityVariable::Density)},
+    {"start_time", 0, 0, 1, nullptr, -1},
+    {"start_position", 1, 0, 0, nullptr, -1},
+    {"meeting_time", 0, 0, 1, nullptr, -1},
+    {"meeting_position", 1, 0, 0, nullptr, -1},
 };
 
 const SemanticType *semantic_type(std::string_view name) {
@@ -44,6 +48,8 @@ bool method_allowed(const std::string &family, const std::string &method) {
         return method == "constant-acceleration-equations";
     if (family == "physics.density.mass-volume")
         return method == "density-definition";
+    if (family == "physics.kinematics.catch-up.equal-position")
+        return method == "equal-position";
     return false;
 }
 
@@ -566,6 +572,50 @@ bool to_density(const CommittedProblem &committed, DensityProblem *out, std::str
         if (!quantity_of(q, &k.quantity, why))
             return false;
         problem.knowns.push_back(k);
+    }
+    *out = std::move(problem);
+    return true;
+}
+
+bool to_catch_up(const CommittedProblem &committed, CatchUpProblem *out, std::string *why) {
+    const ProblemIR &ir = committed.ir();
+    if (ir.entities.size() != 2) {
+        *why = "a catch-up problem needs exactly two bodies";
+        return false;
+    }
+    bool goal = false;
+    for (const Quantity &q : ir.quantities)
+        goal = goal || (q.id == ir.requested_goal &&
+                        (q.semantic_type == "meeting_time" || q.semantic_type == "meeting_position"));
+    if (!goal) {
+        *why = "the goal is not the meeting time or place";
+        return false;
+    }
+    CatchUpProblem problem;
+    for (size_t i = 0; i < 2; ++i) {
+        CatchUpBody &body = i == 0 ? problem.first : problem.second;
+        body.name = ir.entities[i].name;
+        body.frame.name = ir.coordinate_frames.empty() ? default_frame_name() : ir.coordinate_frames.front();
+        size_t found = 0;
+        for (const Quantity &q : ir.quantities) {
+            if (q.owner_entity_id != ir.entities[i].id)
+                continue;
+            nps::Quantity *slot = q.semantic_type == "initial_velocity" ? &body.velocity_at_start
+                                  : q.semantic_type == "start_time"     ? &body.start_time
+                                  : q.semantic_type == "start_position" ? &body.position_at_start
+                                                                        : nullptr;
+            if (!slot) {
+                *why = q.id + " is not a velocity, start time or start position";
+                return false;
+            }
+            if (!quantity_of(q, slot, why))
+                return false;
+            ++found;
+        }
+        if (found != 3) {
+            *why = "the " + body.name + " needs a velocity, a start time and a start position";
+            return false;
+        }
     }
     *out = std::move(problem);
     return true;

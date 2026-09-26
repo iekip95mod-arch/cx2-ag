@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
 #include "nps/physics/kinematics.h"
 
@@ -241,6 +242,9 @@ IrReadResult read_problem_ir(const std::string &text);
 // The structured problems an existing engine already solves, built from a committed IR.
 bool to_kinematics(const CommittedProblem &committed, KinematicsProblem *out, std::string *why);
 bool to_density(const CommittedProblem &committed, DensityProblem *out, std::string *why);
+
+// Two bodies, each owning a velocity, a start time and a start position, meeting at the goal.
+bool to_catch_up(const CommittedProblem &committed, CatchUpProblem *out, std::string *why);
 
 }  // namespace nps::wp
 

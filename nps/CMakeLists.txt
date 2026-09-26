@@ -105,6 +105,7 @@ set(TEST_SOURCES
     tests/unit/lexical_tests.cc
     src/wp/grammar.cc
     tests/unit/grammar_tests.cc
+    tests/unit/pursuit_tests.cc
     src/platform/nspire/integrity.cc
     src/platform/nspire/native_menu_policy.cc
     tests/unit/run_tests.cc

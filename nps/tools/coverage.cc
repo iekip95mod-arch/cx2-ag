@@ -93,6 +93,7 @@ const struct {
     {"vectors", "a sub-group inside the units tests"},
     {"wp grammar", "the word-problem motion grammar, which solves through the kinematics family"},
     {"wp lexical", "the word-problem lexical layer, which grounds quantities and solves nothing"},
+    {"wp pursuit", "the word-problem pursuit grammar, which solves through the catch-up family"},
 };
 
 // An engine family with no catalog block, which is the state graph integration was in before #441.

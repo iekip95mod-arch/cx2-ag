@@ -33,6 +33,7 @@ void run_integer_tests(TestSink &sink);
 void run_problem_ir_tests(TestSink &sink);
 void run_lexical_tests(TestSink &sink);
 void run_grammar_tests(TestSink &sink);
+void run_pursuit_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
 void run_matrix_form_tests(TestSink &sink);
 void run_matrix_tests(TestSink &sink);
@@ -898,6 +899,8 @@ int main_body() {
     run_lexical_tests(sink);
     sink.begin_group("wp grammar");
     run_grammar_tests(sink);
+    sink.begin_group("wp pursuit");
+    run_pursuit_tests(sink);
     sink.begin_group("matrix row");
     run_matrix_row_tests(sink);
     sink.begin_group("matrix form");
