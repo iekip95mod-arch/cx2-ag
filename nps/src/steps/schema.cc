@@ -335,6 +335,25 @@ const ObligationSchema kEquationSameSolutions[] = {
      kEqualityInvariant, 1},
 };
 
+// algebra.powers-and-radicals.one-variable
+const EvidenceAlternative kBranchEvaluation[] = {
+    {"exact evaluation on each branch beyond the degree", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kPowerShape[] = {
+    {"one-variable shape reading", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kPowerStrategy[] = {
+    {"pre.power.one-variable",
+     "the expression is built from numbers and one variable with powers and roots of single terms",
+     kPowerShape, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kPowerSameValues[] = {
+    {"obl.power.same-values", "the new form has the value of the old one wherever the old one is real",
+     kBranchEvaluation, 1},
+};
+
 // The physics families share a vocabulary of checks, so the alternatives below are named once and
 // referred to by several obligations. Each is the method string the engine records, and the
 // strength it declares when it passes.
@@ -1741,6 +1760,15 @@ const RuleSchema kRules[] = {
      FailureBehavior::CannotFail},
     {"alg.rearrange.check-by-substitution", ClaimType::SolutionSetPreserved, kSubstitutionIdentity,
      1, FailureBehavior::WithholdResult},
+    {"plan.power-laws", ClaimType::NoClaim, kPowerStrategy, 2, FailureBehavior::WithholdResult},
+    {"pow.root-as-power", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.numeric-root", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.power-of-power", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.product-power", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.same-base", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.first-power", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.power-as-root", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
+    {"pow.check-values", ClaimType::EquivalentExpression, kPowerSameValues, 1, FailureBehavior::WithholdResult},
 
     // numeric mode
     {"num.decimal-to-rational", ClaimType::EquivalentExpression, kDecimalReadsAsWritten, 1,

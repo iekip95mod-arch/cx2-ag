@@ -110,6 +110,16 @@ void run_command_tests(TestSink &t) {
                     !command.detail.empty(),
                 std::string("determinant signature refusals cannot fall through to CAS: ") + text);
     }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "powsimp(sqrt(x^2))", "x");
+        t.check(command.status == CommandStatus::Ready && command.expression != kNoNode &&
+                    command_kind_name(command.kind) == std::string("powsimp") && command.operand_text == "sqrt(x^2)",
+                "a power simplification dispatches its one expression");
+        Arena extra;
+        const Command two = parse_command(extra, "powsimp(sqrt(x^2), x)", "x");
+        t.check(two.status == CommandStatus::Unsupported, "and refuses a second argument");
+    }
     const char *commands[] = {"solve(2*x+5=13,x)", "diff(sin(x^2),x)", "int(x^2,x)",
                               "diff(x^3,x,1)", "int(x^2,x,0,1)", "limit((x^2-1)/(x-1),x,1)",
                               "limit(1/x,x,0,1)", "limit(1/x,x,0,-1)",

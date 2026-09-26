@@ -1,0 +1,18 @@
+problem: x*y
+outcome: outside envelope
+detail: every part has to be built from numbers and one variable with sums, products, whole or rational powers, square roots and absolute values, with every root taken of a single term
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.powers-and-radicals.one-variable
+  envelope version: 1
+  normalized problem: (x * y)
+  requested method: powsimp
+  angle convention: not applicable
+  branch convention: real domain, real odd roots, even roots only of values that are not negative
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

@@ -37,6 +37,7 @@ const InstalledModule kExpectedModules[] = {
     {"solver", "algebra.formula-rearrangement.single-occurrence"},
     {"solver", "algebra.polynomial-rewrite.single-expression"},
     {"solver", "number.integer-method.literal"},
+    {"solver", "algebra.powers-and-radicals.one-variable"},
     {"solver", "matrix.ref.rational"},
     {"solver", "matrix.rref.rational"},
     {"solver", "matrix.det.rational"},

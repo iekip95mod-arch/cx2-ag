@@ -2313,6 +2313,7 @@ menu = {
        	 { "Factor  factor(expr)",	function() menustring( "factor(" ) end },
        	 { "Normal Form  normal(expr)",	function() menustring( "normal(" ) end },
        	 { "Simplify  simplify(expr)",	function() menustring( "simplify(" ) end },
+       	 { "Simplify Powers  powsimp(expr)",	function() menustring( "powsimp(" ) end },
        	 { "Substitute  subst(expr,var,value)",	function() menustring( "subst(" ) end },
        	 { "Convert  convert(expr,...)",	function() menustring( "convert(" ) end },
        	 { "Numerical Solve  fsolve(expr,var,guess)",	function() menustring( "fsolve(" ) end },

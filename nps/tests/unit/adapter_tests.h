@@ -104,6 +104,7 @@ void run_adapter_tests(TestSink &sink);
 void run_canonical_tests(TestSink &sink);
 void run_derivation_tests(TestSink &sink);
 void run_linear_tests(TestSink &sink);
+void run_power_tests(TestSink &sink);
 void run_quadratic_tests(TestSink &sink);
 void run_rearrange_tests(TestSink &sink);
 void run_rewrite_tests(TestSink &sink);
