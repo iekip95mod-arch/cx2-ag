@@ -47,13 +47,6 @@ bool method_allowed(const std::string &family, const std::string &method) {
     return false;
 }
 
-bool span_matches(const Span &span, const SourceDocument &source) {
-    return span.original_begin <= span.original_end && span.original_end <= source.original_utf8.size() &&
-           source.original_utf8.compare(span.original_begin, span.original_end - span.original_begin,
-                                        span.surface) == 0 &&
-           span.original_end - span.original_begin == span.surface.size();
-}
-
 IrValidation fail(IrFault fault, std::string detail) {
     return {fault, std::move(detail)};
 }
@@ -91,6 +84,13 @@ std::string source_hash(const std::string &original_utf8) {
         text += kHex[b & 15];
     }
     return text;
+}
+
+bool span_matches(const Span &span, const SourceDocument &source) {
+    return span.original_begin <= span.original_end && span.original_end <= source.original_utf8.size() &&
+           source.original_utf8.compare(span.original_begin, span.original_end - span.original_begin,
+                                        span.surface) == 0 &&
+           span.original_end - span.original_begin == span.surface.size();
 }
 
 IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {

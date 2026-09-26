@@ -101,6 +101,8 @@ set(CORE_SOURCES
 set(TEST_SOURCES
     src/wp/problem_ir.cc
     tests/unit/problem_ir_tests.cc
+    src/wp/lexical.cc
+    tests/unit/lexical_tests.cc
     src/platform/nspire/integrity.cc
     src/platform/nspire/native_menu_policy.cc
     tests/unit/run_tests.cc

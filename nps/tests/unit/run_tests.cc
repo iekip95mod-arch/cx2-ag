@@ -31,6 +31,7 @@ void run_calculus_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
 void run_problem_ir_tests(TestSink &sink);
+void run_lexical_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
 void run_matrix_form_tests(TestSink &sink);
 void run_matrix_tests(TestSink &sink);
@@ -892,6 +893,8 @@ int main_body() {
     run_integer_tests(sink);
     sink.begin_group("problem ir");
     run_problem_ir_tests(sink);
+    sink.begin_group("wp lexical");
+    run_lexical_tests(sink);
     sink.begin_group("matrix row");
     run_matrix_row_tests(sink);
     sink.begin_group("matrix form");

@@ -91,6 +91,7 @@ const struct {
     {"ui canvas", "host canvas rendering"},
     {"ui v4", "the Ki V4 shell vehicle"},
     {"vectors", "a sub-group inside the units tests"},
+    {"wp lexical", "the word-problem lexical layer, which grounds quantities and solves nothing"},
 };
 
 // An engine family with no catalog block, which is the state graph integration was in before #441.
