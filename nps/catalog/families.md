@@ -29,8 +29,10 @@ coverage run does not establish that the release meets section 27.
 A field whose answer is nothing opens with the word none and then says why. That is a different
 statement from a line left out, which is the question nobody answered, and the eight fields section
 5.5 calls the family envelope have to carry one or the other for every family. On
-proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so a
-family that raises no obligation says so and the join still fails the day a fixture raises one.
+proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so
+a family that raises no obligation says so and the join still fails the day a fixture raises one.
+A line whose first word is family is always read as a family header, so prose here never opens a
+line with that word, and a malformed header anywhere in the file refuses the whole read.
 
 The required_assumptions field is prose and an assumption is a sentence, so the join is over the
 engine strings the line puts in double quotes. Each quoted string has to be recorded by a fixture of that family,
@@ -1532,6 +1534,85 @@ rule param.dx-dt fixture
 rule param.dy-dt fixture
 rule param.slope fixture
 rule param.check-slope fixture
+
+family id calculus.ode.separable.first-order
+reference_curriculum_set_ids StepCAS product requirements CALC-012
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 CALC-012
+topic_and_level Separable first-order differential equations with an optional initial condition, PRD section 9 CALC-012
+family_envelope_version 1
+accepted_expression_grammar a right side over numbers, the two named variables, pi and e, built from sums, products, integer powers and calls, where every factor of the right side mentions at most one of the variables
+accepted_input_forms desolve(y'=f,x,y) or desolve(diff(y,x)=f,x,y), with the derivative on either side, and desolve([y'=f,y(x0)=y0],x,y) with x0 and y0 exact rationals. Any other desolve shape is left to Giac
+domains_and_parameter_assumptions the dependent factor is not zero where the equation is divided by it, and each side keeps the domain restrictions its antiderivative records, such as a positive argument for a logarithm
+supported_branches_and_degenerate_cases a right side free of the dependent variable, which integrates straight to an explicit solution. A dependent factor of y or y^2, whose relation is solved for y through the exponential or the reciprocal. Any other dependent factor, whose relation is kept implicit. An initial point, which fixes the constant as its own checked step
+exact_special_function_and_numerical_result_policy exact symbolic antiderivatives from the rule engine and an exact constant read from the initial point, including a logarithm such as ln(2) where the point needs one. Exact mode only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/separable.cc, src/steps/integrate.cc, src/steps/differentiate.cc
+required_assumptions the dependent factor is non-zero where the equation is divided by it, as in "y != 0", and the branch the dependent side integrates on, as in "y > 0" for a logarithm
+test_group_ids separable
+word_language_profile_ids none, typed entry only
+strategy_ids ode.separable.plan
+supported_methods check the equation is first order with a separable right side, divide by the dependent factor, integrate each side with the registered antiderivative rules, add one constant, solve for the dependent variable when its side is y, a logarithm or a reciprocal, fix the constant from an initial point, then differentiate the solution and compare it with the equation
+unsupported_near_neighbors a right side whose factors mix both variables such as x + y or exp(x + y), a parameter other than the two variables, second and higher order equations, linear first-order equations that need an integrating factor, the constant solutions at zeros of the dependent factor that separation divides away, an initial point where the dependent factor vanishes or that lies off the recorded branch, logarithms of absolute values, and antiderivatives the integral engine has no rule for
+proof_obligation_ids obl.plan.preconditions-hold, obl.ode.separation-divides-nonzero, obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.ode.integrals-differ-by-constant, obl.ode.explicit-inverts-relation, obl.ode.initial-condition-holds, obl.ode.solution-satisfies-equation
+solution_soundness_status the explicit solution is differentiated by rule and compared in canonical form with the right side evaluated on it, and an implicit relation is differentiated side by side and compared with the separated factors. A mismatch withholds the solution as unconfirmed rather than calling it wrong, because canonical forms can miss an equality. The constant an initial point gives is substituted back into the relation before it is used
+solution_completeness_status partial, separable right sides whose two factors the integral engine can integrate, with the explicit form limited to the three inverses named above
+corpus_case_ids separable_explicit, separable_implicit, separable_initial_condition
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status the existing desolve menu entry reaches the native walkthrough. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.ode.separable.first-order
+release_status in development, unreleased
+rule ode.separable.plan fixture
+rule ode.separable.separate fixture
+rule calculus.integrate.rules fixture
+rule i.power fixture
+rule i.reciprocal fixture
+rule calculus.integrate.check-by-differentiation fixture
+rule ode.separable.integrate-both-sides fixture
+rule ode.separable.solve-explicit fixture
+rule ode.separable.initial-condition fixture
+rule ode.separable.check-solution fixture
+
+family id calculus.derivative.implicit
+topic_and_level Implicit differentiation of a relation between two variables, PRD section 9 CALC-007
+family_envelope_version 1
+accepted_expression_grammar an equation whose two sides are expressions the native differentiation engine supports in the independent and the dependent variable, with a typed decimal read as the fraction it names
+accepted_input_forms implicit(equation,x,y), where x is the independent variable and y the dependent one, and the derivative is written dydx
+domains_and_parameter_assumptions the dependent variable is a differentiable function of the independent one near the point of interest, recorded as a restriction on the step that differentiates both sides. The coefficient the derivative is divided by is recorded as nonzero by the rearrangement family and carried as an assumption of the answer
+supported_branches_and_degenerate_cases an explicit relation y equal to an expression in x, which gives the ordinary derivative, and a relation whose derivative does not depend on x
+exact_special_function_and_numerical_result_policy exact symbolic derivative with no approximation. The final check evaluates exactly at sample points and is reported as sample agreement rather than proof
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/implicit.cc, src/steps/differentiate.cc, src/steps/rearrange.cc
+required_assumptions the answer holds where the coefficient of dydx is nonzero, carried as an active assumption naming that coefficient, as in "(2 * y) is not zero" for the circle and "x is not zero" for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
+test_group_ids implicit
+supported_methods differentiate both sides with respect to the independent variable, applying the chain rule to the dependent variable through its partial derivative times dydx, collect the dydx terms on one side, and isolate dydx with the rearrangement family
+unsupported_near_neighbors second implicit derivatives, the slope at a named point, systems of implicit relations, relations with a third free variable treated as dependent, relations whose dydx terms cancel, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.implicit.rule-preserves-relation, obl.implicit.chain-identity, obl.calculus.rule-preserves-value, obl.plan.preconditions-hold, obl.rearrange.same-solutions, obl.rearrange.substitution-identity
+solution_soundness_status the relation left minus right is differentiated afresh and its x part plus its y part times the answer is evaluated exactly at up to twelve sample points, withholding the result when any is nonzero. That is sample agreement, and a relation where no sample point or no isolation check point can be evaluated is reported as solved but unchecked rather than as failed
+solution_completeness_status partial, first derivatives of relations the differentiation engine covers
+corpus_case_ids implicit_circle, implicit_product, implicit_mixed, implicit_trig
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.derivative.implicit
+release_status in development, unreleased
+rule implicit.differentiate-both-sides fixture
+rule implicit.chain-rule fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.sum fixture
+rule d.variable fixture
+rule implicit.collect fixture
+rule implicit.isolate fixture
+rule alg.rearrange.inverse-operations fixture
+rule alg.rearrange.divide-both-sides fixture
+rule alg.rearrange.check-by-substitution fixture
+rule implicit.check fixture
 
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set

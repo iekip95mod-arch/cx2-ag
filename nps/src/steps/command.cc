@@ -9,6 +9,94 @@ bool space(char ch) {
     return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
 }
 
+bool identifier_character(char ch) {
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+           ch == '_';
+}
+
+// Reads each primed name as diff(name), since the grammar has no prime, and refuses any other.
+bool unprimed(const std::string &text, std::string *out) {
+    out->clear();
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] != '\'') {
+            out->push_back(text[i]);
+            continue;
+        }
+        size_t start = out->size();
+        while (start > 0 && identifier_character((*out)[start - 1])) --start;
+        if (start == out->size() || ((*out)[start] >= '0' && (*out)[start] <= '9')) return false;
+        const std::string name = out->substr(start);
+        out->resize(start);
+        *out += "diff(" + name + ")";
+    }
+    return true;
+}
+
+bool calls_diff(const Arena &arena, NodeId node) {
+    if (arena.at(node).kind == Kind::Call && arena.text(node) == "diff") return true;
+    for (NodeId child : arena.children(node))
+        if (calls_diff(arena, child)) return true;
+    return false;
+}
+
+// diff(y) or diff(y, x) and nothing else, so a second derivative or another variable stays Giac's.
+bool first_derivative(const Arena &arena, NodeId node, NodeId dependent, NodeId independent) {
+    if (arena.at(node).kind != Kind::Call || arena.text(node) != "diff") return false;
+    const ChildView arguments = arena.children(node);
+    return (arguments.size() == 1 || (arguments.size() == 2 && arguments[1] == independent)) &&
+           arguments[0] == dependent;
+}
+
+// A shape this family reads becomes Ready and anything else is left unhandled for Giac.
+Command desolve_command(Arena &arena, NodeId root, const std::string &text, size_t operand_start) {
+    const ChildView arguments = arena.children(root);
+    if (arguments.size() != 3) return Command();
+    const NodeId independent = arguments[1];
+    const NodeId dependent = arguments[2];
+    if (arena.at(independent).kind != Kind::Symbol || arena.at(dependent).kind != Kind::Symbol ||
+        independent == dependent)
+        return Command();
+    NodeId equation = arguments[0];
+    NodeId condition = kNoNode;
+    if (arena.at(equation).kind == Kind::List) {
+        const ChildView items = arena.children(equation);
+        if (items.size() != 2) return Command();
+        equation = items[0];
+        condition = items[1];
+    }
+    if (arena.at(equation).kind != Kind::Equals) return Command();
+    const ChildView sides = arena.children(equation);
+    const bool left = first_derivative(arena, sides[0], dependent, independent);
+    const bool right = first_derivative(arena, sides[1], dependent, independent);
+    if (left == right) return Command();
+    const NodeId slope = left ? sides[1] : sides[0];
+    if (calls_diff(arena, slope)) return Command();
+    Command command;
+    if (condition != kNoNode) {
+        if (arena.at(condition).kind != Kind::Equals) return Command();
+        const ChildView point = arena.children(condition);
+        if (arena.at(point[0]).kind != Kind::Call || arena.text(point[0]) != arena.text(dependent) ||
+            arena.children(point[0]).size() != 1 || calls_diff(arena, point[1]))
+            return Command();
+        command.initial_point = arena.children(point[0])[0];
+        command.initial_value = point[1];
+    }
+    command.kind = CommandKind::Desolve;
+    command.status = CommandStatus::Ready;
+    command.expression = slope;
+    command.variable = independent;
+    command.variable_name = arena.text(independent);
+    command.dependent = dependent;
+    size_t end = operand_start;
+    for (size_t depth = 1; end < text.size(); ++end) {
+        if (text[end] == '(' || text[end] == '[') ++depth;
+        else if (text[end] == ')' || text[end] == ']') --depth;
+        if (depth == 0 || (depth == 1 && text[end] == ',')) break;
+    }
+    command.operand_text = text.substr(operand_start, end - operand_start);
+    return command;
+}
+
 CommandKind named_command(const std::string &name) {
     if (name == "solve") return CommandKind::Solve;
     if (name == "diff" || name == "d") return CommandKind::Differentiate;
@@ -17,6 +105,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "tangent") return CommandKind::Tangent;
     if (name == "linearize") return CommandKind::Linearize;
     if (name == "paramslope") return CommandKind::ParamSlope;
+    if (name == "implicit") return CommandKind::Implicit;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
     if (name == "factor") return CommandKind::Factor;
@@ -24,6 +113,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "desolve") return CommandKind::Desolve;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
 }
@@ -40,6 +130,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Tangent: return "tangent";
         case CommandKind::Linearize: return "linearize";
         case CommandKind::ParamSlope: return "paramslope";
+        case CommandKind::Implicit: return "implicit";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
         case CommandKind::Factor: return "factor";
@@ -48,6 +139,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::Desolve: return "differential equation";
         case CommandKind::Unhandled: return "command";
     }
     return "command";
@@ -81,8 +173,11 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
     if (command.kind == CommandKind::Unhandled || end == text.size() || text[end] != '(')
         return Command();
 
+    if (command.kind == CommandKind::Desolve && !unprimed(text, &source)) return Command();
     command.status = CommandStatus::Invalid;
     const ParseResult parsed = parse(arena, source.empty() ? text : source);
+    if (!parsed.ok() && command.kind == CommandKind::Desolve && !resource_status(parsed.status))
+        return Command();
     if (!parsed.ok()) {
         if (resource_status(parsed.status))
             command.status = CommandStatus::ResourceExceeded;
@@ -91,6 +186,9 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
     }
     if (arena.at(parsed.root).kind != Kind::Call || arena.text(parsed.root) != name)
         return Command();
+
+    if (command.kind == CommandKind::Desolve)
+        return desolve_command(arena, parsed.root, source, end + 1);
 
     if (command.kind == CommandKind::Integer) {
         const size_t arity = *integer_command_arity(name);
@@ -141,6 +239,23 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         command.variable = arguments[2];
         command.variable_name = arena.text(command.variable);
         command.point = arguments[3];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
+    if (command.kind == CommandKind::Implicit) {
+        if (arguments.size() != 3) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "implicit differentiation requires an equation, the independent variable and the dependent one";
+            return command;
+        }
+        if (arena.at(arguments[1]).kind != Kind::Symbol || arena.at(arguments[2]).kind != Kind::Symbol) {
+            command.detail = "the variables must be single identifiers";
+            return command;
+        }
+        command.expression = arguments[0];
+        command.variable = arguments[1];
+        command.variable_name = arena.text(command.variable);
+        command.dependent = arguments[2];
         command.status = CommandStatus::Ready;
         return command;
     }

@@ -999,8 +999,7 @@ void run_calculus_tests(TestSink &t) {
     t.check(has_passing_evidence("CALC-005") && has_passing_evidence("CALC-006") &&
                 has_passing_evidence("CALC-010"),
             "implemented calculus requirements publish passing traceability evidence");
-    t.check(!has_any_evidence("CALC-007") && !has_any_evidence("CALC-008") &&
-                !has_any_evidence("CALC-009"),
+    t.check(!has_any_evidence("CALC-008") && !has_any_evidence("CALC-009"),
             "unimplemented calculus requirements remain unevidenced");
 }
 

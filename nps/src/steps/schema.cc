@@ -254,6 +254,73 @@ const ObligationSchema kParametricSlopeAgreement[] = {
      kParametricSlopeEvidence, 1},
 };
 
+const ObligationSchema kImplicitPreservesRelation[] = {
+    {"obl.implicit.rule-preserves-relation",
+     "the rule keeps the relation between the variables and their derivative", kRuleInvariant, 1},
+};
+const EvidenceAlternative kImplicitIdentityEvidence[] = {
+    {"exact evaluation of the chain rule identity at sample points", EvidenceStrength::NumericallyCorroborated},
+};
+const ObligationSchema kImplicitIdentity[] = {
+    {"obl.implicit.chain-identity", "the derivative satisfies the chain rule identity of the original relation",
+     kImplicitIdentityEvidence, 1},
+};
+
+// calculus.ode.separable.first-order, CALC-012.
+const EvidenceAlternative kEquationReading[] = {
+    {"structural reading of the equation", EvidenceStrength::StructurallyValid},
+};
+const EvidenceAlternative kFactorPartition[] = {
+    {"structural factor partition", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kSeparableStrategy[] = {
+    {"pre.ode.first-order-form",
+     "the equation gives the first derivative of the dependent variable as an expression in the two "
+     "variables",
+     kEquationReading, 1},
+    {"pre.ode.separable-factors",
+     "the right side is a product of a factor in the independent variable alone and a factor in the "
+     "dependent variable alone",
+     kFactorPartition, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kSeparationDividesNonzero[] = {
+    {"obl.ode.separation-divides-nonzero",
+     "dividing by the dependent factor keeps every solution on which it is not zero",
+     kFactorPartition, 1},
+};
+const ObligationSchema kIntegralsDifferByConstant[] = {
+    {"obl.ode.integrals-differ-by-constant",
+     "two antiderivatives of equal differentials differ by one constant, and C names it",
+     kRuleInvariant, 1},
+};
+const EvidenceAlternative kBranchInverse[] = {
+    {"inverse function on the recorded branch", EvidenceStrength::StructurallyValid},
+};
+const ObligationSchema kExplicitInvertsRelation[] = {
+    {"obl.ode.explicit-inverts-relation",
+     "the explicit form has exactly the solutions of the relation on the branch the integration "
+     "recorded",
+     kBranchInverse, 1},
+};
+const EvidenceAlternative kInitialPointSubstitution[] = {
+    {"exact substitution of the initial point", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kInitialConditionHolds[] = {
+    {"obl.ode.initial-condition-holds", "the particular solution passes through the initial point",
+     kInitialPointSubstitution, 1},
+};
+const EvidenceAlternative kSolutionDifferentiated[] = {
+    {"differentiate the solution and substitute it into the equation",
+     EvidenceStrength::CandidateChecked},
+    {"differentiate both sides of the relation", EvidenceStrength::CandidateChecked},
+};
+const ObligationSchema kSolutionSatisfiesEquation[] = {
+    {"obl.ode.solution-satisfies-equation", "the solution satisfies the differential equation",
+     kSolutionDifferentiated, 2},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -1683,6 +1750,21 @@ const RuleSchema kRules[] = {
     {"param.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"param.check-slope", ClaimType::EquivalentExpression, kParametricSlopeAgreement, 1,
      FailureBehavior::WithholdResult},
+
+    // calculus.ode.separable.first-order, CALC-012
+    {"ode.separable.plan", ClaimType::NoClaim, kSeparableStrategy, 3, FailureBehavior::WithholdResult},
+    {"ode.separable.separate", ClaimType::Implication, kSeparationDividesNonzero, 1, FailureBehavior::CannotFail},
+    {"ode.separable.integrate-both-sides", ClaimType::Implication, kIntegralsDifferByConstant, 1, FailureBehavior::CannotFail},
+    {"ode.separable.solve-explicit", ClaimType::SolutionSetPreserved, kExplicitInvertsRelation, 1, FailureBehavior::CannotFail},
+    {"ode.separable.initial-condition", ClaimType::Definition, kInitialConditionHolds, 1, FailureBehavior::WithholdResult},
+    {"ode.separable.check-solution", ClaimType::EquivalentExpression, kSolutionSatisfiesEquation, 1, FailureBehavior::WithholdResult},
+
+    // calculus.derivative.implicit, CALC-007
+    {"implicit.differentiate-both-sides", ClaimType::Implication, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.chain-rule", ClaimType::Definition, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.collect", ClaimType::SolutionSetPreserved, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.isolate", ClaimType::SolutionSetPreserved, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.check", ClaimType::EquivalentExpression, kImplicitIdentity, 1, FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,
