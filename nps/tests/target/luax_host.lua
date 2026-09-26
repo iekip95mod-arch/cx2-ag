@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 31,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -270,8 +270,11 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.derivative.implicit",
+    "calculus.ode.separable.first-order",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
+    "physics.kinematics.constant-acceleration.two-dimension",
     "physics.kinematics.catch-up.equal-position",
     "physics.kinematics.relative-motion.components.two-dimension",
     "physics.density.mass-volume",
@@ -426,6 +429,30 @@ do
         check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
               case[1] .. " names the family it answered")
     end
+    -- CALC-012. A separable desolve runs natively and one the family refuses returns nil for Giac.
+    for _, case in ipairs({
+        {"desolve(y'=x*y,x,y)", "(y = exp((((x^2) * (2^-1)) + C)))", true, nil},
+        {"desolve(y'=x/y^2,x,y)", "(((y^3) * (3^-1)) = (((x^2) * (2^-1)) + C))", false, nil},
+        {"desolve([y'=x*y,y(0)=2],x,y)", "(y = exp((((x^2) * (2^-1)) + ln(2))))", true, "ln(2)"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(type(record) == "table" and record.solved and record.has_result and
+              not record.answer_only and record.status == "solved and verified" and
+              record.result == case[2],
+              case[1] .. " is solved natively and verified")
+        check(record.mode == "differential equation" and record.outcome == "solved" and
+              record.explicit_solution == case[3] and record.constant == case[4] and
+              record.request_expression == case[1],
+              case[1] .. " reports its form, its constant and the request it answered")
+        check(command_has_rule(record, "ode.separable.separate") and
+              command_has_rule(record, "ode.separable.check-solution") and giac_calls == 0,
+              case[1] .. " carries the separation and the final check without asking Giac")
+    end
+    for _, text in ipairs({"desolve(y'=x+y,x,y)", "desolve(y''=y,x,y)", "desolve(y'=x*y)"}) do
+        check(nps.walkthrough(text, "x", "exact") == nil,
+              text .. " is left to Giac rather than refused natively")
+    end
     for _, case in ipairs({
         {"tangent(1/x,x,0)", "unsupported form"},
         {"tangent(x^2,x)", "unsupported form"},
@@ -434,6 +461,34 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -1536,6 +1591,53 @@ check(planar_rules["physics.planar-kinematics.component-i"] and
       planar_rules["physics.planar-kinematics.component-j"] and
       planar_rules["physics.planar-kinematics.check-shared-time"],
       "the planar-kinematics bridge retains both axis and shared-time provenance")
+
+check(planar_rules["physics.planar-kinematics.plan"] and
+      not planar_rules["physics.planar-kinematics.projectile-plan"] and
+      not planar_rules["physics.planar-kinematics.check-projectile"],
+      "an unset projectile flag selects the general planar plan")
+
+-- The same inputs with a horizontal acceleration, which only the general family accepts.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = {
+        x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+        precision = exact_precision,
+    },
+    elapsed_time = "2 s",
+})
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the planar-kinematics bridge solves an accelerated horizontal axis")
+check(r.result == "(10 i - 12 j) m" and r.displacement.exact_x == "10" and
+      r.displacement.exact_y == "-12" and r.final_velocity.result == "(7 i - 16 j) m/s" and
+      r.final_velocity.exact_x == "7" and r.final_velocity.exact_y == "-16",
+      "the general planar family carries the horizontal acceleration into both reports")
+local general_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then general_rules[s.rule] = true end end
+check(general_rules["physics.planar-kinematics.plan"] and
+      not general_rules["physics.planar-kinematics.check-projectile"],
+      "the general planar family records no projectile precondition")
+
+-- The positive control for the two absences above: the same shape with the flag set reaches the
+-- projectile plan and its extra check, so those assertions are about the flag rather than the path.
+script("-12")
+r = nps.planar_kinematics({
+    body_name = "ball",
+    initial_velocity = planar_kinematics_input.initial_velocity,
+    acceleration = planar_kinematics_input.acceleration,
+    elapsed_time = "2 s",
+    projectile = true,
+})
+check(r.solved == true and r.result == "(6 i - 12 j) m",
+      "the projectile specialization solves the unaccelerated horizontal axis")
+local projectile_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then projectile_rules[s.rule] = true end end
+check(projectile_rules["physics.planar-kinematics.projectile-plan"] and
+      projectile_rules["physics.planar-kinematics.check-projectile"] and
+      not projectile_rules["physics.planar-kinematics.plan"],
+      "a set projectile flag selects the projectile plan and its precondition")
 
 r = nps.planar_kinematics({
     body_name = "ball",
