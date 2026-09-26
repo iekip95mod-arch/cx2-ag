@@ -114,10 +114,10 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-16, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4029), `vector_addition` (lua_module.cc:4032),
-`vector_cross` (lua_module.cc:4033), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4135), `vector_addition` (lua_module.cc:4138),
+`vector_cross` (lua_module.cc:4139), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
@@ -133,6 +133,12 @@ Two things an agent adding a binding needs to know, both learned from a review t
 
 **An engine existing is not the same as it being callable, and being callable is not the same as being
 reachable.** A family needs three separate things: the engine, a `lib[]` entry, and a menu entry.
+
+A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
+`walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
+lua_module.cc:4107, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:2883-2884. Its menu entry is still needed, and a shape the family does not read still
+returns nil so the shell falls back to Giac.
 
 ## What the shell can reach
 
@@ -251,8 +257,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1332 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 723 and `nps_nspire_module` at line 929,
+`source`: nps/CMakeLists.txt:1334 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 725 and `nps_nspire_module` at line 931,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines
