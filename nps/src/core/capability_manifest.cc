@@ -55,6 +55,13 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "physics.gravitation.point-masses"},
     {"solver", "physics.oscillation.restoring-force"},
     {"solver", "physics.wave.speed-frequency-wavelength"},
+    {"solver", "physics.fluids.pressure.force-area"},
+    {"solver", "physics.fluids.hydrostatic-pressure"},
+    {"solver", "physics.fluids.buoyancy.archimedes"},
+    {"solver", "physics.fluids.continuity.incompressible"},
+    {"solver", "physics.thermal.sensible-heat"},
+    {"solver", "physics.thermal.latent-heat"},
+    {"solver", "physics.thermal.ideal-gas"},
     {"solver", "units.chain-link-conversion"},
     {"content", "units.si"},
 #if NPS_RETAINED_FAULT_INJECTION

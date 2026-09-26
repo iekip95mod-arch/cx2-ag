@@ -114,6 +114,7 @@ void run_density_tests(TestSink &sink);
 void run_modern_tests(TestSink &sink);
 void run_relativity_tests(TestSink &sink);
 void run_gravitation_tests(TestSink &sink);
+void run_fluids_thermal_tests(TestSink &sink);
 void run_oscillation_tests(TestSink &sink);
 void run_circular_motion_tests(TestSink &sink);
 void run_kinematics_tests(TestSink &sink);

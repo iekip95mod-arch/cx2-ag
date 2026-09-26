@@ -12,11 +12,14 @@ namespace nps {
 // trusting the numbers. Three base dimensions cover the kinematics vertical slice; the others
 // join when a family needs them, which is the same rule as everything else here. Electric current
 // joined for PHYS-012, because charge, potential and resistance are not expressible without it.
+// Temperature and amount of substance joined for PHYS-018, for heat capacities and the gas constant.
 struct Dimension {
     int length = 0;
     int mass = 0;
     int time = 0;
     int current = 0;
+    int temperature = 0;
+    int amount = 0;
 };
 
 bool operator==(const Dimension &a, const Dimension &b);
@@ -25,7 +28,7 @@ bool operator!=(const Dimension &a, const Dimension &b);
 // One place that knows how many base dimensions there are, so a fifth one is a single edit here
 // rather than parallel lists that drift apart. A producer that writes a dimension out loops over
 // these rather than naming the fields, so a new base dimension cannot be dropped silently.
-constexpr int kDimensionCount = 4;
+constexpr int kDimensionCount = 6;
 void dimension_powers(const Dimension &d, int (&out)[kDimensionCount]);
 
 // False leaves out unchanged when a dimension exponent would not fit.

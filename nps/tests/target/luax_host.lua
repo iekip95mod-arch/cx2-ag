@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 35,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 42,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -289,6 +289,13 @@ local expected_modules = {
     "physics.gravitation.point-masses",
     "physics.oscillation.restoring-force",
     "physics.wave.speed-frequency-wavelength",
+    "physics.fluids.pressure.force-area",
+    "physics.fluids.hydrostatic-pressure",
+    "physics.fluids.buoyancy.archimedes",
+    "physics.fluids.continuity.incompressible",
+    "physics.thermal.sensible-heat",
+    "physics.thermal.latent-heat",
+    "physics.thermal.ideal-gas",
     "units.chain-link-conversion",
     "units.si"
 }

@@ -91,6 +91,8 @@ set(CORE_SOURCES
     src/physics/relation.cc
     src/physics/ranking.cc
     src/physics/gravitation.cc
+    src/physics/fluids.cc
+    src/physics/thermal.cc
     src/physics/oscillation.cc
     src/physics/circular_motion.cc
     src/physics/work.cc
@@ -128,6 +130,7 @@ set(TEST_SOURCES
     tests/unit/modern_tests.cc
     tests/unit/relativity_tests.cc
     tests/unit/gravitation_tests.cc
+    tests/unit/fluids_thermal_tests.cc
     tests/unit/oscillation_tests.cc
     tests/unit/circular_motion_tests.cc
     tests/unit/kinematics_tests.cc
