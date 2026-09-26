@@ -99,6 +99,13 @@ set(CORE_SOURCES
     src/cas/giac/giac_adapter.cc)
 
 set(TEST_SOURCES
+    src/wp/problem_ir.cc
+    tests/unit/problem_ir_tests.cc
+    src/wp/lexical.cc
+    tests/unit/lexical_tests.cc
+    src/wp/grammar.cc
+    tests/unit/grammar_tests.cc
+    tests/unit/pursuit_tests.cc
     src/platform/nspire/integrity.cc
     src/platform/nspire/native_menu_policy.cc
     tests/unit/run_tests.cc
@@ -1238,6 +1245,11 @@ else()
     add_executable(nps_traceability tools/traceability.cc)
     target_link_libraries(nps_traceability PRIVATE nps_flags)
 
+    # WP Milestone 0. Host only, so no calculator build carries the word-problem schema yet.
+    add_executable(nps_wp_validate tools/wp_validate.cc src/wp/problem_ir.cc "${NPS_GIAC_SRC}/sha256.c")
+    target_link_libraries(nps_wp_validate PRIVATE nps_core nps_manifest_host nps_flags)
+    target_include_directories(nps_wp_validate PRIVATE "${NPS_GIAC_SRC}")
+
     # PRD section 27. Checks the coverage catalog against what the golden fixtures record, so a
     # family cannot claim a rule the corpus never runs.
     # It takes the schema table as well, because VER-016 asks every rule to declare one and the
@@ -1659,6 +1671,8 @@ if(NOT CMAKE_CROSSCOMPILING)
     endif()
 
     # Unit replaces the evidence, V4 appends to it, then traceability reads it.
+    add_test(NAME wp_corpus COMMAND nps_wp_validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/wp_corpus")
+
     add_test(NAME traceability COMMAND nps_traceability
              "${CMAKE_CURRENT_SOURCE_DIR}/../docs/StepCAS_Product_Requirements_Document.md"
              "${CMAKE_BINARY_DIR}/evidence.txt" "${CMAKE_CURRENT_SOURCE_DIR}/catalog/families.md"
@@ -1737,7 +1751,7 @@ if(NOT CMAKE_CROSSCOMPILING)
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
                 nps_manifest_probe_test nps_manifest_split_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
-                nps_acceptance_corpus nps_device_run
+                nps_acceptance_corpus nps_device_run nps_wp_validate
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)
         add_dependencies(check nps_retained_ui_test nps_retained_menu_test)

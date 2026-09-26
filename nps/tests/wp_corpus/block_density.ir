@@ -1,0 +1,13 @@
+nps-problem-ir 1
+# Authored for WP Milestone 0. Every span is a byte range of the text line below.
+source id=src-block kind=authored language=en profile=1 hash=28b07ee8dc3649e21cb525a3c7527aa037a05e5797daaf221305e5a73970371d
+text A block of 2 kg takes up 250 cm^3. What is its density?
+problem id=block-density revision=1 domain=physics family=physics.density.mass-volume goal=q-rho method=density-definition
+entity id=block name=block span=2,7
+quantity id=q-m symbol=m semantic=mass value=2 unit=kg owner=block span=11,15
+quantity id=q-V symbol=V semantic=volume value=250 unit=cm^3 owner=block span=25,33
+quantity id=q-rho symbol=rho semantic=density unit=kg/m^3 owner=block span=47,54
+known q-m
+known q-V
+unknown q-rho
+confirmation id=c-block by=author confirmed=yes

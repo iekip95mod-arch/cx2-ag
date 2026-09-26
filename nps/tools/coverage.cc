@@ -85,11 +85,15 @@ const struct {
     {"integrity", "package staging and digests"},
     {"luax", "the Lua bridge vehicle"},
     {"native menu", "the native menu surface"},
+    {"problem ir", "the word-problem schema and commit boundary, which solves through existing families"},
     {"solve_task", "dispatch onto the algebra families their own groups name"},
     {"task", "the core task and coroutine drivers"},
     {"ui canvas", "host canvas rendering"},
     {"ui v4", "the Ki V4 shell vehicle"},
     {"vectors", "a sub-group inside the units tests"},
+    {"wp grammar", "the word-problem motion grammar, which solves through the kinematics family"},
+    {"wp lexical", "the word-problem lexical layer, which grounds quantities and solves nothing"},
+    {"wp pursuit", "the word-problem pursuit grammar, which solves through the catch-up family"},
 };
 
 // An engine family with no catalog block, which is the state graph integration was in before #441.
