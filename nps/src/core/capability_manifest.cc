@@ -38,6 +38,7 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "calculus.linearization.single-variable"},
     {"solver", "physics.kinematics.constant-acceleration.one-dimension"},
     {"solver", "physics.kinematics.constant-acceleration.projectile.two-dimension"},
+    {"solver", "physics.kinematics.constant-acceleration.two-dimension"},
     {"solver", "physics.kinematics.catch-up.equal-position"},
     {"solver", "physics.kinematics.relative-motion.components.two-dimension"},
     {"solver", "physics.density.mass-volume"},
@@ -58,6 +59,9 @@ const InstalledModule kInstalledModules[] = {
 #endif
 };
 #endif
+
+// nps_v4.lua refuses a manifest of more than 128 modules, so outgrowing it disables StepCAS.
+static_assert(std::size(kInstalledModules) <= 128);
 
 const SchemaVersion kSchemaVersions[] = {
     {"capability-manifest", 2},
