@@ -1501,6 +1501,75 @@ rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
 
+family id calculus.taylor-polynomial.single-variable
+topic_and_level Finite Taylor and Maclaurin polynomials with the Lagrange remainder, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms taylor(expression,variable,center,order) and maclaurin(expression,variable,order), with the center an exact rational and the order a nonnegative integer no greater than 19
+domains_and_parameter_assumptions the expression and each of its derivatives up to the order have an exact rational value at the center. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases order zero, which is the constant value at the center, and a polynomial of degree at most the order, whose next derivative is identically zero so the remainder is zero and the polynomial equals the function
+exact_special_function_and_numerical_result_policy exact rationals over int64 with the factorial computed exactly, refusing rather than approximating a center or a derivative value that is not exact. The answer is an approximation near the center unless the remainder is zero
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family. The remainder's hypotheses, the intermediate point lying between the center and the variable and the next derivative existing on that interval, are recorded as domain restrictions on the remainder step
+test_group_ids calculus, context
+supported_methods differentiate repeatedly by the registered rules, evaluate each derivative at the center, divide by the factorial of its order, assemble the powers of the distance from the center, and state the Lagrange remainder from the next derivative
+unsupported_near_neighbors infinite Taylor and power series, radius and interval of convergence, a symbolic or irrational center, a center where a derivative is undefined or not exact, orders above 19, error bounds that maximize the remainder, multivariable expansions, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.taylor-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled polynomial is differentiated again by the native engine and every derivative up to the order is read back exactly at the center against the values the coefficients came from, withholding the result on any disagreement. The remainder is stated with its hypotheses rather than bounded
+solution_completeness_status partial, the expressions the differentiation engine covers with exact derivative values at a rational center and no others
+corpus_case_ids taylor_maclaurin_exponential, taylor_maclaurin_sine, taylor_reciprocal_shifted, taylor_polynomial_exact
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.taylor-polynomial.single-variable
+release_status in development, unreleased
+rule taylor.derivative-value fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.variable fixture
+rule taylor.polynomial fixture
+rule taylor.remainder fixture
+rule taylor.check-polynomial fixture
+
+family id calculus.series.convergence
+topic_and_level Convergence of an infinite series by the standard tests, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar a term in one index variable written as a product of numbers, fixed rational numbers raised to the index plus an integer shift, and a quotient of polynomials in the index
+accepted_input_forms convergence(term,index,first), with the first index an integer and the series running from it to infinity
+domains_and_parameter_assumptions every denominator is nonzero at every integer index from the first one on, which is proved by a Cauchy root bound and an exact check of each integer up to it before any test is applied
+supported_branches_and_degenerate_cases the zero series, geometric series with their exact sum, a geometric factor above or below one in absolute value by the ratio test, rational terms by the divergence test and by limit comparison with a p-series, and alternating rational terms by the alternating series test with conditional convergence named
+exact_special_function_and_numerical_result_policy exact rationals over int64, polynomial degrees up to 20 and at most 4096 indices checked for undefined terms, refusing rather than approximating beyond those limits
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc
+required_assumptions none carried for the family. Each test's hypotheses, eventually nonzero terms, one eventual sign or eventually decreasing absolute values, are recorded as domain restrictions on the step that uses them
+test_group_ids calculus, context
+supported_methods rewrite the term as a constant times a power of a fixed ratio times a rational function, prove every term exists, then decide by the ratio test, the divergence test, limit comparison with a p-series or the alternating series test, and sum a convergent geometric series
+unsupported_near_neighbors factorials and binomial coefficients, logarithms, roots and trigonometric factors in the term, the root, integral and direct comparison tests, power series and their radius or interval of convergence, sums of non-geometric convergent series, and products of more than one kind of growth such as n to the power n
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.series.test-hypotheses, obl.series.form-agreement
+solution_soundness_status the rewritten term is compared exactly with the original at four consecutive indices from the first one, and a geometric sum times one minus the ratio is compared with the first term, withholding the verdict on any disagreement
+solution_completeness_status complete within the envelope, since every term of the accepted form is decided by one of the tests, and partial for series in general
+corpus_case_ids series_geometric_sum, series_ratio_test, series_ratio_diverges, series_p_comparison, series_harmonic_diverges, series_alternating_conditional, series_divergence_test, series_zero_terms
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.series.convergence
+release_status in development, unreleased
+rule series.term-form fixture
+rule series.terms-defined fixture
+rule series.zero-terms fixture
+rule series.ratio-test fixture
+rule series.divergence-test fixture
+rule series.p-comparison fixture
+rule series.alternating-test fixture
+rule series.geometric-sum fixture
+rule series.check-form fixture
+
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022

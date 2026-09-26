@@ -1,0 +1,288 @@
+problem: taylor(1/x,x,1,3)
+result: (1 + (-1 * (-1 + x)) + ((-1 + x)^2) + (-1 * ((-1 + x)^3)))
+remainder: ((c^-5) * ((-1 + x)^4))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.taylor-polynomial.single-variable
+  envelope version: 1
+  normalized problem: taylor((1 * (x^(-1))), x, 1, 3)
+  requested method: taylor
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Evaluate the function at the center
+    rule: taylor.derivative-value, Evaluate the function at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 0
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 1 for x in the function
+    before: (1 * (x^(-1)))
+    after: 1
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 0
+    verified: yes
+  2 plan
+    phase: plan
+    goal: Differentiate (1 * (x^(-1))) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: differentiate
+      goal: Differentiate (1 * (x^(-1)))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      domain restriction: x is not zero
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take 1 outside the derivative
+      before: d((1 * (x^(-1))), x)
+      after: (1 * (-1 * (x^-2)))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      2.1.1 transformation
+        phase: differentiate
+        goal: Differentiate (x^(-1))
+        rule: d.power, Power rule
+        claim: equivalent expression
+        explanation: Bring the exponent down and reduce it by one
+        detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the power rule with exponent -1
+        before: d((x^(-1)), x)
+        after: (-1 * (x^-2))
+        reversible: no
+        verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+        verified: yes
+  3 transformation
+    phase: calculus
+    goal: Evaluate derivative 1 at the center
+    rule: taylor.derivative-value, Evaluate derivative 1 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 1
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 1 for x in derivative 1
+    before: (-1 * (x^-2))
+    after: -1
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 1
+    verified: yes
+  4 plan
+    phase: plan
+    goal: Differentiate (-1 * (x^-2)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    4.1 transformation
+      phase: differentiate
+      goal: Differentiate (-1 * (x^-2))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      domain restriction: x is not zero
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take -1 outside the derivative
+      before: d((-1 * (x^-2)), x)
+      after: (-1 * (-2 * (x^-3)))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      4.1.1 transformation
+        phase: differentiate
+        goal: Differentiate (x^-2)
+        rule: d.power, Power rule
+        claim: equivalent expression
+        explanation: Bring the exponent down and reduce it by one
+        detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the power rule with exponent -2
+        before: d((x^-2), x)
+        after: (-2 * (x^-3))
+        reversible: no
+        verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+        verified: yes
+  5 transformation
+    phase: calculus
+    goal: Evaluate derivative 2 at the center
+    rule: taylor.derivative-value, Evaluate derivative 2 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 2
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 1 for x in derivative 2
+    before: (2 * (x^-3))
+    after: 2
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 2
+    verified: yes
+  6 plan
+    phase: plan
+    goal: Differentiate (2 * (x^-3)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    6.1 transformation
+      phase: differentiate
+      goal: Differentiate (2 * (x^-3))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      domain restriction: x is not zero
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take 2 outside the derivative
+      before: d((2 * (x^-3)), x)
+      after: (2 * (-3 * (x^-4)))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      6.1.1 transformation
+        phase: differentiate
+        goal: Differentiate (x^-3)
+        rule: d.power, Power rule
+        claim: equivalent expression
+        explanation: Bring the exponent down and reduce it by one
+        detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the power rule with exponent -3
+        before: d((x^-3), x)
+        after: (-3 * (x^-4))
+        reversible: no
+        verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+        verified: yes
+  7 transformation
+    phase: calculus
+    goal: Evaluate derivative 3 at the center
+    rule: taylor.derivative-value, Evaluate derivative 3 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 3
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 1 for x in derivative 3
+    before: (-6 * (x^-4))
+    after: -6
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 3
+    verified: yes
+  8 plan
+    phase: plan
+    goal: Differentiate (-6 * (x^-4)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    8.1 transformation
+      phase: differentiate
+      goal: Differentiate (-6 * (x^-4))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      domain restriction: x is not zero
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take -6 outside the derivative
+      before: d((-6 * (x^-4)), x)
+      after: (-6 * (-4 * (x^-5)))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      8.1.1 transformation
+        phase: differentiate
+        goal: Differentiate (x^-4)
+        rule: d.power, Power rule
+        claim: equivalent expression
+        explanation: Bring the exponent down and reduce it by one
+        detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the power rule with exponent -4
+        before: d((x^-4), x)
+        after: (-4 * (x^-5))
+        reversible: no
+        verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+        verified: yes
+  9 transformation
+    phase: calculus
+    goal: Assemble the Taylor polynomial
+    rule: taylor.polynomial, Assemble the Taylor polynomial
+    claim: no claim
+    explanation: The polynomial matches the function and its first 3 derivatives at the center and approximates it nearby
+    detail: The coefficient of the power k of the distance from the center is the k-th derivative at the center divided by k factorial. Adding those terms up to the requested order gives the polynomial that matches the function and its first derivatives at the center.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Divide each derivative value by the factorial of its order and multiply by the matching power of (-1 + x)
+    before: taylor((1 * (x^(-1))), x, 1, 3)
+    after: (1 + (-1 * (-1 + x)) + ((-1 + x)^2) + (-1 * ((-1 + x)^3)))
+    reversible: no
+    verification: rule-local invariant, passed, The polynomial matches the function and its first 3 derivatives at the center and approximates it nearby
+    verified: nothing claimed
+  10 transformation
+    phase: calculus
+    goal: State the remainder
+    rule: taylor.remainder, State the remainder
+    claim: no claim
+    explanation: Lagrange's theorem gives the error as the next derivative at some point between the center and x
+    detail: Lagrange's form of the remainder says what the polynomial leaves out. The next derivative is evaluated at some point c strictly between the center and x, which the theorem guarantees exists but does not name. It holds wherever the function has that next derivative on the interval between the center and x.
+    domain restriction: c lies strictly between 1 and x
+    domain restriction: the function has derivative 4 at every point between 1 and x
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Evaluate derivative 4 at an unnamed point c and divide by 4 factorial
+    before: (24 * (x^-5))
+    after: ((c^-5) * ((-1 + x)^4))
+    reversible: no
+    verification: rule-local invariant, passed, Lagrange's theorem gives the error as the next derivative at some point between the center and x
+    verified: nothing claimed
+  11 check
+    phase: check
+    goal: Check the polynomial against the derivatives at the center
+    rule: taylor.check-polynomial, Taylor agreement at the center
+    claim: equivalent expression
+    explanation: Differentiate the assembled polynomial and read each derivative at the center, which has to give back the values the coefficients came from
+    proof obligation: obl.calculus.taylor-agreement, the polynomial and the function have the same derivatives at the center up to the order
+    target claim: the assembled polynomial is the Taylor polynomial of the requested order
+    check method: differentiate the polynomial and evaluate each derivative at the center
+    expected: derivatives 0 through 3 equal the function's at the center
+    observed: (1 + (-1 * (-1 + x)) + ((-1 + x)^2) + (-1 * ((-1 + x)^3)))
+    verification: derivatives of the polynomial at the center, passed, every derivative of the polynomial up to the order matches the function's at the center
+    verified: yes
