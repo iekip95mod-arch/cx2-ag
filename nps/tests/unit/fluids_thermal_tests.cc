@@ -160,6 +160,10 @@ void test_thermal(TestSink &t) {
         t.equal(outcome(r), "dimension mismatch", "a length offered as a temperature change is refused");
     }
     {
+        const Run r = run(solve_sensible_heat, 0, {{1, "1 kg"}, {2, "4186 J/(kg*K)"}, {3, "10"}});
+        t.equal(outcome(r), "dimension mismatch", "a bare number offered as a temperature change is refused");
+    }
+    {
         const Run r = run(solve_latent_heat, 0, {{1, "2 kg"}, {2, "334000 J/kg"}});
         t.check(outcome(r) == "solved" && exact(r, 668000, 1), "melting heat is m L: " + r.result.value_text);
         t.check(provenance(r, "physics.thermal.latent-heat"), "and the latent heat derivation is verified: " + r.unverified);

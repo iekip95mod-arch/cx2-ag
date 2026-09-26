@@ -41,12 +41,14 @@
 #include "nps/steps/integrate.h"
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
+#include "nps/physics/fluids.h"
 #include "nps/physics/gravitation.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/optics.h"
 #include "nps/physics/oscillation.h"
 #include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
+#include "nps/physics/thermal.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
@@ -3293,6 +3295,34 @@ int l_wave(lua_State *L) {
     return relation_into(L, wave_model(), solve_wave);
 }
 
+int l_pressure(lua_State *L) {
+    return relation_into(L, pressure_model(), solve_pressure);
+}
+
+int l_hydrostatic(lua_State *L) {
+    return relation_into(L, hydrostatic_model(), solve_hydrostatic);
+}
+
+int l_buoyancy(lua_State *L) {
+    return relation_into(L, buoyancy_model(), solve_buoyancy);
+}
+
+int l_continuity(lua_State *L) {
+    return relation_into(L, continuity_model(), solve_continuity);
+}
+
+int l_sensible_heat(lua_State *L) {
+    return relation_into(L, sensible_heat_model(), solve_sensible_heat);
+}
+
+int l_latent_heat(lua_State *L) {
+    return relation_into(L, latent_heat_model(), solve_latent_heat);
+}
+
+int l_ideal_gas(lua_State *L) {
+    return relation_into(L, ideal_gas_model(), solve_ideal_gas);
+}
+
 int l_vector_addition(lua_State *L) {
     const char *first_text = scalar_string_argument(L, 1);
     const char *second_text = scalar_string_argument(L, 2);
@@ -4119,6 +4149,13 @@ const luaL_Reg lib[] = {
     {"gravitation", l_gravitation},
     {"oscillation", l_oscillation},
     {"wave", l_wave},
+    {"pressure", l_pressure},
+    {"hydrostatic", l_hydrostatic},
+    {"buoyancy", l_buoyancy},
+    {"continuity", l_continuity},
+    {"sensible_heat", l_sensible_heat},
+    {"latent_heat", l_latent_heat},
+    {"ideal_gas", l_ideal_gas},
     {"vector_addition", l_vector_addition},
     {"vector_cross", l_vector_cross},
     {"relative_motion", l_relative_motion},

@@ -876,6 +876,9 @@ do
                            "separation", "1 m" } },
         { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
         { "wave", { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" } },
+        { "pressure", { "pressure", "force", "300 N", "area", "1000 cm^2" } },
+        { "ideal_gas", { "pressure", "amount of gas", "1 mol", "absolute temperature", "300 K",
+                         "volume", "25 L" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
             local arguments = { unpack(calculation[2]) }
@@ -1351,6 +1354,53 @@ check(oscillation_rules["physics.oscillation.convert-units"] and
 r = nps.oscillation("restoring force", "stiffness", "200 N", "displacement", "5 cm")
 check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
       "the oscillation bridge refuses a stiffness given as a force")
+
+-- PHYS-018's relations share the relation bridge, so each is held to a solved answer, its own
+-- provenance and the condition that makes its law apply.
+do
+    giac_calls = 0
+    local relations = {
+        { "pressure", { "pressure", "force", "300 N", "area", "1000 cm^2" },
+          "pressure = 3000 kg/(m s^2)", "physics.fluids.pressure", "perpendicular" },
+        { "hydrostatic", { "depth", "gauge pressure", "49 kPa", "fluid density", "1000 kg/m^3",
+                           "gravitational acceleration", "9.8 m/s^2" },
+          "depth = 5.0 m", "physics.fluids.hydrostatic", "gauge pressure" },
+        { "buoyancy", { "buoyant force", "fluid density", "1000 kg/m^3", "displaced volume", "2 L",
+                        "gravitational acceleration", "10 m/s^2" },
+          "buoyant force = 20 kg m/s^2", "physics.fluids.buoyancy", "below the surface" },
+        { "continuity", { "outlet speed", "inlet area", "4 cm^2", "inlet speed", "3 m/s",
+                          "outlet area", "2 cm^2" },
+          "outlet speed = 6 m/s", "physics.fluids.continuity", "incompressible" },
+        { "sensible_heat", { "heat", "mass", "500 g", "specific heat", "4186 J/(kg*K)",
+                             "temperature change", "10 K" },
+          "heat = 20930 kg m^2/s^2", "physics.thermal.sensible-heat", "no phase change" },
+        { "latent_heat", { "heat", "mass", "2 kg", "latent heat", "334000 J/kg" },
+          "heat = 668000 kg m^2/s^2", "physics.thermal.latent-heat", "transition temperature" },
+        { "ideal_gas", { "absolute temperature", "pressure", "100 kPa", "amount of gas", "1.00 mol",
+                         "volume", "25.0 L" },
+          "absolute temperature = 301 K", "physics.thermal.ideal-gas", "exact in the SI" },
+    }
+    for _, case in ipairs(relations) do
+        local record = nps[case[1]](unpack(case[2]))
+        local rules = {}
+        for _, s in ipairs(record.steps) do if s.rule then rules[s.rule] = true end end
+        check(record.solved == true and record.status == "solved and verified" and record.result == case[3],
+              "the " .. case[1] .. " bridge returns the verified answer: " .. tostring(record.result))
+        check(rules[case[4] .. ".definition"] and rules[case[4] .. ".check-dimensions"] and
+              rules[case[4] .. ".substitute"] and rules[case[4] .. ".check-candidate"] and
+              type(record.assumptions) == "string" and record.assumptions:find(case[5], 1, true) ~= nil,
+              "the " .. case[1] .. " bridge keeps its provenance and the condition its law needs")
+    end
+    local refused = nps.ideal_gas("volume", "pressure", "100 kPa", "amount of gas", "1 mol",
+                                  "absolute temperature", "300 K")
+    check(refused.outcome == "unsupported unknown" and refused.solved == false and refused.result == nil,
+          "the ideal gas bridge refuses the volume it cannot isolate linearly")
+    refused = nps.sensible_heat("heat", "mass", "1 kg", "specific heat", "4186 J/(kg*K)",
+                                "temperature change", "10 degC")
+    check(refused.outcome == "invalid input" and refused.detail:find("degC", 1, true) ~= nil,
+          "a temperature in degrees Celsius is refused rather than read as a kelvin scale")
+    check(giac_calls == 0, "the fluid and thermal bridges never ask Giac")
+end
 
 r = nps.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
 check(r.solved == true and r.status == "solved and verified" and r.unknown == "wavelength" and
