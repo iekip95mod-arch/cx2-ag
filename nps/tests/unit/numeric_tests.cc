@@ -73,9 +73,9 @@ void test_bisection(TestSink &t) {
                 "the bound is certified and the answer is marked approximate: " + status(r));
         t.check(r.broken.empty(), "the bisection record passes the invariant pass" + broken(r));
         t.check(r.assumptions.find("continuous") != std::string::npos, "and names continuity: " + r.assumptions);
-        t.evidence("CALC-019", r.result.outcome == NumericOutcome::Approximated && r.result.bound_certified &&
+        t.evidence("VER-018", r.result.outcome == NumericOutcome::Approximated && r.result.bound_certified &&
                                    count(r, "num.bisect-halve") == 6,
-                   "bisection runs only when asked, records every halving and proves its stopping bound");
+                   "a bisection records every halving, its sign-change precondition, its stopping bound and the certificate");
     }
     {
         const Run r = run("bisect(x^2-4, x, 0, 4, 1/10)");
@@ -94,8 +94,8 @@ void test_bisection(TestSink &t) {
     {
         const Run r = run("bisect(x^2-2, x, 1, 2, 1/2^60)");
         t.equal(outcome(r), "did not converge", "a tolerance past the halving cap does not converge");
-        t.check(r.result.value == kNoNode && count(r, "num.bisect-halve") > 0 && r.broken.empty(),
-                "and keeps its verified halvings without an answer" + broken(r));
+        t.evidence("VER-018", r.result.value == kNoNode && count(r, "num.bisect-halve") > 0 && r.broken.empty(),
+                   "a method that cannot meet its tolerance keeps its verified iterations and offers no answer" + broken(r));
     }
 }
 
@@ -139,7 +139,7 @@ void test_quadrature(TestSink &t) {
         t.check(r.result.bound_certified && count(r, "num.quad-check") == 1,
                 "and the exact integral is inside the bound");
         t.check(r.broken.empty(), "the trapezoid record passes the invariant pass" + broken(r));
-        t.evidence("CALC-019", r.result.bound_certified && count(r, "num.quad-bound") == 1,
+        t.evidence("VER-018", r.result.bound_certified && count(r, "num.quad-bound") == 1,
                    "a quadrature rule states its error bound and checks it against the exact integral");
     }
     {
