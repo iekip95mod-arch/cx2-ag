@@ -1354,6 +1354,14 @@ int main(int argc, char **argv) {
                                                      std::get<1>(entry.first),
                                                      std::get<2>(entry.first), entry.second,
                                                      "acceptance corpus"));
+        // VER-010's observed kinds over the corpus, for coverage.cc to join.
+        for (const auto &entry : g_pass.rule_kinds()) {
+            for (nps_tools::RuleCaseKind kind : entry.second)
+                rows.push_back(nps_tools::rule_case_row(
+                    entry.first, kind, faults.empty(), "acceptance corpus",
+                    std::string("observed in the acceptance corpus as a ") +
+                        nps_tools::rule_case_kind_name(kind) + " case"));
+        }
         std::string error;
         // The unit run truncates this file and writes the adapter group into it, so an append that
         // lands first would be thrown away by the run it was waiting for.

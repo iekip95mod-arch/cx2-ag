@@ -846,6 +846,9 @@ void write_evidence(const TestSink &s) {
                 e.group.c_str(), e.what.c_str());
     for (const std::string &row : s.check_kind_rows)
         fprintf(f, "%s\n", row.c_str());
+    for (const RuleCase &c : s.rule_cases)
+        fprintf(f, "%s\n",
+                nps_tools::rule_case_row(c.rule_id, c.kind, c.passed, c.group, c.what).c_str());
     fclose(f);
 }
 

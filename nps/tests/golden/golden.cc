@@ -465,6 +465,13 @@ void check_golden_invariants(TestSink &sink) {
     sink.equal(unseen, "",
                "golden invariants: every check kind has a fixture verification that passed "
                "under it");
+    // VER-010's observed kinds, one row per rule and kind, for coverage.cc to join.
+    for (const auto &entry : g_pass.rule_kinds()) {
+        for (nps_tools::RuleCaseKind kind : entry.second)
+            sink.record_rule_case(entry.first, kind, true,
+                                  std::string("observed in the golden fixtures as a ") +
+                                      nps_tools::rule_case_kind_name(kind) + " case");
+    }
 }
 
 std::string render_derivation(const Arena &arena, const Derivation &derivation) {
