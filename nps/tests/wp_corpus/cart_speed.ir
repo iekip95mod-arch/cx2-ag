@@ -1,0 +1,20 @@
+nps-problem-ir 1
+# Authored for WP Milestone 0. Every span is a byte range of the text line below.
+source id=src-cart kind=authored language=en profile=1 hash=19c2bb82554b5555a4e358ac3ec8cdd34c68a864d06d0b36077b1052315e978a
+text A red cart moving at 5 m/s speeds up at 3 m/s^2 for 4 s. How fast is it moving then?
+problem id=cart-speed revision=1 domain=physics family=physics.kinematics.constant-acceleration.one-dimension goal=q-v method=constant-acceleration-equations
+entity id=cart name=cart span=6,10
+state id=start entity=cart description=before span=11,26
+state id=end entity=cart description=after span=79,83
+quantity id=q-v0 symbol=v0 semantic=initial_velocity value=5 unit=m/s owner=cart state=start span=21,26
+quantity id=q-a symbol=a semantic=acceleration value=3 unit=m/s^2 owner=cart span=40,47
+quantity id=q-t symbol=t semantic=elapsed_time value=4 unit=s owner=cart span=52,55
+quantity id=q-v symbol=v semantic=final_velocity unit=m/s owner=cart state=end span=57,65
+relation id=r-accel kind=change operands=q-v0,q-v,q-a,q-t span=27,36
+assumption id=a-constant rule=speeds-up-at inferred confirmation=c-cart says the acceleration stays constant for the whole 4 s
+unused span=2,5
+known q-v0
+known q-a
+known q-t
+unknown q-v
+confirmation id=c-cart by=author confirmed=yes
