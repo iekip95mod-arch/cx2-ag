@@ -110,6 +110,20 @@ void run_command_tests(TestSink &t) {
                     !command.detail.empty(),
                 std::string("determinant signature refusals cannot fall through to CAS: ") + text);
     }
+    for (const char *text : {"bisect(x^2-2,x,1,2,1/100)", "newtonroot(x^2-2,x,1,1/1000)",
+                             "trapsum(x^2,x,0,1,4)", "simpsum(x^2,x,0,1,2)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command_kind_name(command.kind) == std::string("numeric") &&
+                    command.expression != kNoNode && command.operand_text == text,
+                std::string("a numerical method dispatches its whole call: ") + text);
+    }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "bisect(x^2-2,x,1,2)", "x");
+        t.check(command.status == CommandStatus::Unsupported && command.detail == "bisect takes 5 arguments",
+                "a numerical method with the wrong number of arguments says how many it takes: " + command.detail);
+    }
     const char *commands[] = {"solve(2*x+5=13,x)", "diff(sin(x^2),x)", "int(x^2,x)",
                               "diff(x^3,x,1)", "int(x^2,x,0,1)", "limit((x^2-1)/(x-1),x,1)",
                               "limit(1/x,x,0,1)", "limit(1/x,x,0,-1)",

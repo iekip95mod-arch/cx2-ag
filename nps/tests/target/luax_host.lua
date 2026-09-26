@@ -253,7 +253,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -270,6 +270,8 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.numerical-root.polynomial",
+    "calculus.numerical-integral.polynomial",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.constant-acceleration.two-dimension",
@@ -637,6 +639,33 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+do
+    giac_calls = 0
+    local root = nps.walkthrough("bisect(x^2-2, x, 1, 2, 1/100)", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(root) == "table" and root.steps or {}) do rules[step.rule] = (rules[step.rule] or 0) + 1 end
+    evidence("VER-018", type(root) == "table" and root.mode == "numeric" and root.solved and
+             root.result == "(181 * (128^-1))" and root.error_bound == "(1 * (128^-1))" and root.bound_certified and
+             root.status == "numerically approximated" and root.iterations == 6 and rules["num.bisect-halve"] == 6 and
+             rules["num.bisect-check"] == 1,
+             "a requested bisection reaches the bridge with every halving, its bound and the certificate")
+    local newton = nps.walkthrough("newtonroot(x^2, x, 1, 1/1000)", "x", "exact")
+    check(type(newton) == "table" and newton.solved and newton.bound_certified == false and
+          newton.status == "solved but unchecked",
+          "an uncertified Newton answer reaches the bridge marked unchecked rather than verified")
+    local quad = nps.walkthrough("trapsum(x^2, x, 0, 1, 4)", "x", "exact")
+    check(type(quad) == "table" and quad.solved and quad.result == "(11 * (32^-1))" and
+          quad.error_bound == "(1 * (96^-1))" and quad.bound_certified,
+          "the trapezoid rule reaches the bridge with its value and certified bound")
+    local refused = nps.walkthrough("bisect(x^2+1, x, -1, 1, 1/10)", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "no sign change" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "a bisection with no sign change is a native refusal with no steps")
+    local outside = nps.walkthrough("bisect(sin(x), x, 1, 4, 1/10)", "x", "exact")
+    check(type(outside) == "table" and outside.outcome == "outside envelope" and not outside.solved,
+          "a function outside the polynomial envelope is refused rather than sent to Giac")
+    check(giac_calls == 0, "the numerical methods never ask Giac")
+end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and

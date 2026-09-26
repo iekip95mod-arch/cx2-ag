@@ -33,6 +33,7 @@
 #include "nps/ui/bitmap.h"
 #include "nps/steps/integer.h"
 #include "nps/steps/matrix.h"
+#include "nps/steps/numeric.h"
 #include "nps/steps/rewrite.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/solve_task.h"
@@ -2397,6 +2398,54 @@ int integer_into(lua_State *L) {
     return 1;
 }
 
+int numeric_into(lua_State *L) {
+    size_t text_size = 0;
+    const char *text_data = luaL_checklstring(L, 1, &text_size);
+    mode_argument(L, 3);
+    const std::string text(text_data, text_size);
+    GcPause paused(L);
+    Arena arena;
+    const ParseResult parsed = parse(arena, text);
+    if (!parsed.ok()) {
+        if (resource_status(parsed.status))
+            return expression_resource_failure(L, parsed.message);
+        return typed_failure(L, "invalid input", "invalid input", parsed.message);
+    }
+    Derivation d;
+    d.request.original_expression = text;
+    const NumericResult result = numeric_method(arena, d, parsed.root, interactive_budget());
+    std::string normalized;
+    std::string normalization_detail;
+    if (!prepare_normalized_expression(arena, d.context, &normalized, &normalization_detail))
+        return expression_resource_failure(L, normalization_detail);
+    d.context.normalized_expression = normalized;
+    const bool solved = result.outcome == NumericOutcome::Approximated;
+    const bool has_result = solved && result.value != kNoNode;
+    lua_newtable(L);
+    set_field(L, "outcome", numeric_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", solved);
+    set_field(L, "has_result", has_result);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "result_form",
+              result_form_name(primary_result_form(has_result, false, result.status, ResultForm::NoResult)));
+    set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));
+    set_expression_context(L, d.context);
+    if (has_result) {
+        set_field(L, "result", print(arena, result.value));
+        set_field(L, "error_bound", print(arena, result.bound));
+        set_field(L, "bound_certified", result.bound_certified);
+    }
+    set_field(L, "iterations", static_cast<int>(result.iterations));
+    set_cost(L, arena, d, result.cost, 0);
+    if (d.size() == 0)
+        push_no_steps(L);
+    else
+        push_steps(L, arena, d);
+    return 1;
+}
+
 int matrix_into(lua_State *L, CommandKind kind) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
@@ -2781,6 +2830,8 @@ int l_walkthrough(lua_State *L) {
         count = integrate_into(L, true);
     else if (kind == CommandKind::Integer)
         count = integer_into(L);
+    else if (kind == CommandKind::Numeric)
+        count = numeric_into(L);
     else if (kind == CommandKind::Ref || kind == CommandKind::Rref || kind == CommandKind::Determinant)
         count = matrix_into(L, kind);
     else

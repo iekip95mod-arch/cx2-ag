@@ -27,6 +27,7 @@
 #include "nps/physics/vector_cross.h"
 #include "nps/physics/work.h"
 #include "nps/steps/linear.h"
+#include "nps/steps/numeric.h"
 #include "nps/steps/quadratic.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
@@ -143,6 +144,20 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
         answer += print(arena, result.solutions[i]);
     }
     return header(equation, name, quadratic_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string numeric_record(const char *call, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, call);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const NumericResult result = numeric_method(arena, derivation, parsed.root, budget);
+    std::string answer = result.value == kNoNode ? "" : print(arena, result.value);
+    if (result.bound != kNoNode)
+        answer += " within " + print(arena, result.bound);
+    return header(call, "", numeric_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -998,6 +1013,12 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "rearrange_even_power_refused", rearrange_record("y = x^2", "x", Budget()));
     check_golden(t, "rearrange_repeated_variable", rearrange_record("y = x + x", "x", Budget()));
     check_golden(t, "rearrange_step_budget_halt", rearrange_record("v = u + a*t", "t", one_step()));
+    check_golden(t, "numeric_bisection_sqrt_two", numeric_record("bisect(x^2-2, x, 1, 2, 1/100)", Budget()));
+    check_golden(t, "numeric_bisection_no_sign_change", numeric_record("bisect(x^2+1, x, -1, 1, 1/10)", Budget()));
+    check_golden(t, "numeric_newton_sqrt_two", numeric_record("newtonroot(x^2-2, x, 1, 1/1000)", Budget()));
+    check_golden(t, "numeric_newton_double_root", numeric_record("newtonroot(x^2, x, 1, 1/1000)", Budget()));
+    check_golden(t, "numeric_trapezoid_square", numeric_record("trapsum(x^2, x, 0, 1, 4)", Budget()));
+    check_golden(t, "numeric_simpson_quartic", numeric_record("simpsum(x^4, x, 0, 1, 2)", Budget()));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));

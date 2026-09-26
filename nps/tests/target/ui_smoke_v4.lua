@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4861,6 +4861,27 @@ if os.getenv("NPS_COMMAND_MODULE") then
               record.result == nil and #record.steps == 0 and evaluated == before_evaluation,
               "a nonsquare determinant stays a native refusal in the walkthrough viewer")
         if env.steps.active then env.on.escapeKey() end
+    end
+
+    for _, case in ipairs({{"Bisection Root", "bisect(", "x^2-2,x,1,2,1/100)", "(181 * (128^-1))", "num.bisect-halve"},
+                           {"Simpson Rule", "simpsum(", "x^4,x,0,1,2)", "(5 * (24^-1))", "num.quad-check"}}) do
+        env.fctEditor.editor:setExpression("\\0el {}")
+        check(select_integer_menu(case[1]) and env.fctEditor:getExpression() == case[2],
+              "the numerical menu entry inserts its native command: " .. case[2])
+        env.fctEditor:addString(case[3])
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        local found_rule = false
+        for _, step in ipairs(record and record.steps or {}) do found_rule = found_rule or step.rule == case[5] end
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
+              record and record.mode == "numeric" and record.solved and record.result == case[4] and
+              record.status == "numerically approximated" and record.bound_certified and found_rule,
+              "the numerical menu entry opens a certified approximation without a CAS fallback: " .. case[2])
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
     end
 
     env.fctEditor.editor:setExpression("\\0el {}")

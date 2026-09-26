@@ -1294,6 +1294,76 @@ rule alg.factor.product-and-sum fixture
 rule alg.factor.difference-of-squares fixture
 rule alg.rewrite.check-by-evaluation fixture
 
+family id calculus.numerical-root.polynomial
+reference_curriculum_set_ids none, this family answers PRD CALC-019 and VER-018 for root finding beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 CALC-019 and VER-018
+topic_and_level Bisection and Newton's method for a real root of a polynomial, run only when the learner asks for them
+family_envelope_version 1
+accepted_expression_grammar a polynomial of degree at most 12 in one variable with rational coefficients, built from sums, products, whole powers and division by constants, with exact rational endpoints, starting point and tolerance
+accepted_input_forms bisect(f,x,a,b,tol) and newtonroot(f,x,x0,tol) from the Calculus menu, in exact mode
+domains_and_parameter_assumptions a polynomial is continuous and differentiable everywhere, which is what both the bisection bracket and the final sign-change certificate rely on
+supported_branches_and_degenerate_cases bisection halves a sign-change bracket until half its width is within the tolerance, at most 50 times, and stops early at an exact root. Newton's method rounds each iterate to a power of ten at least a thousand times finer than the tolerance, stops when two iterates are within the tolerance, and gives up after 30 steps or at a zero derivative
+exact_special_function_and_numerical_result_policy every value is an exact fraction, so the only error is the method's own. Newton's rounding to the working grid is recorded on each step
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/numeric.cc
+required_assumptions both methods rest on continuity, carried as "the function is a polynomial, so it is continuous and differentiable everywhere", and an uncertified Newton answer also carries "no sign change within the tolerance was found, so the stated bound is not proved"
+test_group_ids numeric, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.numeric.root-in-bracket, obl.numeric.bound-holds, obl.numeric.derivative, obl.numeric.newton-update
+strategy_ids plan.numeric-bisection, plan.numeric-newton
+supported_methods each halving or Newton step is its own recorded step with its exact values. The answer's bound is then checked by a sign change across it, which by the intermediate value theorem proves a root lies within the bound
+unsupported_near_neighbors functions other than polynomials, polynomials of degree above 12, two variables, the secant and fixed-point methods, a tolerance finer than one part in a trillion for Newton, and a tolerance that needs more than 50 halvings
+solution_soundness_status a certified bound is a proof by the intermediate value theorem. A Newton answer whose certificate finds no sign change, as at a double root, is returned as solved but unchecked rather than verified
+solution_completeness_status bisection always converges within its cap when the ends change sign. Newton's method can fail to converge, and says so with its iterates kept
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch from the new Bisection Root and Newton Root menu entries, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids calculus.numerical-root.polynomial
+release_status in development, unreleased
+rule plan.numeric-bisection fixture
+rule plan.numeric-newton fixture
+rule num.bisect-halve fixture
+rule num.bisect-check fixture
+rule num.newton-derivative fixture
+rule num.newton-iterate fixture
+rule num.newton-check fixture
+
+family id calculus.numerical-integral.polynomial
+reference_curriculum_set_ids none, this family answers PRD CALC-019 and VER-018 for numerical integration beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 CALC-019 and VER-018
+topic_and_level The trapezoid rule and Simpson's rule for the integral of a polynomial, run only when the learner asks for them
+family_envelope_version 1
+accepted_expression_grammar a polynomial of degree at most 12 in one variable with rational coefficients, with exact rational limits and a whole number of intervals from 1 to 1000, even for Simpson's rule
+accepted_input_forms trapsum(f,x,a,b,n) and simpsum(f,x,a,b,n) from the Calculus menu, in exact mode
+domains_and_parameter_assumptions a polynomial is continuous with every derivative bounded on a closed interval, which is what the error bounds rely on
+supported_branches_and_degenerate_cases the trapezoid rule on any count of intervals and Simpson's rule on an even count. A rule that is exact for the polynomial, such as Simpson's on a cubic, states a bound of zero
+exact_special_function_and_numerical_result_policy every sum is an exact fraction, so the only error is the rule's own
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/numeric.cc
+required_assumptions the bound rests on bounded derivatives, carried as "the function is a polynomial, so it is continuous and differentiable everywhere"
+test_group_ids numeric, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.numeric.rule-sum, obl.numeric.error-bound, obl.numeric.bound-holds
+strategy_ids plan.numeric-trapezoid, plan.numeric-simpson
+supported_methods the weighted sum is one step and the bound is another, (b-a) h^2 times the largest second derivative over 12 for the trapezoid rule or (b-a) h^4 times the largest fourth derivative over 180 for Simpson's, with the derivative bounded from the absolute coefficients. The check compares the approximation with the exact integral from the antiderivative
+unsupported_near_neighbors functions other than polynomials, the midpoint rule, Romberg and adaptive quadrature, improper integrals and more than 1000 intervals
+solution_soundness_status verified, the stated bound is compared with the exact integral rather than trusted
+solution_completeness_status the approximation always exists for an accepted request. A sum too long for exact int64 storage is refused as a resource limit
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch from the new Trapezoid Rule and Simpson Rule menu entries, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids calculus.numerical-integral.polynomial
+release_status in development, unreleased
+rule plan.numeric-trapezoid fixture
+rule plan.numeric-simpson fixture
+rule num.quad-sum fixture
+rule num.quad-bound fixture
+rule num.quad-check fixture
+
 family id number.integer-method.literal
 reference_curriculum_set_ids none, this family extends the menu walkthrough request beyond the MVP corpus minimums
 curriculum_source_locations docs/menu-walkthrough-plan.md, Number and Probability menu inventory

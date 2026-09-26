@@ -30,6 +30,7 @@ void run_command_tests(TestSink &sink);
 void run_calculus_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
+void run_numeric_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
 void run_matrix_form_tests(TestSink &sink);
 void run_matrix_tests(TestSink &sink);
@@ -889,6 +890,8 @@ int main_body() {
     run_ui_canvas_tests(sink);
     sink.begin_group("integer");
     run_integer_tests(sink);
+    sink.begin_group("numeric");
+    run_numeric_tests(sink);
     sink.begin_group("matrix row");
     run_matrix_row_tests(sink);
     sink.begin_group("matrix form");

@@ -1,0 +1,18 @@
+problem: bisect(x^2+1, x, -1, 1, 1/10)
+outcome: no sign change
+detail: the function is positive at both ends, so bisection has no bracket to halve
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.numerical-root.polynomial
+  envelope version: 1
+  normalized problem: bisect(((x^2) + 1), x, (-1), 1, (1 * (10^(-1))))
+  requested method: bisect
+  angle convention: not applicable
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: invalid input
+steps
+  none
