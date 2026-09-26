@@ -311,6 +311,8 @@ NodeId rebuild(Arena &arena, NodeId id, const std::vector<NodeId> &args) {
     const Node &n = arena.at(id);
     switch (n.kind) {
         case Kind::Call: return arena.call(arena.text(id), args);
+        case Kind::Interval:
+            return arena.interval(args[0], args[1], arena.text(id)[0] == '[', arena.text(id)[1] == ']');
         case Kind::Neg: return arena.unary(Kind::Neg, args[0]);
         case Kind::Add:
         case Kind::List:
@@ -652,6 +654,8 @@ NodeId canonical_node(Arena &arena, NodeId id, const std::vector<NodeId> &normal
         case Kind::Invalid:
         case Kind::List:
             return kNoNode;
+        case Kind::Interval:
+            return rebuild(arena, id, normalized);
         case Kind::Integer: {
             // The text is the interning key, so 007 and 7 are two nodes until the zeros go.
             const std::string &text = arena.text(id);

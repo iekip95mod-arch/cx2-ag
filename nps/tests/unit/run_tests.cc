@@ -172,6 +172,32 @@ void test_shapes() {
     equal(parse_print("x"), "x", "a bare symbol");
     equal(parse_print("1.5"), "1.5", "a decimal keeps its text");
     equal(parse_print("1e3"), "1e3", "an exponent belongs to the literal");
+    equal(parse_print("[1..3]"), "[1..3]", "the interval the menu inserts reads as a closed interval");
+    equal(parse_print("(1..3]"), "(1..3]", "a round bracket opens an end");
+    equal(parse_print("[x..x+1)"), "[x..(x + 1))", "endpoints are expressions and the closing bracket sets the right end");
+    equal(parse_print("(0..1)"), "(0..1)", "an open interval keeps both round brackets");
+    equal(parse_print("[1.5..2]"), "[1.5..2]", "a decimal endpoint stops before the two dots");
+    equal(parse_print("(1)"), "1", "a parenthesized value is still not an interval");
+    equal(parse_giac("[1..3]"), "(1)..(3)", "a closed interval reaches Giac in its own dotted form");
+    equal(parse_giac("(1..3]"), "", "an open end has no Giac spelling, so nothing is sent");
+    {
+        Arena arena;
+        const ParseResult closed = parse(arena, "[1..3]");
+        const ParseResult half = parse(arena, "[1..3)");
+        check(closed.ok() && half.ok() && closed.root != half.root && arena.at(closed.root).kind == Kind::Interval,
+              "an interval is its own node kind, and its ends are part of what it is");
+    }
+    for (const char *source : {"[1..3]", "(1..3]", "[x..x+1)", "(-2..2^3)", "[1.5..2]"}) {
+        Arena arena;
+        const ParseResult first = parse(arena, source);
+        const ParseResult again = first.ok() ? parse(arena, print(arena, first.root)) : first;
+        check(first.ok() && again.ok() && again.root == first.root,
+              std::string("an interval printed and parsed again is the same node: ") + source);
+    }
+    for (const char *invalid : {"1..3", "[1..]", "[..3]", "[1..2..3]", "[1,2..3]", "(1..3"}) {
+        Arena arena;
+        check(!parse(arena, invalid).ok(), std::string("a malformed interval is refused: ") + invalid);
+    }
     equal(parse_print("\xE2\x88\x92" "1"), "(-1)", "TI minus admits negative constants");
     equal(parse_print("2\xE2\x88\x92" "3"), "(2 + (-3))", "TI subtraction retains the ordinary AST");
     equal(parse_print("\xE2\x88\x92" "x^2"), "(-(x^2))", "TI unary minus preserves power precedence");

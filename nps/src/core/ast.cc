@@ -264,6 +264,23 @@ NodeId Arena::binary(Kind kind, NodeId a, NodeId b) {
     return nary(kind, std::vector<NodeId>{a, b});
 }
 
+NodeId Arena::interval(NodeId lower, NodeId upper, bool lower_closed, bool upper_closed) {
+    if (failed())
+        return kNoNode;
+    if (lower >= nodes_.size() || upper >= nodes_.size()) {
+        fail(Status::SyntaxError);
+        return kNoNode;
+    }
+    Node n;
+    n.kind = Kind::Interval;
+    n.text = intern(std::string(1, lower_closed ? '[' : '(') + (upper_closed ? ']' : ')'));
+    n.small = 0;
+    n.small_valid = false;
+    n.depth = std::max(nodes_[lower].depth, nodes_[upper].depth) + 1;
+    n.size = 1;
+    return add_node(n, {lower, upper});
+}
+
 NodeId Arena::call(const std::string &name, const std::vector<NodeId> &args) {
     if (failed())
         return kNoNode;

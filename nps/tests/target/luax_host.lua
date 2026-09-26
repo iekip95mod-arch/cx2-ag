@@ -637,6 +637,10 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+check(nps.math_display("[1..3]") == "[1..3]" and nps.math_display("(0..1]") == "(0..1]",
+      "an interval displays with the bracket each end was given")
+check(nps.walkthrough("[1..3]", "x") == nil and nps.walkthrough("convert(x,interval)", "x") == nil,
+      "interval input the native side does not walk through still reaches Giac unchanged")
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and
