@@ -487,6 +487,15 @@ do
               "the same trigonometric derivative still answers and cross-checks in radian mode")
         local ok = pcall(nps.walkthrough, "diff(x^2,x)", "x", "exact", "gradians")
         check(not ok, "an unknown angle mode is an error rather than a silent radian")
+        local implicit_plain = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact", "degrees")
+        check(implicit_plain.solved and implicit_plain.angle_convention == "degrees",
+              "implicit differentiation without trig answers in degree mode and records it")
+        local implicit_trig = nps.walkthrough("implicit(sin(x)+y^2=25,x,y)", "x", "exact", "degrees")
+        check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
+              implicit_trig.angle_convention == "degrees",
+              "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
+              "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
     end
     -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
     -- symbol that stood for it and the divisor condition the answer carries.

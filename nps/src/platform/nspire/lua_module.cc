@@ -2768,6 +2768,7 @@ int implicit_into(lua_State *L) {
     size_t size = 0;
     const char *text = luaL_checklstring(L, 1, &size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable)) return 2;
     GcPause paused(L);
@@ -2775,6 +2776,7 @@ int implicit_into(lua_State *L) {
     Derivation derivation;
     derivation.request.original_expression.assign(text, size);
     derivation.request.numeric_mode = mode;
+    derivation.request.angle_mode = angle;
     const Command command = parse_command(arena, derivation.request.original_expression, variable);
     const ImplicitResult result = implicit_differentiate(arena, derivation, command.expression, command.variable,
                                                          command.dependent, interactive_budget());
@@ -2818,6 +2820,7 @@ int separable_into(lua_State *L) {
     size_t size = 0;
     const char *text = luaL_checklstring(L, 1, &size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable)) return 2;
     GcPause paused(L);
@@ -2825,6 +2828,7 @@ int separable_into(lua_State *L) {
     Derivation derivation;
     derivation.request.original_expression.assign(text, size);
     derivation.request.numeric_mode = mode;
+    derivation.request.angle_mode = angle;
     const Command command = parse_command(arena, derivation.request.original_expression, variable);
     const SeparableResult result =
         solve_separable(arena, derivation, command, interactive_budget());
