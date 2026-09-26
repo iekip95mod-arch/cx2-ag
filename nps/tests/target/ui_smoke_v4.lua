@@ -5175,7 +5175,7 @@ do
                 bounded = bounded and call.x >= 0 and call.x + gc:getStringWidth(call.text) <= width
             end
         end
-        check(bounded, "status text stays within the " .. width .. " pixel display")
+        ui018 = check(bounded, "status text stays within the " .. width .. " pixel display") and ui018
         if read_text then
             read_text()
             local tail, fits = false, true
@@ -5254,6 +5254,7 @@ do
         record.steps, record.step_count = {first}, 1
         record.original_expression, record.normalized_expression = expression, expression
         record.display_result = answer_text
+        record.assumptions = string.rep("a and ", 60) .. "ASSUMPTION_TAIL"
         return record
     end
     env = loadIsolated(module)
@@ -5266,14 +5267,15 @@ do
         env.resizeGC(gc)
         drawn, draw_calls = {}, {}
         env.on.paint(gc)
-        check(table.concat(drawn):find("T text", 1, true) ~= nil,
-              "abbreviated walkthrough text names its reader shortcut at " .. width)
+        ui018 = check(table.concat(drawn):find("T text", 1, true) ~= nil,
+              "abbreviated walkthrough text names its reader shortcut at " .. width) and ui018
         env.on.charIn("t")
         seen, fits = scan_reader(160)
         ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
               and seen:find("VARIABLE_TAIL", 1, true) and seen:find("MANIFEST_TAIL", 1, true)
-              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true) and fits,
-              "full request, result, variable, module and step text remain reachable at " .. width) and ui018
+              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true)
+              and seen:find("ASSUMPTION_TAIL", 1, true) and fits,
+              "full request, result, variable, module, step and assumption text remain reachable at " .. width) and ui018
         env.on.escapeKey()
         ui018 = check(env.steps.active and env.steps.view == "list",
               "the reader returns to the same walkthrough without changing its view") and ui018
@@ -5316,9 +5318,9 @@ do
     ui018 = check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
           "abbreviated guided labels and problem previews retain complete readable text") and ui018
     evidence("UI-018", ui018,
-             "long input, answers, variables, modules and step text stay reachable through a full-text "
-             .. "reader and scrolling at 320 and 180 pixels, closing a reader restores focus and view, "
-             .. "and guided previews stop before the footer controls")
+             "long input, answers, assumptions, variables, modules and step text stay reachable through "
+             .. "a full-text reader and scrolling at 320 and 180 pixels, closing a reader restores focus "
+             .. "and view, and guided previews stop before the footer controls")
     env.on.escapeKey()
     env.PHYSICS_FIXTURES[1].run = function()
         error("short error\n" .. string.rep("additional failure context ", 40) .. "RAW_ERROR_TAIL", 0)
