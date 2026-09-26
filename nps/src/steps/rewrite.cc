@@ -1162,7 +1162,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model, 
     inputs.requested_method = rewrite_goal_name(goal);
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);

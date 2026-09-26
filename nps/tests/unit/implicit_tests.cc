@@ -150,6 +150,22 @@ void run_implicit_tests(TestSink &t) {
         t.check(run.result.outcome == ImplicitOutcome::UnsupportedForm && run.result.derivative == kNoNode,
                 "implicit differentiation refuses decimal mode rather than approximating");
     }
+    {
+        // MATH-007's promise reaches here too: a degree-mode request names the mode it ran under,
+        // and a relation that leans on a trig identity is refused rather than read as radians.
+        Run run;
+        run.derivation.request.angle_mode = AngleMode::Degrees;
+        implicit_run(run, "implicit(x^2+y^2=25,x,y)");
+        t.check(run.result.outcome == ImplicitOutcome::Differentiated &&
+                run.derivation.context.angle_convention == "degrees",
+                "implicit differentiation without trig answers in degree mode and records it");
+        Run trig;
+        trig.derivation.request.angle_mode = AngleMode::Degrees;
+        implicit_run(trig, "implicit(sin(x)+y^2=25,x,y)");
+        t.check(trig.result.derivative == kNoNode && trig.result.outcome == ImplicitOutcome::UnsupportedForm &&
+                trig.derivation.context.angle_convention == "degrees",
+                "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians");
+    }
     for (const char *text : {"implicit(x^2+y^2=25,x,y)", "implicit(y^3+x*y=x^2,x,y)"}) {
         for (unsigned failure = 0; failure < 3; ++failure) {
             Run run;

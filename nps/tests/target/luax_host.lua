@@ -462,6 +462,41 @@ do
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
     end
+    -- MATH-007. The angle mode is a fourth argument, every record names the one it ran under, and
+    -- trigonometric calculus in degree mode is refused without a backend answer read in radians.
+    do
+        local plain = nps.walkthrough("diff(x^2,x)", "x", "exact")
+        check(plain.angle_convention == "radians", "a walkthrough without an angle mode runs and records radians")
+        for _, command in ipairs({"diff(x^2,x)", "solve(2*x+5=13,x)", "limit(x^2,x,3)", "int(x,x)", "expand((x+1)^2)"}) do
+            script("0", "0", "0", "0")
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(record.angle_convention == "degrees" and record.outcome ~= "invalid input",
+                  command .. " records the degree mode it ran under")
+        end
+        for _, command in ipairs({"diff(sin(x),x)", "int(cos(x),x)", "limit(sin(x)/x,x,0)", "solve(sin(x)=1,x)"}) do
+            giac_calls = 0
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(not record.has_result and not record.answer_only and giac_calls == 0 and
+                  record.angle_convention == "degrees",
+                  command .. " in degree mode gets no answer read in radians and no backend call")
+        end
+        giac_calls = 0
+        script("cos(x)", "0")
+        local radians = nps.walkthrough("diff(sin(x),x)", "x", "exact", "radians")
+        check(radians.solved and radians.has_result and giac_calls > 0 and radians.angle_convention == "radians",
+              "the same trigonometric derivative still answers and cross-checks in radian mode")
+        local ok = pcall(nps.walkthrough, "diff(x^2,x)", "x", "exact", "gradians")
+        check(not ok, "an unknown angle mode is an error rather than a silent radian")
+        local implicit_plain = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact", "degrees")
+        check(implicit_plain.solved and implicit_plain.angle_convention == "degrees",
+              "implicit differentiation without trig answers in degree mode and records it")
+        local implicit_trig = nps.walkthrough("implicit(sin(x)+y^2=25,x,y)", "x", "exact", "degrees")
+        check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
+              implicit_trig.angle_convention == "degrees",
+              "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
+              "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
+    end
     -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
     -- symbol that stood for it and the divisor condition the answer carries.
     do
@@ -2023,6 +2058,9 @@ check(begun.frame_capacity > 0 and begun.frame_peak_bytes <= begun.frame_capacit
       "solve_begin reports a frame budget and stays inside it")
 check(begun.original_expression == raw_equation,
       "the incremental owner preserves the source bytes of its request")
+check(begun.angle_convention == "radians" and
+      nps.solve_begin(raw_equation, "x", "linear", "exact", "degrees").angle_convention == "degrees",
+      "the incremental owner records the angle mode it was started under")
 local advances, partial, progress = 0, nil, nps.solve_begin(raw_equation, "x", "linear")
 repeat
     advances = advances + 1

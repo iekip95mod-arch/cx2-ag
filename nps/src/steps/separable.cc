@@ -490,7 +490,7 @@ struct Separation {
                 Kind::Equals, arena.call("diff", {command.dependent, command.variable}),
                 command.expression);
         context.active_assumptions = assumptions;
-        context.angle_convention = "radians";
+        context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";
         context.resource_policy = budget_policy(meter.budget());
@@ -536,6 +536,9 @@ SeparableResult solve_separable(Arena &arena, Derivation &derivation, const Comm
                           "a complete separable differential equation command is required");
     } else if (derivation.request.numeric_mode != NumericMode::Exact) {
         separation.unsupported("separable differential equations are solved in Exact mode only");
+    } else if (derivation.request.angle_mode == AngleMode::Degrees &&
+               angle_dependent(arena, command.expression)) {
+        separation.unsupported("the trigonometric separation rules assume radians, and degree mode is active");
     } else if (separation.work()) {
         separation.solve();
     }

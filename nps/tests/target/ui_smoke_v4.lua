@@ -1038,7 +1038,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 188, "every palette entry survives the regrouping: " .. entries .. " of 188")
+    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4124,7 +4124,7 @@ local function writeEvidence()
     combined:close()
     local emitted = after:sub(#before + 1)
     local expected = {
-        "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
+        "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
         "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
         "PLAT-006", "PLAT-012",
     }
@@ -8295,6 +8295,87 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- MATH-007. The angle unit is chosen from the Steps menu, shown on every screen, sent with each
+-- request, bracketed around ordinary Giac evaluation so Giac is back in radians afterwards, and a
+-- reopened record names the unit it was solved under beside the active one.
+do
+    (function()
+    local module = copyModule()
+    local evaluated, requested = {}, {}
+    module.caseval = function(command)
+        if command == "version()" then return nps_split.caseval(command) end
+        evaluated[#evaluated + 1] = command
+        if command == "boom" then error("giac raised") end
+        return "giac(" .. command .. ")"
+    end
+    module.walkthrough = function(command, variable, numeric, angle)
+        if command:sub(1, 5) ~= "diff(" then return nil end
+        requested[#requested + 1] = { command = command, numeric = numeric, angle = angle }
+        local record = {}
+        for key, value in pairs(fake_result) do record[key] = value end
+        record.request_expression = command
+        record.mode = "differentiate"
+        record.original_expression = "x^2"
+        record.normalized_expression = "x^2"
+        record.angle_convention = angle or "radians"
+        return record
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    evaluated = {}
+    local function paintedHere()
+        drawn = {}
+        env.on.paint(gc)
+        return table.concat(drawn, "\n")
+    end
+    check(env.steps.angle == "radians" and paintedHere():find("RAD", 1, true) ~= nil,
+          "the shell starts in radians and shows RAD")
+    local selected = false
+    for _, category in ipairs(env.menu) do
+        if category[1] == "Steps" then
+            for index = 2, #category do
+                if type(category[index]) == "table" and category[index][1] == "Angles in degrees (DEG)" then
+                    category[index][2]()
+                    selected = true
+                end
+            end
+        end
+    end
+    check(selected and env.steps.angle == "degrees" and paintedHere():find("DEG", 1, true) ~= nil,
+          "the Steps menu selects degrees and the screen shows DEG")
+
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 3 and evaluated[1] == "angle_radian:=0" and evaluated[2] == "sin(30)" and
+          evaluated[3] == "angle_radian:=1",
+          "ordinary evaluation runs in degrees and puts Giac back in radians: " .. table.concat(evaluated, " | "))
+    evaluated = {}
+    local ok = pcall(env.angleCaseval, "boom")
+    check(not ok and evaluated[#evaluated] == "angle_radian:=1",
+          "Giac is put back in radians even when the evaluation raises")
+
+    env.fctEditor.editor:setExpression("\\0el {diff(x^2,x)}")
+    env.on.enterKey()
+    check(#requested == 1 and requested[1].angle == "degrees" and requested[1].numeric == "exact",
+          "a native walkthrough is sent the active angle mode")
+    check(env.steps.active and env.steps.result.angle_convention == "degrees",
+          "the walkthrough record carries the mode it was solved under")
+    env.stepsSetAngle("radians")
+    drawn = {}
+    env.on.paint(gc)
+    local header = table.concat(drawn, "\n")
+    check(header:find("DEG (now RAD)", 1, true) ~= nil,
+          "a record solved in degrees says so beside the active radian mode: " .. header:sub(1, 160))
+    env.closeSteps()
+    evaluated = {}
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 1 and evaluated[1] == "sin(30)", "radian mode evaluates without touching the Giac setting")
+    evidence("MATH-007", selected and requested[1].angle == "degrees" and header:find("DEG (now RAD)", 1, true) ~= nil,
+             "the shell selects degree or radian mode from the Steps menu, shows it on every screen, sends it with each request and names a reopened record's mode")
     end)()
 end
 
