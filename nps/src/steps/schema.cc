@@ -246,6 +246,18 @@ const ObligationSchema kTangentAgreement[] = {
      kTangentAgreementEvidence, 1},
 };
 
+const ObligationSchema kImplicitPreservesRelation[] = {
+    {"obl.implicit.rule-preserves-relation",
+     "the rule keeps the relation between the variables and their derivative", kRuleInvariant, 1},
+};
+const EvidenceAlternative kImplicitIdentityEvidence[] = {
+    {"exact evaluation of the chain rule identity at sample points", EvidenceStrength::NumericallyCorroborated},
+};
+const ObligationSchema kImplicitIdentity[] = {
+    {"obl.implicit.chain-identity", "the derivative satisfies the chain rule identity of the original relation",
+     kImplicitIdentityEvidence, 1},
+};
+
 const ObligationSchema kCalculusGiac[] = {
     {"obl.calculus.giac-agreement", "the native result agrees with Giac's independent calculation",
      kCalculusGiacEvidence, 1},
@@ -1669,6 +1681,13 @@ const RuleSchema kRules[] = {
     {"tangent.line", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
+
+    // calculus.derivative.implicit, CALC-007
+    {"implicit.differentiate-both-sides", ClaimType::Implication, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.chain-rule", ClaimType::Definition, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.collect", ClaimType::SolutionSetPreserved, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.isolate", ClaimType::SolutionSetPreserved, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
+    {"implicit.check", ClaimType::EquivalentExpression, kImplicitIdentity, 1, FailureBehavior::WithholdResult},
 
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,

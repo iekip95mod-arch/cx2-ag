@@ -72,6 +72,7 @@ set(CORE_SOURCES
     src/steps/differentiate.cc
     src/steps/integrate.cc
     src/steps/calculus.cc
+    src/steps/implicit.cc
     src/physics/catch_up.cc
     src/physics/density.cc
     src/physics/modern.cc
@@ -120,6 +121,7 @@ set(TEST_SOURCES
     tests/unit/differentiate_tests.cc
     tests/unit/integrate_tests.cc
     tests/unit/calculus_tests.cc
+    tests/unit/implicit_tests.cc
     tests/unit/ui_canvas_tests.cc
     tests/unit/integrity_tests.cc
     tests/unit/units_tests.cc

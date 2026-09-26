@@ -1,0 +1,315 @@
+problem: implicit(y^3+x*y=x^2,x,y)
+result: (((-1 * y) + (2 * x)) * ((x + (3 * (y^2)))^(-1)))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.derivative.implicit
+  envelope version: 1
+  normalized problem: implicit((((y^3) + (x * y)) = (x^2)), x, y)
+  requested method: implicit
+  active assumption: (x + (3 * (y^2))) is not zero
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: implicit
+    goal: Differentiate both sides
+    rule: implicit.differentiate-both-sides, Differentiate both sides
+    claim: implication
+    explanation: Both sides are equal for every x on the curve, so their derivatives are equal too
+    detail: The equation holds along the curve, where y is a function of x. Two functions that are equal everywhere on an interval have equal derivatives there, so differentiating both sides keeps a true equation.
+    domain restriction: y is a differentiable function of x near the point of interest
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Take the derivative of each side with respect to x
+    before: (((y^3) + (x * y)) = (x^2))
+    after: ((y + (dydx * (x + (3 * (y^2))))) = (2 * x))
+    reversible: no
+    verification: rule-local invariant, passed, Both sides are equal for every x on the curve, so their derivatives are equal too
+    verified: yes
+    1.1 transformation
+      phase: implicit
+      goal: Differentiate one side with y depending on x
+      rule: implicit.chain-rule, Differentiate one side with y depending on x
+      claim: definition
+      explanation: Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      detail: Read y as an unknown function of x. Terms in x alone differentiate as usual. A term in y differentiates like any other function and then picks up one more factor, the derivative of y itself, because of the chain rule.
+      proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+      action: Differentiate with respect to x as usual, then add the derivative with respect to y multiplied by dydx
+      before: d(((y^3) + (x * y)), x)
+      after: (y + (dydx * (x + (3 * (y^2)))))
+      reversible: no
+      verification: rule-local invariant, passed, Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      verified: yes
+      1.1.1 plan
+        phase: plan
+        goal: Differentiate ((y^3) + (x * y)) with respect to x
+        rule: calculus.differentiate.rules, Differentiate by rule
+        claim: no claim
+        explanation: Work outwards in, applying the rule that matches each form
+        proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+        strategy: Differentiate by rule
+        applicability: every form in the expression has a derivative rule
+        fact: differentiate with respect to x
+        rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+        verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+        verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+        verified: nothing claimed
+        1.1.1.1 transformation
+          phase: differentiate
+          goal: Differentiate ((y^3) + (x * y))
+          rule: d.sum, Sum rule
+          claim: equivalent expression
+          explanation: The derivative of a sum is the sum of the derivatives
+          detail: Each term is differentiated on its own and the results are added.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Differentiate each term separately
+          before: d(((y^3) + (x * y)), x)
+          after: (0 + (y * 1))
+          reversible: no
+          verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+          verified: yes
+          1.1.1.1.1 transformation
+            phase: differentiate
+            goal: Differentiate (y^3)
+            rule: d.constant, Constant rule
+            claim: equivalent expression
+            explanation: A quantity that does not change has derivative zero
+            detail: Reach for this whenever the expression has no occurrence of the variable in it, however complicated it looks: a plain number, pi, or a second letter being held fixed all qualify. A derivative measures how fast something changes as the variable moves, and none of these move at all, so the answer is zero.
+            proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+            action: Replace the derivative of a constant with zero
+            before: d((y^3), x)
+            after: 0
+            reversible: no
+            verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+            verified: yes
+          1.1.1.1.2 transformation
+            phase: differentiate
+            goal: Differentiate (x * y)
+            rule: d.constant-multiple, Constant multiple rule
+            claim: equivalent expression
+            explanation: A constant factor stays where it is and the rest is differentiated
+            detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+            proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+            action: Take y outside the derivative
+            before: d((x * y), x)
+            after: (y * 1)
+            reversible: no
+            verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+            verified: yes
+            1.1.1.1.2.1 transformation
+              phase: differentiate
+              goal: Differentiate x
+              rule: d.variable, Derivative of the variable
+              claim: equivalent expression
+              explanation: The variable changes at the same rate as itself
+              detail: Reach for this when the expression is the bare variable and nothing else. If x grows by some amount then x grows by exactly that amount, so the rate of change is one. It is the power rule with an exponent of one, written out separately because it comes up constantly as the last step of a longer derivative.
+              proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+              action: Replace the derivative of the variable with one
+              before: d(x, x)
+              after: 1
+              reversible: no
+              verification: rule-local invariant, passed, the expression is the variable itself
+              verified: yes
+      1.1.2 plan
+        phase: plan
+        goal: Differentiate ((y^3) + (x * y)) with respect to y
+        rule: calculus.differentiate.rules, Differentiate by rule
+        claim: no claim
+        explanation: Work outwards in, applying the rule that matches each form
+        proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+        strategy: Differentiate by rule
+        applicability: every form in the expression has a derivative rule
+        fact: differentiate with respect to y
+        rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+        verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+        verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+        verified: nothing claimed
+        1.1.2.1 transformation
+          phase: differentiate
+          goal: Differentiate ((y^3) + (x * y))
+          rule: d.sum, Sum rule
+          claim: equivalent expression
+          explanation: The derivative of a sum is the sum of the derivatives
+          detail: Each term is differentiated on its own and the results are added.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Differentiate each term separately
+          before: d(((y^3) + (x * y)), y)
+          after: ((3 * (y^2)) + (x * 1))
+          reversible: no
+          verification: rule-local invariant, passed, differentiation is linear, so this holds term by term
+          verified: yes
+          1.1.2.1.1 transformation
+            phase: differentiate
+            goal: Differentiate (y^3)
+            rule: d.power, Power rule
+            claim: equivalent expression
+            explanation: Bring the exponent down and reduce it by one
+            detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+            proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+            action: Apply the power rule with exponent 3
+            before: d((y^3), y)
+            after: (3 * (y^2))
+            reversible: no
+            verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+            verified: yes
+          1.1.2.1.2 transformation
+            phase: differentiate
+            goal: Differentiate (x * y)
+            rule: d.constant-multiple, Constant multiple rule
+            claim: equivalent expression
+            explanation: A constant factor stays where it is and the rest is differentiated
+            detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+            proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+            action: Take x outside the derivative
+            before: d((x * y), y)
+            after: (x * 1)
+            reversible: no
+            verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+            verified: yes
+            1.1.2.1.2.1 transformation
+              phase: differentiate
+              goal: Differentiate y
+              rule: d.variable, Derivative of the variable
+              claim: equivalent expression
+              explanation: The variable changes at the same rate as itself
+              detail: Reach for this when the expression is the bare variable and nothing else. If x grows by some amount then x grows by exactly that amount, so the rate of change is one. It is the power rule with an exponent of one, written out separately because it comes up constantly as the last step of a longer derivative.
+              proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+              action: Replace the derivative of the variable with one
+              before: d(y, y)
+              after: 1
+              reversible: no
+              verification: rule-local invariant, passed, the expression is the variable itself
+              verified: yes
+    1.2 transformation
+      phase: implicit
+      goal: Differentiate one side with y depending on x
+      rule: implicit.chain-rule, Differentiate one side with y depending on x
+      claim: definition
+      explanation: Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      detail: Read y as an unknown function of x. Terms in x alone differentiate as usual. A term in y differentiates like any other function and then picks up one more factor, the derivative of y itself, because of the chain rule.
+      proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+      action: Differentiate with respect to x as usual, then add the derivative with respect to y multiplied by dydx
+      before: d((x^2), x)
+      after: (2 * x)
+      reversible: no
+      verification: rule-local invariant, passed, Every occurrence of y is a function of x, so the chain rule multiplies its derivative by dydx
+      verified: yes
+      1.2.1 plan
+        phase: plan
+        goal: Differentiate (x^2) with respect to x
+        rule: calculus.differentiate.rules, Differentiate by rule
+        claim: no claim
+        explanation: Work outwards in, applying the rule that matches each form
+        proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+        strategy: Differentiate by rule
+        applicability: every form in the expression has a derivative rule
+        fact: differentiate with respect to x
+        rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+        verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+        verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+        verified: nothing claimed
+        1.2.1.1 transformation
+          phase: differentiate
+          goal: Differentiate (x^2)
+          rule: d.power, Power rule
+          claim: equivalent expression
+          explanation: Bring the exponent down and reduce it by one
+          detail: Reach for this when the variable itself is raised to a fixed whole number, as in x squared or x cubed. The old exponent comes down to the front as a multiplier and the new one is smaller by one, so x to the n becomes n times x to the n minus one. A negative exponent works the same way, which is why one over x squared differentiates without a separate rule.
+          proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+          action: Apply the power rule with exponent 2
+          before: d((x^2), x)
+          after: (2 * (x^1))
+          reversible: no
+          verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
+          verified: yes
+  2 transformation
+    phase: implicit
+    goal: Collect the derivative terms
+    rule: implicit.collect, Collect the derivative terms
+    claim: solution set preserved
+    explanation: Adding the same terms to both sides keeps the equation, and the derivative appears only to the first power
+    detail: After differentiating, the unknown derivative appears only to the first power. Gather its terms on one side and factor it out, the same way a linear equation is collected before dividing.
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Move every term with dydx to the left and every other term to the right, then factor out dydx
+    before: ((y + (dydx * (x + (3 * (y^2))))) = (2 * x))
+    after: (((x + (3 * (y^2))) * dydx) = ((-1 * y) + (2 * x)))
+    reversible: no
+    verification: rule-local invariant, passed, Adding the same terms to both sides keeps the equation, and the derivative appears only to the first power
+    verified: yes
+  3 transformation
+    phase: implicit
+    goal: Isolate the derivative
+    rule: implicit.isolate, Isolate the derivative
+    claim: solution set preserved
+    explanation: The rearrangement rules undo the product around the derivative, recording the divisor as a restriction
+    detail: Once the derivative terms are collected, isolating it is a rearrangement: divide by its coefficient, which has to be nonzero where the answer is used.
+    domain restriction: (x + (3 * (y^2))) is not zero
+    proof obligation: obl.implicit.rule-preserves-relation, the rule keeps the relation between the variables and their derivative
+    action: Divide both sides by the coefficient of dydx
+    before: (((x + (3 * (y^2))) * dydx) = ((-1 * y) + (2 * x)))
+    after: (dydx = (((-1 * y) + (2 * x)) * ((x + (3 * (y^2)))^(-1))))
+    reversible: no
+    verification: rule-local invariant, passed, The rearrangement rules undo the product around the derivative, recording the divisor as a restriction
+    verified: yes
+    3.1 plan
+      phase: plan
+      goal: Rearrange for dydx
+      rule: alg.rearrange.inverse-operations, Undo the operations around the variable
+      claim: no claim
+      explanation: Peel the operations off dydx one at a time
+      proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+      strategy: Undo the operations around the variable
+      applicability: dydx appears exactly once
+      applicability: every operation around dydx has an inverse rule
+      fact: dydx appears once in the formula
+      rationale: each operation wrapped around dydx is undone on both sides in turn, innermost last, and every move is reversible, so the rearranged formula says the same thing as the one it came from
+      verification: occurrence count, passed, one occurrence was found in the formula
+      verification: registered inverse-operation dispatch, passed, every operation met a registered inverse rule
+      verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+      verified: nothing claimed
+      3.1.1 transformation
+        phase: rearrange
+        goal: Isolate dydx
+        rule: alg.rearrange.divide-both-sides, Division property of equality
+        claim: solution set preserved
+        explanation: Dividing both sides by the same non-zero expression keeps them equal
+        detail: The factors beside dydx are divided out of both sides. Division needs a non-zero divisor, so a divisor that is not a number is carried as a stated restriction rather than assumed.
+        domain restriction: (x + (3 * (y^2))) is not zero
+        proof obligation: obl.rearrange.same-solutions, the rearranged equation has the solutions the original had
+        action: Divide both sides by (x + (3 * (y^2)))
+        before: (((x + (3 * (y^2))) * dydx) = ((-1 * y) + (2 * x)))
+        after: (dydx = (((-1 * y) + (2 * x)) * ((x + (3 * (y^2)))^(-1))))
+        reversible: yes
+        verification: rule-local equality invariant, passed, the divisor is recorded as non-zero and contains no dydx
+        verified: yes
+      3.1.2 check
+        phase: check
+        goal: Check the rearrangement
+        rule: alg.rearrange.check-by-substitution, Check by substitution
+        claim: solution set preserved
+        explanation: Put the rearranged right side back where dydx was
+        detail: The rearranged formula is right when putting its right side back where dydx stood leaves the two sides of the original equal. Both sides are worked out at several exact values, which can show the two differ but cannot on its own prove they agree everywhere, so a backend is asked as well when one is supplied.
+        proof obligation: obl.rearrange.substitution-identity, the original formula holds once dydx is replaced by the rearranged right side
+        target claim: ((x + (3 * (y^2))) * dydx) = ((-1 * y) + (2 * x)) holds with dydx replaced by (((-1 * y) + (2 * x)) * ((x + (3 * (y^2)))^(-1)))
+        check method: substitute the rearranged side back and evaluate both sides exactly at several assignments
+        expected: the two sides of the original formula stay equal
+        observed: the sides agreed at all 6 assignments
+        verification: exact evaluation at 6 rational assignments, passed, the two sides took the same value at all 6 assignments that could be worked out, which is evidence of the identity rather than a proof of it
+        verified: yes
+  4 check
+    phase: check
+    goal: Check the derivative against the original relation
+    rule: implicit.check, Chain rule identity at sample points
+    claim: equivalent expression
+    explanation: Differentiate left minus right again and check that its x part plus its y part times the answer is zero
+    proof obligation: obl.implicit.chain-identity, the derivative satisfies the chain rule identity of the original relation
+    target claim: the isolated derivative satisfies the differentiated relation
+    check method: exact evaluation of the chain rule identity at sample points
+    expected: zero at every sample point where the answer is defined
+    observed: the identity is exactly zero at 12 sample points
+    verification: exact evaluation of the chain rule identity at sample points, passed, the identity is exactly zero at 12 sample points
+    verified: yes
