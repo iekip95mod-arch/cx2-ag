@@ -37,6 +37,7 @@
 #include "nps/steps/quadratic.h"
 
 #include "catalog.h"
+#include "check_kinds.h"
 #include "evidence.h"
 #include "../tests/step_invariants.h"
 
@@ -1347,6 +1348,12 @@ int main(int argc, char **argv) {
                 "rules that carry a domain restriction record it (" +
                 count_text(restrictions_recorded) + " restrictions over " +
                 count_text(restrictions_required) + " cases that require one)"));
+        // VER-015's observed side over the corpus, for coverage.cc to join.
+        for (const auto &entry : g_pass.checks_by_kind())
+            rows.push_back(nps_tools::check_kind_row(std::get<0>(entry.first),
+                                                     std::get<1>(entry.first),
+                                                     std::get<2>(entry.first), entry.second,
+                                                     "acceptance corpus"));
         std::string error;
         // The unit run truncates this file and writes the adapter group into it, so an append that
         // lands first would be thrown away by the run it was waiting for.

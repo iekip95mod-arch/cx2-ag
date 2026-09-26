@@ -11,6 +11,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -18,6 +19,7 @@
 #include "nps/steps/schema.h"
 
 #include "catalog.h"
+#include "check_kinds.h"
 #include "evidence.h"
 #include "scratch_directory.h"
 
@@ -210,6 +212,173 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
         if (s.rfind(before_key, 0) == 0)
             carried->insert(trimmed(s.substr(before_key.size())));
     }
+}
+
+// What VER-015's join found, kept apart from the rest of the run's counts.
+struct CheckKindJoin {
+    size_t rows = 0;
+    size_t faults = 0;
+    size_t kinds_declared = 0;
+    size_t kinds_passing = 0;
+    std::set<std::string> sources;
+};
+
+// Each registered rule's declared check kinds against the verifications the passes saw under them.
+CheckKindJoin join_check_kinds(const std::string &evidence_path,
+                               const std::vector<Family> &families, std::ostream &report) {
+    CheckKindJoin out;
+    const size_t kinds = nps::kCheckKindCount;
+    std::map<std::string, std::vector<size_t> > passed;
+    std::vector<std::vector<size_t> > by_outcome(kinds, std::vector<size_t>(4, 0));
+    std::ifstream in(evidence_path.c_str());
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.rfind("check_kind\t", 0) != 0)
+            continue;
+        ++out.rows;
+        std::vector<std::string> fields;
+        size_t start = 0;
+        for (size_t tab = line.find('\t'); tab != std::string::npos; tab = line.find('\t', start)) {
+            fields.push_back(line.substr(start, tab - start));
+            start = tab + 1;
+        }
+        fields.push_back(line.substr(start));
+        nps::CheckKind kind = nps::CheckKind::RuleLocal;
+        nps::VerificationOutcome outcome = nps::VerificationOutcome::NotAttempted;
+        size_t count = 0;
+        const nps::RuleSchema *schema = fields.size() == 6 ? nps::rule_schema(fields[1]) : nullptr;
+        const char *fault = nullptr;
+        if (fields.size() != 6)
+            fault = "does not have 6 fields";
+        else if (schema == nullptr)
+            fault = "names no registered rule";
+        else if (!nps_tools::check_kind_from_name(fields[2], &kind))
+            fault = "names an unknown check kind";
+        else if (!nps_tools::check_outcome_from_word(fields[3], &outcome))
+            fault = "names an unknown outcome";
+        else if (fields[4].empty() ||
+                 fields[4].find_first_not_of("0123456789") != std::string::npos)
+            fault = "carries a count that is not a number";
+        if (fault == nullptr) {
+            count = std::stoul(fields[4]);
+            bool declared = false;
+            for (size_t o = 0; o < schema->obligation_count; ++o) {
+                for (size_t a = 0; a < schema->obligations[o].evidence_count; ++a)
+                    declared = declared || schema->obligations[o].evidence[a].kind == kind;
+            }
+            if (!declared)
+                fault = "names a check kind its rule's schema does not declare";
+        }
+        if (fault != nullptr) {
+            ++out.faults;
+            std::cout << "coverage: a check kind row " << fault << ": " << line << "\n";
+            continue;
+        }
+        out.sources.insert(fields[5]);
+        std::vector<size_t> &cells = passed[fields[1]];
+        cells.resize(kinds, 0);
+        if (outcome == nps::VerificationOutcome::Passed)
+            cells[static_cast<size_t>(kind)] += count;
+        by_outcome[static_cast<size_t>(kind)][static_cast<size_t>(outcome)] += count;
+    }
+
+    report << "\n## Verification by check kind\n\n";
+    report << "VER-015 asks for verification coverage by semantic transformation and by kind of "
+              "check. The kind is the one each rule's schema declares for the evidence alternative "
+              "a verification matched, and the counts are the verifications the invariant pass "
+              "weighed over the golden fixtures and the acceptance corpus. A dash is a kind the "
+              "rule does not declare, and a zero is one it declares and no run passed.\n\n";
+    report << "| Kind | Rules declaring it | Rules with a passing check | Passed | Failed | "
+              "Inconclusive | Not attempted |\n|---|---:|---:|---:|---:|---:|---:|\n";
+    std::vector<size_t> declaring(kinds, 0);
+    std::vector<size_t> passing_rules(kinds, 0);
+    std::vector<std::vector<bool> > declares(nps::declared_rule_count(), std::vector<bool>(kinds));
+    for (size_t r = 0; r < nps::declared_rule_count(); ++r) {
+        const nps::RuleSchema &schema = nps::declared_rule(r);
+        for (size_t o = 0; o < schema.obligation_count; ++o) {
+            for (size_t a = 0; a < schema.obligations[o].evidence_count; ++a)
+                declares[r][static_cast<size_t>(schema.obligations[o].evidence[a].kind)] = true;
+        }
+        const std::map<std::string, std::vector<size_t> >::const_iterator seen =
+            passed.find(schema.rule_id);
+        for (size_t k = 0; k < kinds; ++k) {
+            declaring[k] += declares[r][k] ? 1 : 0;
+            passing_rules[k] += seen != passed.end() && seen->second[k] > 0 ? 1 : 0;
+        }
+    }
+    for (size_t k = 0; k < kinds; ++k) {
+        out.kinds_declared += declaring[k] > 0 ? 1 : 0;
+        out.kinds_passing += passing_rules[k] > 0 ? 1 : 0;
+        report << "| " << nps::check_kind_name(static_cast<nps::CheckKind>(k)) << " | "
+               << count_text(declaring[k]) << " | " << count_text(passing_rules[k]) << " | "
+               << count_text(by_outcome[k][1]) << " | " << count_text(by_outcome[k][2]) << " | "
+               << count_text(by_outcome[k][3]) << " | " << count_text(by_outcome[k][0]) << " |\n";
+    }
+
+    report << "\n### By family\n\nThe kinds of check a family's passing verifications rest on.\n\n"
+           << "| Family | Rules | Kinds with a passing check | Kinds declared and never passed |\n"
+              "|---|---:|---|---|\n";
+    for (const Family &f : families) {
+        std::vector<bool> rests(kinds, false);
+        std::vector<bool> declared(kinds, false);
+        for (const nps_tools::Rule &rule : f.rules) {
+            for (size_t r = 0; r < nps::declared_rule_count(); ++r) {
+                if (rule.id != nps::declared_rule(r).rule_id)
+                    continue;
+                for (size_t k = 0; k < kinds; ++k)
+                    declared[k] = declared[k] || declares[r][k];
+            }
+            const std::map<std::string, std::vector<size_t> >::const_iterator seen =
+                passed.find(rule.id);
+            for (size_t k = 0; seen != passed.end() && k < kinds; ++k)
+                rests[k] = rests[k] || seen->second[k] > 0;
+        }
+        std::string rest_list;
+        std::string idle_list;
+        for (size_t k = 0; k < kinds; ++k) {
+            const std::string name = nps::check_kind_name(static_cast<nps::CheckKind>(k));
+            if (rests[k])
+                rest_list += (rest_list.empty() ? "" : ", ") + name;
+            else if (declared[k])
+                idle_list += (idle_list.empty() ? "" : ", ") + name;
+        }
+        report << "| " << f.id << " | " << count_text(f.rules.size()) << " | "
+               << (rest_list.empty() ? std::string("none") : rest_list) << " | "
+               << (idle_list.empty() ? std::string("-") : idle_list) << " |\n";
+    }
+
+    report << "\n### By transformation\n\nPassing verifications per registered rule under each "
+              "kind it declares.\n\n| Rule |";
+    for (size_t k = 0; k < kinds; ++k)
+        report << " " << nps::check_kind_name(static_cast<nps::CheckKind>(k)) << " |";
+    report << "\n|---|";
+    for (size_t k = 0; k < kinds; ++k)
+        report << "---:|";
+    report << "\n";
+    for (size_t r = 0; r < nps::declared_rule_count(); ++r) {
+        const std::string id = nps::declared_rule(r).rule_id;
+        const std::map<std::string, std::vector<size_t> >::const_iterator seen = passed.find(id);
+        report << "| " << id << " |";
+        for (size_t k = 0; k < kinds; ++k) {
+            if (!declares[r][k])
+                report << " - |";
+            else
+                report << " " << count_text(seen == passed.end() ? 0 : seen->second[k]) << " |";
+        }
+        report << "\n";
+    }
+    report << "\n" << count_text(out.kinds_declared) << " of " << count_text(kinds)
+           << " kinds are declared by some rule and " << count_text(out.kinds_passing)
+           << " have a passing check, from " << count_text(out.rows) << " check kind rows.\n";
+    return out;
+}
+
+// VER-015's row is held to its own sentence: both populations, every kind declared and passing.
+bool ver015_met(const CheckKindJoin &checks) {
+    return checks.faults == 0 && checks.sources.count("golden") != 0 &&
+           checks.sources.count("acceptance corpus") != 0 &&
+           checks.kinds_declared == nps::kCheckKindCount &&
+           checks.kinds_passing == nps::kCheckKindCount;
 }
 
 }  // namespace
@@ -704,6 +873,116 @@ int selftest() {
         std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
                   << family_cases[i].what << "\n";
     }
+    // VER-015's join, on staged rows. Each fault is one row added beside a clean one.
+    {
+        const std::string rule = "eq.linear.check-by-substitution";
+        const std::string clean = nps_tools::check_kind_row(
+            rule, nps::CheckKind::CandidateSubstitution, nps::VerificationOutcome::Passed, 3,
+            "staged");
+        const struct {
+            std::string extra;
+            size_t faults;
+            const char *what;
+        } kind_cases[] = {
+            {"", 0, "a row under a kind its rule declares joins cleanly"},
+            {"check_kind\tno.such.rule\tdimensional\tpassed\t1\tstaged", 1,
+             "a check kind row naming no registered rule is a fault"},
+            {"check_kind\t" + rule + "\tintuition\tpassed\t1\tstaged", 1,
+             "and so is one naming an unknown kind"},
+            {"check_kind\t" + rule + "\tcandidate substitution\tsucceeded\t1\tstaged", 1,
+             "and so is one naming an unknown outcome"},
+            {"check_kind\t" + rule + "\tcandidate substitution\tpassed\tmany\tstaged", 1,
+             "and so is one whose count is not a number"},
+            {"check_kind\t" + rule + "\tcandidate substitution\tpassed\t1", 1,
+             "and so is one missing a field"},
+            {nps_tools::check_kind_row(rule, nps::CheckKind::Dimensional,
+                                       nps::VerificationOutcome::Passed, 1, "staged"),
+             1, "and so is one under a kind its rule's schema does not declare"},
+        };
+        for (const auto &c : kind_cases) {
+            const std::string staged_evidence = std::string(made) + "/check-kinds.txt";
+            std::ofstream staged(staged_evidence.c_str());
+            staged << "group\tstaged\n" << clean << "\n" << c.extra << "\n";
+            staged.close();
+            std::ostringstream staged_report;
+            const CheckKindJoin got = join_check_kinds(staged_evidence, {}, staged_report);
+            const bool as_expected = got.faults == c.faults &&
+                                     got.rows == (c.extra.empty() ? 1u : 2u) &&
+                                     got.kinds_declared == nps::kCheckKindCount &&
+                                     got.kinds_passing == 1;
+            if (!as_expected)
+                ++failures;
+            std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ") << c.what
+                      << "\n";
+        }
+        CheckKindJoin whole;
+        whole.sources = {"golden", "acceptance corpus"};
+        whole.kinds_declared = nps::kCheckKindCount;
+        whole.kinds_passing = nps::kCheckKindCount;
+        CheckKindJoin no_golden = whole;
+        no_golden.sources.erase("golden");
+        CheckKindJoin no_corpus = whole;
+        no_corpus.sources.erase("acceptance corpus");
+        CheckKindJoin short_passing = whole;
+        short_passing.kinds_passing = nps::kCheckKindCount - 1;
+        CheckKindJoin short_declared = whole;
+        short_declared.kinds_declared = nps::kCheckKindCount - 1;
+        CheckKindJoin faulted = whole;
+        faulted.faults = 1;
+        const bool row_gated = ver015_met(whole) && !ver015_met(no_golden) &&
+                               !ver015_met(no_corpus) && !ver015_met(short_passing) &&
+                               !ver015_met(short_declared) && !ver015_met(faulted);
+        if (!row_gated)
+            ++failures;
+        std::cout << "coverage selftest: " << (row_gated ? "ok   " : "FAIL ")
+                  << "the VER-015 row needs both populations, six declared and six passing kinds "
+                     "and no fault\n";
+
+        // The whole run fails on a faulty check kind row and passes beside a clean one.
+        for (const bool faulty : {false, true}) {
+            const std::string staged_evidence = std::string(made) + "/check-kind-run.txt";
+            std::ofstream run_file(staged_evidence.c_str());
+            run_file << "group\tacceptance corpus\nfamily\tstaged.complete\n"
+                        "family\tstaged.incomplete\n"
+                     << clean << "\n";
+            if (faulty)
+                run_file << "check_kind\tno.such.rule\tdimensional\tpassed\t1\tstaged\n";
+            run_file.close();
+            const bool passed =
+                coverage(metadata_path, fixtures_dir, report_path, staged_evidence.c_str(), nullptr,
+                         {}, {}, {}) == 0;
+            const bool as_expected = passed != faulty;
+            if (!as_expected)
+                ++failures;
+            std::cout << "coverage selftest: " << (as_expected ? "ok   " : "FAIL ")
+                      << (faulty ? "a faulty check kind row fails the whole run"
+                                 : "and a clean one leaves it passing")
+                      << "\n";
+        }
+
+        std::ostringstream counted;
+        const std::string counted_path = std::string(made) + "/check-kinds.txt";
+        std::ofstream staged(counted_path.c_str());
+        staged << clean << "\n"
+               << nps_tools::check_kind_row(rule, nps::CheckKind::CandidateSubstitution,
+                                            nps::VerificationOutcome::Failed, 2, "staged")
+               << "\n";
+        staged.close();
+        join_check_kinds(counted_path, {}, counted);
+        const std::string text = counted.str();
+        const size_t kind_line = text.find("\n| candidate substitution | ");
+        const size_t kind_end = text.find('\n', kind_line + 1);
+        const bool tallied = kind_line != std::string::npos &&
+                             text.substr(0, kind_end).rfind(" | 1 | 3 | 2 | 0 | 0 |") ==
+                                 kind_end - std::string(" | 1 | 3 | 2 | 0 | 0 |").size();
+        const bool per_rule = text.find("| " + rule + " | - | - | 3 | - | - | - |") !=
+                              std::string::npos;
+        if (!tallied || !per_rule)
+            ++failures;
+        std::cout << "coverage selftest: " << (tallied && per_rule ? "ok   " : "FAIL ")
+                  << "passed and failed checks are tallied apart, and only passes reach the rule\n";
+    }
+
     // MATH-013 claims the required assumptions are declared, so a line the run faults cannot pass it.
     for (const bool malformed : {false, true}) {
         {
@@ -1277,12 +1556,24 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
                                                                       "this run")
                << ".\n";
     }
+    CheckKindJoin checks;
+    if (evidence_path != nullptr)
+        checks = join_check_kinds(evidence_path, families, report);
     report.close();
 
     // An append that was asked for and did not happen leaves the requirement looking unclaimed for a
     // plumbing reason, so it fails here rather than being read off the report as an absence.
     bool evidence_refused = false;
     if (evidence_path != nullptr) {
+        const bool ver015 = ver015_met(checks);
+        const std::string ver015_row =
+            std::string("evidence\tVER-015\t") + (ver015 ? "pass" : "fail") +
+            "\tcoverage\tthe coverage report counts passing, failed, inconclusive and unattempted "
+            "verifications for every registered rule under the check kind its proof-obligation "
+            "schema declares, rule-local, Giac cross-check, candidate substitution, calculus "
+            "inverse, dimensional or numerical corroboration, and rolls them up by kind and by "
+            "family, with every one of the six kinds holding a passing check across the golden "
+            "fixtures and the acceptance corpus";
         const std::string row =
             std::string("evidence\tMATH-013\t") +
             (envelope_gaps == 0 && assumption_faults == 0 ? "pass" : "fail") +
@@ -1296,7 +1587,7 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
         // The catalog is where a family declares its envelope, so MATH-013 is answered here, after
         // the corpus group that is the last one written before this report reads the file.
         if (!append_evidence(evidence_path, "acceptance corpus", "coverage",
-                             std::vector<std::string>(1, row), &error)) {
+                             std::vector<std::string>{row, ver015_row}, &error)) {
             evidence_refused = true;
             std::cout << "coverage: evidence not written, " << error << "\n";
         }
@@ -1324,7 +1615,10 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
                                  " catalogued families no run stamps, "
                            : std::string("the test group join did not run with no evidence file, "))
               << count_text(schemaless)
-              << " rules with no proof-obligation schema, report in " << report_path << "\n";
+              << " rules with no proof-obligation schema, " << count_text(checks.kinds_passing)
+              << " of " << count_text(nps::kCheckKindCount) << " check kinds with a passing check, "
+              << count_text(checks.faults)
+              << " check kind faults, report in " << report_path << "\n";
     if (out != nullptr) {
         out->join_ran = join_ran;
         out->uncatalogued = uncatalogued;
@@ -1337,7 +1631,8 @@ int coverage(const std::string &catalog_path, const std::string &fixtures_dir,
     return undeclared == 0 && unevidenced == 0 && uncatalogued == 0 && obligation_faults == 0 &&
                    schemaless == 0 && envelope_gaps == 0 && assumption_faults == 0 &&
                    stale_exemptions == 0 && (!kAwaitingCatalogIsFatal || awaiting_catalog == 0) &&
-                   uncatalogued_families == 0 && unstamped_families == 0 && !evidence_refused
+                   uncatalogued_families == 0 && unstamped_families == 0 && checks.faults == 0 &&
+                   !evidence_refused
                ? 0
                : 1;
 }

@@ -2,6 +2,24 @@
 
 namespace nps {
 
+const char *check_kind_name(CheckKind kind) {
+    switch (kind) {
+        case CheckKind::RuleLocal:
+            return "rule-local";
+        case CheckKind::GiacCrossCheck:
+            return "Giac cross-check";
+        case CheckKind::CandidateSubstitution:
+            return "candidate substitution";
+        case CheckKind::CalculusInverse:
+            return "calculus inverse";
+        case CheckKind::Dimensional:
+            return "dimensional";
+        case CheckKind::NumericalCorroboration:
+            return "numerical corroboration";
+    }
+    return "unknown";
+}
+
 const char *failure_behavior_name(FailureBehavior b) {
     switch (b) {
         case FailureBehavior::WithholdResult:
@@ -19,11 +37,12 @@ namespace {
 // worth, and a precondition that does not pass stops the strategy. The one difference is the claim,
 // which add_plan forces to NoClaim, and the summary record every plan carries.
 const EvidenceAlternative kRegisteredPreconditions[] = {
-    {"registered strategy preconditions", EvidenceStrength::StructurallyValid},
+    {"registered strategy preconditions", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kExactLinearAnalysis[] = {
-    {"exact linear analysis", EvidenceStrength::StructurallyValid},
+    {"exact linear analysis", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kLinearStrategy[] = {
@@ -35,7 +54,7 @@ const ObligationSchema kLinearStrategy[] = {
 };
 
 const EvidenceAlternative kEqualityInvariant[] = {
-    {"rule-local equality invariant", EvidenceStrength::StructurallyValid},
+    {"rule-local equality invariant", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kSameSolutions[] = {
@@ -44,7 +63,8 @@ const ObligationSchema kSameSolutions[] = {
 };
 
 const EvidenceAlternative kCoefficientInspection[] = {
-    {"inspection of the collected coefficient", EvidenceStrength::StructurallyValid},
+    {"inspection of the collected coefficient", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kCoefficientDecides[] = {
@@ -54,7 +74,7 @@ const ObligationSchema kCoefficientDecides[] = {
 };
 
 const EvidenceAlternative kSubstitution[] = {
-    {"substitution", EvidenceStrength::CandidateChecked},
+    {"substitution", EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
 };
 
 const ObligationSchema kCandidateSatisfies[] = {
@@ -64,11 +84,12 @@ const ObligationSchema kCandidateSatisfies[] = {
 
 // algebra.quadratic.pure-square.one-unknown
 const EvidenceAlternative kSquaredTermAnalysis[] = {
-    {"exact linear analysis in the squared term", EvidenceStrength::StructurallyValid},
+    {"exact linear analysis in the squared term", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kExactSquareRoot[] = {
-    {"exact rational square root", EvidenceStrength::StructurallyValid},
+    {"exact rational square root", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kSquareRootStrategy[] = {
@@ -81,7 +102,7 @@ const ObligationSchema kSquareRootStrategy[] = {
 };
 
 const EvidenceAlternative kExactRationalSquare[] = {
-    {"exact rational square", EvidenceStrength::StructurallyValid},
+    {"exact rational square", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kCaseIsARoot[] = {
@@ -95,7 +116,7 @@ const ObligationSchema kQuadraticCandidateSatisfies[] = {
 };
 
 const EvidenceAlternative kSignOfARealSquare[] = {
-    {"sign of a real square", EvidenceStrength::StructurallyValid},
+    {"sign of a real square", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kRejectedCaseIsInfeasible[] = {
@@ -109,8 +130,8 @@ const ObligationSchema kRejectedCaseIsInfeasible[] = {
 // for, and requiring the reconstruction of both would make the empty split unprovable.
 const EvidenceAlternative kSplitIsComplete[] = {
     {"root-coefficient reconstruction",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
-    {"sign of a real square", EvidenceStrength::StructurallyValid},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::RuleLocal},
+    {"sign of a real square", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kCasesAreComplete[] = {
@@ -120,7 +141,8 @@ const ObligationSchema kCasesAreComplete[] = {
 
 // algebra.quadratic.formula.one-unknown. The degree bound is a precondition, not a detail of how.
 const EvidenceAlternative kDegreeBoundAndInterpolation[] = {
-    {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid},
+    {"structural degree bound and exact interpolation", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kFormulaStrategy[] = {
@@ -133,7 +155,7 @@ const ObligationSchema kFormulaStrategy[] = {
 };
 
 const EvidenceAlternative kDiscriminantArithmetic[] = {
-    {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
+    {"exact rational arithmetic", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kDiscriminantDecides[] = {
@@ -143,7 +165,8 @@ const ObligationSchema kDiscriminantDecides[] = {
 };
 
 const EvidenceAlternative kCollectedPolynomialIsZero[] = {
-    {"exact evaluation of the collected polynomial", EvidenceStrength::StructurallyValid},
+    {"exact evaluation of the collected polynomial", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kFormulaCaseIsARoot[] = {
@@ -157,7 +180,7 @@ const ObligationSchema kFormulaCaseIsARoot[] = {
 // twenty because it is one obligation: the rule rewrote a subexpression into one with the same
 // value, and the argument is the rule's own form rather than anything about the problem.
 const EvidenceAlternative kRuleInvariant[] = {
-    {"rule-local invariant", EvidenceStrength::StructurallyValid},
+    {"rule-local invariant", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kRulePreservesValue[] = {
@@ -175,7 +198,8 @@ const ObligationSchema kFamilyAddsAConstant[] = {
 };
 
 const EvidenceAlternative kDerivativeDispatch[] = {
-    {"registered derivative rule dispatch", EvidenceStrength::StructurallyValid},
+    {"registered derivative rule dispatch", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kDifferentiateStrategy[] = {
@@ -186,11 +210,12 @@ const ObligationSchema kDifferentiateStrategy[] = {
 };
 
 const EvidenceAlternative kAntiderivativeDispatch[] = {
-    {"registered antiderivative rule dispatch", EvidenceStrength::StructurallyValid},
+    {"registered antiderivative rule dispatch", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kInnerFormAnalysis[] = {
-    {"registered inner-form analysis", EvidenceStrength::StructurallyValid},
+    {"registered inner-form analysis", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kIntegrateStrategy[] = {
@@ -204,8 +229,10 @@ const ObligationSchema kIntegrateStrategy[] = {
 };
 
 const EvidenceAlternative kDifferentiateBack[] = {
-    {"differentiate the antiderivative", EvidenceStrength::CandidateChecked},
-    {"native differentiation and Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+    {"differentiate the antiderivative", EvidenceStrength::CandidateChecked,
+     CheckKind::CalculusInverse},
+    {"native differentiation and Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+     CheckKind::CalculusInverse},
 };
 
 const ObligationSchema kDerivativeReturnsIntegrand[] = {
@@ -214,22 +241,24 @@ const ObligationSchema kDerivativeReturnsIntegrand[] = {
 };
 
 const EvidenceAlternative kExactRationalArithmetic[] = {
-    {"exact rational arithmetic", EvidenceStrength::StructurallyValid},
+    {"exact rational arithmetic", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kLimitClassificationEvidence[] = {
-    {"polynomial order and sign comparison", EvidenceStrength::StructurallyValid},
+    {"polynomial order and sign comparison", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kLimitClassification[] = {
     {"obl.limit.classification", "the polynomial orders and signs determine the limiting behavior",
      kLimitClassificationEvidence, 1},
 };
 const EvidenceAlternative kCalculusGiacEvidence[] = {
-    {"Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+    {"Giac exact difference", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+     CheckKind::GiacCrossCheck},
 };
 const EvidenceAlternative kDerivativeCrossCheckEvidence[] = {
     {"Giac Adapter Op::Differentiate compared after canonicalization",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck, true},
 };
 const ObligationSchema kDerivativeCrossCheck[] = {
     {"obl.differentiate.matches-backend",
@@ -238,7 +267,7 @@ const ObligationSchema kDerivativeCrossCheck[] = {
 };
 const EvidenceAlternative kTangentAgreementEvidence[] = {
     {"exact evaluation at the point and one unit away",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::RuleLocal},
 };
 const ObligationSchema kTangentAgreement[] = {
     {"obl.calculus.tangent-agreement",
@@ -251,7 +280,8 @@ const ObligationSchema kImplicitPreservesRelation[] = {
      "the rule keeps the relation between the variables and their derivative", kRuleInvariant, 1},
 };
 const EvidenceAlternative kImplicitIdentityEvidence[] = {
-    {"exact evaluation of the chain rule identity at sample points", EvidenceStrength::NumericallyCorroborated},
+    {"exact evaluation of the chain rule identity at sample points", EvidenceStrength::NumericallyCorroborated,
+     CheckKind::NumericalCorroboration},
 };
 const ObligationSchema kImplicitIdentity[] = {
     {"obl.implicit.chain-identity", "the derivative satisfies the chain rule identity of the original relation",
@@ -260,10 +290,10 @@ const ObligationSchema kImplicitIdentity[] = {
 
 // calculus.ode.separable.first-order, CALC-012.
 const EvidenceAlternative kEquationReading[] = {
-    {"structural reading of the equation", EvidenceStrength::StructurallyValid},
+    {"structural reading of the equation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kFactorPartition[] = {
-    {"structural factor partition", EvidenceStrength::StructurallyValid},
+    {"structural factor partition", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kSeparableStrategy[] = {
     {"pre.ode.first-order-form",
@@ -288,7 +318,7 @@ const ObligationSchema kIntegralsDifferByConstant[] = {
      kRuleInvariant, 1},
 };
 const EvidenceAlternative kBranchInverse[] = {
-    {"inverse function on the recorded branch", EvidenceStrength::StructurallyValid},
+    {"inverse function on the recorded branch", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kExplicitInvertsRelation[] = {
     {"obl.ode.explicit-inverts-relation",
@@ -297,7 +327,8 @@ const ObligationSchema kExplicitInvertsRelation[] = {
      kBranchInverse, 1},
 };
 const EvidenceAlternative kInitialPointSubstitution[] = {
-    {"exact substitution of the initial point", EvidenceStrength::CandidateChecked},
+    {"exact substitution of the initial point", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kInitialConditionHolds[] = {
     {"obl.ode.initial-condition-holds", "the particular solution passes through the initial point",
@@ -305,8 +336,9 @@ const ObligationSchema kInitialConditionHolds[] = {
 };
 const EvidenceAlternative kSolutionDifferentiated[] = {
     {"differentiate the solution and substitute it into the equation",
-     EvidenceStrength::CandidateChecked},
-    {"differentiate both sides of the relation", EvidenceStrength::CandidateChecked},
+     EvidenceStrength::CandidateChecked, CheckKind::CalculusInverse},
+    {"differentiate both sides of the relation", EvidenceStrength::CandidateChecked,
+     CheckKind::CalculusInverse},
 };
 const ObligationSchema kSolutionSatisfiesEquation[] = {
     {"obl.ode.solution-satisfies-equation", "the solution satisfies the differential equation",
@@ -332,9 +364,9 @@ const ObligationSchema kAlgRulePreservesValue[] = {
 // "factors" because that is what each one produced. Both are alternatives for the same obligation.
 const EvidenceAlternative kMultiplyBackOut[] = {
     {"multiply the brackets out and compare term by term",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::RuleLocal},
     {"multiply the factors out and compare term by term",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kFactorMultipliesBack[] = {
@@ -346,9 +378,10 @@ const ObligationSchema kFactorMultipliesBack[] = {
 // the right coupling rather than an accident: a different number of assignments is different
 // evidence, and the conformance check saying so is what stops the count drifting unremarked.
 const EvidenceAlternative kSampledOrBackend[] = {
-    {"exact evaluation at 6 rational assignments", EvidenceStrength::NumericallyCorroborated},
+    {"exact evaluation at 6 rational assignments", EvidenceStrength::NumericallyCorroborated,
+     CheckKind::NumericalCorroboration},
     {"Giac Adapter Op::IsZero on the substituted difference",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck},
 };
 
 const ObligationSchema kRewriteSameValue[] = {
@@ -363,11 +396,12 @@ const ObligationSchema kSubstitutionIdentity[] = {
 };
 
 const EvidenceAlternative kLiteralInspection[] = {
-    {"literal inspection", EvidenceStrength::StructurallyValid},
+    {"literal inspection", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kRewritingDispatch[] = {
-    {"registered rewriting rule dispatch", EvidenceStrength::StructurallyValid},
+    {"registered rewriting rule dispatch", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 // The three rewriting strategies differ in which rules they reach for, not in what they promise, so
@@ -381,11 +415,12 @@ const ObligationSchema kRewriteStrategy[] = {
 };
 
 const EvidenceAlternative kOccurrenceCount[] = {
-    {"occurrence count", EvidenceStrength::StructurallyValid},
+    {"occurrence count", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const EvidenceAlternative kInverseDispatch[] = {
-    {"registered inverse-operation dispatch", EvidenceStrength::StructurallyValid},
+    {"registered inverse-operation dispatch", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kRearrangeStrategy[] = {
@@ -406,71 +441,76 @@ const ObligationSchema kEquationSameSolutions[] = {
 // referred to by several obligations. Each is the method string the engine records, and the
 // strength it declares when it passes.
 const EvidenceAlternative kRankComparison[] = {
-    {"rank comparison", EvidenceStrength::StructurallyValid},
+    {"rank comparison", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kFrameDeclaration[] = {
-    {"frame declaration", EvidenceStrength::StructurallyValid},
+    {"frame declaration", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kFrameIdentity[] = {
-    {"frame identity", EvidenceStrength::StructurallyValid},
+    {"frame identity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kDimensionalAnalysis[] = {
-    {"dimensional analysis", EvidenceStrength::DimensionallyValid},
+    {"dimensional analysis", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const EvidenceAlternative kDimensionComparison[] = {
-    {"dimension comparison", EvidenceStrength::DimensionallyValid},
+    {"dimension comparison", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const EvidenceAlternative kDimensionalMultiplication[] = {
-    {"dimensional multiplication", EvidenceStrength::DimensionallyValid},
+    {"dimensional multiplication", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const EvidenceAlternative kTypedDimensionalAnalysis[] = {
-    {"typed dimensional analysis", EvidenceStrength::DimensionallyValid},
+    {"typed dimensional analysis", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const EvidenceAlternative kAngleUnitValidation[] = {
-    {"angle-unit validation", EvidenceStrength::StructurallyValid},
+    {"angle-unit validation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kUnitTable[] = {
-    {"unit table", EvidenceStrength::StructurallyValid},
+    {"unit table", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kSignificantFigures[] = {
-    {"significant figures", EvidenceStrength::StructurallyValid},
+    {"significant figures", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kOperationOrdering[] = {
-    {"operation ordering", EvidenceStrength::StructurallyValid},
+    {"operation ordering", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kExactRationalSign[] = {
-    {"exact rational sign", EvidenceStrength::StructurallyValid},
+    {"exact rational sign", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kLawApplicability[] = {
-    {"checked physical-law applicability", EvidenceStrength::StructurallyValid},
+    {"checked physical-law applicability", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const EvidenceAlternative kGiacZero[] = {
-    {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
+    {"Giac zero check", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+     CheckKind::GiacCrossCheck, true},
 };
 const EvidenceAlternative kRelativeComponentSubtraction[] = {
-    {"nps vector_sub", EvidenceStrength::StructurallyValid},
+    {"nps vector_sub", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
     {"Giac Simplify and local canonical comparison",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck},
 };
 const EvidenceAlternative kUnroundedComparison[] = {
-    {"exact comparison against the unrounded value", EvidenceStrength::CandidateChecked},
+    {"exact comparison against the unrounded value", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kBoundaryComparison[] = {
-    {"exact rational boundary comparison", EvidenceStrength::CandidateChecked},
+    {"exact rational boundary comparison", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kDeclaredForceProfile[] = {
-    {"declared force profile", EvidenceStrength::StructurallyValid},
+    {"declared force profile", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kCoordinateConvention[] = {
-    {"coordinate convention validation", EvidenceStrength::StructurallyValid},
+    {"coordinate convention validation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 // kinematics
 const EvidenceAlternative kModelValidation[] = {
-    {"problem-family model validation", EvidenceStrength::StructurallyValid},
+    {"problem-family model validation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kRouteSearch[] = {
-    {"exact route search through the solving rules", EvidenceStrength::StructurallyValid},
+    {"exact route search through the solving rules", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kKinematicsStrategy[] = {
     {"pre.kinematics.constant-acceleration", "acceleration is constant over the interval",
@@ -500,7 +540,7 @@ const ObligationSchema kKinematicsConversion[] = {
 // checks the catalog against this table rather than trusting the two runtime populations.
 const EvidenceAlternative kBackendSolve[] = {
     {"backend solve, checked by backend is_zero",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, true},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck, true},
 };
 const ObligationSchema kSymbolicIsolation[] = {
     {"obl.kinematics.symbolic-isolation",
@@ -516,7 +556,8 @@ const ObligationSchema kRoundingWithinHalfPlace[] = {
      kUnroundedComparison, 1},
 };
 const EvidenceAlternative kStatedConditionComparison[] = {
-    {"exact comparison against the stated condition", EvidenceStrength::StructurallyValid},
+    {"exact comparison against the stated condition", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kSelectedRootIsAdmissible[] = {
     {"obl.kinematics.selected-root-is-admissible",
@@ -525,13 +566,13 @@ const ObligationSchema kSelectedRootIsAdmissible[] = {
 };
 
 const EvidenceAlternative kForcesArrangement[] = {
-    {"arrangement check", EvidenceStrength::StructurallyValid},
+    {"arrangement check", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kForcesAngle[] = {
-    {"trigonometric identity", EvidenceStrength::StructurallyValid},
+    {"trigonometric identity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kForcesDeclaration[] = {
-    {"declaration check", EvidenceStrength::StructurallyValid},
+    {"declaration check", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kForcesStrategy[] = {
     {"pre.forces.single-body", "exactly one body carries the force inventory",
@@ -553,7 +594,7 @@ const ObligationSchema kForcesExactAngle[] = {
     {"obl.forces.exact-angle", "the angle's sine and cosine are exact rationals", kForcesAngle, 1},
 };
 const EvidenceAlternative kForcesExactProduct[] = {
-    {"exact rational product", EvidenceStrength::DimensionallyValid},
+    {"exact rational product", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const ObligationSchema kForcesWeightComponents[] = {
     {"obl.forces.weight-components",
@@ -561,21 +602,22 @@ const ObligationSchema kForcesWeightComponents[] = {
      kForcesExactProduct, 1},
 };
 const EvidenceAlternative kForcesAcrossAxis[] = {
-    {"exact across-axis sum", EvidenceStrength::DimensionallyValid},
+    {"exact across-axis sum", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const ObligationSchema kForcesNormalFromBalance[] = {
     {"obl.forces.normal-from-balance", "the normal force makes the exact across-axis sum zero",
      kForcesAcrossAxis, 1},
 };
 const EvidenceAlternative kForcesPairComparison[] = {
-    {"inventory and pair comparison", EvidenceStrength::StructurallyValid},
+    {"inventory and pair comparison", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kForcesPairsSeparate[] = {
     {"obl.forces.pairs-separate", "no third-law reaction appears in the inventory of this body",
      kForcesPairComparison, 1},
 };
 const EvidenceAlternative kForcesStaticLimit[] = {
-    {"exact comparison of required friction against mu_s N", EvidenceStrength::DimensionallyValid},
+    {"exact comparison of required friction against mu_s N", EvidenceStrength::DimensionallyValid,
+     CheckKind::Dimensional},
 };
 const ObligationSchema kForcesStaticWithinLimit[] = {
     {"obl.forces.static-within-limit",
@@ -587,7 +629,7 @@ const ObligationSchema kForcesKineticFriction[] = {
      kForcesExactProduct, 1},
 };
 const EvidenceAlternative kForcesExactRearrangement[] = {
-    {"exact rearrangement", EvidenceStrength::DimensionallyValid},
+    {"exact rearrangement", EvidenceStrength::DimensionallyValid, CheckKind::Dimensional},
 };
 const ObligationSchema kForcesUnknownIsolated[] = {
     {"obl.forces.unknown-isolated",
@@ -596,7 +638,7 @@ const ObligationSchema kForcesUnknownIsolated[] = {
 };
 const EvidenceAlternative kForcesResidualEvidence[] = {
     {"exact substitution into the along-axis sum",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::RuleLocal},
 };
 const ObligationSchema kForcesResidualZero[] = {
     {"obl.forces.residual-zero", "the along-axis force sum minus m a is exactly zero",
@@ -607,7 +649,8 @@ const ObligationSchema kForcesResultDimension[] = {
      kDimensionalAnalysis, 1},
 };
 const EvidenceAlternative kZeroFactorInvariant[] = {
-    {"rule-local invariant", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+    {"rule-local invariant", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kZeroFactorEliminatesTerm[] = {
     {"obl.physics.zero-factor-eliminates-term", "a product with a zero factor equals zero",
@@ -616,7 +659,7 @@ const ObligationSchema kZeroFactorEliminatesTerm[] = {
 
 // catch-up
 const EvidenceAlternative kMotionModels[] = {
-    {"validated motion models", EvidenceStrength::StructurallyValid},
+    {"validated motion models", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kCatchUpStrategy[] = {
     {"pre.catch-up.constant-velocity",
@@ -629,7 +672,7 @@ const ObligationSchema kCatchUpStrategy[] = {
      kRegisteredPreconditions, 1},
 };
 const EvidenceAlternative kBodyIntervalIdentity[] = {
-    {"typed body and interval identity", EvidenceStrength::StructurallyValid},
+    {"typed body and interval identity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kEqualPositionIsTheEvent[] = {
     {"obl.catch-up.equal-position-is-the-event",
@@ -645,7 +688,8 @@ const ObligationSchema kCatchUpInDomain[] = {
      "the candidate time belongs to both bodies' active intervals", kBoundaryComparison, 1},
 };
 const EvidenceAlternative kSubstituteFirstLaw[] = {
-    {"exact substitution into the original position law", EvidenceStrength::CandidateChecked},
+    {"exact substitution into the original position law", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kCatchUpFirstPosition[] = {
     {"obl.catch-up.first-position",
@@ -653,7 +697,8 @@ const ObligationSchema kCatchUpFirstPosition[] = {
      1},
 };
 const EvidenceAlternative kSubstituteBothLaws[] = {
-    {"exact substitution into both original position laws", EvidenceStrength::CandidateChecked},
+    {"exact substitution into both original position laws", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kCatchUpSecondPosition[] = {
     {"obl.catch-up.second-position",
@@ -668,7 +713,8 @@ const ObligationSchema kReportedWithinHalfPlace[] = {
 
 // density
 const EvidenceAlternative kDensityVariableModel[] = {
-    {"registered density-variable model", EvidenceStrength::StructurallyValid},
+    {"registered density-variable model", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kDensityStrategy[] = {
     {"pre.density.compatible-dimensions", "mass, volume and density use compatible dimensions",
@@ -683,7 +729,8 @@ const ObligationSchema kDensityDimensions[] = {
      kDimensionalAnalysis, 1},
 };
 const EvidenceAlternative kSubstituteOriginalRelation[] = {
-    {"exact substitution into the original relation", EvidenceStrength::CandidateChecked},
+    {"exact substitution into the original relation", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kDensityCandidate[] = {
     {"obl.density.candidate-satisfies", "the candidate satisfies the original density definition",
@@ -691,7 +738,7 @@ const ObligationSchema kDensityCandidate[] = {
 };
 const EvidenceAlternative kUnitTableScale[] = {
     {"divide each stored value by its table scale and compare with the given",
-     EvidenceStrength::CandidateChecked},
+     EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kScalePreservesSolutions[] = {
     {"obl.physics.scale-preserves-solutions",
@@ -699,7 +746,7 @@ const ObligationSchema kScalePreservesSolutions[] = {
      kUnitTableScale, 1},
 };
 const EvidenceAlternative kKnownQuantityLookup[] = {
-    {"typed known-quantity lookup", EvidenceStrength::StructurallyValid},
+    {"typed known-quantity lookup", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kLookupPreservesSolutions[] = {
     {"obl.physics.lookup-preserves-solutions",
@@ -709,7 +756,8 @@ const ObligationSchema kLookupPreservesSolutions[] = {
 
 // Relation-driven families, whose obligation ids embed the model's own rule prefix.
 const EvidenceAlternative kRelationPositionModel[] = {
-    {"registered relation-position model", EvidenceStrength::StructurallyValid},
+    {"registered relation-position model", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 
 const ObligationSchema kCircularPeriodStrategy[] = {
@@ -833,16 +881,19 @@ const ObligationSchema kWaveCandidate[] = {
 
 // modern
 const EvidenceAlternative kModernRelationModel[] = {
-    {"registered relation model", EvidenceStrength::StructurallyValid},
+    {"registered relation model", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kLightSpeedComparison[] = {
-    {"exact comparison against the speed of light", EvidenceStrength::CandidateChecked},
+    {"exact comparison against the speed of light", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kExactRationalIdentity[] = {
-    {"exact rational identity", EvidenceStrength::CandidateChecked},
+    {"exact rational identity", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kInvariantComparison[] = {
-    {"exact invariant comparison", EvidenceStrength::CandidateChecked},
+    {"exact invariant comparison", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kRelativityStrategy[] = {
     {"pre.relativity.frames-named", "the two frames are named and distinct", kFrameDeclaration, 1},
@@ -936,7 +987,8 @@ const ObligationSchema kRelativeDirection[] = {
      "the relative velocity direction follows both component signs", kExactRationalSign, 1},
 };
 const EvidenceAlternative kRelativeBearingEvidence[] = {
-    {"nearest cardinal by component magnitude", EvidenceStrength::StructurallyValid},
+    {"nearest cardinal by component magnitude", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kRelativeBearingConvention[] = {
     {"obl.relative-motion.bearing-convention-stated",
@@ -944,14 +996,15 @@ const ObligationSchema kRelativeBearingConvention[] = {
      kRelativeBearingEvidence, 1},
 };
 const EvidenceAlternative kRelativeSubscriptEvidence[] = {
-    {"subscript chain", EvidenceStrength::StructurallyValid},
+    {"subscript chain", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kRelativeSubscriptCancellation[] = {
     {"obl.relative-motion.subscript-cancellation",
      "the inner subscript cancels between the two added velocities", kRelativeSubscriptEvidence, 1},
 };
 const EvidenceAlternative kRelativeIsolationEvidence[] = {
-    {"symbolic rearrangement of the subscript identity", EvidenceStrength::StructurallyValid},
+    {"symbolic rearrangement of the subscript identity", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kRelativeIsolation[] = {
     {"obl.relative-motion.isolate-before-substitute",
@@ -959,7 +1012,8 @@ const ObligationSchema kRelativeIsolation[] = {
      kRelativeIsolationEvidence, 1},
 };
 const EvidenceAlternative kRelativeRoundingEvidence[] = {
-    {"exact comparison against the unrounded value", EvidenceStrength::CandidateChecked},
+    {"exact comparison against the unrounded value", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kRelativeRounding[] = {
     {"obl.relative-motion.rounding-within-half-place",
@@ -973,16 +1027,18 @@ const ObligationSchema kConvertsByTable[] = {
 
 // physics.optics
 const EvidenceAlternative kOpticalDomainRules[] = {
-    {"registered optical domain rules", EvidenceStrength::StructurallyValid},
+    {"registered optical domain rules", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kRelationConvention[] = {
-    {"registered relation convention", EvidenceStrength::StructurallyValid},
+    {"registered relation convention", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kOpticsRelationSubstitution[] = {
-    {"exact substitution into the original relation", EvidenceStrength::CandidateChecked},
+    {"exact substitution into the original relation", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kCriticalSineComparison[] = {
-    {"exact comparison against one", EvidenceStrength::CandidateChecked},
+    {"exact comparison against one", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kOpticsStrategy[] = {
     {"pre.optics.compatible-dimensions", "both sides of the relation have the same dimension",
@@ -1035,7 +1091,8 @@ const ObligationSchema kWorkConstantForce[] = {
      1},
 };
 const EvidenceAlternative kVectorDotConstruction[] = {
-    {"exact construction through vector_dot", EvidenceStrength::StructurallyValid},
+    {"exact construction through vector_dot", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kWorkCandidate[] = {
     {"obl.work.candidate-satisfies",
@@ -1063,7 +1120,7 @@ const ObligationSchema kWorkLawAfterChecks[] = {
      kLawApplicability, 1},
 };
 const EvidenceAlternative kVectorDot[] = {
-    {"nps vector_dot", EvidenceStrength::StructurallyValid},
+    {"nps vector_dot", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kDotIsTheDefinition[] = {
     {"obl.work.dot-is-the-definition",
@@ -1075,31 +1132,34 @@ const ObligationSchema kWorkSign[] = {
 };
 const EvidenceAlternative kWorkBackendEvidence[] = {
     {"Giac Adapter Op::Dot and local canonical comparison",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck},
 };
 const ObligationSchema kWorkBackendAgreement[] = {
     {"obl.work.backend-agrees", "Giac's Op::Dot result equals the local result",
      kWorkBackendEvidence, 1},
 };
 const EvidenceAlternative kHalfPlaceComparison[] = {
-    {"exact half-place comparison", EvidenceStrength::CandidateChecked},
+    {"exact half-place comparison", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 
 // physics.planar-kinematics
 const EvidenceAlternative kStageIdentity[] = {
-    {"stage identity", EvidenceStrength::StructurallyValid},
+    {"stage identity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kProjectileSpecialization[] = {
-    {"projectile specialization", EvidenceStrength::StructurallyValid},
+    {"projectile specialization", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kVectorScaleAndAdd[] = {
-    {"nps vector_scale and vector_add", EvidenceStrength::StructurallyValid},
+    {"nps vector_scale and vector_add", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kAverageVelocityIdentity[] = {
-    {"average-velocity identity", EvidenceStrength::CandidateChecked},
+    {"average-velocity identity", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const EvidenceAlternative kIndependentRoutes[] = {
-    {"two independent routes", EvidenceStrength::CandidateChecked},
+    {"two independent routes", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kPlanarStrategy[] = {
     {"pre.planar-kinematics.rank-two", "velocity and acceleration are two-dimensional",
@@ -1197,7 +1257,7 @@ const ObligationSchema kWorkRounding[] = {
 
 // unit conversion
 const EvidenceAlternative kExactRationalOperations[] = {
-    {"exact rational operations", EvidenceStrength::StructurallyValid},
+    {"exact rational operations", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kUnitConvertStrategy[] = {
     {"pre.unit-convert.dimensions-match", "source and target units have equal dimensions",
@@ -1259,7 +1319,7 @@ const ObligationSchema kVectorAddRounding[] = {
      kHalfPlaceComparison, 1},
 };
 const EvidenceAlternative kExactRationalAddition[] = {
-    {"exact rational addition", EvidenceStrength::StructurallyValid},
+    {"exact rational addition", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kComponentSum[] = {
     {"obl.vector-add.component-sum",
@@ -1298,7 +1358,7 @@ const ObligationSchema kComponentCross[] = {
 // StructurallyValid. This one is a candidate checked against zero after the fact, which is a
 // different claim and a different strength.
 const EvidenceAlternative kExactDotProduct[] = {
-    {"exact dot product", EvidenceStrength::CandidateChecked},
+    {"exact dot product", EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kVectorCrossOrthogonalFirst[] = {
     {"obl.vector-cross.orthogonal-first", "the result vector is orthogonal to the first operand",
@@ -1309,7 +1369,8 @@ const ObligationSchema kVectorCrossOrthogonalSecond[] = {
      kExactDotProduct, 1},
 };
 const EvidenceAlternative kReversedCrossProduct[] = {
-    {"exact reversed cross product", EvidenceStrength::CandidateChecked},
+    {"exact reversed cross product", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kVectorCrossAnticommutative[] = {
     {"obl.vector-cross.anticommutative",
@@ -1328,7 +1389,7 @@ const ObligationSchema kVectorCrossRounding[] = {
 
 // scalar product
 const EvidenceAlternative kComponentComparison[] = {
-    {"component comparison", EvidenceStrength::StructurallyValid},
+    {"component comparison", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kScalarProductStrategy[] = {
     {"pre.scalar-product.ranks-match", "both vectors have the same number of components",
@@ -1378,7 +1439,8 @@ const ObligationSchema kScalarProductSum[] = {
      "the value written down is the component sum the definition names", kVectorDot, 1},
 };
 const EvidenceAlternative kReversedDotProduct[] = {
-    {"exact reversed dot product", EvidenceStrength::CandidateChecked},
+    {"exact reversed dot product", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kScalarProductCommutative[] = {
     {"obl.scalar-product.commutative",
@@ -1386,7 +1448,8 @@ const ObligationSchema kScalarProductCommutative[] = {
 };
 // The geometric reading checked without a square root: a b cos(phi) has |cos(phi)| at most one.
 const EvidenceAlternative kCauchySchwarz[] = {
-    {"exact Cauchy-Schwarz comparison", EvidenceStrength::CandidateChecked},
+    {"exact Cauchy-Schwarz comparison", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
 };
 const ObligationSchema kScalarProductBound[] = {
     {"obl.scalar-product.within-magnitude-bound",
@@ -1394,13 +1457,13 @@ const ObligationSchema kScalarProductBound[] = {
      kCauchySchwarz, 1},
 };
 const EvidenceAlternative kExactSignComparison[] = {
-    {"exact sign comparison", EvidenceStrength::CandidateChecked},
+    {"exact sign comparison", EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
 };
 // The slack in the comparison above is the square of the cross-product magnitude, so the angle is
 // atan2 of two exact numbers rather than an inverse cosine no exact rational route reaches.
 const EvidenceAlternative kBackendAngleIdentity[] = {
     {"Giac atan2 against the exact Cauchy-Schwarz slack",
-     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions},
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::GiacCrossCheck},
 };
 const ObligationSchema kScalarProductMeasuredAngle[] = {
     {"obl.scalar-product.angle-satisfies-definition",
@@ -1495,7 +1558,7 @@ const ObligationSchema kDecimalReadsAsWritten[] = {
 };
 
 const EvidenceAlternative kIntegerEnvelope[] = {
-    {"integer envelope validation", EvidenceStrength::StructurallyValid},
+    {"integer envelope validation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerStrategy[] = {
     {"pre.int.literal-envelope", "the arguments are integer literals within this method's bounds",
@@ -1504,28 +1567,28 @@ const ObligationSchema kIntegerStrategy[] = {
      kRegisteredPreconditions, 1},
 };
 const EvidenceAlternative kIntegerDivisionEvidence[] = {
-    {"exact integer division identity", EvidenceStrength::StructurallyValid},
+    {"exact integer division identity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerDivision[] = {
     {"obl.int.division-identity", "the dividend equals divisor times quotient plus a bounded remainder",
      kIntegerDivisionEvidence, 1},
 };
 const EvidenceAlternative kIntegerFactorialEvidence[] = {
-    {"factorial recurrence", EvidenceStrength::StructurallyValid},
+    {"factorial recurrence", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerFactorial[] = {
     {"obl.int.factorial-product", "the product satisfies the factorial recurrence",
      kIntegerFactorialEvidence, 1},
 };
 const EvidenceAlternative kIntegerPermutationEvidence[] = {
-    {"falling product recurrence", EvidenceStrength::StructurallyValid},
+    {"falling product recurrence", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerPermutation[] = {
     {"obl.int.permutation-product", "the product satisfies the falling product recurrence",
      kIntegerPermutationEvidence, 1},
 };
 const EvidenceAlternative kIntegerCombinationEvidence[] = {
-    {"binomial recurrence", EvidenceStrength::StructurallyValid},
+    {"binomial recurrence", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerCombination[] = {
     {"obl.int.combination-product", "the binomial recurrence divides exactly",
@@ -1536,49 +1599,50 @@ const ObligationSchema kIntegerTrial[] = {
      kIntegerDivisionEvidence, 1},
 };
 const EvidenceAlternative kIntegerPrimeEvidence[] = {
-    {"complete trial division", EvidenceStrength::StructurallyValid},
+    {"complete trial division", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerPrime[] = {
     {"obl.int.prime-decision", "all necessary trial divisors were checked",
      kIntegerPrimeEvidence, 1},
 };
 const EvidenceAlternative kIntegerNextPrimeEvidence[] = {
-    {"consecutive candidate exclusion", EvidenceStrength::StructurallyValid},
+    {"consecutive candidate exclusion", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerNextPrime[] = {
     {"obl.int.next-prime", "every smaller candidate above the input is excluded",
      kIntegerNextPrimeEvidence, 1},
 };
 const EvidenceAlternative kIntegerModularPowerEvidence[] = {
-    {"binary modular recurrence", EvidenceStrength::StructurallyValid},
+    {"binary modular recurrence", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerModularPower[] = {
     {"obl.int.modular-power", "the modular multiplication preserves the stated congruence",
      kIntegerModularPowerEvidence, 1},
 };
 const EvidenceAlternative kIntegerFactorsEvidence[] = {
-    {"prime factor reconstruction", EvidenceStrength::StructurallyValid},
+    {"prime factor reconstruction", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerFactors[] = {
     {"obl.int.factor-product", "the recorded prime factors multiply to the input",
      kIntegerFactorsEvidence, 1},
 };
 const EvidenceAlternative kIntegerGcdSignEvidence[] = {
-    {"integer magnitude normalization", EvidenceStrength::StructurallyValid},
+    {"integer magnitude normalization", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerGcdSign[] = {
     {"obl.int.gcd-sign", "absolute values preserve the common divisors",
      kIntegerGcdSignEvidence, 1},
 };
 const EvidenceAlternative kIntegerGcdRemainderEvidence[] = {
-    {"exact Euclidean reduction", EvidenceStrength::StructurallyValid},
+    {"exact Euclidean reduction", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerGcdRemainder[] = {
     {"obl.int.gcd-remainder", "exact division preserves the common divisors of the pair",
      kIntegerGcdRemainderEvidence, 1},
 };
 const EvidenceAlternative kIntegerGcdCertificateEvidence[] = {
-    {"common divisibility and Bezout identity", EvidenceStrength::StructurallyValid},
+    {"common divisibility and Bezout identity", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kIntegerGcdCertificate[] = {
     {"obl.int.gcd-certificate", "the nonnegative common divisor satisfies a Bezout identity",
@@ -1586,7 +1650,7 @@ const ObligationSchema kIntegerGcdCertificate[] = {
 };
 
 const EvidenceAlternative kMatrixRowEvidence[] = {
-    {"exact reversible row operation", EvidenceStrength::StructurallyValid},
+    {"exact reversible row operation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixRow[] = {
     {"obl.matrix.row-equivalent", "an exact reversible row operation produces every recorded cell",
@@ -1594,20 +1658,20 @@ const ObligationSchema kMatrixRow[] = {
 };
 
 const EvidenceAlternative kMatrixEnvelope[] = {
-    {"exact matrix envelope validation", EvidenceStrength::StructurallyValid},
+    {"exact matrix envelope validation", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixStrategy[] = {
     {"pre.matrix.rational-envelope", "a nonempty matrix of at most 4 by 6 has exact rational cells and provenance", kMatrixEnvelope, 1},
     {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence", kRegisteredPreconditions, 1},
 };
 const EvidenceAlternative kMatrixTrace[] = {
-    {"exact row trace continuity", EvidenceStrength::StructurallyValid},
+    {"exact row trace continuity", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kMatrixRefForm[] = {
-    {"exact row echelon form", EvidenceStrength::StructurallyValid},
+    {"exact row echelon form", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const EvidenceAlternative kMatrixRrefForm[] = {
-    {"exact reduced row echelon form", EvidenceStrength::StructurallyValid},
+    {"exact reduced row echelon form", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixRefConclusion[] = {
     {"obl.matrix.trace-complete", "the final matrix ends a complete verified row-operation trace", kMatrixTrace, 1},
@@ -1623,14 +1687,15 @@ const ObligationSchema kMatrixDeterminantStrategy[] = {
     {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence", kRegisteredPreconditions, 1},
 };
 const EvidenceAlternative kMatrixDeterminantFactor[] = {
-    {"exact determinant factor law", EvidenceStrength::StructurallyValid},
+    {"exact determinant factor law", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixDeterminantRow[] = {
     {"obl.matrix.row-equivalent", "the actual reversible row operation matches every matrix cell", kMatrixRowEvidence, 1},
     {"obl.matrix.det-factor", "the nonzero accumulated factor follows the elementary determinant law", kMatrixDeterminantFactor, 1},
 };
 const EvidenceAlternative kMatrixDeterminantDiagonal[] = {
-    {"exact triangular determinant product", EvidenceStrength::StructurallyValid},
+    {"exact triangular determinant product", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixDeterminantProduct[] = {
     {"obl.matrix.trace-complete", "the final matrix ends the verified row trace", kMatrixTrace, 1},
@@ -1638,7 +1703,8 @@ const ObligationSchema kMatrixDeterminantProduct[] = {
     {"obl.matrix.det-diagonal-product", "the scalar equals the triangular diagonal product", kMatrixDeterminantDiagonal, 1},
 };
 const EvidenceAlternative kMatrixDeterminantCorrection[] = {
-    {"exact determinant factor correction", EvidenceStrength::StructurallyValid},
+    {"exact determinant factor correction", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
 };
 const ObligationSchema kMatrixDeterminantResult[] = {
     {"obl.matrix.det-correction", "the original determinant equals the diagonal product divided by the nonzero accumulated factor", kMatrixDeterminantCorrection, 1},
