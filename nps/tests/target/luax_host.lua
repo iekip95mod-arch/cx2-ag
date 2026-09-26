@@ -638,6 +638,21 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
 do
+    -- The rows after this one count Giac calls from here, and a rewrite may consult it.
+    local calls_before = giac_calls
+    local product = nps.walkthrough("simplify(3\195\1512)", "x", "exact")
+    check(type(product) == "table" and product.solved and product.result == "6",
+          "a MathPrint times sign reaches the native walkthrough as multiplication")
+    local square = nps.walkthrough("simplify(x\194\178+x\194\178)", "x", "exact")
+    local ascii = nps.walkthrough("simplify(x^2+x^2)", "x", "exact")
+    check(type(square) == "table" and square.solved and square.result == "(2 * (x^2))" and
+          square.result == ascii.result,
+          "a superscript square collects exactly as x^2 does: " .. tostring(square and square.result))
+    check(nps.math_display("6\195\1832") == "(6 / 2)" and nps.math_display("\226\136\154(4)") == "sqrt(4)",
+          "MathPrint divide and radical signs display in the project's own grammar")
+    giac_calls = calls_before
+end
+do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and
           not record.has_result and record.result == nil and not record.answer_only and

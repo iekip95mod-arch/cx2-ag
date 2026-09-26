@@ -12,6 +12,7 @@ enum class Tok : uint8_t {
     Star,
     Slash,
     Caret,
+    Superscript,
     LParen,
     RParen,
     LBracket,
@@ -73,6 +74,40 @@ class Lexer {
         if (const size_t bytes = minus_bytes()) {
             pos_ += bytes;
             t.kind = Tok::Minus;
+            t.end = pos_;
+            return t;
+        }
+        if (src_.compare(pos_, 3, "\xE2\x88\x9A") == 0) {
+            pos_ += 3;
+            // The radical is a function name only in front of its bracket, so it never becomes a symbol.
+            t.kind = pos_ < src_.size() && src_[pos_] == '(' ? Tok::Name : Tok::Bad;
+            t.end = pos_;
+            return t;
+        }
+        // TI MathPrint spellings of operators the ASCII grammar already has.
+        struct Glyph {
+            const char *bytes;
+            size_t size;
+            Tok kind;
+        };
+        static const Glyph kGlyphs[] = {
+            {"\xC3\x97", 2, Tok::Star},          {"\xC2\xB7", 2, Tok::Star},
+            {"\xE2\x8B\x85", 3, Tok::Star},     {"\xC3\xB7", 2, Tok::Slash},
+            {"\xE2\x89\xA4", 3, Tok::LessEqual}, {"\xE2\x89\xA5", 3, Tok::GreaterEqual},
+        };
+        for (const Glyph &glyph : kGlyphs) {
+            if (src_.compare(pos_, glyph.size, glyph.bytes) == 0) {
+                pos_ += glyph.size;
+                t.kind = glyph.kind;
+                t.end = pos_;
+                return t;
+            }
+        }
+        if (superscript_bytes(pos_, nullptr)) {
+            t.kind = Tok::Superscript;
+            char digit = 0;
+            while (const size_t bytes = superscript_bytes(pos_, &digit))
+                pos_ += bytes;
             t.end = pos_;
             return t;
         }
@@ -144,6 +179,44 @@ class Lexer {
     }
     static bool is_name_part(char c) { return is_name_start(c) || is_digit(c); }
 
+    // The width of the superscript digit or minus at this position, zero when there is none.
+    size_t superscript_bytes(size_t at, char *out) const {
+        static const char *const kDigits[] = {"\xE2\x81\xB0", "\xC2\xB9", "\xC2\xB2", "\xC2\xB3", "\xE2\x81\xB4",
+                                              "\xE2\x81\xB5", "\xE2\x81\xB6", "\xE2\x81\xB7", "\xE2\x81\xB8", "\xE2\x81\xB9"};
+        for (int d = 0; d < 10; ++d) {
+            const size_t size = kDigits[d][0] == '\xC2' ? 2 : 3;
+            if (src_.compare(at, size, kDigits[d]) == 0) {
+                if (out)
+                    *out = static_cast<char>('0' + d);
+                return size;
+            }
+        }
+        if (src_.compare(at, 3, "\xE2\x81\xBB") == 0) {
+            if (out)
+                *out = '-';
+            return 3;
+        }
+        return 0;
+    }
+
+  public:
+    // The ASCII exponent a run of superscript characters spells, or empty when it spells none.
+    std::string superscript_text(size_t start, size_t end) const {
+        std::string text;
+        char c = 0;
+        for (size_t at = start; at < end;) {
+            const size_t bytes = superscript_bytes(at, &c);
+            if (!bytes)
+                return std::string();
+            text += c;
+            at += bytes;
+        }
+        if (text.empty() || text.find('-', 1) != std::string::npos || text == "-")
+            return std::string();
+        return text;
+    }
+
+  private:
     size_t minus_bytes() const {
         if (src_.compare(pos_, 3, "\xE2\x88\x92") == 0) return 3;
         return pos_ < src_.size() && src_[pos_] == '-' ? 1 : 0;
@@ -388,6 +461,20 @@ class Parser {
         NodeId base = atom();
         if (stop())
             return kNoNode;
+        if (tok_.kind == Tok::Superscript) {
+            const std::string text = lexer_.superscript_text(tok_.start, tok_.end);
+            if (text.empty()) {
+                error(Status::SyntaxError, "a superscript needs at least one digit");
+                return kNoNode;
+            }
+            advance();
+            last_was_number_ = false;
+            const bool negative = text[0] == '-';
+            NodeId exponent = arena_.integer(negative ? text.substr(1) : text);
+            if (negative)
+                exponent = arena_.unary(Kind::Neg, exponent);
+            return arena_.binary(Kind::Pow, base, exponent);
+        }
         if (tok_.kind != Tok::Caret)
             return base;
         advance();
@@ -503,6 +590,7 @@ bool is_identifier(const std::string &input, size_t max_input_bytes) {
 
 std::string normalize_identifier(const std::string &input) {
     if (input == "\xE2\x88\x9E") return "infinity";
+    if (input == "\xE2\x88\x9A") return "sqrt";
     return input == "\xCF\x80" ? "pi" : input;
 }
 
