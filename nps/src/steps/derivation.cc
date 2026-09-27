@@ -473,6 +473,17 @@ DerivationStatus Derivation::outcome_from(size_t checkpoint) const {
     return corroborated ? DerivationStatus::SolvedAndCorroborated : DerivationStatus::SolvedAndVerified;
 }
 
+std::vector<std::string> Derivation::domain_restrictions_from(size_t checkpoint) const {
+    std::vector<std::string> conditions;
+    for (size_t i = checkpoint; i < steps_.size(); ++i) {
+        for (const std::string &condition : steps_[i].domain_restrictions) {
+            if (std::find(conditions.begin(), conditions.end(), condition) == conditions.end())
+                conditions.push_back(condition);
+        }
+    }
+    return conditions;
+}
+
 bool keep_verified_prefix(Derivation &derivation, size_t mark, const Arena &arena, bool retain_plans) {
     if (arena.failed()) {
         derivation.rewind_to(mark);

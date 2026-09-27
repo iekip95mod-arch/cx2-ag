@@ -72,12 +72,10 @@ void SolveTask::publish() {
         published_.publish_verified(working_);
     if (state_ != TaskState::Pending) {
         published_.context = working_.context;
-        for (size_t i = 0; i < published_.size(); ++i) {
-            for (const std::string &condition : published_.at(static_cast<StepId>(i)).domain_restrictions) {
-                auto &assumptions = published_.context.active_assumptions;
-                if (std::find(assumptions.begin(), assumptions.end(), condition) == assumptions.end())
-                    assumptions.push_back(condition);
-            }
+        auto &conditions = published_.context.domain_restrictions;
+        for (const std::string &condition : published_.domain_restrictions_from(0)) {
+            if (std::find(conditions.begin(), conditions.end(), condition) == conditions.end())
+                conditions.push_back(condition);
         }
     }
 }
@@ -92,7 +90,7 @@ TaskState SolveTask::advance(size_t units) {
         result_ = *task_->result();
         std::visit([this](auto &solved) {
             if constexpr (std::is_same_v<std::decay_t<decltype(solved)>, RearrangeResult>)
-                solved.restrictions = published_.context.active_assumptions;
+                solved.restrictions = published_.context.domain_restrictions;
             if (!status_carries_answer(solved.status)) {
                 if constexpr (std::is_same_v<std::decay_t<decltype(solved)>, SolveResult>)
                     solved.solution = kNoNode;

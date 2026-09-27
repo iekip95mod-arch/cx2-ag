@@ -91,6 +91,11 @@ void run_separable_tests(TestSink &t) {
                 "the derivation separates, integrates both sides, solves for y and checks");
         t.equal(run.derivation.context.problem_family_id, kFamily,
                 "the solution context names the separable family");
+        const std::vector<std::string> &domain = run.derivation.context.domain_restrictions;
+        t.check(domain == std::vector<std::string>{"y != 0", "y > 0"} &&
+                    run.derivation.context.active_assumptions.empty(),
+                "dividing by y and integrating 1/y are domain conditions in the answer summary, not "
+                "modeling assumptions");
         t.check(run.broken.empty(), "every separable step conforms to its rule schema" +
                                         (run.broken.empty() ? std::string() : " " + run.broken.front()));
         t.evidence("CALC-012", run.result.status == DerivationStatus::SolvedAndVerified &&

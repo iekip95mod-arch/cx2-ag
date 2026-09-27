@@ -99,6 +99,9 @@ void run_implicit_tests(TestSink &t) {
         for (const std::string &condition : run.result.restrictions)
             names_y = names_y || condition.find('y') != std::string::npos;
         t.check(names_y, "the circle's derivative is conditional on its divisor being nonzero");
+        t.check(run.derivation.context.domain_restrictions == run.result.restrictions &&
+                    run.derivation.context.active_assumptions.empty(),
+                "and the answer summary files that divisor as a domain condition (PHYS-027)");
     }
     // The final check says Passed only when it read something, and Inconclusive when it read nothing.
     for (const auto &expected : {std::pair{"implicit(x^2+y^2=25,x,y)", VerificationOutcome::Passed},

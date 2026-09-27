@@ -9,6 +9,7 @@ context
   envelope version: <not recorded>
   normalized problem: (sin(x) * (x^(-1)))
   requested method: differentiate by rule
+  domain restriction: x is not zero
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

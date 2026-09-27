@@ -1028,6 +1028,7 @@ struct Calculation {
         context.requested_method = command_kind_name(command.kind);
         context.original_expression = derivation.request.original_expression;
         context.normalized_problem_model = model;
+        context.domain_restrictions = derivation.domain_restrictions_from(mark);
         context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";

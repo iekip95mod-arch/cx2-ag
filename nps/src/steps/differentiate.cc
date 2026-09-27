@@ -568,13 +568,15 @@ const char *diff_outcome_name(DiffOutcome o) {
 namespace {
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
-                    DerivationStatus status, NumericMode mode) {
+                    const std::vector<std::string> &conditions, DerivationStatus status,
+                    NumericMode mode) {
     ContextInputs inputs;
     inputs.application_version = application_version();
     inputs.problem_family_id = "calculus.derivative.single-variable";
     inputs.requested_method = "differentiate by rule";
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
+    inputs.domain_restrictions = conditions;
     inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain, principal values";
     inputs.detail_projection = "standard";
@@ -680,21 +682,21 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
     if (expression == kNoNode || variable == kNoNode || arena.failed()) {
         result.detail = "nothing to differentiate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
     if (arena.at(variable).kind != Kind::Symbol) {
         result.outcome = DiffOutcome::NotAVariable;
         result.detail = "the variable has to be a symbol";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
     if (contains_list(arena, expression)) {
         result.outcome = DiffOutcome::UnsupportedForm;
         result.detail = "list and matrix differentiation is not supported";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
     // d/dx sin(x) is cos(x) only when x is in radians, so the rules do not run on degrees.
@@ -702,14 +704,14 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
         result.outcome = DiffOutcome::UnsupportedForm;
         result.detail = "the trigonometric derivative rules assume radians, and degree mode is active";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
     if (divides_by_zero(arena, expression)) {
         result.outcome = DiffOutcome::UnsupportedForm;
         result.detail = "the expression divides by zero, which has no value to differentiate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
     // The same refusal for the conditions that are not division. A restriction says the answer holds
@@ -719,7 +721,7 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
         result.outcome = DiffOutcome::UnsupportedForm;
         result.detail = "the expression is undefined here, so there is nothing to differentiate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, {}, result.status, mode);
         return result;
     }
 
@@ -793,7 +795,8 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
                         : kept     ? DerivationStatus::Cancelled
                                    : DerivationStatus::NotRecorded;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -827,7 +830,8 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
                         : kept    ? DerivationStatus::PartiallySolved
                                   : DerivationStatus::Unsupported;
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -902,7 +906,8 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
                         : kept ? DerivationStatus::Cancelled : DerivationStatus::NotRecorded;
     }
     result.cost = meter.cost();
-    record_context(derivation, budget, expression, result.status, mode);
+    record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                   result.status, mode);
     return result;
 }
 
@@ -923,7 +928,7 @@ DiffResult differentiate(Arena &arena, Derivation &derivation, NodeId expression
         result.outcome = cancelled ? DiffOutcome::Cancelled : DiffOutcome::ResourceExceeded;
         result.detail = halt_name(meter.halt());
         result.status = cancelled ? DerivationStatus::NotRecorded : DerivationStatus::ResourceLimitReached;
-        record_context(derivation, meter.budget(), expression, result.status, derivation.request.numeric_mode);
+        record_context(derivation, meter.budget(), expression, {}, result.status, derivation.request.numeric_mode);
     }
     result.cost = meter.cost();
     return result;

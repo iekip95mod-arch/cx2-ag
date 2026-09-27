@@ -129,8 +129,9 @@ void run_solve_task_tests(TestSink &t) {
                     task.cancel();
             }
         }
-        t.check(saw_prefix && task.published().context.active_assumptions ==
-                                 std::vector<std::string>{"y is not zero"},
+        t.check(saw_prefix &&
+                    task.published().context.domain_restrictions == std::vector<std::string>{"y is not zero"} &&
+                    task.published().context.active_assumptions.empty(),
                 "original domain survives completion, cancellation and resource refusal of an inverse prefix");
         if (ending == "cancel")
             t.check(!task.result() && task.state() == TaskState::Cancelled,
@@ -476,7 +477,8 @@ void run_solve_task_tests(TestSink &t) {
         t.equal(task.published().context.original_expression, "a*(2*x+1)=b",
                 "cancelled prefix retains original request provenance in terminal context");
         t.check(task.published().context.normalized_problem_model != kNoNode &&
-                    task.published().context.active_assumptions == std::vector<std::string>{"a is not zero"},
+                    task.published().context.domain_restrictions == std::vector<std::string>{"a is not zero"} &&
+                    task.published().context.active_assumptions.empty(),
                 "cancelled prefix context retains its model and settled symbolic conditions");
     }
     {
@@ -513,14 +515,16 @@ void run_solve_task_tests(TestSink &t) {
         t.check(stopped.status == DerivationStatus::Unsupported && prefix.size() > 1 &&
                     prefix.at(1).verified() && prefix.at(1).domain_restrictions == condition,
                 "unsupported inner wrapper follows an independently verified symbolic division");
-        t.check(stopped.restrictions == condition && prefix.context.active_assumptions == condition,
+        t.check(stopped.restrictions == condition && prefix.context.domain_restrictions == condition &&
+                    prefix.context.active_assumptions.empty(),
                 "unsupported rearrangement retains prefix conditions in result and context");
         SolveTask bounded(SolveOperation::Rearrange, SolveRequest{"a*(2*x+1)=b"}, "x", 65536, limits);
         while (bounded.state() == TaskState::Pending)
             bounded.advance(1);
         t.check(bounded.result() && bounded.published().size() > 1 &&
                     bounded.published().at(1).verified() &&
-                    bounded.published().context.active_assumptions == condition &&
+                    bounded.published().context.domain_restrictions == condition &&
+                    bounded.published().context.active_assumptions.empty() &&
                     std::get<RearrangeResult>(*bounded.result()).restrictions == condition,
                 "persistent AST refusal retains the same verified prefix conditions");
     }

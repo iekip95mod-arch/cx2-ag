@@ -261,6 +261,27 @@ void test_absent_step(TestSink &t) {
             "while a real step still takes the restriction it is given");
 }
 
+// PHYS-027. The answer summary's domain conditions are the union of what the kept steps settled.
+void test_domain_restrictions_from(TestSink &t) {
+    Derivation d;
+    for (const char *goal : {"first", "second", "third"}) {
+        PlanPayload strategy;
+        strategy.selected_strategy = goal;
+        d.add_plan(kNoStep, envelope(goal, ClaimType::NoClaim), std::move(strategy));
+    }
+    d.restrictions_at(static_cast<StepId>(0)).push_back("x > 0");
+    d.restrictions_at(static_cast<StepId>(1)).push_back("y != 0");
+    d.restrictions_at(static_cast<StepId>(1)).push_back("x > 0");
+    d.restrictions_at(static_cast<StepId>(2)).push_back("y != 0");
+    d.restrictions_at(static_cast<StepId>(2)).push_back("z >= 0");
+    t.check(d.domain_restrictions_from(0) == std::vector<std::string>{"x > 0", "y != 0", "z >= 0"},
+            "the conditions of every step appear once, in the order they were first settled");
+    t.check(d.domain_restrictions_from(1) == std::vector<std::string>{"y != 0", "x > 0", "z >= 0"},
+            "a checkpoint leaves out the steps before it");
+    t.check(d.domain_restrictions_from(d.size()).empty() && d.domain_restrictions_from(d.size() + 5).empty(),
+            "and a checkpoint at or past the end has nothing to report");
+}
+
 void test_absent_parent(TestSink &t) {
     for (const StepKind kind : {StepKind::Plan, StepKind::Transformation, StepKind::Branch, StepKind::Check}) {
         const auto append = [kind](Derivation &d, Meter &meter, StepId parent) {
@@ -2259,6 +2280,7 @@ void run_derivation_tests(TestSink &t) {
     }
 
     test_absent_step(t);
+    test_domain_restrictions_from(t);
     test_absent_parent(t);
     test_rewind(t);
     test_adopt_roots(t);

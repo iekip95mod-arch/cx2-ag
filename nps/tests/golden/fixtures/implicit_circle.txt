@@ -7,7 +7,7 @@ context
   envelope version: 1
   normalized problem: implicit((((x^2) + (y^2)) = 25), x, y)
   requested method: implicit
-  active assumption: (2 * y) is not zero
+  domain restriction: (2 * y) is not zero
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

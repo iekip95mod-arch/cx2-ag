@@ -300,7 +300,7 @@ check(type(manifest.schema_versions) == "table" and #manifest.schema_versions ==
 check(manifest.schema_version == 2 and manifest.schema_versions[1].id == "capability-manifest" and
        manifest.schema_versions[1].version == 2 and
        manifest.schema_versions[2].id == "solution-context" and
-       manifest.schema_versions[2].version == 3,
+       manifest.schema_versions[2].version == 4,
        "the published manifest names both schema versions")
 check(type(manifest.integrity_identifiers) == "table" and #manifest.integrity_identifiers == 3,
       "the split manifest carries source, package and UI identities")
@@ -392,6 +392,18 @@ for _, case in ipairs(command_cases) do
         check(record.agrees and record.giac_calls == 2 and giac_calls == 2,
               case[2] .. " retains the public bridge cross-check policy")
     end
+end
+
+do
+    script("2", "0")
+    local limit = nps.walkthrough("limit((x^2-1)/(x-1),x,1)", "x", "exact")
+    check(limit.solved and type(limit.domain) == "string" and limit.domain:find("is not zero", 1, true) ~= nil,
+          "a calculus walkthrough carries the conditions its steps settled in the answer summary")
+    script("0")
+    local formula = nps.walkthrough("rearrange(v=u+a*t,a)", "x", "exact")
+    check(formula.solved and type(formula.domain) == "string" and
+          formula.domain:find("t is not zero", 1, true) ~= nil and formula.assumptions == nil,
+          "a rearrangement's divisor reaches the answer summary as a domain condition")
 end
 
 do
@@ -845,7 +857,16 @@ check(has_detail, "and at least one step carries its fuller explanation")
 
 script("1/x", "0")
 r = nps.integrate("1/x", "x")
-check(r.assumptions == "x > 0", "the logarithm's domain comes back as an assumption")
+check(r.domain == "x > 0" and r.assumptions == nil,
+      "the logarithm's domain comes back as a domain condition rather than an assumption")
+
+script("1/(2*sqrt(x))", "0")
+r = nps.differentiate("sqrt(x)", "x")
+check(r.solved == true and type(r.domain) == "string" and r.domain ~= "",
+      "a derivative whose steps settled a condition carries it in the answer summary")
+script("2*x", "0")
+r = nps.differentiate("x^2", "x")
+check(r.solved == true and r.domain == nil, "and one whose steps settled none carries no domain field")
 
 -- The numeric mode, through the entry points rather than around them. Every other check on the mode
 -- reaches an engine directly and sets the field on the context itself, so an entry point that reads

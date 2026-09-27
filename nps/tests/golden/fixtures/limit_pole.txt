@@ -7,6 +7,7 @@ context
   envelope version: 1
   normalized problem: limit((1 * (x^(-1))), x, 0, 1)
   requested method: limit
+  domain restriction: For nearby x: x is not zero
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

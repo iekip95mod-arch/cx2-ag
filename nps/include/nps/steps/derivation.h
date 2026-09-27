@@ -284,6 +284,7 @@ struct SolutionContext {
     std::string normalized_expression;
     std::string requested_method;
     std::vector<std::string> active_assumptions;
+    std::vector<std::string> domain_restrictions;
     std::string angle_convention;
     std::string branch_convention;
     std::string unit_policy;
@@ -364,6 +365,9 @@ class Derivation {
     // a check that disagreed as the engine having done less. acceptance_corpus.cc:617 already refuses
     // that pairing, so this is the shape the corpus was written against.
     DerivationStatus outcome_from(size_t checkpoint) const;
+
+    // Each step domain restriction from the checkpoint on, once, in the order first recorded.
+    std::vector<std::string> domain_restrictions_from(size_t checkpoint) const;
 
     // Where the run of checked records starting at the checkpoint ends, which is what STEP-025 asks
     // a halted solve to keep. An unfilled composite is a hole rather than a step. A split is one

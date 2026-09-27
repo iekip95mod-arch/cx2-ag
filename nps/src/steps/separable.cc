@@ -25,7 +25,7 @@ struct Separation {
     Meter meter;
     SeparableResult result;
     size_t mark;
-    std::vector<std::string> assumptions;
+    std::vector<std::string> conditions;
     bool complete = false;
 
     Separation(Arena &a, Derivation &d, const Command &c, const Budget &budget)
@@ -153,8 +153,8 @@ struct Separation {
     bool integrated(NodeId integrand, NodeId variable, const char *side, NodeId *out) {
         const IntegrateResult primitive =
             integrate_particular(arena, derivation, integrand, variable, meter);
-        for (const std::string &assumption : derivation.context.active_assumptions)
-            assumptions.push_back(assumption);
+        for (const std::string &condition : derivation.context.domain_restrictions)
+            conditions.push_back(condition);
         if (primitive.outcome == IntegrateOutcome::Cancelled) {
             refuse(SeparableOutcome::Cancelled, DerivationStatus::Cancelled, primitive.detail);
             return false;
@@ -268,7 +268,7 @@ struct Separation {
 
         const bool divides = !same(g, arena.integer("1"));
         const std::string nonzero = print(arena, g) + " != 0";
-        if (divides) assumptions.push_back(nonzero);
+        if (divides) conditions.push_back(nonzero);
         const NodeId separated = arena.binary(Kind::Equals, arena.call("int", {h, y}),
                                               arena.call("int", {f, x}));
         if (transform("ode.separable.separate", "Separate the variables", ClaimType::Implication,
@@ -489,7 +489,7 @@ struct Separation {
             context.normalized_problem_model = arena.binary(
                 Kind::Equals, arena.call("diff", {command.dependent, command.variable}),
                 command.expression);
-        context.active_assumptions = assumptions;
+        context.domain_restrictions = conditions;
         context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";

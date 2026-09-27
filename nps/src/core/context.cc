@@ -209,6 +209,7 @@ SolutionContext make_context(const ContextInputs &inputs) {
     context.normalized_expression = recorded(inputs.normalized_expression);
     context.requested_method = recorded(inputs.requested_method);
     context.active_assumptions = inputs.active_assumptions;
+    context.domain_restrictions = inputs.domain_restrictions;
     context.angle_convention = recorded(inputs.angle_convention);
     context.branch_convention = recorded(inputs.branch_convention);
     context.unit_policy = inputs.unit_policy.empty() ? kBuildUnitPolicy : inputs.unit_policy;
@@ -256,6 +257,7 @@ std::string serialize_context(const Arena &arena, const SolutionContext &context
     put_text(&out, normalized_expression);
     put_text(&out, context.requested_method);
     put_list(&out, context.active_assumptions);
+    put_list(&out, context.domain_restrictions);
     put_text(&out, context.angle_convention);
     put_text(&out, context.branch_convention);
     put_text(&out, context.unit_policy);
@@ -272,7 +274,7 @@ ContextParseResult parse_context(const std::string &blob, Arena &arena, Solution
     scan.magic();
     size_t version_at = scan.pos();
     uint64_t version = scan.number(kHeaderMark, kWireCeiling);
-    if (scan.ok() && version != 1 && version != 2 && version != kContextFormatVersion)
+    if (scan.ok() && (version < 1 || version > kContextFormatVersion))
         scan.fail_at(ContextStatus::UnknownVersion, version_at);
 
     SolutionContext parsed;
@@ -294,6 +296,8 @@ ContextParseResult parse_context(const std::string &blob, Arena &arena, Solution
     }
     parsed.requested_method = scan.text();
     parsed.active_assumptions = scan.list();
+    if (version >= 4)
+        parsed.domain_restrictions = scan.list();
     parsed.angle_convention = scan.text();
     parsed.branch_convention = scan.text();
     parsed.unit_policy = scan.text();

@@ -32,6 +32,10 @@ const char kPlainBlobV3[] =
 // a replay that ignored the mode would read this back as the exact derivation.
 const char kDecimalBlobV3[] =
     "scx3\n1:a1:b1:c1:d4294967295#1:l1:m1:e0*1:f1:g1:h1:i1:j1*1:k1#1#";
+const char kPlainBlobV4[] =
+    "scx4\n1:a1:b1:c1:d4294967295#1:l1:m1:e0*1*1:n1:f1:g1:h1:i1:j1*1:k0#1#";
+const char kDecimalBlobV4[] =
+    "scx4\n1:a1:b1:c1:d4294967295#1:l1:m1:e0*1*1:n1:f1:g1:h1:i1:j1*1:k1#1#";
 
 const InstalledModule kExpectedModules[] = {
     {"solver", "algebra.linear-equation.one-unknown"},
@@ -72,7 +76,7 @@ const InstalledModule kExpectedModules[] = {
 
 const SchemaVersion kExpectedSchemas[] = {
     {"capability-manifest", 2},
-    {"solution-context", 3},
+    {"solution-context", 4},
 };
 
 bool same_text(TestSink &t, const char *got, const char *want, const std::string &what) {
@@ -118,6 +122,7 @@ SolutionContext plain(Arena &arena) {
     c.original_expression = "l";
     c.normalized_expression = "m";
     c.requested_method = "e";
+    c.domain_restrictions.push_back("n");
     c.angle_convention = "f";
     c.branch_convention = "g";
     c.unit_policy = "h";
@@ -141,6 +146,8 @@ SolutionContext awkward(Arena &arena) {
     c.requested_method = std::string(kDelimiters) + kDelimiters;
     c.active_assumptions.push_back("");
     c.active_assumptions.push_back(kDelimiters);
+    c.domain_restrictions.push_back(kDelimiters);
+    c.domain_restrictions.push_back("");
     c.angle_convention = "radians";
     c.branch_convention = "principal branch";
     c.unit_policy = "none";
@@ -159,6 +166,7 @@ ContextInputs solve_inputs(Arena &arena) {
     in.original_expression = " 2x + 5 = 13 ";
     in.normalized_expression = "((5 + (2 * x)) = 13)";
     in.active_assumptions.push_back("x is real");
+    in.domain_restrictions.push_back("x is not zero");
     in.angle_convention = "radians";
     in.branch_convention = "principal branch";
     in.detail_projection = "standard";
@@ -258,6 +266,7 @@ void same_context(TestSink &t, const SolutionContext &got, const SolutionContext
     t.equal(got.normalized_expression, want.normalized_expression, what + ": normalized expression");
     t.equal(got.requested_method, want.requested_method, what + ": requested method");
     same_list(t, got.active_assumptions, want.active_assumptions, what + ": assumptions");
+    same_list(t, got.domain_restrictions, want.domain_restrictions, what + ": domain restrictions");
     t.equal(got.angle_convention, want.angle_convention, what + ": angle convention");
     t.equal(got.branch_convention, want.branch_convention, what + ": branch convention");
     t.equal(got.unit_policy, want.unit_policy, what + ": unit policy");
@@ -282,8 +291,10 @@ void refuses(TestSink &t, const std::string &blob, ContextStatus expected, const
 void run_context_tests(TestSink &t) {
     Arena pinned_arena;
     const SolutionContext pinned_context = plain(pinned_arena);
-    t.evidence("PERF-007", serialize_context(pinned_arena, pinned_context), kPlainBlobV3,
-               "the version 3 wire format is pinned independently of the serializer");
+    t.evidence("PERF-007", serialize_context(pinned_arena, pinned_context), kPlainBlobV4,
+               "the version 4 wire format is pinned independently of the serializer");
+    SolutionContext before_domain = pinned_context;
+    before_domain.domain_restrictions.clear();
 
     {
         const CapabilityManifest manifest = capability_manifest();
@@ -387,33 +398,50 @@ void run_context_tests(TestSink &t) {
         // carried both empty and not.
         Arena restored_arena;
         SolutionContext restored;
-        t.check(parse_context(kPlainBlobV3, restored_arena, &restored).ok(),
-                "the pinned version 3 blob parses back");
-        same_context(t, restored, pinned_context, "the pinned version 3 blob");
+        t.check(parse_context(kPlainBlobV4, restored_arena, &restored).ok(),
+                "the pinned version 4 blob parses back");
+        same_context(t, restored, pinned_context, "the pinned version 4 blob");
         t.equal(print(restored_arena, restored.normalized_problem_model), "m",
-                "the pinned version 3 blob rebuilds its normalized AST");
+                "the pinned version 4 blob rebuilds its normalized AST");
 
         {
             SolutionContext decimal_want = pinned_context;
             decimal_want.numeric_mode = NumericMode::Decimal;
             Arena decimal_arena;
             SolutionContext decimal_got;
+            t.check(parse_context(kDecimalBlobV4, decimal_arena, &decimal_got).ok(),
+                    "a version 4 blob written in decimal mode parses back");
+            same_context(t, decimal_got, decimal_want, "the decimal-mode version 4 blob");
+            t.equal(serialize_context(decimal_arena, decimal_got), std::string(kDecimalBlobV4),
+                    "and rewrites to the same bytes, so the mode is carried rather than defaulted");
+        }
+
+        {
+            Arena v3_arena;
+            SolutionContext v3_restored = pinned_context;
+            t.check(parse_context(kPlainBlobV3, v3_arena, &v3_restored).ok(),
+                    "the version 3 blob remains readable");
+            same_context(t, v3_restored, before_domain, "the version 3 blob");
+            t.check(v3_restored.domain_restrictions.empty(),
+                    "and restores with no domain restrictions, because version 3 had no slot for them");
+            SolutionContext decimal_want = before_domain;
+            decimal_want.numeric_mode = NumericMode::Decimal;
+            Arena decimal_arena;
+            SolutionContext decimal_got;
             t.check(parse_context(kDecimalBlobV3, decimal_arena, &decimal_got).ok(),
                     "a version 3 blob written in decimal mode parses back");
             same_context(t, decimal_got, decimal_want, "the decimal-mode version 3 blob");
-            t.equal(serialize_context(decimal_arena, decimal_got), std::string(kDecimalBlobV3),
-                    "and rewrites to the same bytes, so the mode is carried rather than defaulted");
         }
 
         Arena v2_arena;
         SolutionContext v2_restored;
         t.check(parse_context(kPlainBlobV2, v2_arena, &v2_restored).ok(),
                 "the version 2 blob remains readable");
-        same_context(t, v2_restored, pinned_context, "the version 2 blob");
+        same_context(t, v2_restored, before_domain, "the version 2 blob");
         t.equal(numeric_mode_name(v2_restored.numeric_mode), "exact",
                 "and reads as exact, which is the only arithmetic the build that wrote it had");
 
-        SolutionContext legacy = pinned_context;
+        SolutionContext legacy = before_domain;
         legacy.normalized_problem_model = kNoNode;
         legacy.original_expression = kContextUnknown;
         legacy.normalized_expression = kContextUnknown;
@@ -534,6 +562,7 @@ void run_context_tests(TestSink &t) {
                    built.normalized_problem_model == inputs.normalized_problem_model &&
                        built.requested_method == inputs.requested_method &&
                        built.active_assumptions == inputs.active_assumptions &&
+                       built.domain_restrictions == inputs.domain_restrictions &&
                        built.angle_convention == inputs.angle_convention &&
                        built.branch_convention == inputs.branch_convention &&
                        built.detail_projection == inputs.detail_projection &&
@@ -573,7 +602,7 @@ void run_context_tests(TestSink &t) {
     {
         std::string blob = kPlainBlobV1;
         refuses(t, std::string("qcx1\n"), ContextStatus::BadMagic, "a blob that is not one of ours");
-        refuses(t, blob.substr(0, 3) + "4" + blob.substr(4), ContextStatus::UnknownVersion,
+        refuses(t, blob.substr(0, 3) + "5" + blob.substr(4), ContextStatus::UnknownVersion,
                 "a version this build does not have");
         refuses(t, blob.substr(0, 3) + "01\n", ContextStatus::BadNumber,
                 "a version spelled with a leading zero, which would give one context two blobs");
@@ -804,6 +833,9 @@ void run_context_tests(TestSink &t) {
         const std::string slow_blob = serialize_context(slow_arena, slow_derivation.context);
         const std::string fast_blob = serialize_context(fast_arena, fast_derivation.context);
         t.check(!slow_blob.empty(), "a physics context serializes at all");
+        t.check(!slow_derivation.context.active_assumptions.empty() &&
+                    slow_derivation.context.domain_restrictions.empty(),
+                "a physics model files its modeling assumptions without inventing domain conditions");
         t.evidence("MATH-016", !slow_blob.empty() && slow_blob != fast_blob,
                    "two kinematics problems with different givens record different contexts");
 

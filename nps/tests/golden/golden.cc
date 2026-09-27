@@ -469,6 +469,7 @@ std::string render_derivation(const Arena &arena, const Derivation &derivation) 
     w.expression(1, "normalized problem", c.normalized_problem_model);
     w.field(1, "requested method", c.requested_method);
     w.list(1, "active assumption", c.active_assumptions);
+    w.list(1, "domain restriction", c.domain_restrictions);
     w.field(1, "angle convention", c.angle_convention);
     w.field(1, "branch convention", c.branch_convention);
     w.field(1, "unit policy", c.unit_policy);

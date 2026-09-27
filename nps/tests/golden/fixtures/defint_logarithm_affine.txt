@@ -7,6 +7,7 @@ context
   envelope version: 1
   normalized problem: int(ln(((2 * x) + 1)), x, 0, (1 * (2^(-1))))
   requested method: definite integral
+  domain restriction: ((2 * x) + 1) > 0
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

@@ -26,6 +26,7 @@ struct ContextInputs {
     std::string original_expression;
     std::string normalized_expression;
     std::vector<std::string> active_assumptions;
+    std::vector<std::string> domain_restrictions;
     std::string angle_convention;
     std::string branch_convention;
     // Left empty by an engine that does no conversion, which is what the build default describes.
@@ -46,7 +47,7 @@ const std::set<std::string> &family_census();
 #endif
 
 // PERF-007. The version is the schema: field order, count and kind are fixed per version.
-const uint32_t kContextFormatVersion = 3;
+const uint32_t kContextFormatVersion = 4;
 
 // Returns empty if the normalized AST cannot be reconstructed within the arena limits.
 std::string serialize_context(const Arena &arena, const SolutionContext &context);

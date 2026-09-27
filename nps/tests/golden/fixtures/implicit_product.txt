@@ -7,7 +7,7 @@ context
   envelope version: 1
   normalized problem: implicit(((x * y) = 1), x, y)
   requested method: implicit
-  active assumption: x is not zero
+  domain restriction: x is not zero
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

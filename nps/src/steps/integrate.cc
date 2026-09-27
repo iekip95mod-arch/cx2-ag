@@ -28,8 +28,6 @@ struct Context {
     // Set when the refusal was capacity rather than a form with no rule. The arena cannot report it.
     bool exhausted = false;
     std::string detail;
-    // Every restriction a rule recorded, so the context can list what the answer assumes.
-    std::vector<std::string> assumptions;
     RestrictionSet recorded;
 };
 
@@ -594,7 +592,7 @@ NodeId constant_symbol(Arena &arena, NodeId expression) {
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
-                    const std::vector<std::string> &assumptions, DerivationStatus status,
+                    const std::vector<std::string> &conditions, DerivationStatus status,
                     NumericMode mode) {
     ContextInputs inputs;
     inputs.application_version = application_version();
@@ -602,7 +600,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.requested_method = "integrate by rule";
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
-    inputs.active_assumptions = assumptions;
+    inputs.domain_restrictions = conditions;
     inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain, principal values";
     inputs.detail_projection = "standard";
@@ -634,49 +632,49 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
                               std::optional<Rational> branch_point, Backend *backend) {
     const Budget &budget = meter.budget();
     IntegrateResult result;
-    std::vector<std::string> no_assumptions;
+    std::vector<std::string> no_conditions;
     // Read once, on entry, and carried from here. A mode that could change under a running solve
     // would give one derivation two readings, which is the guarantee PLAT-013 makes.
     const NumericMode mode = derivation.request.numeric_mode;
     if (expression == kNoNode || variable == kNoNode || arena.failed()) {
         result.detail = "nothing to integrate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
     if (arena.at(variable).kind != Kind::Symbol) {
         result.outcome = IntegrateOutcome::NotAVariable;
         result.detail = "the variable has to be a symbol";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
     if (contains_list(arena, expression)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "list and matrix integration is not supported";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
     if (derivation.request.angle_mode == AngleMode::Degrees && angle_dependent(arena, expression, variable)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "the trigonometric integration rules assume radians, and degree mode is active";
         result.status = DerivationStatus::Unsupported;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
     if (divides_by_zero(arena, expression)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "the integrand divides by zero, which has no value to integrate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
     if (has_unmeetable_condition(arena, expression)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "the integrand is undefined here, so there is nothing to integrate";
         result.status = DerivationStatus::InvalidInput;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, no_conditions, result.status, mode);
         return result;
     }
 
@@ -891,9 +889,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
                                check_tag == ResultTag::Cancelled || meter.halt() == Halt::Cancelled;
         // Settled before the trim, the same order and for the same reason as the refusal below: a
         // halt keeps steps, and the logarithm rule is one that can be kept while needing a non-zero
-        // argument to hold. The context still claims no assumptions, because the answer this path
-        // does not offer is what an assumption would be qualifying.
-        ctx.recorded.settle(arena, derivation, &ctx.assumptions);
+        // argument to hold.
+        ctx.recorded.settle(arena, derivation, nullptr);
         const bool kept = keep_verified_prefix(derivation, mark, arena);
         result.outcome = cancelled ? IntegrateOutcome::Cancelled : IntegrateOutcome::ResourceExceeded;
         result.detail = arena.failed() ? status_name(arena.status()) : meter.stopped() ? halt_name(meter.halt())
@@ -901,7 +898,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         result.status = !cancelled ? DerivationStatus::ResourceLimitReached
                         : kept     ? DerivationStatus::Cancelled
                                    : DerivationStatus::NotRecorded;
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -920,7 +918,7 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         // with it. Settling before the trim rather than after, because a condition written onto a
         // step the trim then drops goes with it, where a step kept without its condition is a
         // transformation shown as unqualified when it is not.
-        ctx.recorded.settle(arena, derivation, &ctx.assumptions);
+        ctx.recorded.settle(arena, derivation, nullptr);
         const bool kept = keep_verified_prefix(derivation, mark, arena);
         // An answer that went missing because the arena ran out is a resource limit, not a form
         // with no rule. Without this the two are indistinguishable here, and (x+1+...+1)^2 was
@@ -940,7 +938,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         // The traversal metered every form it reached before the one with no rule, and this path
         // reported none of it. The halt path beside it has always reported its cost.
         result.cost = meter.cost();
-        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -954,7 +953,7 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
     // Only now, because the refusals above that rewind would be writing a condition onto a step
     // about to be dropped, qualifying an answer nobody was given. The two paths that keep steps,
     // the unsupported one above and the failed check below, settle their own conditions instead.
-    ctx.recorded.settle(arena, derivation, &ctx.assumptions);
+    ctx.recorded.settle(arena, derivation, nullptr);
 
     if (comparison == VerificationOutcome::Failed) {
         // The record stays, failed check and all, so the reader can see what was tried. The answer
@@ -962,7 +961,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         result.outcome = IntegrateOutcome::VerificationFailed;
         result.detail = "the result failed its own derivative check, so it is not offered";
         result.status = DerivationStatus::VerificationFailed;
-        record_context(derivation, budget, expression, ctx.assumptions, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -970,7 +970,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         result.outcome = IntegrateOutcome::Refused;
         result.detail = "the derivative check is inconclusive, so the answer is withheld: " + comparison_detail;
         result.status = DerivationStatus::PartiallySolved;
-        record_context(derivation, budget, expression, ctx.assumptions, result.status, mode);
+        record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
         return result;
     }
 
@@ -1009,7 +1010,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
                         : kept ? DerivationStatus::Cancelled : DerivationStatus::NotRecorded;
     }
     result.cost = meter.cost();
-    record_context(derivation, budget, expression, ctx.assumptions, result.status, mode);
+    record_context(derivation, budget, expression, derivation.domain_restrictions_from(mark),
+                       result.status, mode);
     return result;
 }
 

@@ -1,5 +1,7 @@
 #include "nps/steps/calculus.h"
 
+#include <algorithm>
+
 #include "nps/core/evaluate.h"
 #include "nps/core/canonical.h"
 #include "nps/core/print.h"
@@ -303,6 +305,10 @@ void run_calculus_tests(TestSink &t) {
         }
         t.check(result.status == DerivationStatus::SolvedAndVerified && substitution_restricted,
                 "root boundary substitution follows an exact side-domain proof and retains its condition");
+        t.check(!derivation.context.domain_restrictions.empty() &&
+                    derivation.context.domain_restrictions == derivation.domain_restrictions_from(0) &&
+                    derivation.context.active_assumptions.empty(),
+                "the answer summary lists the approach domain as a domain condition (PHYS-027)");
     }
     {
         Arena arena;
@@ -319,6 +325,10 @@ void run_calculus_tests(TestSink &t) {
         }
         t.check(result.status == DerivationStatus::SolvedAndVerified && negative_branch && !positive_branch,
                 "the negative logarithm branch carries its own condition on the walkthrough");
+        const std::vector<std::string> &summary = derivation.context.domain_restrictions;
+        t.check(std::find(summary.begin(), summary.end(), "(-x) > 0") != summary.end() &&
+                    std::find(summary.begin(), summary.end(), "x > 0") == summary.end(),
+                "and the answer summary carries the same branch condition");
     }
     for (const auto &example : {std::pair{"limit(1/x,x,0,1)", 1},
                                 std::pair{"limit(sin(x)/x^2,x,0,1)", 1},

@@ -8,8 +8,8 @@ context
   envelope version: 1
   normalized problem: (diff(y, x) = (x * y))
   requested method: separate the variables, integrate both sides, then solve for the dependent variable where the relation allows
-  active assumption: y != 0
-  active assumption: y > 0
+  domain restriction: y != 0
+  domain restriction: y > 0
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

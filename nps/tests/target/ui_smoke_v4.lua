@@ -275,7 +275,7 @@ local fake_result = {
     canonical = "(C + ln(x))",
     original_expression = "1/x",
     normalized_expression = "(x^(-1))",
-    assumptions = "x > 0",
+    domain = "x > 0",
     giac_tag = "exact",
     giac = "x^-1",
     giac_method = "differentiated the answer",
@@ -696,7 +696,7 @@ local fake_manifest = {
     },
     schema_versions = {
         { id = "capability-manifest", version = 2 },
-        { id = "solution-context", version = 3 },
+        { id = "solution-context", version = 4 },
     },
     integrity_identifiers = {
         { component = "stepcas.build-inputs", scheme = "sha256", value = "bf969674a85116d508e00d8d267475219dce1f63fec614e2ade942358d3db858" },
@@ -1685,17 +1685,17 @@ check(calls.resource_profile_finish == step_profile_finish_before + 1,
       "repainting a typed result cannot finish the same profile twice")
 check(text:find("Giac's derivative agrees", 1, true) ~= nil, "the trust label is drawn")
 local exact_conditional_result_class = text:find("EXACT + CONDITIONAL", 1, true) ~= nil
-local saved_result_assumptions = steps.result.assumptions
-steps.result.assumptions = nil
+local saved_result_domain = steps.result.domain
+steps.result.domain = nil
 steps.result.precision = { kind = "measured", significant_digits = 3 }
 local approximate_text = painted()
 local approximate_result_class = approximate_text:find("APPROXIMATE", 1, true) ~= nil and
                                  approximate_text:find("EXACT", 1, true) == nil
-steps.result.assumptions = saved_result_assumptions
+steps.result.domain = saved_result_domain
 local approximate_conditional_result_class =
     painted():find("APPROXIMATE + CONDITIONAL", 1, true) ~= nil
 steps.result.precision = nil
-steps.result.assumptions = nil
+steps.result.domain = nil
 -- CALC-010. A linearization is an approximation away from the point, so the shell must not label
 -- its answer exact just because every number in it is rational.
 steps.result.approximation = true
@@ -1754,7 +1754,7 @@ math015_result_forms = math015_result_forms and
 steps.result.result_form = "elementary closed form"
 steps.result.giac_tag = "exact"
 steps.result.giac_form = nil
-steps.result.assumptions = saved_result_assumptions
+steps.result.domain = saved_result_domain
 steps.result.agrees = saved_result_agreement
 evidence("MATH-015", math015_result_forms,
          "the result surface distinguishes special, unevaluated exact and unsupported forms")
@@ -1800,8 +1800,9 @@ check(text:find("STEPS  integral  x  STANDARD", 1, true) ~= nil,
 check(text:find("INPUT", 1, true) ~= nil and text:find("ANSWER", 1, true) ~= nil and
       text:find("TRUST", 1, true) ~= nil,
       "the viewer labels the input, answer and trust hierarchy")
-check(text:find("ASSUMES", 1, true) ~= nil and text:find("x > 0", 1, true) ~= nil,
-      "the answer's assumptions are drawn")
+check(text:find("REQUIRES", 1, true) ~= nil and text:find("x > 0", 1, true) ~= nil and
+      text:find("ASSUMES", 1, true) == nil,
+      "the answer's domain condition is drawn as required rather than assumed")
 check(text:find("12n 4s 2g", 1, true) == nil, "diagnostic counters do not crowd the operation title")
 local title_call = draw_call("STEPS", 1)
 -- Located by the row it is drawn on rather than by the number it holds. The header's timing slot
@@ -8204,6 +8205,7 @@ do
     record.result = "SECRET_RAW_ANSWER"
     record.status = "SECRET_FINAL_TRUST"
     record.assumptions = "SECRET_FINAL_ASSUMPTION"
+    record.domain = "SECRET_FINAL_DOMAIN"
     record.interpretation = "SECRET_FINAL_INTERPRETATION"
     env.stepsSetProgression("hint")
     env.steps.walkthrough = "hint"
@@ -8238,8 +8240,9 @@ do
     hidden_source = table.concat(hidden_source, " ")
     check(not hidden_source:find("SECRET_FINAL_TRUST", 1, true) and
           not hidden_source:find("SECRET_FINAL_ASSUMPTION", 1, true) and
+          not hidden_source:find("SECRET_FINAL_DOMAIN", 1, true) and
           not hidden_source:find("SECRET_FINAL_INTERPRETATION", 1, true),
-          "resultLines withholds trust, assumptions and interpretation while hints remain")
+          "resultLines withholds trust, assumptions, domain conditions and interpretation while hints remain")
 
     -- Once progression reveals all steps, the answer is included in the result view.
     env.steps.revealed = #record.steps
@@ -8262,6 +8265,7 @@ do
     check(revealed_in_source and revealed_in_drawn and
           revealed_source:find("SECRET_FINAL_TRUST", 1, true) and
           revealed_source:find("SECRET_FINAL_ASSUMPTION", 1, true) and
+          revealed_source:find("SECRET_FINAL_DOMAIN", 1, true) and
           revealed_source:find("SECRET_FINAL_INTERPRETATION", 1, true),
           "resultLines includes the answer and result context once all hints are revealed")
 

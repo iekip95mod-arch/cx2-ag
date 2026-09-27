@@ -288,7 +288,8 @@ struct Implicit {
         context.original_expression = derivation.request.original_expression;
         context.normalized_problem_model = arena.failed() || result.status == DerivationStatus::InvalidInput
             ? kNoNode : arena.call("implicit", {equation, x, y});
-        context.active_assumptions = result.restrictions;
+        // Not the step union, which also holds the premise that y is differentiable in x.
+        context.domain_restrictions = result.restrictions;
         context.angle_convention = angle_mode_name(derivation.request.angle_mode);
         context.branch_convention = "real domain, principal values";
         context.detail_projection = "standard";

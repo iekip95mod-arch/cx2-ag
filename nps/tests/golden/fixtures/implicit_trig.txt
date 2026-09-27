@@ -7,7 +7,7 @@ context
   envelope version: 1
   normalized problem: implicit((sin(y) = x), x, y)
   requested method: implicit
-  active assumption: cos(y) is not zero
+  domain restriction: cos(y) is not zero
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion

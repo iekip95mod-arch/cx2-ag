@@ -9,8 +9,8 @@ context
   envelope version: <not recorded>
   normalized problem: (R = (1 * (x^(-1))))
   requested method: inverse operations
-  active assumption: x is not zero
-  active assumption: R is not zero
+  domain restriction: x is not zero
+  domain restriction: R is not zero
   angle convention: radians
   branch convention: real domain
   unit policy: exact integers, decimals as written, no unit conversion

@@ -314,7 +314,7 @@ void run_integrate_tests(TestSink &t) {
         const auto integral = integrate(arena, derivation, parse(arena, "sqrt(a*x+b)").root,
                                         arena.symbol("x"), Budget(), &backend);
         std::string conditions;
-        for (const auto &condition : derivation.context.active_assumptions) conditions += condition + " ";
+        for (const auto &condition : derivation.context.domain_restrictions) conditions += condition + " ";
         t.check(integral.outcome == IntegrateOutcome::Integrated && conditions.find(">= 0") != std::string::npos &&
                     conditions.find("a is not zero") != std::string::npos,
                 "square-root substitution retains nonnegative argument and nonzero coefficient conditions");
@@ -403,7 +403,7 @@ void run_integrate_tests(TestSink &t) {
         if (tag == ResultTag::Exact) {
             const std::string assumptions = [&] {
                 std::string joined;
-                for (const auto &assumption : derivation.context.active_assumptions) joined += assumption + " ";
+                for (const auto &assumption : derivation.context.domain_restrictions) joined += assumption + " ";
                 return joined;
             }();
             t.check(assumptions.find("> 0") != std::string::npos && assumptions.find("a is not zero") != std::string::npos,
@@ -550,7 +550,8 @@ void run_integrate_tests(TestSink &t) {
         }
         t.equal(d.context.problem_family_id, "calculus.integral.indefinite.single-variable",
                 "the context names the problem family");
-        t.check(d.context.active_assumptions.empty(), "a polynomial assumes nothing");
+        t.check(d.context.active_assumptions.empty() && d.context.domain_restrictions.empty(),
+                "a polynomial assumes nothing and restricts nothing");
         t.check(d.context.normalized_problem_model == e, "and records the expression it was given");
         t.evidence("MATH-010", d.context.branch_convention.find("real domain") != std::string::npos,
                    "integration records the real default domain");
@@ -586,12 +587,12 @@ void run_integrate_tests(TestSink &t) {
                 restricted = restricted || r == "(x + 1) > 0";
         }
         t.check(restricted, "the logarithm step restricts its argument to positive values");
-        t.check(d.context.active_assumptions.size() == 1 &&
-                    d.context.active_assumptions[0] == "(x + 1) > 0",
-                "and the context lists the same assumption");
-        t.evidence("MATH-005",
-                   restricted && d.context.active_assumptions.size() == 1 &&
-                       d.context.active_assumptions[0] == "(x + 1) > 0",
+        bool summarized = d.context.domain_restrictions.size() == 1 &&
+                          d.context.domain_restrictions[0] == "(x + 1) > 0";
+        t.check(summarized, "and the context lists the same domain condition");
+        t.check(d.context.active_assumptions.empty(),
+                "without filing it as a modeling assumption, which PHYS-027 keeps apart");
+        t.evidence("MATH-005", restricted && summarized && d.context.active_assumptions.empty(),
                    "the logarithm domain restriction is retained on its step and solution context");
     }
     {
@@ -599,9 +600,10 @@ void run_integrate_tests(TestSink &t) {
         Derivation d;
         NodeId e = parse(arena, "sin(k*x)").root;
         integrate(arena, d, e, arena.symbol("x"));
-        t.check(d.context.active_assumptions.size() == 1 &&
-                    d.context.active_assumptions[0] == "k is not zero",
+        t.check(d.context.domain_restrictions.size() == 1 &&
+                    d.context.domain_restrictions[0] == "k is not zero",
                 "a symbolic coefficient records that it was assumed non-zero");
+        t.check(d.context.active_assumptions.empty(), "as a domain condition, not a modeling assumption");
     }
     {
         Integrated s = run("x*sin(x)", "x");
@@ -767,6 +769,10 @@ void run_integrate_tests(TestSink &t) {
         t.evidence("STEP-003", carried,
                    "and the logarithm step kept through the halt carries the condition its answer "
                    "needs");
+        t.check(carried && d.context.domain_restrictions == d.domain_restrictions_from(0) &&
+                    d.context.active_assumptions.empty(),
+                "the summary of a halted integral lists the conditions of the steps it kept, as "
+                "rearrangement and differentiation do");
     }
     {
         // Verification must fit in the work budget left by integration.

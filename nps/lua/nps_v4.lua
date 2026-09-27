@@ -91,13 +91,13 @@ local function manifestCompatibility(manifest)
 			return "StepCAS manifest malformed (schema entry " .. tostring(index) .. ")"
 		end
 		if schema.id == "capability-manifest" and schema.version == 2 then hasCapabilitySchema = true end
-		if schema.id == "solution-context" and schema.version == 3 then hasContextSchema = true end
+		if schema.id == "solution-context" and schema.version == 4 then hasContextSchema = true end
 	end
 	if not hasCapabilitySchema then
 		return "StepCAS module incompatible (missing capability-manifest v2 schema)"
 	end
 	if not hasContextSchema then
-		return "StepCAS module incompatible (missing solution-context v3 schema)"
+		return "StepCAS module incompatible (missing solution-context v4 schema)"
 	end
 
 	if type(manifest.installed_modules) ~= "table" then
@@ -2895,7 +2895,8 @@ local function resultClass(r)
 	                    r.giac_tag == "approximate" or
 	                    (type(r.precision) == "table" and r.precision.kind == "measured")
 	local conditional = r.status == "conditionally solved" or r.giac_tag == "conditional" or
-	                    (type(r.assumptions) == "string" and r.assumptions ~= "")
+	                    (type(r.assumptions) == "string" and r.assumptions ~= "") or
+	                    (type(r.domain) == "string" and r.domain ~= "")
 	local classification = form == "special-function form" and "SPECIAL FUNCTION" or
 	                       (approximate and "APPROXIMATE" or "EXACT")
 	-- A cross check that passed leaves the local status alone, so only agrees says one ran.
@@ -4198,7 +4199,7 @@ local function paintStepsHeader(gc, w)
 	gc:setFont("sansserif", "r", 9)
 	local inputX = STEP_MARGIN + 42
 	local inputLines = wrapSummary(gc, "input", r.input or "", w - inputX - STEP_MARGIN)
-	local inputRemaining = finalResultVisible(r) and (2 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)) or 0
+	local inputRemaining = finalResultVisible(r) and (2 + (r.domain and 1 or 0) + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)) or 0
 	local inputH = mathmax(STEP_LINE, mathmin(4 * STEP_LINE, bottom - y - inputRemaining * STEP_LINE))
 	local inputW, pairedW = w - inputX - STEP_MARGIN, mathmin(96, math.floor(w / 3))
 	local answer = finalResultVisible(r) and answerText(r)
@@ -4242,7 +4243,7 @@ local function paintStepsHeader(gc, w)
 		-- Reserve summary space for trust and conditions before sizing the answer.
 		local answerX = STEP_MARGIN + 48
 		local answerW = w - answerX - STEP_MARGIN
-		local remaining = 1 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
+		local remaining = 1 + (r.domain and 1 or 0) + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
 		local answerH = mathmax(STEP_LINE, mathmin(math.floor(platform.window:height() / 3),
 		                                       bottom - y - remaining * STEP_LINE))
 		local used = placeMath("answer", answer, answerX, y, answerW, answerH)
@@ -4280,8 +4281,17 @@ local function paintStepsHeader(gc, w)
 		end
 		gc:drawString("TRUST", STEP_MARGIN, y, "top")
 		gc:setFont("sansserif", "r", 8)
-		local remaining = (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
+		local remaining = (r.domain and 1 or 0) + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
 		y = wrapUnderLabel(gc, resultNote(r), trustX, y, w, bottom - remaining * STEP_LINE, "trust")
+
+		if r.domain then
+			gc:setFont("sansserif", "b", 8)
+			gc:setColorRGB(140, 80, 0)
+			gc:drawString("REQUIRES", STEP_MARGIN, y, "top")
+			gc:setFont("sansserif", "r", 8)
+			y = wrapUnderLabel(gc, r.domain, STEP_MARGIN + 54, y, w,
+			                   bottom - ((r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)) * STEP_LINE, "domain")
+		end
 
 		if r.assumptions then
 			gc:setFont("sansserif", "b", 8)
@@ -4467,6 +4477,7 @@ local function resultLines()
 			                  math = answer, color = {0, 0, 140} }
 		end
 		add(resultNote(r), r.agrees == false and {180, 0, 0} or {90, 90, 90})
+		if r.domain then add("Requires: " .. r.domain, {140, 80, 0}) end
 		if r.assumptions then add("Assumes: " .. r.assumptions, {140, 80, 0}) end
 		if r.interpretation then add("Meaning: " .. r.interpretation, {140, 80, 0}) end
 	end
@@ -4579,6 +4590,7 @@ function readFullText()
 		if finalResultVisible(r) then
 			add("Answer: ", answerText(r))
 			add("Trust: ", resultNote(r))
+			add("Requires: ", r.domain)
 			add("Assumes: ", r.assumptions)
 			add("Meaning: ", r.interpretation)
 		end

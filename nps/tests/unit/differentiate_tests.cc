@@ -245,6 +245,38 @@ void test_completed_domains(TestSink &t) {
             "completing an everywhere-defined chain introduces no artificial condition");
 }
 
+void test_summary_domain(TestSink &t) {
+    for (const char *expression : {"sqrt(x)", "tan(x)", "ln(x)"}) {
+        Arena arena;
+        Derivation derivation;
+        const NodeId input = parse(arena, expression).root;
+        const DiffResult differentiated = differentiate(arena, derivation, input, arena.symbol("x"));
+        const std::vector<std::string> steps = derivation.domain_restrictions_from(0);
+        t.check(differentiated.outcome == DiffOutcome::Differentiated && !steps.empty() &&
+                    derivation.context.domain_restrictions == steps,
+                std::string("the answer summary lists the conditions its steps settled for ") + expression);
+        t.check(derivation.context.active_assumptions.empty(),
+                std::string("and files none of them as a modeling assumption for ") + expression);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        Budget budget;
+        budget.max_steps = 3;
+        const DiffResult stopped =
+            differentiate(arena, derivation, parse(arena, "sqrt(x+x^2)").root, arena.symbol("x"), budget);
+        t.check(stopped.status == DerivationStatus::ResourceLimitReached &&
+                    !derivation.context.domain_restrictions.empty() &&
+                    derivation.context.domain_restrictions == derivation.domain_restrictions_from(0),
+                "a halted derivative keeps the conditions of the steps it kept in its summary");
+    }
+    Arena arena;
+    Derivation derivation;
+    differentiate(arena, derivation, parse(arena, "sin(2*x)").root, arena.symbol("x"));
+    t.check(derivation.size() > 0 && derivation.context.domain_restrictions.empty(),
+            "an everywhere-defined derivative has an empty summary domain");
+}
+
 bool always_cancel(void *) { return true; }
 
 bool uses_rule(const std::string &expression, const char *variable, const std::string &rule_id) {
@@ -507,6 +539,7 @@ void run_differentiate_tests(TestSink &t) {
                 std::string("differentiation refuses nested list input without backend work: ") + source);
     }
     test_completed_domains(t);
+    test_summary_domain(t);
     {
         for (const char *variable : {"x", "t"}) {
             Arena arena;

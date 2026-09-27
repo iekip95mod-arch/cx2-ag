@@ -1435,6 +1435,7 @@ void set_expression_context(lua_State *L, const SolutionContext &context) {
     set_field(L, "normalized_expression", context.normalized_expression);
     // The unit the record was produced under, so a reopened record is read under that one.
     if (!context.angle_convention.empty()) set_field(L, "angle_convention", context.angle_convention);
+    if (!context.domain_restrictions.empty()) set_field(L, "domain", joined(context.domain_restrictions));
 }
 
 #if NPS_DIAG

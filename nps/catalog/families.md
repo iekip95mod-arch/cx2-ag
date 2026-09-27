@@ -621,7 +621,7 @@ domains_and_parameter_assumptions the logarithm needs a positive argument, and a
 supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules
 exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
 parser_module_ids src/core/parser.cc, src/steps/integrate.cc
-required_assumptions whatever the integrand's own form needs, recorded as it is met rather than remembered, as in "x > 0" for the logarithm a reciprocal integrates to
+required_assumptions none carried for the family, a condition the integrand's form needs is recorded as a domain restriction on the step that introduces it, as the logarithm a reciprocal integrates to records x > 0
 test_group_ids integrate
 proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold
 supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand
@@ -1238,7 +1238,7 @@ domains_and_parameter_assumptions a divisor that is not a literal number is carr
 supported_branches_and_degenerate_cases none, because every supported inverse has one real value
 exact_special_function_and_numerical_result_policy exact throughout, no arithmetic is folded and no value is approximated
 parser_module_ids src/core/parser.cc, src/steps/rearrange.cc, src/core/evaluate.cc
-required_assumptions whatever the inverse operations introduce, recorded as it is met, as in "R is not zero" when the rearrangement divides by R
+required_assumptions none carried for the family, a condition an inverse operation introduces is recorded as a domain restriction on the step that introduces it, as dividing by R records R is not zero
 test_group_ids rearrange
 proof_obligation_ids obl.rearrange.substitution-identity, obl.rearrange.same-solutions, obl.plan.preconditions-hold
 supported_methods peel one operation at a time off the side holding the symbol, applying its inverse to both sides
@@ -1514,7 +1514,7 @@ domains_and_parameter_assumptions the dependent factor is not zero where the equ
 supported_branches_and_degenerate_cases a right side free of the dependent variable, which integrates straight to an explicit solution. A dependent factor of y or y^2, whose relation is solved for y through the exponential or the reciprocal. Any other dependent factor, whose relation is kept implicit. An initial point, which fixes the constant as its own checked step
 exact_special_function_and_numerical_result_policy exact symbolic antiderivatives from the rule engine and an exact constant read from the initial point, including a logarithm such as ln(2) where the point needs one. Exact mode only
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/separable.cc, src/steps/integrate.cc, src/steps/differentiate.cc
-required_assumptions the dependent factor is non-zero where the equation is divided by it, as in "y != 0", and the branch the dependent side integrates on, as in "y > 0" for a logarithm
+required_assumptions none carried for the family, a condition a form needs is recorded as a domain restriction on the step that introduces it, as dividing by the dependent factor records y != 0 and a logarithm on the dependent side records y > 0
 test_group_ids separable
 word_language_profile_ids none, typed entry only
 strategy_ids ode.separable.plan
@@ -1551,7 +1551,7 @@ domains_and_parameter_assumptions the dependent variable is a differentiable fun
 supported_branches_and_degenerate_cases an explicit relation y equal to an expression in x, which gives the ordinary derivative, and a relation whose derivative does not depend on x
 exact_special_function_and_numerical_result_policy exact symbolic derivative with no approximation. The final check evaluates exactly at sample points and is reported as sample agreement rather than proof
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/implicit.cc, src/steps/differentiate.cc, src/steps/rearrange.cc
-required_assumptions the answer holds where the coefficient of dydx is nonzero, carried as an active assumption naming that coefficient, as in "(2 * y) is not zero" for the circle and "x is not zero" for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
+required_assumptions none carried for the family, the answer holds where the coefficient of dydx is nonzero and that is recorded as a domain restriction naming the coefficient, as (2 * y) is not zero for the circle and x is not zero for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
 test_group_ids implicit
 supported_methods differentiate both sides with respect to the independent variable, applying the chain rule to the dependent variable through its partial derivative times dydx, collect the dydx terms on one side, and isolate dydx with the rearrangement family
 unsupported_near_neighbors second implicit derivatives, the slope at a named point, systems of implicit relations, relations with a third free variable treated as dependent, relations whose dydx terms cancel, and forms the differentiation engine has no rule for

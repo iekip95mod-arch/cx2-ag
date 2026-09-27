@@ -443,7 +443,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.requested_method = "inverse operations";
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
-    inputs.active_assumptions = restrictions;
+    inputs.domain_restrictions = restrictions;
     inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain";
     inputs.detail_projection = "standard";
@@ -495,7 +495,7 @@ Coroutine<RearrangeResult> rearrange_steps(TaskContext &task, Arena &arena, Deri
                     result.restrictions.push_back(condition);
             }
         }
-        derivation.context.active_assumptions = result.restrictions;
+        derivation.context.domain_restrictions = result.restrictions;
         result.cost = meter.cost();
         return std::move(result);
     };
@@ -817,13 +817,7 @@ RearrangeResult rearrange(Arena &arena, Derivation &derivation, NodeId equation,
     refused.detail = "coroutine frame storage exhausted";
     refused.cost = meter.cost();
     keep_verified_prefix(derivation, mark, arena, true);
-    for (size_t i = mark; i < derivation.size(); ++i) {
-        for (const std::string &condition : derivation.at(static_cast<StepId>(i)).domain_restrictions) {
-            if (std::find(refused.restrictions.begin(), refused.restrictions.end(), condition) ==
-                refused.restrictions.end())
-                refused.restrictions.push_back(condition);
-        }
-    }
+    refused.restrictions = derivation.domain_restrictions_from(mark);
     record_context(derivation, budget, equation, refused.restrictions, refused.status);
     return refused;
 }

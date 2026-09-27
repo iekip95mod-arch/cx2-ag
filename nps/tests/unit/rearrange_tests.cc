@@ -81,7 +81,8 @@ void run_rearrange_tests(TestSink &t) {
         t.check(result.status == (std::string(source) == "x=ln(y)/y" ? DerivationStatus::SolvedButUnchecked
                                                                   : DerivationStatus::ConditionallySolved) &&
                     result.formula != kNoNode &&
-                    result.restrictions == expected && derivation.context.active_assumptions == expected,
+                    result.restrictions == expected && derivation.context.domain_restrictions == expected &&
+                    derivation.context.active_assumptions.empty(),
                 std::string("rearrangement retains the original domain: ") + source);
         t.check(derivation.size() > 0 && derivation.at(0).domain_restrictions == expected,
                 "the original domain is visible on the parent plan even without inverse moves");
@@ -92,7 +93,8 @@ void run_rearrange_tests(TestSink &t) {
         const RearrangeResult result = rearrange(arena, derivation, parse(arena, "x*a=1/y").root,
                                                  arena.symbol("x"));
         const std::vector<std::string> expected{"y is not zero", "a is not zero"};
-        t.check(result.restrictions == expected && derivation.context.active_assumptions == expected,
+        t.check(result.restrictions == expected && derivation.context.domain_restrictions == expected &&
+                    derivation.context.active_assumptions.empty(),
                 "introduced divisors extend rather than replace the original domain");
         t.check(derivation.size() > 1 &&
                     derivation.at(1).domain_restrictions == std::vector<std::string>{"a is not zero"},
@@ -113,7 +115,8 @@ void run_rearrange_tests(TestSink &t) {
                                                  arena.symbol("x"));
         const std::vector<std::string> expected{
             std::string(source) == "x*y=ln(y)" ? "y > 0" : "y is not zero"};
-        t.check(result.restrictions == expected && derivation.context.active_assumptions == expected &&
+        t.check(result.restrictions == expected && derivation.context.domain_restrictions == expected &&
+                    derivation.context.active_assumptions.empty() &&
                     derivation.size() > 1 && derivation.at(1).domain_restrictions.empty(),
                 "an inverse step does not repeat a restriction already covered by the parent domain");
     }
@@ -126,7 +129,8 @@ void run_rearrange_tests(TestSink &t) {
                                                  arena.symbol("x"), budget);
         const std::vector<std::string> expected{"y is not zero"};
         t.check(result.formula == kNoNode && derivation.size() > 1 && derivation.at(1).verified() &&
-                    result.restrictions == expected && derivation.context.active_assumptions == expected,
+                    result.restrictions == expected && derivation.context.domain_restrictions == expected &&
+                    derivation.context.active_assumptions.empty(),
                 "a retained inverse prefix keeps the original domain after resource or unsupported refusal");
     }
     for (const char *formula : {"x=[1,2]", "x+[[1]]=2", "x=0*[1,2]", "x=sin([1,2])"}) {
