@@ -6764,6 +6764,7 @@ do
     record.result = string.rep("x+", 180) .. "ANSWER_TAIL"
     record.canonical, record.display_result = record.result, record.result
     record.assumptions = string.rep("x > 0 and ", 60) .. "DOMAIN_TAIL"
+    record.domain = string.rep("y >= 0 and ", 60) .. "REQUIRES_TAIL"
     env.steps.result = record
     env.openSteps()
     env.readFullText()
@@ -6799,6 +6800,8 @@ do
         local complete = table.concat(seen):gsub("%s", "")
         check(fits and complete:find("ANSWER_TAIL", 1, true) and complete:find("DOMAIN_TAIL", 1, true),
               "answers and conditions stay inside the viewport and fully reachable at width " .. width)
+        check(complete:find("Requires:", 1, true) and complete:find("REQUIRES_TAIL", 1, true),
+              "Full Text lists the answer's domain conditions under Requires at width " .. width)
         env.on.escapeKey()
         env.readFullText()
     end
