@@ -1193,7 +1193,7 @@ check(r.result == "transmitted sine = 0.6",
 r = nps.optics("refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
                "transmitted index", "1")
 check(r.outcome == "total internal reflection" and r.solved == false and r.result == nil and
-      r.critical_sine == "0.5" and #r.steps > 0,
+      r.status == "solved and verified" and r.critical_sine == "0.5" and #r.steps > 0,
       "the optics bridge preserves total internal reflection as a recorded conclusion")
 do
     check(r.detail:find("1.6", 1, true) ~= nil and r.relation == "refraction" and
