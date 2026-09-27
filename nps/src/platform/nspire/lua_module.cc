@@ -29,6 +29,8 @@
 #include "nps/steps/derivation.h"
 #include "nps/steps/command.h"
 #include "nps/steps/calculus.h"
+#include "nps/steps/implicit.h"
+#include "nps/steps/separable.h"
 #include "nps/ui/canvas.h"
 #include "nps/ui/bitmap.h"
 #include "nps/steps/integer.h"
@@ -514,9 +516,13 @@ void compare_root_sets(const Arena &arena, const std::vector<NodeId> &ours, cons
 // after it reports a terminal resource or cancellation status.
 CrossCheck ask_giac(lua_State *L, Arena &arena, DerivationStatus status, Op op, NodeId target,
                     NodeId variable, NodeId ours, bool scalar_only = true,
-                    const std::vector<NodeId> *our_solutions = nullptr, Backend *engine = nullptr) {
+                    const std::vector<NodeId> *our_solutions = nullptr, Backend *engine = nullptr,
+                    AngleMode angle = AngleMode::Radians) {
     CrossCheck out;
-    if (!cross_check_allowed(status) || !GiacBackend::available(L))
+    // The backend is only ever asked in radians, so in degree mode a trigonometric question gets no
+    // backend answer rather than one read in the wrong unit.
+    if (!cross_check_allowed(status) || !GiacBackend::available(L) ||
+        (angle == AngleMode::Degrees && angle_dependent(arena, target)))
         return out;
 
     GiacBackend fresh(L);
@@ -1427,6 +1433,8 @@ bool prepare_normalized_expression(const Arena &arena, const SolutionContext &co
 void set_expression_context(lua_State *L, const SolutionContext &context) {
     set_field(L, "original_expression", context.original_expression);
     set_field(L, "normalized_expression", context.normalized_expression);
+    // The unit the record was produced under, so a reopened record is read under that one.
+    if (!context.angle_convention.empty()) set_field(L, "angle_convention", context.angle_convention);
 }
 
 #if NPS_DIAG
@@ -1868,11 +1876,24 @@ NumericMode mode_argument(lua_State *L, int index) {
     return NumericMode::Exact;
 }
 
+// MATH-007. Like the numeric mode, the angle mode is read on entry so a solve cannot change unit
+// under itself, and an unknown spelling is an error rather than a silent radian.
+AngleMode angle_argument(lua_State *L, int index) {
+    const char *named = scalar_string_argument(L, index, "radians");
+    if (std::string(named) == "radians")
+        return AngleMode::Radians;
+    if (std::string(named) == "degrees")
+        return AngleMode::Degrees;
+    luaL_error(L, "angle mode has to be 'radians' or 'degrees', not '%s'", named);
+    return AngleMode::Radians;
+}
+
 int solve_into(lua_State *L, bool cross) {
     // Argument checks come first: a raise is a longjmp, which skips the GcPause destructor.
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable))
         return 2;
@@ -1890,6 +1911,7 @@ int solve_into(lua_State *L, bool cross) {
     Derivation d;
     d.request.original_expression = text;
     d.request.numeric_mode = mode;
+    d.request.angle_mode = angle;
     const NodeId unknown = arena.symbol(variable);
 
     // Degree two with no term of degree one belongs to another family, and this is where a typed
@@ -1922,7 +1944,7 @@ int solve_into(lua_State *L, bool cross) {
     CrossCheck c;
     if (cross && a.ask_backend)
         c = ask_giac(L, arena, a.status, Op::Solve, parsed.root, unknown, a.comparable, false,
-                     a.finite_solutions ? &a.solutions : nullptr);
+                     a.finite_solutions ? &a.solutions : nullptr, nullptr, angle);
     const bool answer_only = answer_only_allowed(a.status) && c.has_answer;
     const DerivationStatus status =
         cross && (a.solved || a.finite_solutions) ? cross_checked_status(a.status, c) : a.status;
@@ -2030,6 +2052,7 @@ int l_solve_begin(lua_State *L) {
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     const char *operation = scalar_string_argument(L, 3, "linear");
     const NumericMode mode = mode_argument(L, 4);
+    const AngleMode angle = angle_argument(L, 5);
     const std::string named(operation);
     if (named != "linear" && named != "rearrange")
         luaL_error(L, "solve operation has to be 'linear' or 'rearrange', not '%s'", operation);
@@ -2043,6 +2066,7 @@ int l_solve_begin(lua_State *L) {
     SolveRequest request;
     request.original_expression = text;
     request.numeric_mode = mode;
+    request.angle_mode = angle;
     resident_solve.emplace(named == "linear" ? SolveOperation::Linear : SolveOperation::Rearrange,
                            std::move(request), variable, kSolveTaskFrameBytes);
     push_solve_progress(L, *resident_solve);
@@ -2091,6 +2115,7 @@ int differentiate_into(lua_State *L, bool cross) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable))
         return 2;
@@ -2111,6 +2136,7 @@ int differentiate_into(lua_State *L, bool cross) {
     Derivation d;
     d.request.original_expression = text;
     d.request.numeric_mode = mode;
+    d.request.angle_mode = angle;
     DiffResult r =
         differentiate(arena, d, parsed.root, arena.symbol(variable), interactive_budget());
     std::string normalized_expression;
@@ -2126,7 +2152,7 @@ int differentiate_into(lua_State *L, bool cross) {
     CrossCheck c;
     if (cross && cross_check_allowed(r.outcome))
         c = ask_giac(L, arena, r.status, Op::Differentiate, parsed.root, arena.symbol(variable),
-                    r.derivative);
+                    r.derivative, true, nullptr, nullptr, angle);
     const bool answer_only = answer_only_allowed(r.status) && c.has_answer;
     const DerivationStatus status = cross && r.outcome == DiffOutcome::Differentiated
                                         ? cross_checked_status(r.status, c)
@@ -2185,6 +2211,7 @@ int integrate_into(lua_State *L, bool cross) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable))
         return 2;
@@ -2202,6 +2229,7 @@ int integrate_into(lua_State *L, bool cross) {
     Derivation d;
     d.request.original_expression = text;
     d.request.numeric_mode = mode;
+    d.request.angle_mode = angle;
     GiacBackend backend(L);
     const bool backed = cross && GiacBackend::available(L);
     IntegrateResult r = integrate(arena, d, parsed.root, arena.symbol(variable), interactive_budget(),
@@ -2218,11 +2246,11 @@ int integrate_into(lua_State *L, bool cross) {
         case IntegrateCrossCheckRoute::Differentiate:
             c = ask_giac(L, arena, r.status, Op::Differentiate, r.particular,
                          arena.symbol(variable), parsed.root, true, nullptr,
-                         backed ? &backend : nullptr);
+                         backed ? &backend : nullptr, angle);
             break;
         case IntegrateCrossCheckRoute::Integrate:
             c = ask_giac(L, arena, r.status, Op::Integrate, parsed.root, arena.symbol(variable),
-                         kNoNode, true, nullptr, backed ? &backend : nullptr);
+                         kNoNode, true, nullptr, backed ? &backend : nullptr, angle);
             break;
         case IntegrateCrossCheckRoute::None:
             break;
@@ -2281,6 +2309,7 @@ int rewrite_into(lua_State *L, CommandKind kind) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable))
         return 2;
@@ -2295,6 +2324,7 @@ int rewrite_into(lua_State *L, CommandKind kind) {
     }
     Derivation d;
     d.request.original_expression = text;
+    d.request.angle_mode = angle;
     GiacBackend giac(L);
     Backend *backend = GiacBackend::available(L) ? &giac : nullptr;
     const char *outcome = "refused";
@@ -2654,6 +2684,7 @@ int calculus_into(lua_State *L) {
     size_t size = 0;
     const char *text = luaL_checklstring(L, 1, &size);
     const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
     std::string variable;
     if (!variable_argument(L, 2, &variable)) return 2;
     GcPause paused(L);
@@ -2661,6 +2692,7 @@ int calculus_into(lua_State *L) {
     Derivation derivation;
     derivation.request.original_expression.assign(text, size);
     derivation.request.numeric_mode = mode;
+    derivation.request.angle_mode = angle;
     const Command command = parse_command(arena, derivation.request.original_expression, variable);
     CalculusResult result;
     if (GiacBackend::available(L)) {
@@ -2730,11 +2762,120 @@ int calculus_into(lua_State *L) {
     return 1;
 }
 
+// CALC-007. The derivative is an expression in both variables, so the bridge also names the symbol
+// that stood for it in the walkthrough and the conditions the answer carries.
+int implicit_into(lua_State *L) {
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 1, &size);
+    const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable)) return 2;
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    derivation.request.original_expression.assign(text, size);
+    derivation.request.numeric_mode = mode;
+    derivation.request.angle_mode = angle;
+    const Command command = parse_command(arena, derivation.request.original_expression, variable);
+    const ImplicitResult result = implicit_differentiate(arena, derivation, command.expression, command.variable,
+                                                         command.dependent, interactive_budget());
+    std::string normalization;
+    std::string why;
+    if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
+        return expression_resource_failure(L, why);
+    derivation.context.normalized_expression = normalization;
+    const std::string answer = result.derivative == kNoNode ? std::string() : print(arena, result.derivative);
+    const std::string symbol = result.symbol == kNoNode ? std::string() : arena.text(result.symbol);
+    lua_newtable(L);
+    set_field(L, "mode", command_kind_name(command.kind));
+    set_field(L, "outcome", implicit_outcome_name(result.outcome));
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == ImplicitOutcome::Differentiated);
+    set_field(L, "has_result", !answer.empty());
+    set_field(L, "answer_only", false);
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_field(L, "request_expression", derivation.request.original_expression);
+    set_expression_context(L, derivation.context);
+    if (!answer.empty()) set_field(L, "result", answer);
+    if (!symbol.empty()) set_field(L, "derivative_symbol", symbol);
+    lua_newtable(L);
+    for (size_t i = 0; i < result.restrictions.size(); ++i) {
+        lua_pushlstring(L, result.restrictions[i].data(), result.restrictions[i].size());
+        lua_rawseti(L, -2, static_cast<int>(i + 1));
+    }
+    lua_setfield(L, -2, "restrictions");
+    set_field(L, "result_form", result_form_name(primary_result_form(!answer.empty(), false, result.status,
+                                                                     ResultForm::NoResult)));
+    set_field(L, "giac_tag", "unavailable");
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    if (derivation.size() == 0) push_no_steps(L);
+    else push_steps(L, arena, derivation);
+    return 1;
+}
+
+// A form refused or left unconfirmed returns nil so the shell falls back to Giac as before.
+int separable_into(lua_State *L) {
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 1, &size);
+    const NumericMode mode = mode_argument(L, 3);
+    const AngleMode angle = angle_argument(L, 4);
+    std::string variable;
+    if (!variable_argument(L, 2, &variable)) return 2;
+    GcPause paused(L);
+    Arena arena;
+    Derivation derivation;
+    derivation.request.original_expression.assign(text, size);
+    derivation.request.numeric_mode = mode;
+    derivation.request.angle_mode = angle;
+    const Command command = parse_command(arena, derivation.request.original_expression, variable);
+    const SeparableResult result =
+        solve_separable(arena, derivation, command, interactive_budget());
+    if (result.outcome == SeparableOutcome::UnsupportedForm ||
+        result.outcome == SeparableOutcome::Refused) {
+        lua_pushnil(L);
+        return 1;
+    }
+    std::string normalization;
+    std::string why;
+    if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
+        return expression_resource_failure(L, why);
+    derivation.context.normalized_expression = normalization;
+    const std::string answer = result.solution != kNoNode ? print(arena, result.solution) : "";
+    lua_newtable(L);
+    set_field(L, "mode", command_kind_name(command.kind));
+    set_field(L, "outcome", separable_outcome_name(result.outcome));
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", result.outcome == SeparableOutcome::Solved);
+    set_field(L, "has_result", !answer.empty());
+    set_field(L, "answer_only", false);
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_field(L, "request_expression", derivation.request.original_expression);
+    set_expression_context(L, derivation.context);
+    if (!answer.empty()) {
+        set_field(L, "result", answer);
+        set_field(L, "explicit_solution", result.explicit_solution);
+    }
+    if (result.constant != kNoNode) set_field(L, "constant", print(arena, result.constant));
+    set_field(L, "result_form",
+              result_form_name(primary_result_form(!answer.empty(), false, result.status,
+                                                   ResultForm::NoResult)));
+    set_field(L, "giac_tag", "unavailable");
+    set_field(L, "giac_form", result_form_name(ResultForm::NoResult));
+    set_cost(L, arena, derivation, result.cost, result.cost.backend_calls);
+    if (derivation.size() == 0) push_no_steps(L);
+    else push_steps(L, arena, derivation);
+    return 1;
+}
+
 int l_walkthrough(lua_State *L) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
     const char *default_variable = scalar_string_argument(L, 2, "x");
     const NumericMode numeric_mode = mode_argument(L, 3);
+    angle_argument(L, 4);
     CommandKind kind;
     {
         Arena arena;
@@ -2760,8 +2901,9 @@ int l_walkthrough(lua_State *L) {
             return 1;
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
-            kind != CommandKind::Tangent && kind != CommandKind::Linearize) {
-        lua_settop(L, 3);
+            kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
+            kind != CommandKind::Implicit && kind != CommandKind::Desolve) {
+        lua_settop(L, 4);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
         lua_replace(L, 1);
@@ -2772,6 +2914,9 @@ int l_walkthrough(lua_State *L) {
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
         kind == CommandKind::Tangent || kind == CommandKind::Linearize)
         return calculus_into(L);
+    if (kind == CommandKind::Implicit) return implicit_into(L);
+    if (kind == CommandKind::Desolve)
+        return separable_into(L);
     int count;
     if (kind == CommandKind::Solve)
         count = solve_into(L, true);
@@ -2790,7 +2935,7 @@ int l_walkthrough(lua_State *L) {
         typed_failure(L, "invalid input", "invalid input", detail ? detail : "the command could not be read");
     }
     set_field(L, "mode", command_kind_name(kind));
-    lua_pushvalue(L, 4);
+    lua_pushvalue(L, 5);
     lua_setfield(L, -2, "request_expression");
     return 1;
 }
