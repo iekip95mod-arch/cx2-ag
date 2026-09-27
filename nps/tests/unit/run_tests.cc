@@ -28,6 +28,8 @@ void run_task_tests(TestSink &sink);
 void run_solve_task_tests(TestSink &sink);
 void run_command_tests(TestSink &sink);
 void run_calculus_tests(TestSink &sink);
+void run_implicit_tests(TestSink &sink);
+void run_separable_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
@@ -842,6 +844,9 @@ void write_evidence(const TestSink &s) {
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());
+    for (const RuleCase &c : s.rule_cases)
+        fprintf(f, "%s\n",
+                nps_tools::rule_case_row(c.rule_id, c.kind, c.passed, c.group, c.what).c_str());
     fclose(f);
 }
 
@@ -885,6 +890,10 @@ int main_body() {
     run_command_tests(sink);
     sink.begin_group("calculus");
     run_calculus_tests(sink);
+    sink.begin_group("implicit");
+    run_implicit_tests(sink);
+    sink.begin_group("separable");
+    run_separable_tests(sink);
     sink.begin_group("ui canvas");
     run_ui_canvas_tests(sink);
     sink.begin_group("integer");
