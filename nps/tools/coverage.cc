@@ -5,13 +5,13 @@
 //
 // Also reports which of section 27's fields the catalog does not carry, because a field left out is
 // a question nobody answered and a field filled with a placeholder reads as one that was.
+#include <charconv>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <set>
-#include <sstream>
 #include <sstream>
 #include <string>
 #include <unistd.h>
@@ -370,11 +370,11 @@ CheckKindJoin join_check_kinds(const std::string &evidence_path,
             fault = "names an unknown check kind";
         else if (!nps_tools::check_outcome_from_word(fields[3], &outcome))
             fault = "names an unknown outcome";
-        else if (fields[4].empty() ||
+        else if (std::from_chars(fields[4].data(), fields[4].data() + fields[4].size(), count).ec !=
+                     std::errc() ||
                  fields[4].find_first_not_of("0123456789") != std::string::npos)
             fault = "carries a count that is not a number";
         if (fault == nullptr) {
-            count = std::stoul(fields[4]);
             bool declared = false;
             for (size_t o = 0; o < schema->obligation_count; ++o) {
                 for (size_t a = 0; a < schema->obligations[o].evidence_count; ++a)
@@ -1096,6 +1096,8 @@ int selftest() {
              "and so is one naming an unknown outcome"},
             {"check_kind\t" + rule + "\tcandidate substitution\tpassed\tmany\tstaged", 1,
              "and so is one whose count is not a number"},
+            {"check_kind\t" + rule + "\tcandidate substitution\tpassed\t99999999999999999999999\tstaged",
+             1, "and so is one whose count does not fit"},
             {"check_kind\t" + rule + "\tcandidate substitution\tpassed\t1", 1,
              "and so is one missing a field"},
             {nps_tools::check_kind_row(rule, nps::CheckKind::Dimensional,
