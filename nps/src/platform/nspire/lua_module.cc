@@ -27,6 +27,7 @@
 #include "nps/core/canonical.h"
 #include "nps/core/evaluate.h"
 #include "nps/steps/derivation.h"
+#include "nps/steps/attempt.h"
 #include "nps/steps/command.h"
 #include "nps/steps/calculus.h"
 #include "nps/steps/implicit.h"
@@ -44,8 +45,10 @@
 #include "nps/steps/integrate.h"
 #include "nps/physics/catch_up.h"
 #include "nps/physics/density.h"
+#include "nps/physics/gravitation.h"
 #include "nps/physics/kinematics.h"
 #include "nps/physics/optics.h"
+#include "nps/physics/oscillation.h"
 #include "nps/physics/planar_kinematics.h"
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/unit_conversion.h"
@@ -1822,6 +1825,90 @@ int l_canonical(lua_State *L) {
     return 1;
 }
 
+// STEP-013 and STEP-014, touching no derivation so VER-019 holds by construction.
+int l_judge_attempt(lua_State *L) {
+    const char *current_text = scalar_string_argument(L, 1);
+    const char *attempt_text = scalar_string_argument(L, 2);
+    // Raw reads checked before any native object exists, so a refusal longjmps past nothing.
+    int count = 0;
+    if (!lua_isnoneornil(L, 3)) {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        for (;; ++count) {
+            lua_rawgeti(L, 3, count + 1);
+            const int type = lua_type(L, -1);
+            size_t size = 0;
+            const char *text = type == LUA_TSTRING ? lua_tolstring(L, -1, &size) : nullptr;
+            lua_pop(L, 1);
+            if (type == LUA_TNIL)
+                break;
+            if (type != LUA_TSTRING)
+                return luaL_error(L, "judge_attempt route state %d is not a string", count + 1);
+            if (std::memchr(text, '\0', size) != nullptr)
+                return luaL_error(L, "judge_attempt route state %d has an embedded NUL", count + 1);
+            if (count >= static_cast<int>(Budget{}.max_steps))
+                return luaL_error(L, "judge_attempt takes at most %d route states",
+                                  static_cast<int>(Budget{}.max_steps));
+        }
+    }
+    std::string variable;
+    if (!variable_argument(L, 4, &variable))
+        return 2;
+
+    std::vector<std::string> route;
+    route.reserve(static_cast<size_t>(count));
+    for (int index = 1; index <= count; ++index) {
+        lua_rawgeti(L, 3, index);
+        size_t size = 0;
+        const char *text = lua_tolstring(L, -1, &size);
+        route.push_back(std::string(text, size));
+        lua_pop(L, 1);
+    }
+
+    AttemptVerdict verdict;
+    ParseResult refused;
+    const char *refused_part = nullptr;
+    {
+        Arena arena;
+        const ParseResult current = parse(arena, current_text);
+        const ParseResult attempt = parse(arena, attempt_text);
+        std::vector<NodeId> states;
+        if (!current.ok()) {
+            refused = current;
+            refused_part = "state";
+        } else if (!attempt.ok()) {
+            refused = attempt;
+            refused_part = "attempt";
+        }
+        for (size_t i = 0; refused_part == nullptr && i < route.size(); ++i) {
+            const ParseResult state = parse(arena, route[i]);
+            if (!state.ok()) {
+                refused = state;
+                refused_part = "route state";
+            }
+            states.push_back(state.root);
+        }
+        if (refused_part == nullptr) {
+            verdict = judge_attempt(arena, current.root, attempt.root, arena.symbol(variable), states,
+                                    interactive_budget());
+        }
+    }
+    if (refused_part != nullptr) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "%s: %s at character %d", refused_part, status_name(refused.status),
+                        static_cast<int>(refused.offset) + 1);
+        return 2;
+    }
+
+    lua_newtable(L);
+    set_field(L, "equivalence", attempt_equivalence_name(verdict.equivalence));
+    set_field(L, "strength", evidence_strength_name(verdict.strength));
+    set_field(L, "method", verdict.method);
+    set_field(L, "detail", verdict.detail);
+    set_field(L, "usefulness", attempt_usefulness_name(verdict.usefulness));
+    set_field(L, "reaches", static_cast<int>(verdict.reaches));
+    return 1;
+}
+
 int l_math_display(lua_State *L) {
     const char *text = scalar_string_argument(L, 1);
     if (lua_objlen(L, 1) > Limits{}.max_input_bytes) {
@@ -2758,7 +2845,11 @@ int calculus_into(lua_State *L) {
     if (!prepare_normalized_expression(arena, derivation.context, &normalization, &why))
         return expression_resource_failure(L, why);
     derivation.context.normalized_expression = normalization;
-    const std::string answer = result.value != kNoNode ? print(arena, result.value)
+    // A convergence verdict is the answer, with the sum beside it when the series is geometric.
+    const std::string answer = result.verdict != SeriesVerdict::None
+        ? std::string(series_verdict_name(result.verdict)) +
+              (result.value != kNoNode ? ", sum = " + print(arena, result.value) : std::string())
+        : result.value != kNoNode ? print(arena, result.value)
         : result.infinity > 0 ? "+infinity" : result.infinity < 0 ? "-infinity"
         : result.does_not_exist ? "does not exist" : "";
     // The engine answered, which is what every sibling producer's solved means. Whether the answer
@@ -2785,9 +2876,21 @@ int calculus_into(lua_State *L) {
     if (result.slope != kNoNode) set_field(L, "tangent_slope", print(arena, result.slope));
     if (result.point_value != kNoNode)
         set_field(L, "tangent_point_value", print(arena, result.point_value));
-    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize) {
+    if (command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize ||
+        command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
         set_field(L, "approximation", result.approximate);
         set_field(L, "relation", result.approximate ? "approximately equal" : "equal");
+    }
+    if (result.verdict != SeriesVerdict::None) {
+        set_field(L, "series_verdict", series_verdict_name(result.verdict));
+        set_field(L, "series_test", result.test);
+        if (result.value != kNoNode) set_field(L, "series_sum", print(arena, result.value));
+    }
+    // The Taylor family names the order it was asked for and what the polynomial leaves out.
+    if (command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin) {
+        set_field(L, "taylor_order", print(arena, command.order));
+        set_field(L, "taylor_center", print(arena, command.point));
+        if (result.remainder != kNoNode) set_field(L, "taylor_remainder", print(arena, result.remainder));
     }
     if (result.infinity != 0) set_field(L, "infinite_limit", true);
     const ResultForm backend_form =
@@ -2955,7 +3058,8 @@ int l_walkthrough(lua_State *L) {
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
             kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
             kind != CommandKind::LinearSystem && kind != CommandKind::Implicit &&
-            kind != CommandKind::Desolve) {
+            kind != CommandKind::Desolve && kind != CommandKind::Taylor &&
+            kind != CommandKind::Maclaurin && kind != CommandKind::Convergence) {
         lua_settop(L, 4);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -2965,7 +3069,9 @@ int l_walkthrough(lua_State *L) {
         }
     }
     if (kind == CommandKind::Limit || kind == CommandKind::DefiniteIntegral ||
-        kind == CommandKind::Tangent || kind == CommandKind::Linearize)
+        kind == CommandKind::Tangent || kind == CommandKind::Linearize ||
+        kind == CommandKind::Taylor || kind == CommandKind::Maclaurin ||
+        kind == CommandKind::Convergence)
         return calculus_into(L);
     if (kind == CommandKind::LinearSystem)
         return system_into(L);
@@ -3400,6 +3506,95 @@ int l_optics(lua_State *L) {
     set_cost(L, arena, d, r.cost, r.cost.backend_calls);
     push_steps(L, arena, d);
     return 1;
+}
+
+// The model names its own terms, so the names Lua passes are read against those rather than a table.
+bool relation_variable(const RelationModel &model, std::string_view name, size_t *index) {
+    for (size_t i = 0; i < relation_term_count(model); ++i) {
+        if (name == relation_term(model, i).name) {
+            *index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+using RelationSolver = RelationResult (*)(Arena &, Derivation &, const RelationProblem &,
+                                          const Budget &);
+
+// Two known pairs are required and a third is optional, which covers every relation of up to four terms.
+int relation_into(lua_State *L, const RelationModel &model, RelationSolver solve) {
+    const char *unknown_text = scalar_string_argument(L, 1);
+    const char *names[3] = {scalar_string_argument(L, 2), scalar_string_argument(L, 4),
+                            scalar_string_argument(L, 6, "")};
+    const char *values[3] = {scalar_string_argument(L, 3), scalar_string_argument(L, 5),
+                             scalar_string_argument(L, 7, "")};
+    GcPause paused(L);
+
+    RelationProblem problem;
+    std::string why;
+    bool parsed = relation_variable(model, unknown_text, &problem.unknown);
+    if (!parsed)
+        why = "unknown variable " + std::string(unknown_text) + " in " + model.equation_text;
+    for (size_t i = 0; parsed && i < 3; ++i) {
+        if (*names[i] == '\0' && *values[i] == '\0')
+            continue;
+        RelationKnown known;
+        if (!relation_variable(model, names[i], &known.index)) {
+            parsed = false;
+            why = "unknown variable " + std::string(names[i]) + " in " + model.equation_text;
+            break;
+        }
+        if (!parse_quantity(values[i], &known.quantity, &why)) {
+            parsed = false;
+            break;
+        }
+        problem.knowns.push_back(std::move(known));
+    }
+    if (!parsed)
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    const RelationResult r = solve(arena, d, problem, interactive_budget());
+    const char *unknown_name = relation_term(model, problem.unknown).name;
+
+    lua_newtable(L);
+    set_field(L, "outcome", relation_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == RelationOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    set_field(L, "unknown", unknown_name);
+    if (r.outcome == RelationOutcome::Solved) {
+        set_field(L, "result", std::string(unknown_name) + " = " + r.value_text + " " + r.unit_text);
+        set_field(L, "value", r.value_text);
+        set_field(L, "exact_value", rational_text(r.quantity.value));
+        set_field(L, "unit", r.unit_text);
+        set_precision(L, r.quantity.precision);
+    }
+    if (r.equation != kNoNode)
+        set_field(L, "equation", print(arena, r.equation));
+    if (r.substituted != kNoNode)
+        set_field(L, "substituted", print(arena, r.substituted));
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
+int l_gravitation(lua_State *L) {
+    return relation_into(L, gravitation_model(), solve_gravitation);
+}
+
+int l_oscillation(lua_State *L) {
+    return relation_into(L, oscillation_model(), solve_oscillation);
+}
+
+int l_wave(lua_State *L) {
+    return relation_into(L, wave_model(), solve_wave);
 }
 
 int l_vector_addition(lua_State *L) {
@@ -4193,6 +4388,7 @@ const luaL_Reg lib[] = {
     {"os_number_input", l_os_number_input},
     {"canonical", l_canonical},
     {"math_display", l_math_display},
+    {"judge_attempt", l_judge_attempt},
     {"giac", l_giac},
     {"walkthrough", l_walkthrough},
     {"ui_panel", l_ui_panel},
@@ -4225,6 +4421,9 @@ const luaL_Reg lib[] = {
     {"unit_conversion", l_unit_conversion},
     {"density", l_density},
     {"optics", l_optics},
+    {"gravitation", l_gravitation},
+    {"oscillation", l_oscillation},
+    {"wave", l_wave},
     {"vector_addition", l_vector_addition},
     {"vector_cross", l_vector_cross},
     {"relative_motion", l_relative_motion},

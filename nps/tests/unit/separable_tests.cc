@@ -151,6 +151,14 @@ void run_separable_tests(TestSink &t) {
     }
     {
         Run run("desolve(y'=x*exp(x^2)*y,x,y)");
+        t.equal(run.outcome(), "solved", "an x factor that needs a substitution separates and integrates");
+        t.check(run.records("i.substitution") && run.result.status == DerivationStatus::SolvedAndVerified &&
+                    run.broken.empty(),
+                "and its x side is integrated by substitution and verified" +
+                    (run.broken.empty() ? std::string() : " " + run.broken.front()));
+    }
+    {
+        Run run("desolve(y'=sin(x^2)*y,x,y)");
         t.equal(run.outcome(), "unsupported form",
                 "an x factor the integral engine cannot integrate is refused");
         t.check(run.result.detail.find("independent side") != std::string::npos &&

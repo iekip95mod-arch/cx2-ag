@@ -618,16 +618,16 @@ topic_and_level Supported elementary indefinite integrals, PRD section 22.1
 accepted_expression_grammar sums, products, negations, integer powers including the reciprocal, and calls to a named function, over numbers and the one variable, with a typed decimal read as the fraction it names and refused in an exponent
 accepted_input_forms an expression in one variable, within the Milestone 3 envelope
 domains_and_parameter_assumptions the logarithm needs a positive argument, and a symbolic coefficient is assumed non-zero
-supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules
+supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules. A product whose remaining factor is a constant multiple of the derivative of an inner function, as in 2x cos(x^2), 2x/(x^2+1), 2x/(x^2+1)^2 or sin(x) cos(x), integrates by substitution. A polynomial of degree at most four times exp, sin or cos of a linear argument integrates by parts, repeatedly where the degree needs it
 exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
 parser_module_ids src/core/parser.cc, src/steps/integrate.cc
 required_assumptions whatever the integrand's own form needs, recorded as it is met rather than remembered, as in "x > 0" for the logarithm a reciprocal integrates to
 test_group_ids integrate
-proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold
-supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand
-unsupported_near_neighbors general integration by parts, nonlinear substitution, general rational exponents, tan, reciprocal square roots, powers of logarithms and logarithms with nonlinear arguments
+proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold, obl.integrate.substitution-differential
+supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand. A substitution records the inner function it names, the integral rewritten in the new variable and the antiderivative written back in the original one. Integration by parts records the factor differentiated and the factor integrated, then integrates what remains
+unsupported_near_neighbors a substitution whose remaining factor is not a constant multiple of the inner derivative, integration by parts beyond a polynomial of degree at most four times exp, sin or cos of a linear argument, as in (x^2+1)^3 exp(x), including a power times a logarithm whose derivative check cannot close without Giac, a substitution into a square root or a logarithm, as in x sqrt(x^2+1) or 2x ln(x^2+1), whose derivative check cannot close without Giac and is withheld on a host without it, general rational exponents, tan, reciprocal square roots including x/sqrt(x^2+1), powers of logarithms and logarithms with nonlinear arguments outside a substitution
 solution_soundness_status the answer is differentiated by rule. Canonical agreement verifies simple identities. Inconclusive canonical comparisons require an exact zero difference from Giac under recorded domain restrictions, otherwise the answer is withheld
-solution_completeness_status partial, one substitution deep and linear arguments only
+solution_completeness_status partial, substitutions whose remaining factor is a constant multiple of the inner derivative and parts against a polynomial of degree at most four
 corpus_case_ids the golden fixtures naming this family
 device_performance_status measured on the physical calculator, see STATUS.md
 direct_keypad_entry_status entered from the calculator keypad, measured
@@ -644,6 +644,9 @@ rule i.constant-of-integration fixture
 rule i.logarithm-parts fixture
 rule i.constant fixture
 rule i.function fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
+rule i.parts fixture
 
 family id calculus.integral.definite.single-variable
 topic_and_level Elementary definite integrals in one real variable
@@ -656,9 +659,9 @@ exact_special_function_and_numerical_result_policy exact rational or symbolic en
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/integrate.cc
 required_assumptions none carried globally. Interval validity and primitive branch restrictions are checked locally
 test_group_ids calculus, command, adapter
-proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement, obl.integrate.substitution-differential
 supported_methods interval continuity checks, a native antiderivative verified by differentiation with Giac exact identity checks when needed, affine logarithm integration by parts, the fundamental theorem of calculus and exact endpoint subtraction
-unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, general integration by parts, logarithm powers and nonlinear substitution
+unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, the substitutions and parts patterns the indefinite family refuses, and logarithm powers. A substitution is carried out in the indefinite antiderivative and written back in the original variable before the bounds are applied, so the bounds are never transformed
 solution_soundness_status native expected-answer, domain refusal, budget and rule-schema tests pass. Actual Giac bridge comparisons pass under host sanitizers. Physical qualification remains pending
 solution_completeness_status partial, limited by the stated grammar, checked arithmetic and resource budgets. No native result survives failed verification or terminal cancellation
 corpus_case_ids defint_polynomial, defint_zero_width, defint_reciprocal, defint_elementary, defint_logarithm_affine, defint_logarithm_reversed, defint_square_root_endpoint
@@ -682,6 +685,8 @@ rule i.power fixture
 rule i.reciprocal fixture
 rule i.constant-multiple fixture
 rule i.linear-substitution fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
 
 family id calculus.limit.single-variable
 topic_and_level Finite and infinite limits in one real variable
@@ -970,8 +975,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the four positions of the two-body law
 corpus_case_ids gravitation_two_point_masses
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.gravitation.point-masses
 release_status unreleased
 rule physics.gravitation.definition fixture
 rule physics.gravitation.check-dimensions fixture
@@ -999,8 +1005,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the restoring-force relation only
 corpus_case_ids oscillation_restoring_force
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.oscillation.restoring-force
 release_status unreleased
 rule physics.oscillation.definition fixture
 rule physics.oscillation.check-dimensions fixture
@@ -1028,8 +1035,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the traveling-wave relation only
 corpus_case_ids wave_speed_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.wave.speed-frequency-wavelength
 release_status unreleased
 rule physics.wave.definition fixture
 rule physics.wave.check-dimensions fixture
@@ -1658,6 +1666,75 @@ rule alg.rearrange.divide-both-sides fixture
 rule alg.rearrange.check-by-substitution fixture
 rule implicit.check fixture
 
+family id calculus.taylor-polynomial.single-variable
+topic_and_level Finite Taylor and Maclaurin polynomials with the Lagrange remainder, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms taylor(expression,variable,center,order) and maclaurin(expression,variable,order), with the center an exact rational and the order a nonnegative integer no greater than 19
+domains_and_parameter_assumptions the expression and each of its derivatives up to the order have an exact rational value at the center. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases order zero, which is the constant value at the center, and a polynomial of degree at most the order, whose next derivative is identically zero so the remainder is zero and the polynomial equals the function
+exact_special_function_and_numerical_result_policy exact rationals over int64 with the factorial computed exactly, refusing rather than approximating a center or a derivative value that is not exact. The answer is an approximation near the center unless the remainder is zero
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family. The remainder's hypotheses, the intermediate point lying between the center and the variable and the next derivative existing on that interval, are recorded as domain restrictions on the remainder step
+test_group_ids calculus, context
+supported_methods differentiate repeatedly by the registered rules, evaluate each derivative at the center, divide by the factorial of its order, assemble the powers of the distance from the center, and state the Lagrange remainder from the next derivative
+unsupported_near_neighbors infinite Taylor and power series, radius and interval of convergence, a symbolic or irrational center, a center where a derivative is undefined or not exact, orders above 19, error bounds that maximize the remainder, multivariable expansions, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.taylor-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled polynomial is differentiated again by the native engine and every derivative up to the order is read back exactly at the center against the values the coefficients came from, withholding the result on any disagreement. The remainder is stated with its hypotheses rather than bounded
+solution_completeness_status partial, the expressions the differentiation engine covers with exact derivative values at a rational center and no others
+corpus_case_ids taylor_maclaurin_exponential, taylor_maclaurin_sine, taylor_reciprocal_shifted, taylor_polynomial_exact
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.taylor-polynomial.single-variable
+release_status in development, unreleased
+rule taylor.derivative-value fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.variable fixture
+rule taylor.polynomial fixture
+rule taylor.remainder fixture
+rule taylor.check-polynomial fixture
+
+family id calculus.series.convergence
+topic_and_level Convergence of an infinite series by the standard tests, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar a term in one index variable written as a product of numbers, fixed rational numbers raised to the index plus an integer shift, and a quotient of polynomials in the index
+accepted_input_forms convergence(term,index,first), with the first index an integer and the series running from it to infinity
+domains_and_parameter_assumptions every denominator is nonzero at every integer index from the first one on, which is proved by a Cauchy root bound and an exact check of each integer up to it before any test is applied
+supported_branches_and_degenerate_cases the zero series, geometric series with their exact sum, a geometric factor above or below one in absolute value by the ratio test, rational terms by the divergence test and by limit comparison with a p-series, and alternating rational terms by the alternating series test with conditional convergence named
+exact_special_function_and_numerical_result_policy exact rationals over int64, polynomial degrees up to 20 and at most 4096 indices checked for undefined terms, refusing rather than approximating beyond those limits
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc
+required_assumptions none carried for the family. Each test's hypotheses, eventually nonzero terms, one eventual sign or eventually decreasing absolute values, are recorded as domain restrictions on the step that uses them
+test_group_ids calculus, context
+supported_methods rewrite the term as a constant times a power of a fixed ratio times a rational function, prove every term exists, then decide by the ratio test, the divergence test, limit comparison with a p-series or the alternating series test, and sum a convergent geometric series
+unsupported_near_neighbors factorials and binomial coefficients, logarithms, roots and trigonometric factors in the term, the root, integral and direct comparison tests, power series and their radius or interval of convergence, sums of non-geometric convergent series, and products of more than one kind of growth such as n to the power n
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.series.test-hypotheses, obl.series.form-agreement
+solution_soundness_status the rewritten term is compared exactly with the original at four consecutive indices from the first one, which is sample agreement rather than proof, and a geometric sum times one minus the ratio is compared with the first term, withholding the verdict on any disagreement
+solution_completeness_status complete within the envelope, since every term of the accepted form is decided by one of the tests, and partial for series in general
+corpus_case_ids series_geometric_sum, series_ratio_test, series_ratio_diverges, series_p_comparison, series_harmonic_diverges, series_alternating_conditional, series_divergence_test, series_zero_terms
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.series.convergence
+release_status in development, unreleased
+rule series.term-form fixture
+rule series.terms-defined fixture
+rule series.zero-terms fixture
+rule series.ratio-test fixture
+rule series.divergence-test fixture
+rule series.p-comparison fixture
+rule series.alternating-test fixture
+rule series.geometric-sum fixture
+rule series.check-form fixture
+
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
@@ -1682,7 +1759,7 @@ corpus_case_ids not yet filed, the two golden fixtures optics_refraction_transmi
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.refraction.snell
 release_status in development, unreleased
@@ -1754,7 +1831,7 @@ corpus_case_ids not yet filed, the golden fixture optics_spherical_mirror_image 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.spherical-mirror.image
 release_status in development, unreleased
@@ -1790,7 +1867,7 @@ corpus_case_ids not yet filed, the golden fixture optics_double_slit_wavelength 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.double-slit.maxima
 release_status in development, unreleased
@@ -1827,7 +1904,7 @@ corpus_case_ids not yet filed, the golden fixture optics_single_slit_minimum rec
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.single-slit.minima
 release_status in development, unreleased
