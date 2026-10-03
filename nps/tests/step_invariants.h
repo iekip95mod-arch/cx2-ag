@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "nps/core/ast.h"
@@ -846,6 +847,9 @@ class Pass {
 
     size_t rules_seen() const { return rules_seen_; }
 
+    // Every verification weighed against a schema, by rule, declared check kind and outcome.
+    using CheckKey = std::tuple<std::string, CheckKind, VerificationOutcome>;
+    const std::map<CheckKey, size_t> &checks_by_kind() const { return checks_by_kind_; }
     // Which of VER-010's kinds each rule was seen in, over every derivation this pass walked.
     const std::map<std::string, std::set<nps_tools::RuleCaseKind> > &rule_kinds() const {
         return rule_kinds_;
@@ -957,6 +961,7 @@ class Pass {
         family_unevaluated_ = 0;
         equivalence_unevaluated_ = 0;
         observed_.clear();
+        checks_by_kind_.clear();
         rule_kinds_.clear();
     }
 
@@ -1282,6 +1287,9 @@ class Pass {
     void judge(const RuleSchema &schema, const ObligationSchema &obligation,
                const VerificationRecord &record, const EvidenceAlternative &alternative,
                DerivationStatus status, std::vector<std::string> *broken) {
+        // VER-015 reads the kind off the alternative the record matched, never off its method text.
+        ++checks_by_kind_[std::make_tuple(std::string(schema.rule_id), alternative.kind,
+                                          record.outcome)];
         // strength_for is the contract every producer builds a record with, and only its passing arm
         // was held here. A check that disagreed or could not run is worth nothing, so a record that
         // kept its method's passing strength overstates what the step established.
@@ -1360,6 +1368,7 @@ class Pass {
     size_t methodless_ = 0;
     size_t planned_strategies_ = 0;
     size_t rules_seen_ = 0;
+    std::map<CheckKey, size_t> checks_by_kind_;
     std::map<std::string, std::set<nps_tools::RuleCaseKind> > rule_kinds_;
     size_t undeclared_ = 0;
     size_t nameless_ = 0;

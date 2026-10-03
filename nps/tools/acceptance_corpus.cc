@@ -37,6 +37,7 @@
 #include "nps/steps/quadratic.h"
 
 #include "catalog.h"
+#include "check_kinds.h"
 #include "evidence.h"
 #include "../tests/step_invariants.h"
 
@@ -1347,6 +1348,12 @@ int main(int argc, char **argv) {
                 "rules that carry a domain restriction record it (" +
                 count_text(restrictions_recorded) + " restrictions over " +
                 count_text(restrictions_required) + " cases that require one)"));
+        // VER-015's observed side over the corpus, for coverage.cc to join.
+        for (const auto &entry : g_pass.checks_by_kind())
+            rows.push_back(nps_tools::check_kind_row(std::get<0>(entry.first),
+                                                     std::get<1>(entry.first),
+                                                     std::get<2>(entry.first), entry.second,
+                                                     "acceptance corpus"));
         // VER-010's observed kinds over the corpus, for coverage.cc to join.
         for (const auto &entry : g_pass.rule_kinds()) {
             for (nps_tools::RuleCaseKind kind : entry.second)
