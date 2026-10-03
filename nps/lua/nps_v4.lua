@@ -64,6 +64,7 @@ local requiredSolvers = {
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
 
 local function manifestCompatibility(manifest)
@@ -102,7 +103,7 @@ local function manifestCompatibility(manifest)
 	if type(manifest.installed_modules) ~= "table" then
 		return "StepCAS manifest malformed (installed_modules)"
 	end
-	if #manifest.installed_modules > 32 then return "StepCAS manifest malformed (too many modules)" end
+	if #manifest.installed_modules > 128 then return "StepCAS manifest malformed (too many modules)" end
 	local installed = {}
 	for index, entry in ipairs(manifest.installed_modules) do
 		if type(entry) ~= "table" or type(entry.id) ~= "string" then
@@ -1841,7 +1842,7 @@ function enterHandler(widget)
 					-- The first Enter clears the launch banner, so its refusal has to be restated.
 					local refusal = stepRefusal(true)
 					steps.status = refusal
-					res = refusal or nps_nspire.caseval(expr) or "Error"
+					res = refusal or angleCaseval(expr) or "Error"
 				end
 				t2 = timer.getMilliSecCounter()
 				ts  = string.format("Time :  %f" , ( t2 - t1 ) / 1000. )
@@ -2249,12 +2250,15 @@ menu = {
          { "Limit from the right", function() template("limit(,x,0,1)", 7) end },
          { "Limit at positive infinity", function() template("limit(,x,infinity)", 12) end },
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
-         { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
-         { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
+         { "Tangent line at a point", function() template("tangent(,x,0)", 5) end },
+         { "Linearization at a point", function() template("linearize(,x,0)", 5) end },
+         { "Implicit derivative dy/dx", function() template("implicit(,x,y)", 5) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
         { "Hint walkthrough (Tab next)", function() stepsSetProgression("hint") end },
+        { "Angles in radians (RAD)", function() stepsSetAngle("radians") end },
+        { "Angles in degrees (DEG)", function() stepsSetAngle("degrees") end },
        },
        -- Native wording first, the callable form after it. A tool palette has no submenu, second
        -- line or tooltip, so where the pair runs past 44 characters the argument spelling gives way
@@ -2357,6 +2361,7 @@ menu = {
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
+       	 { "Implicit Derivative  implicit(eq,x,y)",	function() menustring( "implicit(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -2470,6 +2475,8 @@ steps = {
 	mode = nil,
 	automatic = true,
 	variable = "x",
+	-- MATH-007. The learner's angle unit, sent with every request and shown on every screen.
+	angle = "radians",
 	detail = 1,
 	progression = "full",
 	walkthrough = "full",
@@ -2741,6 +2748,24 @@ PHYSICS_FIXTURES = {
 				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
 				                      precision = exactPhysicsPrecision },
 				acceleration = { x = "0", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
+				                  precision = exactPhysicsPrecision },
+				elapsed_time = "2 s",
+				projectile = true,
+			})
+		end,
+	},
+	{
+		label = "Find where a ball goes in a steady sideways wind",
+		problem = "A ball is thrown up and forward while a steady wind pushes it sideways the " ..
+		          "whole way and gravity pulls it down. It rises, slows, and is falling again " ..
+		          "by the time two seconds are up. Find where it has got to and how fast it is going.",
+		mode = "planar_kinematics",
+		run = function()
+			return nps_nspire.planar_kinematics({
+				body_name = "ball",
+				initial_velocity = { x = "3", y = "4", rank = 2, frame = "lab", unit = "m/s",
+				                      precision = exactPhysicsPrecision },
+				acceleration = { x = "2", y = "-10", rank = 2, frame = "lab", unit = "m/s^2",
 				                  precision = exactPhysicsPrecision },
 				elapsed_time = "2 s",
 			})
@@ -3373,6 +3398,7 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
+    ["Implicit derivative dy/dx"] = "Fill an equation in x and y. The answer is dydx in both variables, with its conditions.",
 }
 
 function openTemplatePicker()
@@ -3490,7 +3516,7 @@ end
 function incrementalSolve.start(text, variable)
 	if not incrementalSolve.available() then return false end
 	incrementalSolve.release()
-	local ok, progress = pcall(nps_nspire.solve_begin, text, variable, "linear")
+	local ok, progress = pcall(nps_nspire.solve_begin, text, variable, "linear", "exact", steps.angle)
 	if not ok or type(progress) ~= "table" or progress.state ~= "pending" then
 		if ok and type(progress) == "table" then pcall(nps_nspire.solve_close) end
 		return false
@@ -3691,6 +3717,30 @@ local function runPhysicsFixture()
 	addME(prompt, answer)
 end
 
+-- The unit applies from the next request. A record already open keeps the one it was solved under,
+-- which its header shows beside the active one when they differ.
+function stepsSetAngle(value)
+	if value ~= "radians" and value ~= "degrees" then return nil end
+	steps.angle = value
+	steps.status = "angles: " .. value
+	return steps.status
+end
+
+function angleTag(unit)
+	return unit == "degrees" and "DEG" or unit == "radians" and "RAD" or nil
+end
+
+-- Giac is left in radians between requests, because the native backend shares it and always asks in
+-- radians. Degree mode is set for this one evaluation and put back even when the evaluation raises.
+function angleCaseval(expr)
+	if steps.angle ~= "degrees" then return nps_nspire.caseval(expr) end
+	nps_nspire.caseval("angle_radian:=0")
+	local ok, answer = pcall(nps_nspire.caseval, expr)
+	nps_nspire.caseval("angle_radian:=1")
+	if not ok then error(answer, 0) end
+	return answer
+end
+
 function stepsSetProgression(value)
 	if value ~= "full" and value ~= "hint" then return nil end
 	steps.progression = value
@@ -3815,11 +3865,16 @@ function runSteps(mode, text)
 	local profileStartedAt = startResourceProfile(mode)
 	local t0 = profileStartedAt or timer.getMilliSecCounter()
 	armResourceProfile(mode, t0, profileStartedAt, { request_failed = true })
-	local r, why = nps_nspire[mode](text, steps.variable)
+	local r, why
+	if mode == "walkthrough" or mode == "solve" or mode == "differentiate" or mode == "integrate" then
+		r, why = nps_nspire[mode](text, steps.variable, "exact", steps.angle)
+	else
+		r, why = nps_nspire[mode](text, steps.variable)
+	end
 	local t1 = timer.getMilliSecCounter()
 	if r == nil and mode == "walkthrough" and why == nil then
 		steps.status = nil
-		local answer = nps_nspire.caseval(text) or "Error"
+		local answer = angleCaseval(text) or "Error"
 		if profileStartedAt then
 			armResourceProfile(mode, t0, profileStartedAt, { total_ms = timer.getMilliSecCounter() - t0 })
 		end
@@ -4098,6 +4153,15 @@ local function paintStatusIcon(gc, icon, x, y, w, h)
 	return type(nps_nspire.ui_icon) == "function" and nps_nspire.ui_icon(gc, icon, x, y, w, h)
 end
 
+-- The unit a record was solved under, and the active one beside it when they differ, so a record
+-- reopened after a mode change is not read in the other unit.
+function recordAngleTag(r)
+	local recorded = angleTag(r and r.angle_convention)
+	if not recorded then return "" end
+	local active = angleTag(steps.angle)
+	return recorded == active and ("  " .. recorded) or ("  " .. recorded .. " (now " .. active .. ")")
+end
+
 local function paintStepsHeader(gc, w)
 	local r = steps.result
 	steps.resultOverflow = false
@@ -4109,7 +4173,7 @@ local function paintStepsHeader(gc, w)
 	local heading = steps.view == "result" and "RESULT  " or
 	                (steps.walkthrough == "hint" and "HINT  " or "STEPS  ")
 	local title = heading .. stepModeLabel(r.mode) .. "  " .. steps.variable .. "  " ..
-	              string.upper(STEP_DETAILS[steps.detail])
+	              string.upper(STEP_DETAILS[steps.detail]) .. recordAngleTag(r)
 	gc:setFont("sansserif", "b", 9)
 	title = fitHeaderText(gc, title, metricsX - 2 * STEP_MARGIN)
 	gc:setColorRGB(37, 57, 87)
@@ -4796,12 +4860,16 @@ function on.paint(gc)
 	baseOn.paint(gc)
 	replayHistory()
 	finishResourceProfile()
+	-- MATH-007. The active angle unit is always on screen, whatever the status line says.
+	gc:setFont("sansserif", "b", 9)
+	gc:setColorRGB(37, 57, 87)
+	gc:drawString(angleTag(steps.angle), 8, 0, "top")
 	if steps.status then
 		gc:setFont("sansserif", "r", 9)
 		local status = steps.status
-		if gc:getStringWidth(status) > scrWidth - 16 then
+		if gc:getStringWidth(status) > scrWidth - 48 then
 			local cue = "  HELP text"
-			status = fitHeaderText(gc, status, scrWidth - 16 - gc:getStringWidth(cue)) .. cue
+			status = fitHeaderText(gc, status, scrWidth - 48 - gc:getStringWidth(cue)) .. cue
 		end
 		gc:setColorRGB(60, 60, 140)
 		gc:drawString(status, scrWidth - gc:getStringWidth(status) - 8, 0, "top")
