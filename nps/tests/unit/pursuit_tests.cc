@@ -162,6 +162,9 @@ void test_clarification(TestSink &t) {
             "and cannot be confirmed unanswered");
     t.equal(wp::confirm_status_name(wp::confirm_pursuit(r, kAmbiguous, {{"c1", "bus"}}, "tester").status),
             "invalid answer", "a body that was not offered is refused");
+    t.equal(wp::confirm_status_name(
+                wp::confirm_pursuit(r, kAmbiguous, {{"c1", "truck"}, {"c1", "car"}}, "tester").status),
+            "invalid answer", "a clarification cannot be answered twice");
     const wp::ConfirmResult car = wp::confirm_pursuit(r, kAmbiguous, {{"c1", "car"}}, "tester");
     t.check(car.status == wp::ConfirmStatus::Rejected && car.detail.find("two values") != std::string::npos,
             "answering the car gives it two speeds, which is rejected");
@@ -192,6 +195,23 @@ void test_gates(TestSink &t) {
                 wp::confirm_pursuit(refused, "A car leaves a town at 20%. When does it meet?", {}, "tester").status ==
                     wp::ConfirmStatus::Rejected,
             "and a lexical refusal leaves nothing to confirm");
+    const char *wrong_question = "A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. "
+                                 "When does the bus catch up with the bicycle?";
+    t.check(wp::interpret_pursuit("src", wrong_question).outcome == wp::GrammarOutcome::Unsupported,
+            "a question naming different bodies is refused");
+    const char *location_question =
+        "A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. "
+        "When does the truck meet the car at the same point?";
+    t.check(wp::interpret_pursuit("src", location_question).outcome == wp::GrammarOutcome::Interpreted,
+            "a location phrase after the named bodies remains supported");
+    const char *same_time = "A car starts at 20 m/s. A truck starts at 30 m/s at the same time. "
+                            "When does the truck catch up with the car?";
+    const wp::PursuitResult same_time_reading = wp::interpret_pursuit("src", same_time);
+    const wp::Quantity *truck_position =
+        same_time_reading.draft ? by_id(*same_time_reading.draft, "q-start_position-truck") : nullptr;
+    t.check(truck_position && !truck_position->provenance.explicit_fact &&
+                truck_position->provenance.extraction_rule_or_packaged_model == "common-start",
+            "same time does not claim that the bodies explicitly start at the same place");
 }
 
 std::string converted(const wp::ProblemIR &draft, const wp::SourceDocument &source) {
@@ -239,8 +259,26 @@ void test_converter(TestSink &t) {
             knowns.push_back(k);
     }
     partial.knowns = knowns;
-    t.equal(converted(partial, r.lexical.source), "the truck needs a velocity, a start time and a start position",
+    t.equal(converted(partial, r.lexical.source),
+            "the truck needs exactly one velocity, one start time and one start position",
             "and so is a body missing its start position");
+    wp::ProblemIR duplicate = *r.draft;
+    for (wp::Quantity &q : duplicate.quantities) {
+        if (q.id == "q-start_position-truck") {
+            q.id = "q-second_velocity-truck";
+            q.semantic_type = "initial_velocity";
+            q.value_expression = "31";
+            q.unit = "m/s";
+            break;
+        }
+    }
+    for (std::string &known : duplicate.knowns) {
+        if (known == "q-start_position-truck")
+            known = "q-second_velocity-truck";
+    }
+    t.equal(converted(duplicate, r.lexical.source),
+            "the truck needs exactly one velocity, one start time and one start position",
+            "and so is a body with a duplicate velocity and no start position");
     wp::ProblemIR elapsed = *r.draft;
     for (wp::Quantity &q : elapsed.quantities) {
         if (q.id == "q-meeting")

@@ -595,6 +595,7 @@ const char *const kDepartVerbs[] = {"leaves", "starts", "sets"};
 const char *const kPlural[] = {"they", "both", "we"};
 const char *const kOpposing[] = {"opposite", "towards", "toward"};
 const char *const kMeetWords[] = {"catch", "catches", "meet", "meets", "overtake", "overtakes"};
+const char *const kSamePlaceWords[] = {"location", "place", "point", "town"};
 
 bool is_word(const std::string &text, const std::vector<Word> &words, size_t i, std::string_view w) {
     return i < words.size() && words_equal(view(text, words[i]), w);
@@ -775,6 +776,21 @@ PursuitResult interpret_pursuit(const std::string &source_id, const std::string 
             if (meet == words.size())
                 return settle(r, GrammarOutcome::Unsupported, "the question does not ask when or where the bodies meet");
             const size_t meet_end = is_word(norm, words, meet + 1, "up") ? meet + 2 : meet + 1;
+            size_t subject = meet;
+            for (size_t i = 0; i + 1 < meet; ++i) {
+                if (in_list(view(norm, words[i]), kDeterminers, std::size(kDeterminers)))
+                    subject = i + 1;
+            }
+            size_t object = meet_end;
+            if (is_word(norm, words, object, "with"))
+                ++object;
+            if (is_word(norm, words, object, "the"))
+                ++object;
+            if ((subject < meet && body_of(words[subject]) < 0) ||
+                (object < words.size() && body_of(words[object]) < 0 &&
+                 (is_word(norm, words, meet_end, "with") || is_word(norm, words, meet_end, "the"))))
+                return settle(r, GrammarOutcome::Unsupported,
+                              "the question names a body that was not introduced");
             r.events.push_back({"meeting", "", "the bodies are at the same place",
                                 span_from_normalized(source, words[meet].begin, words[meet_end - 1].end)});
             if (is_word(norm, words, 0, "when")) {
@@ -838,8 +854,10 @@ PursuitResult interpret_pursuit(const std::string &source_id, const std::string 
             if (in_list(view(norm, words[i]), kOpposing, std::size(kOpposing)))
                 return settle(r, GrammarOutcome::Unsupported, "bodies moving towards each other are not read yet");
             if (is_word(norm, words, i, "same") && i + 1 < words.size()) {
-                Span &slot = is_word(norm, words, i + 1, "direction") ? r.same_direction : r.same_place;
-                slot = span_from_normalized(source, words[i].begin, words[i + 1].end);
+                if (is_word(norm, words, i + 1, "direction"))
+                    r.same_direction = span_from_normalized(source, words[i].begin, words[i + 1].end);
+                else if (in_list(view(norm, words[i + 1]), kSamePlaceWords, std::size(kSamePlaceWords)))
+                    r.same_place = span_from_normalized(source, words[i].begin, words[i + 1].end);
             }
             const bool introduces = is_word(norm, words, i, "follows") ||
                                     (is_word(norm, words, i, "of") && is_word(norm, words, i - 1, "ahead"));
@@ -918,6 +936,14 @@ ConfirmResult confirm_pursuit(const PursuitResult &interpreted, const std::strin
         return out;
     }
     for (const ClarificationAnswer &a : answers) {
+        size_t count = 0;
+        for (const ClarificationAnswer &other : answers)
+            count += other.clarification_id == a.clarification_id ? 1 : 0;
+        if (count != 1) {
+            out.status = ConfirmStatus::InvalidAnswer;
+            out.detail = a.clarification_id + " was answered more than once";
+            return out;
+        }
         bool offered = false;
         for (const Clarification &c : interpreted.clarifications) {
             for (const std::string &option : c.options)

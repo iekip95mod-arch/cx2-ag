@@ -596,24 +596,37 @@ bool to_catch_up(const CommittedProblem &committed, CatchUpProblem *out, std::st
         CatchUpBody &body = i == 0 ? problem.first : problem.second;
         body.name = ir.entities[i].name;
         body.frame.name = ir.coordinate_frames.empty() ? default_frame_name() : ir.coordinate_frames.front();
-        size_t found = 0;
+        bool velocity = false;
+        bool start_time = false;
+        bool start_position = false;
         for (const Quantity &q : ir.quantities) {
             if (q.owner_entity_id != ir.entities[i].id)
                 continue;
-            nps::Quantity *slot = q.semantic_type == "initial_velocity" ? &body.velocity_at_start
-                                  : q.semantic_type == "start_time"     ? &body.start_time
-                                  : q.semantic_type == "start_position" ? &body.position_at_start
-                                                                        : nullptr;
-            if (!slot) {
+            nps::Quantity *slot = nullptr;
+            bool *present = nullptr;
+            if (q.semantic_type == "initial_velocity") {
+                slot = &body.velocity_at_start;
+                present = &velocity;
+            } else if (q.semantic_type == "start_time") {
+                slot = &body.start_time;
+                present = &start_time;
+            } else if (q.semantic_type == "start_position") {
+                slot = &body.position_at_start;
+                present = &start_position;
+            } else {
                 *why = q.id + " is not a velocity, start time or start position";
+                return false;
+            }
+            if (*present) {
+                *why = "the " + body.name + " needs exactly one velocity, one start time and one start position";
                 return false;
             }
             if (!quantity_of(q, slot, why))
                 return false;
-            ++found;
+            *present = true;
         }
-        if (found != 3) {
-            *why = "the " + body.name + " needs a velocity, a start time and a start position";
+        if (!velocity || !start_time || !start_position) {
+            *why = "the " + body.name + " needs exactly one velocity, one start time and one start position";
             return false;
         }
     }
