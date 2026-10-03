@@ -1425,8 +1425,8 @@ check(r.outcome == "total internal reflection" and r.solved == false and r.resul
       r.status == "solved and verified" and r.critical_sine == "0.5" and #r.steps > 0,
       "the optics bridge preserves total internal reflection as a recorded conclusion")
 do
-    check(r.detail:find("1.6", 1, true) ~= nil and r.relation == "refraction" and
-          r.unknown == "transmitted sine",
+    check(r.detail == "the transmitted sine would be 1.6, above the critical sine 0.5" and
+          r.relation == "refraction" and r.unknown == "transmitted sine",
           "total internal reflection says which transmitted sine could not exist")
     local tir_rules = {}
     for _, s in ipairs(r.steps) do if s.rule then tir_rules[s.rule] = true end end
@@ -1482,7 +1482,8 @@ do
           "the single-slit bridge retains its own relation record")
     r = nps.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
                    "0", "wavelength", "3 cm")
-    check(r.solved == false and r.result == nil and r.outcome ~= "solved",
+    check(r.solved == false and r.result == nil and r.outcome == "unphysical value" and
+          r.detail:find("central maximum", 1, true) ~= nil,
           "the single-slit bridge refuses order zero, the central maximum rather than a minimum")
 end
 
