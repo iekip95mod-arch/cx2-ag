@@ -865,17 +865,49 @@ bool integrate_by_substitution(Context &ctx, NodeId id, StepId parent, NodeId *o
     return false;
 }
 
-// A factor to differentiate in integration by parts: the variable, a positive whole power of it, or
-// a linear expression in it. Each one reaches zero after finitely many derivatives.
-bool polynomial_factor(Context &ctx, NodeId f) {
+bool polynomial_degree(Context &ctx, NodeId f, int64_t *degree) {
     Arena &a = ctx.arena;
-    if (f == ctx.variable)
+    if (!depends_on(a, f, ctx.variable)) {
+        *degree = 0;
         return true;
-    if (a.at(f).kind == Kind::Pow && a.children(f)[0] == ctx.variable) {
-        int64_t n = 0;
-        return folded_integer(a, a.children(f)[1], &n) && n >= 1 && n <= 4;
     }
-    return a.at(f).kind == Kind::Add && quietly_linear(ctx, f);
+    if (f == ctx.variable) {
+        *degree = 1;
+        return true;
+    }
+    const Kind kind = a.at(f).kind;
+    if (kind == Kind::Neg)
+        return polynomial_degree(ctx, a.children(f)[0], degree);
+    if (kind == Kind::Add || kind == Kind::Mul) {
+        int64_t accumulated = 0;
+        for (NodeId child : a.children(f)) {
+            int64_t next = 0;
+            if (!polynomial_degree(ctx, child, &next))
+                return false;
+            accumulated = kind == Kind::Add ? std::max(accumulated, next) : accumulated + next;
+            if (accumulated > 4)
+                return false;
+        }
+        *degree = accumulated;
+        return true;
+    }
+    if (kind == Kind::Pow) {
+        int64_t n = 0;
+        int64_t base = 0;
+        if (!folded_integer(a, a.children(f)[1], &n) || n < 1 || n > 4 ||
+            !polynomial_degree(ctx, a.children(f)[0], &base) || base * n > 4)
+            return false;
+        *degree = base * n;
+        return true;
+    }
+    return false;
+}
+
+// A factor to differentiate in integration by parts: a polynomial in the variable of degree one to
+// four, which reaches zero after at most four derivatives.
+bool polynomial_factor(Context &ctx, NodeId f) {
+    int64_t degree = 0;
+    return polynomial_degree(ctx, f, &degree) && degree >= 1;
 }
 
 bool parts_partner(Context &ctx, NodeId f) {
@@ -888,19 +920,29 @@ bool parts_partner(Context &ctx, NodeId f) {
 
 bool integrate_by_parts(Context &ctx, NodeId id, StepId parent, NodeId *out) {
     Arena &a = ctx.arena;
-    if (a.at(id).kind != Kind::Mul || a.children(id).size() != 2)
+    if (a.at(id).kind != Kind::Mul)
         return false;
-    const NodeId first = a.children(id)[0];
-    const NodeId second = a.children(id)[1];
+    const ChildView factors = a.children(id);
     NodeId differentiated = kNoNode;
     NodeId integrated = kNoNode;
-    for (const auto &pair : {std::pair<NodeId, NodeId>{first, second}, std::pair<NodeId, NodeId>{second, first}}) {
-        if (polynomial_factor(ctx, pair.first) && parts_partner(ctx, pair.second)) {
-            differentiated = pair.first;
-            integrated = pair.second;
+    for (size_t partner = 0; partner < factors.size() && differentiated == kNoNode; ++partner) {
+        if (!parts_partner(ctx, factors[partner]))
+            continue;
+        std::vector<NodeId> rest;
+        for (size_t i = 0; i < factors.size(); ++i) {
+            if (i != partner)
+                rest.push_back(factors[i]);
         }
-        if (differentiated != kNoNode)
-            break;
+        const NodeId polynomial = rest.size() == 1 ? rest.front() : a.nary(Kind::Mul, rest);
+        if (polynomial == kNoNode) {
+            ctx.exhausted = true;
+            refuse(ctx, "the working space ran out while setting up integration by parts");
+            return true;
+        }
+        if (polynomial_factor(ctx, polynomial)) {
+            differentiated = polynomial;
+            integrated = factors[partner];
+        }
     }
     const NodeId u_symbol = unused_symbol(a, id, "u");
     const NodeId v_symbol = unused_symbol(a, id, "v");
@@ -1065,8 +1107,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         VerificationOutcome::NotAttempted, "checked while traversing the integrand");
     register_strategy_precondition(
         plan, plan_step, "pre.integrate.linear-inner-forms",
-        "every function argument and every power base is the variable, linear in it, or the inner "
-        "function of a recorded substitution",
+        "every function argument and every power base is the variable, linear in it, the inner "
+        "function of a recorded substitution, or inside a polynomial that integration by parts differentiates",
         "registered inner-form analysis", EvidenceStrength::StructurallyValid,
         VerificationOutcome::NotAttempted, "checked while matching power and function rules");
     StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
@@ -1246,7 +1288,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
             "every form visited before the stop matched a registered antiderivative rule");
         derivation.complete_plan_precondition(
             plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-            "every inner form matched before the stop was linear or the inner function of a recorded substitution");
+            "every inner form matched before the stop was linear, the inner function of a recorded substitution, "
+            "or inside a polynomial differentiated by parts");
         const bool cancelled = back.outcome == DiffOutcome::Cancelled ||
                                check_tag == ResultTag::Cancelled || meter.halt() == Halt::Cancelled;
         // Settled before the trim, the same order and for the same reason as the refusal below: a
@@ -1275,7 +1318,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
             "every form that produced a recorded step matched a registered antiderivative rule");
         derivation.complete_plan_precondition(
             plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-            "every inner form in a recorded step was linear or the inner function of a recorded substitution");
+            "every inner form in a recorded step was linear, the inner function of a recorded substitution, or "
+            "inside a polynomial differentiated by parts");
         // The conditions belong to the steps, so a step that survives has to take its conditions
         // with it. Settling before the trim rather than after, because a condition written onto a
         // step the trim then drops goes with it, where a step kept without its condition is a
@@ -1309,7 +1353,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         "every visited form matched a registered antiderivative rule");
     derivation.complete_plan_precondition(
         plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-        "every matched inner form was linear or the inner function of a recorded substitution");
+        "every matched inner form was linear, the inner function of a recorded substitution, or inside a "
+        "polynomial differentiated by parts");
 
     // Only now, because the refusals above that rewind would be writing a condition onto a step
     // about to be dropped, qualifying an answer nobody was given. The two paths that keep steps,

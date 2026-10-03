@@ -227,8 +227,8 @@ const ObligationSchema kIntegrateStrategy[] = {
     {"pre.integrate.registered-rules", "every form in the integrand has an antiderivative rule",
      kAntiderivativeDispatch, 1},
     {"pre.integrate.linear-inner-forms",
-     "every function argument and every power base is the variable, linear in it, or the inner function of a "
-     "recorded substitution",
+     "every function argument and every power base is the variable, linear in it, the inner function of a "
+     "recorded substitution, or inside a polynomial that integration by parts differentiates",
      kInnerFormAnalysis, 1},
     {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
      kRegisteredPreconditions, 1},

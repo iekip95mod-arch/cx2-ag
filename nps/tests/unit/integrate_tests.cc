@@ -135,6 +135,12 @@ void test_methods(TestSink &t) {
              Method{"x^2*exp(x)", "x^2*exp(x)-2*(x*exp(x)-exp(x))", "i.parts"},
              Method{"x^4*exp(x)", "x^4*exp(x)-4*(x^3*exp(x)-3*(x^2*exp(x)-2*(x*exp(x)-exp(x))))", "i.parts"},
              Method{"(2x+1)*sin(x)", "-(2x+1)*cos(x)+2*sin(x)", "i.parts"},
+             Method{"(x^2+1)*exp(x)", "(x^2+1)*exp(x)-2*(x*exp(x)-exp(x))", "i.parts"},
+             Method{"(x^2+x)*sin(x)", "-(x^2+x)*cos(x)+(2x+1)*sin(x)+2*cos(x)", "i.parts"},
+             Method{"(x+1)^2*exp(x)", "(x+1)^2*exp(x)-2*((x+1)*exp(x)-exp(x))", "i.parts"},
+             Method{"x*(x+1)*exp(x)", "x*(x+1)*exp(x)-((2x+1)*exp(x)-2*exp(x))", "i.parts"},
+             Method{"(x^2+1)^2*exp(x)",
+                    "(x^2+1)^2*exp(x)-4*(x*(x^2+1)*exp(x)-((1+2*x*x+x^2)*exp(x)-6*(x*exp(x)-exp(x))))", "i.parts"},
          }) {
         const Integrated s = run(example.input, "x");
         t.equal(integrate_outcome_name(s.outcome), "integrated",
@@ -221,10 +227,18 @@ void test_methods(TestSink &t) {
                     uses_rule(withheld, "x", "i.substitution"),
                 std::string("a substitution whose derivative check cannot close natively is withheld: ") + withheld);
     }
-    {
-        const Integrated s = run("x^5*exp(x)", "x");
-        t.check(s.outcome == IntegrateOutcome::UnsupportedForm && !uses_rule("x^5*exp(x)", "x", "i.parts"),
-                "integration by parts stops at a polynomial of degree four, got " + s.detail);
+    // Thirty-three nested fourth powers overflow a degree read that multiplies before its ceiling.
+    std::string nested = "x";
+    for (int depth = 0; depth < 33; ++depth)
+        nested = "(" + nested + ")^4";
+    nested += "*exp(x)";
+    for (const std::string &beyond : {std::string("x^5*exp(x)"), std::string("(x^2+1)^3*exp(x)"),
+                                      std::string("x*(x^2+1)^2*exp(x)"),
+                                      std::string("(x^2)^4611686018427387904*exp(x)"), nested}) {
+        const Integrated s = run(beyond, "x");
+        t.check(s.outcome == IntegrateOutcome::UnsupportedForm && !uses_rule(beyond, "x", "i.parts"),
+                std::string("integration by parts stops at a polynomial of degree four: ") + beyond + ", got " +
+                    s.detail);
     }
     {
         const Integrated s = run("x^2*sin(x^2)", "x");
@@ -640,7 +654,8 @@ void run_integrate_tests(TestSink &t) {
         // a constant leaves it saying solved and verified.
         t.equal(s.verifications,
                 "passed, every visited form matched a registered antiderivative rule | "
-                "passed, every matched inner form was linear or the inner function of a recorded substitution | "
+                "passed, every matched inner form was linear, the inner function of a recorded substitution, or "
+                "inside a polynomial differentiated by parts | "
                 "passed, every registered strategy precondition has passed evidence | "
                 "passed, the base is the variable and the exponent is a constant integer other "
                 "than minus one | "
