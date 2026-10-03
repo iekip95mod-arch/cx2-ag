@@ -1,0 +1,153 @@
+# WP Milestone 2 motion grammar corpus. Each case names its production and whether it is a positive,
+# negative, boundary or ambiguous example. Offsets are byte ranges of the text, computed apart from the reader.
+case cart
+production initial velocity, acceleration and time cues, how fast
+kind positive
+text A red cart moving at 5 m/s speeds up at 3 m/s^2 for 4 s. How fast is it moving then?
+expect outcome interpreted
+expect entity cart from "cart" at 6..10
+expect given initial_velocity 5 m/s from "5 m/s" at 21..26 by moving-at
+expect given acceleration 3 m/s^2 from "3 m/s^2" at 40..47 by speeds-up-at
+expect given elapsed_time 4 s from "4 s" at 52..55 by for
+expect inferred assumption the acceleration stays constant for the whole motion
+expect goal final_velocity from "How fast" at 57..65
+expect unused "red" at 2..5
+end
+case train
+production uniform motion inferred for rate and distance
+kind positive
+text A train travels at 60 km/h for 3 h. How far does it go?
+expect outcome interpreted
+expect entity train from "train" at 2..7
+expect given initial_velocity 60 km/h from "60 km/h" at 19..26 by travels-at
+expect given elapsed_time 3 h from "3 h" at 31..34 by for
+expect inferred acceleration 0 m/s^2 by uniform-motion
+expect goal displacement from "How far" at 36..43
+end
+case rest
+production from rest and a stated constant acceleration
+kind boundary
+text A ball starts from rest and rolls with constant acceleration of 2 m/s^2 for 3 s. How far does it roll?
+expect outcome interpreted
+expect entity ball from "ball" at 2..6
+expect given acceleration 2 m/s^2 from "2 m/s^2" at 64..71 by acceleration-of
+expect given elapsed_time 3 s from "3 s" at 76..79 by for
+expect given initial_velocity 0 m/s from "starts from rest" at 7..23 by from-rest
+expect stated assumption the acceleration stays constant from "constant acceleration" at 39..60
+expect goal displacement from "How far" at 81..88
+end
+case steady
+production a steady speed states zero acceleration
+kind positive
+text A boat moves at a steady speed of 4 m/s for 10 s. How far does it go?
+expect outcome interpreted
+expect entity boat from "boat" at 2..6
+expect given initial_velocity 4 m/s from "4 m/s" at 34..39 by speed-of
+expect given elapsed_time 10 s from "10 s" at 44..48 by for
+expect given acceleration 0 m/s^2 from "steady speed" at 18..30 by constant-speed
+expect goal displacement from "How far" at 50..57
+end
+case slowing
+production slows down at gives an acceleration against the motion
+kind positive
+text A bus moving at 20 m/s slows down at 4 m/s^2 for 3 s. How fast is it moving then?
+expect outcome interpreted
+expect entity bus from "bus" at 2..5
+expect given initial_velocity 20 m/s from "20 m/s" at 16..22 by moving-at
+expect given acceleration -4 m/s^2 from "4 m/s^2" at 37..44 by slows-down-at
+expect given elapsed_time 3 s from "3 s" at 49..52 by for
+expect inferred assumption the acceleration stays constant for the whole motion
+expect goal final_velocity from "How fast" at 54..62
+end
+case ambiguous
+production two velocities with no cue
+kind ambiguous
+text A cart goes 5 m/s and then 9 m/s after 2 s. How far does it go?
+expect outcome needs clarification: 2 to settle
+expect entity cart from "cart" at 2..6
+expect given elapsed_time 2 s from "2 s" at 39..42 by after
+expect goal displacement from "How far" at 44..51
+expect clarify c1 is 5 m/s the initial_velocity, final_velocity or unused?
+expect clarify c2 is 9 m/s the initial_velocity, final_velocity or unused?
+end
+case wrong-dimension
+production a velocity cue on a time
+kind negative
+text A car moving at 5 s speeds up. How fast is it?
+expect outcome unsupported: the words "moving at" ask for the initial_velocity but 5 s has dimension T
+expect entity car from "car" at 2..5
+end
+case changing-speed
+production no uniform motion when the text says the speed changes
+kind negative
+text A car moving at 5 m/s speeds up for 3 s. How far does it go?
+expect outcome unsupported: three of the initial velocity, final velocity, acceleration, time and displacement are needed and 2 are given
+expect entity car from "car" at 2..5
+expect given initial_velocity 5 m/s from "5 m/s" at 16..21 by moving-at
+expect given elapsed_time 3 s from "3 s" at 36..39 by for
+expect goal displacement from "How far" at 41..48
+end
+case no-question
+production no requested unknown
+kind negative
+text A car moving at 5 m/s speeds up at 2 m/s^2 for 3 s.
+expect outcome unsupported: no question names the unknown
+expect entity car from "car" at 2..5
+expect given initial_velocity 5 m/s from "5 m/s" at 16..21 by moving-at
+expect given acceleration 2 m/s^2 from "2 m/s^2" at 35..42 by speeds-up-at
+expect given elapsed_time 3 s from "3 s" at 47..50 by for
+end
+case asked-and-given
+production the unknown is also stated
+kind negative
+text A car moving at 5 m/s reaches 9 m/s in 2 s. How fast is it moving?
+expect outcome unsupported: the final_velocity is asked for and also given
+expect entity car from "car" at 2..5
+expect given initial_velocity 5 m/s from "5 m/s" at 16..21 by moving-at
+expect given final_velocity 9 m/s from "9 m/s" at 30..35 by reaches
+expect given elapsed_time 2 s from "2 s" at 39..42 by in
+expect goal final_velocity from "How fast" at 44..52
+end
+case two-starts
+production from rest and a stated starting speed contradict
+kind negative
+text A ball starts from rest moving at 3 m/s for 2 s. How far does it go?
+expect outcome unsupported: two values are given for the initial_velocity
+expect entity ball from "ball" at 2..6
+expect given initial_velocity 3 m/s from "3 m/s" at 34..39 by moving-at
+expect given elapsed_time 2 s from "2 s" at 44..47 by for
+expect given initial_velocity 0 m/s from "starts from rest" at 7..23 by from-rest
+expect goal displacement from "How far" at 49..56
+end
+case two-goals
+production two requested unknowns
+kind negative
+text A car moving at 5 m/s speeds up at 1 m/s^2. How fast and how far after 2 s?
+expect outcome unsupported: the question asks for more than one unknown
+expect entity car from "car" at 2..5
+expect given initial_velocity 5 m/s from "5 m/s" at 16..21 by moving-at
+expect given acceleration 1 m/s^2 from "1 m/s^2" at 35..42 by speeds-up-at
+expect given elapsed_time 2 s from "2 s" at 71..74 by after
+expect goal final_velocity from "How fast" at 44..52
+end
+case inequality
+production an inequality phrase is outside the grammar
+kind negative
+text A car moving at 5 m/s for at most 3 s. How far does it go?
+expect outcome unsupported: the phrase "at most" is outside the motion grammar
+expect entity car from "car" at 2..5
+expect given initial_velocity 5 m/s from "5 m/s" at 16..21 by moving-at
+expect given elapsed_time 3 s from "3 s" at 34..37 by by-dimension
+end
+case no-body
+production no moving body is named
+kind negative
+text Moving at 5 m/s for 3 s, how far does it go?
+expect outcome unsupported: the first sentence does not name one moving body before its verb
+end
+case refused
+production a lexical refusal stops the grammar
+kind negative
+text A car moving at 20% speeds up. How fast is it?
+expect outcome unsupported: the reader refused percentage at 16..19
+end
