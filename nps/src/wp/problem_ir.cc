@@ -87,6 +87,16 @@ std::string source_hash(const std::string &original_utf8) {
     return text;
 }
 
+std::string confirmation_parser_versions(const ProblemIR &ir) {
+    std::string versions = ir.parser_build_id;
+    for (const std::string &version : ir.grammar_module_versions) {
+        if (!versions.empty())
+            versions += "+";
+        versions += version;
+    }
+    return versions;
+}
+
 bool span_matches(const Span &span, const SourceDocument &source) {
     return span.original_begin <= span.original_end && span.original_end <= source.original_utf8.size() &&
            source.original_utf8.compare(span.original_begin, span.original_end - span.original_begin,
@@ -220,10 +230,23 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
             return fail(IrFault::UnconfirmedInference, "the inferred quantity " + q.id + " has no confirmation record");
     }
     const ConfirmationRecord &record = ir.confirmation_record;
-    if ((!record.source_content_hash.empty() && record.source_content_hash != ir.source_content_hash) ||
-        (!record.selected_candidate_id.empty() && record.selected_candidate_id != ir.selected_candidate_id) ||
-        (record.problem_revision != 0 && record.problem_revision != ir.revision))
-        return fail(IrFault::ConfirmationMismatch, "the confirmation " + record.id + " approved a different source, candidate or revision");
+    std::set<std::string> material;
+    for (const Quantity &q : ir.quantities) {
+        if (!q.provenance.explicit_fact)
+            material.insert(q.id);
+    }
+    for (const Assumption &a : ir.confirmed_inferred_assumptions)
+        material.insert(a.id);
+    const std::set<std::string> confirmed_material(record.material_assumption_ids.begin(),
+                                                   record.material_assumption_ids.end());
+    const std::string parser_versions = confirmation_parser_versions(ir);
+    if (record.confirmed &&
+        (record.source_content_hash != ir.source_content_hash ||
+         record.selected_candidate_id != ir.selected_candidate_id || record.problem_revision == 0 ||
+         record.problem_revision != ir.revision || record.material_assumption_ids.size() != confirmed_material.size() ||
+         confirmed_material != material || record.parser_versions.empty() || record.parser_versions != parser_versions))
+        return fail(IrFault::ConfirmationMismatch,
+                    "the confirmation " + record.id + " does not match the source, candidate, revision, material assumptions or parser versions");
     const std::string family = ir.curriculum_family_ids.empty() ? std::string() : ir.curriculum_family_ids.front();
     if (!method_allowed(family, ir.requested_method))
         return fail(IrFault::IncompatibleMethod, "the method " + ir.requested_method + " is not one " + family + " offers");

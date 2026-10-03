@@ -159,6 +159,7 @@ void test_invariants(TestSink &t) {
         ir.quantities.push_back(zero);
         t.equal(fault(ir, source), "unconfirmed inference", "an inferred quantity with no confirmation is refused");
         ir.quantities.back().provenance.confirmation_record_id = ir.confirmation_record.id;
+        ir.confirmation_record.material_assumption_ids.push_back(ir.quantities.back().id);
         t.equal(fault(ir, source), "valid", "and is accepted once the confirmation names it");
     }
     {
@@ -167,7 +168,25 @@ void test_invariants(TestSink &t) {
         ir.confirmation_record.source_content_hash = ir.source_content_hash;
         ir.confirmation_record.selected_candidate_id = "grammar-1";
         ir.confirmation_record.problem_revision = ir.revision;
+        ir.confirmation_record.material_assumption_ids = {"a-constant"};
+        ir.confirmation_record.parser_versions = "authored";
         t.equal(fault(ir, source), "valid", "a confirmation bound to this source, candidate and revision is accepted");
+        wp::ProblemIR missing_hash = ir;
+        missing_hash.confirmation_record.source_content_hash.clear();
+        t.equal(fault(missing_hash, source), "confirmation mismatch", "an empty confirmed source hash is refused");
+        wp::ProblemIR missing_candidate = ir;
+        missing_candidate.confirmation_record.selected_candidate_id.clear();
+        t.equal(fault(missing_candidate, source), "confirmation mismatch", "an empty confirmed candidate is refused");
+        wp::ProblemIR missing_revision = ir;
+        missing_revision.confirmation_record.problem_revision = 0;
+        t.equal(fault(missing_revision, source), "confirmation mismatch", "an empty confirmed revision is refused");
+        wp::ProblemIR missing_assumptions = ir;
+        missing_assumptions.confirmation_record.material_assumption_ids.clear();
+        t.equal(fault(missing_assumptions, source), "confirmation mismatch",
+                "an empty confirmed material assumption list is refused when the problem has one");
+        wp::ProblemIR missing_versions = ir;
+        missing_versions.confirmation_record.parser_versions.clear();
+        t.equal(fault(missing_versions, source), "confirmation mismatch", "empty confirmed parser versions are refused");
         wp::ProblemIR other_hash = ir;
         other_hash.confirmation_record.source_content_hash = wp::source_hash("a different text");
         t.equal(fault(other_hash, source), "confirmation mismatch", "one that approved a different source text is refused");
@@ -236,6 +255,11 @@ void test_correction(TestSink &t) {
     next.confirmation_record = {"c-fix", "author", false};
     t.check(!wp::commit(next, cart.source, &why) && why.fault == wp::IrFault::NotConfirmed,
             "and the corrected problem cannot be solved until it is confirmed again");
+    next.confirmation_record.source_content_hash = next.source_content_hash;
+    next.confirmation_record.selected_candidate_id = next.selected_candidate_id;
+    next.confirmation_record.problem_revision = next.revision;
+    next.confirmation_record.material_assumption_ids = {"a-constant"};
+    next.confirmation_record.parser_versions = "authored";
     next.confirmation_record.confirmed = true;
     t.check(wp::commit(next, cart.source, &why).has_value(), "and commits once it is: " + why.detail);
     t.check(first->ir().revision == 1 && first->ir().confirmation_record.confirmed,
