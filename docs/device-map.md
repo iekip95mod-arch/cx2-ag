@@ -153,13 +153,13 @@ returns nil so the shell falls back to Giac.
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2803 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2814-2821 carries no projectile key at all, which is how the
+`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2809 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2820-2827 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
+nps/src/core/capability_manifest.cc:42-43 and required of the loaded module at
 nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
@@ -171,7 +171,7 @@ paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
 manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
-off. The build fails first, at nps/src/core/capability_manifest.cc:63, if the compiled manifest outgrows
+off. The build fails first, at nps/src/core/capability_manifest.cc:66, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
@@ -189,8 +189,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3231, measureMath
-sets the expression at :3265, and the history editor sets its expression at :1438.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3237, measureMath
+sets the expression at :3271, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
