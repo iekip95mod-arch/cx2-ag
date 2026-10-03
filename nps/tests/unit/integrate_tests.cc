@@ -167,6 +167,31 @@ void test_methods(TestSink &t) {
     {
         const Integrated s = run("u*cos(u^2)", "u");
         t.equal(s.status, "solved and verified", "an integrand already written in u substitutes another name");
+        Arena arena;
+        Derivation d;
+        integrate(arena, d, parse(arena, "u*cos(u^2)").root, arena.symbol("u"));
+        std::string named;
+        for (size_t i = 0; i < d.size(); ++i) {
+            const TransformationPayload *p = d.transformation(static_cast<StepId>(i));
+            if (d.at(static_cast<StepId>(i)).rule_id == "i.substitution" && p)
+                named = p->concrete_action;
+        }
+        t.check(named.rfind("Let u1 = ", 0) == 0, "and the substitution names u1 rather than u, got " + named);
+    }
+    for (const char *variable : {"u", "v"}) {
+        Arena arena;
+        Derivation d;
+        const std::string integrand = std::string(variable) + "*exp(" + variable + ")";
+        integrate(arena, d, parse(arena, integrand).root, arena.symbol(variable));
+        std::string split;
+        for (size_t i = 0; i < d.size(); ++i) {
+            const TransformationPayload *p = d.transformation(static_cast<StepId>(i));
+            if (d.at(static_cast<StepId>(i)).rule_id == "i.parts" && p)
+                split = p->concrete_action;
+        }
+        const std::string expected = std::string(variable) == "u" ? "Let u1 = u and dv = exp(u) du"
+                                                                   : "Let u = v and dv1 = exp(v) dv";
+        t.equal(split, expected, "integration by parts in " + integrand + " names its parts apart from the variable");
     }
     {
         const Integrated s = run("1/((x+1)*(x-1) - x^2 + 1)", "x");

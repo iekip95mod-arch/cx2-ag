@@ -593,12 +593,12 @@ bool mentions_symbol(const Arena &arena, NodeId id, const std::string &name) {
     return false;
 }
 
-// C unless the integrand already uses it, then the first of C1 to C9 it does not.
-NodeId constant_symbol(Arena &arena, NodeId expression) {
-    if (!mentions_symbol(arena, expression, "C"))
-        return arena.symbol("C");
+// The letter unless the integrand already uses it, then the first of letter1 to letter9 it does not.
+NodeId unused_symbol(Arena &arena, NodeId expression, const char *letter) {
+    if (!mentions_symbol(arena, expression, letter))
+        return arena.symbol(letter);
     for (char digit = '1'; digit <= '9'; ++digit) {
-        std::string name = "C";
+        std::string name = letter;
         name.push_back(digit);
         if (!mentions_symbol(arena, expression, name))
             return arena.symbol(name);
@@ -615,19 +615,6 @@ bool quietly_linear(Context &ctx, NodeId u) {
     ctx.failed = failed;
     ctx.detail = detail;
     return linear;
-}
-
-// u unless the integrand already uses it, then the first of u1 to u9 it does not.
-NodeId substitution_symbol(Arena &arena, NodeId expression) {
-    if (!mentions_symbol(arena, expression, "u"))
-        return arena.symbol("u");
-    for (char digit = '1'; digit <= '9'; ++digit) {
-        std::string name = "u";
-        name.push_back(digit);
-        if (!mentions_symbol(arena, expression, name))
-            return arena.symbol(name);
-    }
-    return kNoNode;
 }
 
 bool substitutable_function(const std::string &name) {
@@ -727,7 +714,7 @@ bool integrate_by_substitution(Context &ctx, NodeId id, StepId parent, NodeId *o
     } else {
         factors.push_back(id);
     }
-    const NodeId u = substitution_symbol(a, id);
+    const NodeId u = unused_symbol(a, id, "u");
     if (u == kNoNode)
         return false;
 
@@ -904,8 +891,12 @@ bool integrate_by_parts(Context &ctx, NodeId id, StepId parent, NodeId *out) {
         if (differentiated != kNoNode)
             break;
     }
-    if (differentiated == kNoNode)
+    const NodeId u_symbol = unused_symbol(a, id, "u");
+    const NodeId v_symbol = unused_symbol(a, id, "v");
+    if (differentiated == kNoNode || u_symbol == kNoNode || v_symbol == kNoNode)
         return false;
+    const std::string u = a.text(u_symbol);
+    const std::string v_name = a.text(v_symbol);
 
     NodeId derivative = kNoNode;
     if (!inner_derivative(ctx, differentiated, &derivative))
@@ -919,15 +910,16 @@ bool integrate_by_parts(Context &ctx, NodeId id, StepId parent, NodeId *out) {
     }
     Step s = envelope("Integrate " + print(a, id), "i.parts", "Integration by parts",
                       "Differentiate one factor, integrate the other, and subtract the integral of their product");
+    const std::string split =
+        "Let " + u + " = " + print(a, differentiated) + " and d" + v_name + " = " + print(a, integrated) + " d" + name;
     s.explanation_detailed =
-        "Let u = " + print(a, differentiated) + " and dv = " + print(a, integrated) + " d" + name +
-        ". Then du = " + print(a, du) + " d" + name + " and v is an antiderivative of " + print(a, integrated) +
-        ". Integration by parts gives u v minus the integral of v du. Differentiating " + print(a, differentiated) +
-        " makes the remaining integral simpler, which is why it is the factor chosen as u.";
+        split + ". Then d" + u + " = " + print(a, du) + " d" + name + " and " + v_name +
+        " is an antiderivative of " + print(a, integrated) + ". Integration by parts gives " + u + " " + v_name +
+        " minus the integral of " + v_name + " d" + u + ". Differentiating " + print(a, differentiated) +
+        " makes the remaining integral simpler, which is why it is the factor chosen as " + u + ".";
     s.verifications.push_back(rule_invariant(
         "the product rule for u v, integrated, gives the integral of u dv plus the integral of v du"));
-    const StepId here = record(ctx, parent, std::move(s), int_of(a, id, ctx.variable), kNoNode,
-                               "Let u = " + print(a, differentiated) + " and dv = " + print(a, integrated) + " d" + name);
+    const StepId here = record(ctx, parent, std::move(s), int_of(a, id, ctx.variable), kNoNode, split);
     if (here == kNoStep)
         return true;
     const NodeId v = antiderive(ctx, integrated, here);
@@ -1097,7 +1089,7 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
     // The constant of integration, as a step of its own so the reader sees where it comes from.
     NodeId general = particular;
     if (!ctx.failed && particular != kNoNode && include_constant) {
-        NodeId c = constant_symbol(arena, integrand);
+        NodeId c = unused_symbol(arena, integrand, "C");
         if (c == kNoNode) {
             refuse(ctx, "the integrand uses every name this build has for the constant of "
                         "integration");
