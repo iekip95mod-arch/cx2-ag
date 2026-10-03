@@ -162,8 +162,8 @@ returns nil so the shell falls back to Giac.
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2819 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2830-2837 carries no projectile key at all, which is how the
+`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2859 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2870-2877 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -173,8 +173,8 @@ nps/lua/nps_v4.lua:69-70, so a build missing either one refuses to start rather 
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu, whose last entry types `!a`:
-`source`, nps/lua/nps_v4.lua:2898 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:3936 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:2938 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:3979 calls the binding with the last revealed state and the rest of the route.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -202,8 +202,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3277, measureMath
-sets the expression at :3311, and the history editor sets its expression at :1441.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3320, measureMath
+sets the expression at :3354, and the history editor sets its expression at :1441.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
