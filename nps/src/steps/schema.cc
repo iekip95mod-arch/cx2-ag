@@ -369,7 +369,7 @@ const ObligationSchema kSeriesTest[] = {
      kSeriesTestEvidence, 1},
 };
 const EvidenceAlternative kSeriesFormEvidence[] = {
-    {"exact evaluation at consecutive indices", EvidenceStrength::SymbolicallyEquivalentUnderAssumptions,
+    {"exact evaluation at consecutive indices", EvidenceStrength::NumericallyCorroborated,
      CheckKind::NumericalCorroboration},
 };
 const ObligationSchema kSeriesForm[] = {

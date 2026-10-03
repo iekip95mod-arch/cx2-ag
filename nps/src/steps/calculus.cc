@@ -985,7 +985,12 @@ struct Calculation {
             refuse(coefficient_ceiling);
             return;
         }
-        const std::string point_name = command.variable_name == "c" ? "xi" : "c";
+        std::vector<std::string> taken;
+        collect_symbols(arena, command.expression, &taken);
+        taken.push_back(command.variable_name);
+        std::string point_name = "c";
+        for (int candidate = 0; std::find(taken.begin(), taken.end(), point_name) != taken.end(); ++candidate)
+            point_name = candidate == 0 ? "xi" : "c" + std::to_string(candidate);
         const NodeId intermediate = arena.symbol(point_name);
         const NodeId at_intermediate = exact ? arena.integer("0") : substitute(derivative, intermediate);
         if (at_intermediate == kNoNode) return;
@@ -1225,16 +1230,23 @@ struct Calculation {
         const std::string n = command.variable_name;
         const std::string start = std::to_string(command.index_start);
         Rational constant{1, 1}, ratio{1, 1};
-        NodeId term = command.expression;
-        if (arena.at(term).kind == Kind::Neg) {
-            constant = {-1, 1};
-            term = arena.children(term)[0];
+        // a*b/c parses as a product nested in a product, so every level is read, with each negation
+        // folded into the constant.
+        std::vector<NodeId> factors, rest, pending{command.expression};
+        while (!pending.empty()) {
+            const NodeId node = pending.back();
+            pending.pop_back();
+            const Kind kind = arena.at(node).kind;
+            if (kind == Kind::Neg) {
+                constant.num = -constant.num;
+                pending.push_back(arena.children(node)[0]);
+            } else if (kind == Kind::Mul) {
+                const ChildView children = arena.children(node);
+                for (size_t i = children.size(); i > 0; --i) pending.push_back(children[i - 1]);
+            } else {
+                factors.push_back(node);
+            }
         }
-        std::vector<NodeId> factors, rest;
-        if (arena.at(term).kind == Kind::Mul)
-            for (NodeId child : arena.children(term)) factors.push_back(child);
-        else
-            factors.push_back(term);
         for (NodeId factor : factors) {
             Rational r, scale;
             if (!work()) return;
@@ -1413,8 +1425,12 @@ struct Calculation {
                 std::string(ratio.num < 0 ? "The absolute values of the terms behave" : "The terms behave") +
                     " like a constant over " + n + "^" + p + ", and the p-series with p = " + p +
                     (absolute_converges ? " converges" : " diverges"),
-                "For large n the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The terms keep one sign from some index on, so the limit comparison test applies, and the p-series converges exactly when p is greater than 1.",
-                "the terms keep one sign for every large enough " + n + " and their ratio to 1/" + n + "^" + p + " has a nonzero finite limit",
+                ratio.num < 0
+                    ? "For large n the absolute value of the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The absolute values are positive from some index on, so the limit comparison test applies to them, and the p-series converges exactly when p is greater than 1."
+                    : "For large n the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The terms keep one sign from some index on, so the limit comparison test applies, and the p-series converges exactly when p is greater than 1.",
+                ratio.num < 0
+                    ? "|a(" + n + ")| is nonzero for every large enough " + n + " and its ratio to 1/" + n + "^" + p + " has a nonzero finite limit"
+                    : "the terms keep one sign for every large enough " + n + " and their ratio to 1/" + n + "^" + p + " has a nonzero finite limit",
                 "p = " + p);
             if (compared == kNoStep) return;
             derivation.restrictions_at(compared).push_back(ratio.num > 0
@@ -1480,7 +1496,7 @@ struct Calculation {
         evidence.method = "exact evaluation at consecutive indices";
         evidence.outcome = matched ? VerificationOutcome::Passed
                          : read ? VerificationOutcome::Failed : VerificationOutcome::Inconclusive;
-        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
+        evidence.strength = strength_for(evidence.outcome, EvidenceStrength::NumericallyCorroborated);
         evidence.detail = matched ? observed
                         : read ? "the rewritten term or the sum disagrees with the original series"
                                : "the terms could not be evaluated exactly";

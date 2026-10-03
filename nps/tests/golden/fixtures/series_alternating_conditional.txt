@@ -52,12 +52,12 @@ steps
     rule: series.p-comparison, Limit comparison with a p-series
     claim: no claim
     explanation: The absolute values of the terms behave like a constant over n^1, and the p-series with p = 1 diverges
-    detail: For large n the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The terms keep one sign from some index on, so the limit comparison test applies, and the p-series converges exactly when p is greater than 1.
+    detail: For large n the absolute value of the term is a nonzero constant times one over n to the power p, where p is the denominator's degree minus the numerator's. The absolute values are positive from some index on, so the limit comparison test applies to them, and the p-series converges exactly when p is greater than 1.
     domain restriction: a(n) is not zero for every large enough n
     proof obligation: obl.series.test-hypotheses, the test's hypotheses hold before its conclusion is used
     target claim: the series has the reported convergence behavior
     check method: Limit comparison with a p-series
-    expected: the terms keep one sign for every large enough n and their ratio to 1/n^1 has a nonzero finite limit
+    expected: |a(n)| is nonzero for every large enough n and its ratio to 1/n^1 has a nonzero finite limit
     observed: p = 1
     verification: exact degree and ratio analysis, passed, The absolute values of the terms behave like a constant over n^1, and the p-series with p = 1 diverges
     verified: nothing claimed

@@ -911,6 +911,22 @@ void run_calculus_tests(TestSink &t) {
                      (result.value == kNoNode ? std::string() : print(arena, result.value)) + "\nremainder: " +
                      (result.remainder == kNoNode ? std::string() : print(arena, result.remainder)) + "\n" + rendered);
     }
+    // The unnamed point of the remainder cannot reuse a name the expression already gives a symbol.
+    for (const auto &named : {std::pair{"maclaurin(exp(x),x,2)", "c lies strictly between 0 and x"},
+                              std::pair{"maclaurin(c*x^3,x,2)", "xi lies strictly between 0 and x"},
+                              std::pair{"maclaurin(c*xi*x^3,x,2)", "c1 lies strictly between 0 and x"}}) {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, named.first, "x"));
+        std::string stated;
+        for (size_t i = 0; i < derivation.size(); ++i)
+            if (derivation.at(static_cast<StepId>(i)).rule_id == "taylor.remainder" &&
+                !derivation.restrictions_at(static_cast<StepId>(i)).empty())
+                stated = derivation.restrictions_at(static_cast<StepId>(i))[0];
+        t.check(result.outcome == CalculusOutcome::Evaluated && stated == named.second,
+                "the remainder names an intermediate point the expression does not use: " + std::string(named.first) +
+                ": " + stated);
+    }
     // The first-order polynomial is the linearization, which is the one place two families share an answer.
     for (const char *center : {"0", "2", "-1/2"}) {
         Arena arena;
@@ -1025,7 +1041,10 @@ void run_calculus_tests(TestSink &t) {
              SeriesCase{"", "convergence(3*(-2/3)^(n+1),n,1)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {4, 5}},
              SeriesCase{"", "convergence(1/(n^2-4),n,3)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
              SeriesCase{"", "convergence(-(n^2+1)/(2*n^2),n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
-             SeriesCase{"", "convergence((-1)^n*n^3,n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}}}) {
+             SeriesCase{"", "convergence((-1)^n*n^3,n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"", "convergence((-1)^n*n/(n^2+1),n,1)", SeriesVerdict::ConvergesConditionally, "series.alternating-test", false, {}},
+             SeriesCase{"", "convergence(5*(1/2)^n/3,n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {10, 3}},
+             SeriesCase{"", "convergence(2*(-(1/2)^n),n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {-4, 1}}}) {
         Arena arena;
         Derivation derivation;
         derivation.request.original_expression = fixture.text;
@@ -1045,6 +1064,17 @@ void run_calculus_tests(TestSink &t) {
                 rendered.find("series.check-form") != std::string::npos &&
                 rendered.find("series.terms-defined") < rendered.find(fixture.test),
                 "the convergence family checks the terms exist before its test and records its final check: " +
+                std::string(fixture.text));
+        size_t sampled = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id != "series.check-form") continue;
+            for (const VerificationRecord &evidence : recorded.verifications)
+                if (evidence.outcome == VerificationOutcome::Passed &&
+                    evidence.strength == EvidenceStrength::NumericallyCorroborated)
+                    ++sampled;
+        }
+        t.check(sampled == 1, "the term check at a few indices is recorded as sample agreement rather than proof: " +
                 std::string(fixture.text));
         if (*fixture.golden)
             check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nverdict: " +
