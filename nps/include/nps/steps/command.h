@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Implicit, Desolve };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, ParamSlope, Implicit, Desolve };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
@@ -18,6 +18,8 @@ struct Command {
     NodeId dependent = kNoNode;
     NodeId point = kNoNode;
     int direction = 0;
+    // The second component of a parametric curve, y(t) beside expression's x(t).
+    NodeId companion = kNoNode;
     // Desolve reads an optional initial point y(x0) = y0 on the dependent variable above.
     NodeId initial_point = kNoNode;
     NodeId initial_value = kNoNode;

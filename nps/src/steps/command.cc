@@ -104,6 +104,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "limit" || name == "lim") return CommandKind::Limit;
     if (name == "tangent") return CommandKind::Tangent;
     if (name == "linearize") return CommandKind::Linearize;
+    if (name == "paramslope") return CommandKind::ParamSlope;
     if (name == "implicit") return CommandKind::Implicit;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
@@ -128,6 +129,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Limit: return "limit";
         case CommandKind::Tangent: return "tangent";
         case CommandKind::Linearize: return "linearize";
+        case CommandKind::ParamSlope: return "paramslope";
         case CommandKind::Implicit: return "implicit";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
@@ -219,6 +221,24 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
             return command;
         }
         command.expression = arguments[0];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
+    if (command.kind == CommandKind::ParamSlope) {
+        if (arguments.size() != 4) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "parametric slopes require x(t), y(t), the parameter and its value";
+            return command;
+        }
+        if (arena.at(arguments[2]).kind != Kind::Symbol) {
+            command.detail = "the parameter must be a single identifier";
+            return command;
+        }
+        command.expression = arguments[0];
+        command.companion = arguments[1];
+        command.variable = arguments[2];
+        command.variable_name = arena.text(command.variable);
+        command.point = arguments[3];
         command.status = CommandStatus::Ready;
         return command;
     }
