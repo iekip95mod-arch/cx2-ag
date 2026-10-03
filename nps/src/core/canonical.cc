@@ -597,6 +597,8 @@ bool transformable(const Arena &arena, NodeId id) {
             case Kind::Mul:
             case Kind::Call:
             case Kind::List: return false;
+            case Kind::Interval:
+                return node.child_count != 2 || arena.text(current).size() != 2;
             default: return node.child_count != 2;
         }
     });

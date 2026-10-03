@@ -34,6 +34,7 @@ local function check(ok, what)
         failures = failures + 1
         print("FAIL: " .. what)
     end
+    return ok
 end
 
 local function evidence(requirement, ok, what)
@@ -1038,7 +1039,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 186, "every palette entry survives the regrouping: " .. entries .. " of 186")
+    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -2987,6 +2988,24 @@ do
         end
     end
 
+    -- Derived from each entry's own skeleton, so a hand-counted caret offset on a new entry is caught too.
+    for item = 2, #main_menu[2] do
+        if main_menu[2][item] ~= "-" then
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            math011_skeleton = fctEditor:getExpression()
+            math011_slot = math011_skeleton:find("(", 1, true) or #math011_skeleton
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            fctEditor:addString("Q")
+            check(fctEditor:getExpression() == math011_skeleton:sub(1, math011_slot) .. "Q" ..
+                      math011_skeleton:sub(math011_slot + 1),
+                  "template " .. main_menu[2][item][1] .. " leaves the caret in its first slot")
+        end
+    end
+
     -- Every kind the requirement names, driven rather than read. The loop above proves a template
     -- yields linear syntax; these prove the caret lands in the slot the student fills first, which
     -- is what makes a skeleton a template rather than an insert. The last two have no slot, and a
@@ -3639,6 +3658,8 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
+        { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()
@@ -4124,9 +4145,9 @@ local function writeEvidence()
     combined:close()
     local emitted = after:sub(#before + 1)
     local expected = {
-        "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
+        "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
         "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "PLAT-006", "PLAT-012",
+        "UI-018", "PLAT-006", "PLAT-012", "VER-020",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -4475,6 +4496,10 @@ do
         { "Templates", "Derivative, how fast something changes", "(x^2,x)", "differentiate", "x^2" },
         { "Templates", "Integral, the area under a curve", "∫(1/x,x)", "integrate", "1/x" },
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
+        { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
+        { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
+        { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
+        { "Templates", "Linearization at a point", "linearize(x^2,x,0)", "linearize", "x^2" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }
@@ -4863,6 +4888,34 @@ if os.getenv("NPS_COMMAND_MODULE") then
         if env.steps.active then env.on.escapeKey() end
     end
 
+    -- CALC-012. The desolve menu entry runs natively and still reaches Giac outside the family.
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Differential Equation") and env.fctEditor:getExpression() == "desolve(",
+          "the existing differential equation menu inserts desolve")
+    env.fctEditor:addString("y'=x*y,x,y)")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation,
+              "a separable equation from the menu executes natively without a CAS fallback")
+        check(env.steps.active and record and record.solved and
+              record.mode == "differential equation" and
+              record.request_expression == "desolve(y'=x*y,x,y)" and
+              record.result == "(y = exp((((x^2) * (2^-1)) + C)))" and #record.steps > 0,
+              "the native separable walkthrough opens with its explicit solution")
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+        env.fctEditor.editor:setExpression("\\0el {desolve(y'=x+y,x,y)}")
+        before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation + 1,
+              "an equation the separable family does not read falls back to Giac as before")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
     env.fctEditor.editor:setExpression("\\0el {}")
     check(select_integer_menu("Factorial"), "the large exact result starts from the factorial menu")
     env.fctEditor:addString("100)")
@@ -5129,7 +5182,9 @@ do
             if type(item) == "table" and item[1] == "Read Full Text" then read_text = item[2] end
         end
     end
-    check(type(read_text) == "function", "long dynamic text has a discoverable full-text reading action")
+    -- UI-018 is claimed only if every reachability, focus, footer and resize check below held.
+    local ui018 = check(type(read_text) == "function",
+                        "long dynamic text has a discoverable full-text reading action")
     local saved_width = platform.window.width
     for _, width in ipairs({ 320, 180 }) do
         platform.window.width = function() return width end
@@ -5142,7 +5197,7 @@ do
                 bounded = bounded and call.x >= 0 and call.x + gc:getStringWidth(call.text) <= width
             end
         end
-        check(bounded, "status text stays within the " .. width .. " pixel display")
+        ui018 = check(bounded, "status text stays within the " .. width .. " pixel display") and ui018
         if read_text then
             read_text()
             local tail, fits = false, true
@@ -5156,9 +5211,9 @@ do
                 end
                 env.on.arrowDown()
             end
-            check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
+            ui018 = check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
                   " (tail=" .. tostring(tail) .. ", fits=" .. tostring(fits) ..
-                  ", status=" .. tostring(env.steps.status) .. ")")
+                  ", status=" .. tostring(env.steps.status) .. ")") and ui018
             env.on.escapeKey()
         end
     end
@@ -5189,22 +5244,22 @@ do
           "an interior caret leaves horizontal math-editor movement with the native widget")
     env.on.help()
     local seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and fits,
-          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and fits,
+          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling") and ui018
     env.on.escapeKey()
-    check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
-          "closing the text reader preserves the entry and returns its focus")
+    ui018 = check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
+          "closing the text reader preserves the entry and returns its focus") and ui018
 
     env.addME(input_text, answer_text)
     local focused = env.histME2[#env.histME2]
     env.theView:setFocus(focused)
     env.on.help()
     seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-          "a selected history entry exposes both complete expressions without clipped math boxes")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+          "a selected history entry exposes both complete expressions without clipped math boxes") and ui018
     env.on.escapeKey()
-    check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
-          "closing the history reader restores the selected native editor")
+    ui018 = check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
+          "closing the history reader restores the selected native editor") and ui018
 
     local manifest = {}
     for key, value in pairs(fake_manifest) do manifest[key] = value end
@@ -5221,6 +5276,7 @@ do
         record.steps, record.step_count = {first}, 1
         record.original_expression, record.normalized_expression = expression, expression
         record.display_result = answer_text
+        record.assumptions = string.rep("a and ", 60) .. "ASSUMPTION_TAIL"
         return record
     end
     env = loadIsolated(module)
@@ -5233,22 +5289,23 @@ do
         env.resizeGC(gc)
         drawn, draw_calls = {}, {}
         env.on.paint(gc)
-        check(table.concat(drawn):find("T text", 1, true) ~= nil,
-              "abbreviated walkthrough text names its reader shortcut at " .. width)
+        ui018 = check(table.concat(drawn):find("T text", 1, true) ~= nil,
+              "abbreviated walkthrough text names its reader shortcut at " .. width) and ui018
         env.on.charIn("t")
         seen, fits = scan_reader(160)
-        check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
+        ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
               and seen:find("VARIABLE_TAIL", 1, true) and seen:find("MANIFEST_TAIL", 1, true)
-              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true) and fits,
-              "full request, result, variable, module and step text remain reachable at " .. width)
+              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true)
+              and seen:find("ASSUMPTION_TAIL", 1, true) and fits,
+              "full request, result, variable, module, step and assumption text remain reachable at " .. width) and ui018
         env.on.escapeKey()
-        check(env.steps.active and env.steps.view == "list",
-              "the reader returns to the same walkthrough without changing its view")
+        ui018 = check(env.steps.active and env.steps.view == "list",
+              "the reader returns to the same walkthrough without changing its view") and ui018
         env.on.enterKey()
         env.steps.detail = 2
         seen, fits = scan_reader(160)
-        check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-              "existing step detail scrolls the complete explanation and oversized formula at " .. width)
+        ui018 = check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+              "existing step detail scrolls the complete explanation and oversized formula at " .. width) and ui018
         env.on.escapeKey()
     end
     platform.window.width = saved_width
@@ -5277,11 +5334,15 @@ do
     for _, call in ipairs(draw_calls) do
         if call.y >= 190 and call.y < 226 then footer_fits = footer_fits and call.y + 12 <= 226 end
     end
-    check(footer_fits, "guided preview lines stop before the footer controls")
+    ui018 = check(footer_fits, "guided preview lines stop before the footer controls") and ui018
     env.on.charIn("t")
     seen, fits = scan_reader(160)
-    check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
-          "abbreviated guided labels and problem previews retain complete readable text")
+    ui018 = check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
+          "abbreviated guided labels and problem previews retain complete readable text") and ui018
+    evidence("UI-018", ui018,
+             "long input, answers, assumptions, variables, modules and step text stay reachable through "
+             .. "a full-text reader and scrolling at 320 and 180 pixels, closing a reader restores focus "
+             .. "and view, and guided previews stop before the footer controls")
     env.on.escapeKey()
     env.PHYSICS_FIXTURES[1].run = function()
         error("short error\n" .. string.rep("additional failure context ", 40) .. "RAW_ERROR_TAIL", 0)
@@ -6858,7 +6919,7 @@ do
             state.scroll = delta
             state.selected = state.scroll_selection or state.selected
             if state.failure == "missing selection" then return true end
-            if state.failure == "invalid selection" then return true, 25 end
+            if state.failure == "invalid selection" then return true, #state.labels + 1 end
             return state.failure ~= "scroll", state.selected
         end
         module.ui_menu_frame = function()
@@ -6931,7 +6992,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 22 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 23 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -6946,12 +7007,15 @@ do
     check(state.labels[21] == "Tangent line at a point" and state.labels[22] == "Linearization at a point" and
           state.descriptions[22]:find("approximation", 1, true) ~= nil,
           "the tangent templates are offered and the linearization says it approximates")
+    -- CALC-007. The implicit template says what the answer is written in.
+    check(state.labels[23] == "Implicit derivative dy/dx" and state.descriptions[23]:find("dydx", 1, true) ~= nil,
+          "the implicit template is offered and names the derivative symbol")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 22, "up from the first template reaches the final template")
+    check(state.selected == 23, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()
@@ -8262,6 +8326,257 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- VER-020. A reopened history row names the build that produced it and is never shown as renewed.
+do
+    (function()
+    local OLD = "stepcas.unified.inputs-sha256.oldbuild"
+    local NEW = "stepcas.unified.inputs-sha256.newbuild"
+    local function built(id, answers)
+        local module = copyModule()
+        local manifest = copyManifest()
+        manifest.id = id
+        module.capability_manifest = function() return manifest end
+        local plain = module.caseval
+        module.caseval = function(s) return answers and answers[s] or plain(s) end
+        return module
+    end
+    local function enter(env, line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local function record(env, index)
+        return env.historyRecordText and env.historyRecordText(env.steps.histText[index])
+    end
+
+    local old = loadIsolated(built(OLD))
+    old.on.paint(gc)
+    for _, line in ipairs({ "1+1", "2+2", "3+3" }) do enter(old, line) end
+    check(old.steps.histText[1].state == "live" and old.steps.histText[1].build == OLD,
+          "a row computed in this session is live under the build that computed it")
+    check(record(old, 1) == "computed under this build, oldbuild",
+          "and the details say so")
+    local saved = old.on.save()
+    local builds_saved = #saved.history == 3 and saved.history[1].build == OLD and
+                         saved.history[3].build == OLD and saved.history[1].state == nil
+    check(builds_saved,
+          "save records the build behind each row and no state, since a reopened row is archived")
+
+    local new = loadIsolated(built(NEW, { ["2+2"] = "five" }))
+    new.on.restore(saved)
+    local announced = new.steps.status
+    new.on.paint(gc)
+    local rows = new.steps.histText
+    local archived = #rows == 3 and rows[1].state == "archived" and rows[1].build == OLD and
+                     rows[3].state == "archived"
+    check(archived, "a reopened row is archived under the build that produced it, not the one reading it")
+    local announced_mismatch = type(announced) == "string" and
+                               announced:find("3 archived", 1, true) ~= nil and
+                               announced:find("oldbuild", 1, true) ~= nil and
+                               announced:find("newbuild", 1, true) ~= nil
+    check(announced_mismatch, "reopening under another build says so, naming both builds")
+    check(new.steps.status == announced, "and the first paint leaves that on the status line")
+    local archived_text = record(new, 1)
+    check(archived_text == "archived under oldbuild, not revalidated under this build",
+          "and the details of a reopened row say it was not revalidated")
+    new.theView:setFocus(new.histME1[1])
+    new.readFullText()
+    drawn = {}
+    new.on.paint(gc)
+    check(table.concat(drawn, " "):find("Record: archived under", 1, true) ~= nil,
+          "which is what the full text reader shows for the focused row")
+    new.on.escapeKey()
+    new.theView:setFocus(new.fctEditor)
+
+    enter(new, "1+1")
+    local revalidated = rows[1].state == "revalidated" and rows[1].build == NEW and
+                        rows[4].state == "live"
+    check(revalidated, "entering an archived row again under this build and matching it revalidates it")
+    check(record(new, 1) == "revalidated under this build, newbuild",
+          "and its details say revalidated rather than archived")
+    enter(new, "2+2")
+    local diverged = rows[2].state == "diverged" and rows[2].build == OLD
+    check(diverged, "a different answer under this build leaves the row on its old build as diverged")
+    check(record(new, 2) == "archived under oldbuild, this build gives a different result",
+          "and its details show the mismatch rather than accepting it")
+    check(type(new.steps.status) == "string" and new.steps.status:find("differs", 1, true) ~= nil,
+          "and the status line names it too")
+    check(rows[3].state == "archived", "a row nobody entered again stays archived")
+    local resaved = new.on.save()
+    check(resaved.history[1].build == NEW and resaved.history[2].build == OLD and
+              resaved.history[3].build == OLD,
+          "saving again moves only the revalidated row onto this build")
+
+    local unrecorded = loadIsolated(built(NEW))
+    unrecorded.on.restore({ history = { { " 1+1", " giac(1+1)" }, { " 2+2", " 4", build = 7 } } })
+    unrecorded.on.paint(gc)
+    local unknown = unrecorded.steps.histText[1].state == "archived" and
+                    unrecorded.steps.histText[1].build == nil and
+                    unrecorded.steps.histText[2].build == nil
+    check(unknown, "a row saved without a usable build is archived with no build rather than this one")
+    check(record(unrecorded, 1) == "archived, build not recorded, not revalidated under this build",
+          "and says its build was not recorded")
+    local bounded = loadIsolated(built(NEW))
+    bounded.on.restore({ history = { { " 1+1", " 2", build = "" }, { " 2+2", " 4", build = ("b"):rep(257) },
+                                     { " 3+3", " 6", build = ("c"):rep(256) } } })
+    bounded.on.paint(gc)
+    local boundedRows = bounded.steps.histText
+    check(boundedRows[1].build == nil and boundedRows[2].build == nil and boundedRows[3].build == ("c"):rep(256),
+          "an empty or overlong saved build is unrecorded, and one at the 256 byte limit is kept")
+    local nobuild = loadIsolated(built(NEW))
+    nobuild.on.restore({ history = { { saved.history[1][1], saved.history[1][2] },
+                                     { saved.history[2][1], " wrong" } } })
+    nobuild.on.paint(gc)
+    enter(nobuild, "1+1")
+    enter(nobuild, "2+2")
+    local rowsNobuild = nobuild.steps.histText
+    check(rowsNobuild[1].state == "revalidated" and rowsNobuild[1].build == NEW,
+          "a row with no recorded build that matches under this build is revalidated onto this build")
+    check(rowsNobuild[2].state == "diverged" and rowsNobuild[2].build == nil and
+              record(nobuild, 2) == "archived under an unrecorded build, this build gives a different result",
+          "and one that differs stays unrecorded and says this build disagrees")
+    local pending = loadIsolated(built(NEW))
+    pending.on.restore({ history = { { " !s 2*x+5=13", " 4", build = OLD } } })
+    pending.on.paint(gc)
+    enter(pending, "!s 2*x+5=13")
+    check(pending.incrementalSolve.active and pending.steps.histText[1].state == "archived",
+          "a solve still in progress has no answer yet, so it neither revalidates nor diverges")
+    pending.incrementalSolve.cancel()
+    local refusedModule = built(NEW)
+    local refusedManifest = copyManifest()
+    refusedManifest.artifact = "split"
+    refusedModule.capability_manifest = function() return refusedManifest end
+    local unloaded = loadIsolated(refusedModule)
+    unloaded.on.restore({ history = { { " 1+1", " giac(1+1)", build = OLD } } })
+    unloaded.on.paint(gc)
+    enter(unloaded, "1+1")
+    local rowsUnloaded = unloaded.steps.histText
+    check(rowsUnloaded[1].state == "archived" and rowsUnloaded[2].build == nil,
+          "with no StepCAS build loaded nothing can be revalidated, so the row stays archived")
+    check(record(unloaded, 2) == "computed with no StepCAS build loaded",
+          "and a row computed then says no build stands behind it")
+    local statuses = {}
+    for name, history in pairs({
+        same = { { " 1+1", " 2", build = NEW } },
+        unrecorded = { { " 1+1", " 2" } },
+        mixed = { { " 1+1", " 2", build = OLD }, { " 2+2", " 4" } },
+    }) do
+        local env = loadIsolated(built(NEW))
+        env.on.restore({ history = history })
+        statuses[name] = env.steps.status
+    end
+    check(statuses.same == "reopened 1 archived result, not revalidated under newbuild",
+          "rows reopened under the build that saved them are still archived rather than current")
+    check(statuses.unrecorded == "reopened 1 archived result from an unrecorded build, not " ..
+              "revalidated under newbuild",
+          "rows with no build are announced as from an unrecorded one")
+    check(statuses.mixed == "reopened 2 archived results from several other builds, not " ..
+              "revalidated under newbuild",
+          "and rows from more than one other build are announced as such")
+    local bare = loadIsolated(built(NEW))
+    bare.on.restore({ mode = "solve" })
+    local modeText = bare.steps.status
+    local moded = loadIsolated(built(NEW))
+    moded.on.restore({ mode = "solve", history = { { " 1+1", " 2", build = NEW } } })
+    check(type(modeText) == "string" and modeText:find("every enter: ", 1, true) == 1 and
+              moded.steps.status == "reopened 1 archived result, not revalidated under newbuild. " .. modeText,
+          "reopening in a steps mode announces the archived rows and still names the mode")
+    local plain = loadIsolated(built(NEW))
+    plain.on.restore({ automatic = false, history = { { " 1+1", " 2", build = NEW } } })
+    check(plain.steps.status == "reopened 1 archived result, not revalidated under newbuild. plain Giac",
+          "and reopening in plain Giac still says plain Giac")
+
+    evidence("VER-020", builds_saved and archived and announced_mismatch and revalidated and diverged and
+                 unknown,
+             "a reopened history row is archived under the build recorded when it was computed, or " ..
+             "with no build when none was recorded, and says it was not revalidated. Entering it " ..
+             "again under the current build revalidates it only when the answer matches, and a " ..
+             "different answer is shown as a mismatch that keeps the old build. The shell saves " ..
+             "results as history text rather than derivation records, so these are its reopened " ..
+             "results")
+    end)()
+end
+
+-- MATH-007. The angle unit is chosen from the Steps menu, shown on every screen, sent with each
+-- request, bracketed around ordinary Giac evaluation so Giac is back in radians afterwards, and a
+-- reopened record names the unit it was solved under beside the active one.
+do
+    (function()
+    local module = copyModule()
+    local evaluated, requested = {}, {}
+    module.caseval = function(command)
+        if command == "version()" then return nps_split.caseval(command) end
+        evaluated[#evaluated + 1] = command
+        if command == "boom" then error("giac raised") end
+        return "giac(" .. command .. ")"
+    end
+    module.walkthrough = function(command, variable, numeric, angle)
+        if command:sub(1, 5) ~= "diff(" then return nil end
+        requested[#requested + 1] = { command = command, numeric = numeric, angle = angle }
+        local record = {}
+        for key, value in pairs(fake_result) do record[key] = value end
+        record.request_expression = command
+        record.mode = "differentiate"
+        record.original_expression = "x^2"
+        record.normalized_expression = "x^2"
+        record.angle_convention = angle or "radians"
+        return record
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    evaluated = {}
+    local function paintedHere()
+        drawn = {}
+        env.on.paint(gc)
+        return table.concat(drawn, "\n")
+    end
+    check(env.steps.angle == "radians" and paintedHere():find("RAD", 1, true) ~= nil,
+          "the shell starts in radians and shows RAD")
+    local selected = false
+    for _, category in ipairs(env.menu) do
+        if category[1] == "Steps" then
+            for index = 2, #category do
+                if type(category[index]) == "table" and category[index][1] == "Angles in degrees (DEG)" then
+                    category[index][2]()
+                    selected = true
+                end
+            end
+        end
+    end
+    check(selected and env.steps.angle == "degrees" and paintedHere():find("DEG", 1, true) ~= nil,
+          "the Steps menu selects degrees and the screen shows DEG")
+
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 3 and evaluated[1] == "angle_radian:=0" and evaluated[2] == "sin(30)" and
+          evaluated[3] == "angle_radian:=1",
+          "ordinary evaluation runs in degrees and puts Giac back in radians: " .. table.concat(evaluated, " | "))
+    evaluated = {}
+    local ok = pcall(env.angleCaseval, "boom")
+    check(not ok and evaluated[#evaluated] == "angle_radian:=1",
+          "Giac is put back in radians even when the evaluation raises")
+
+    env.fctEditor.editor:setExpression("\\0el {diff(x^2,x)}")
+    env.on.enterKey()
+    check(#requested == 1 and requested[1].angle == "degrees" and requested[1].numeric == "exact",
+          "a native walkthrough is sent the active angle mode")
+    check(env.steps.active and env.steps.result.angle_convention == "degrees",
+          "the walkthrough record carries the mode it was solved under")
+    env.stepsSetAngle("radians")
+    drawn = {}
+    env.on.paint(gc)
+    local header = table.concat(drawn, "\n")
+    check(header:find("DEG (now RAD)", 1, true) ~= nil,
+          "a record solved in degrees says so beside the active radian mode: " .. header:sub(1, 160))
+    env.closeSteps()
+    evaluated = {}
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 1 and evaluated[1] == "sin(30)", "radian mode evaluates without touching the Giac setting")
+    evidence("MATH-007", selected and requested[1].angle == "degrees" and header:find("DEG (now RAD)", 1, true) ~= nil,
+             "the shell selects degree or radian mode from the Steps menu, shows it on every screen, sends it with each request and names a reopened record's mode")
     end)()
 end
 
