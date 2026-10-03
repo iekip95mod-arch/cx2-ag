@@ -600,6 +600,13 @@ do
         check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
               implicit_trig.angle_convention == "degrees",
               "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        local taylor_plain = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "exact", "degrees")
+        check(taylor_plain.solved and taylor_plain.angle_convention == "degrees",
+              "a Taylor polynomial without trig answers in degree mode and records it")
+        local taylor_trig = nps.walkthrough("maclaurin(sin(x),x,3)", "x", "exact", "degrees")
+        check(not taylor_trig.has_result and taylor_trig.outcome == "unsupported form" and
+              taylor_trig.taylor_remainder == nil and taylor_trig.angle_convention == "degrees",
+              "a Taylor polynomial of a trigonometric function is refused in degree mode rather than read as radians")
         check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
               "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
     end
