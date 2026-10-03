@@ -152,10 +152,7 @@ ModernResult failed(ModernOutcome outcome, DerivationStatus status, const std::s
     return result;
 }
 
-bool normalize_copy(const Rational &source, Rational *normalized) {
-    *normalized = source;
-    return normalise(&normalized->num, &normalized->den);
-}
+using measure::normalize_copy;
 
 bool valid_quantity(const Quantity &quantity, std::string *detail) {
     Rational normalized;
