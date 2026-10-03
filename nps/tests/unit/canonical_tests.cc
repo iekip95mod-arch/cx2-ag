@@ -184,6 +184,20 @@ bool holds_a_decimal(const std::string &src) {
 }  // namespace
 
 void run_canonical_tests(TestSink &t) {
+    t.equal(canon("[2*1..1+2]"), "[2..3]", "an interval's endpoints are canonicalized in place");
+    t.equal(canon("(3..1]"), "(3..1]", "and never reordered, since the order is what the interval says");
+    t.check(canon("[1..3]") != canon("(1..3]") && canon("(1..3]") != canon("(1..3)"),
+            "intervals that differ only at an end stay different");
+    {
+        Arena arena;
+        const NodeId malformed =
+            arena.binary(Kind::Interval, arena.integer("1"), arena.integer("2"));
+        const size_t nodes = arena.node_count();
+        t.check(malformed != kNoNode && arena.text(malformed).empty(),
+                "the public binary builder can expose an interval without endpoint metadata");
+        t.check(canonicalize(arena, malformed) == kNoNode && arena.node_count() == nodes,
+                "canonicalization refuses an interval whose endpoint metadata is missing");
+    }
     for (const auto &sample : std::vector<std::pair<std::string, std::string>>{
              {"2^-1", "(1 / 2)"}, {"1*2^-1", "(1 / 2)"},
              {"x*y^-1", "(x / y)"}, {"x^-1*y", "((1 / x) * y)"},
