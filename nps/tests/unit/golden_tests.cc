@@ -1073,7 +1073,11 @@ void run_golden_tests(TestSink &t) {
         t.check(backend.complete(),
                 "the square-root golden checks the exact Giac request and reply");
     }
-    check_golden(t, "integrate_unsupported", integrate_record("x*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_unsupported", integrate_record("exp(x)*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_u_substitution", integrate_record("2x*cos(x^2)", "x", Budget()));
+    check_golden(t, "integrate_substitution_logarithm", integrate_record("2x/(x^2-1)", "x", Budget()));
+    check_golden(t, "integrate_parts", integrate_record("x*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_parts_repeated", integrate_record("x^2*exp(x)", "x", Budget()));
     check_golden(t, "integrate_unsupported_partway",
                  integrate_record("x^2 + tan(x)", "x", Budget()));
     check_golden(t, "integrate_step_budget_halt", integrate_record("x^2", "x", one_step()));

@@ -63,6 +63,9 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "gravitation", "physics.gravitation.point-masses" },
+	{ "oscillation", "physics.oscillation.restoring-force" },
+	{ "wave", "physics.wave.speed-frequency-wavelength" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
@@ -1709,6 +1712,37 @@ histME1 = {}
 histME2 = {}
 local HISTORY_MAX_ENTRIES = 50
 
+-- VER-020. The build a history row was computed under, or nil when no StepCAS module is loaded.
+function currentBuild()
+	if stepManifest and type(stepManifest.id) == "string" and stepManifest.id ~= "" then
+		return stepManifest.id
+	end
+	return nil
+end
+
+-- The distinguishing tail of a manifest id, short enough for the status line.
+function shortBuild(id)
+	local build = id:match("([^.]+)$") or id
+	if #build > 27 then build = build:sub(1, 12) .. "..." .. build:sub(-12) end
+	return build
+end
+
+-- What a history row is: computed now, archived from a saved document, or recomputed to match.
+function historyRecordText(row)
+	if type(row) ~= "table" then return nil end
+	local build = row.build and shortBuild(row.build)
+	if row.state == "revalidated" then return "revalidated under this build, " .. build end
+	if row.state == "diverged" then
+		return "archived under " .. (build or "an unrecorded build") ..
+		       ", this build gives a different result"
+	end
+	if row.state == "archived" then
+		return (build and "archived under " .. build or "archived, build not recorded") ..
+		       ", not revalidated under this build"
+	end
+	return build and "computed under this build, " .. build or "computed with no StepCAS build loaded"
+end
+
 local function removeHistoryAt(index)
 	local first, second = histME1[index], histME2[index]
 	if not first or not second or not steps.histText[index] then return false end
@@ -1748,7 +1782,7 @@ function addME(expr, res)
 
 	table.insert(histME1, mee)
 	table.insert(histME2, mer)
-	table.insert(steps.histText, { expr, res })
+	table.insert(steps.histText, { expr, res, build = currentBuild(), state = "live" })
 	theView:add(mee)
 	theView:add(mer)
 	if #histME1 > HISTORY_MAX_ENTRIES then removeHistoryAt(1) end
@@ -1819,6 +1853,29 @@ function backSpaceHandler(widget)
 	end
 end
 
+-- VER-020. An archived row entered again under this build is revalidated only if the answer matches.
+function revalidateHistory(expr, res)
+	local build = currentBuild()
+	if not build then return end
+	local matched, differed
+	for index = 1, #steps.histText - 1 do
+		local row = steps.histText[index]
+		if row.state == "archived" and row[1] == expr then
+			if row[2] == res then
+				row.state, row.build, matched = "revalidated", build, true
+			else
+				row.state, differed = "diverged", row
+			end
+		end
+	end
+	if differed then
+		steps.status = "archived result differs under " .. shortBuild(build) .. ": was" ..
+		               differed[2] .. ", now" .. res
+	elseif matched then
+		steps.status = "archived result revalidated under " .. shortBuild(build)
+	end
+end
+
 function enterHandler(widget)
 	local expr, exprkeep
 	local svar
@@ -1842,7 +1899,7 @@ function enterHandler(widget)
 					-- The first Enter clears the launch banner, so its refusal has to be restated.
 					local refusal = stepRefusal(true)
 					steps.status = refusal
-					res = refusal or nps_nspire.caseval(expr) or "Error"
+					res = refusal or angleCaseval(expr) or "Error"
 				end
 				t2 = timer.getMilliSecCounter()
 				ts  = string.format("Time :  %f" , ( t2 - t1 ) / 1000. )
@@ -1854,6 +1911,8 @@ function enterHandler(widget)
 				expr = " " .. expr
 				expr = expr:gsub("^%s+", " ")
 				addME(expr, res)
+				-- A solve still running has only its progress in the row, which is not an answer.
+				if not incrementalSolve.active then revalidateHistory(expr, res) end
 			end
 		end
 	end
@@ -2250,8 +2309,9 @@ menu = {
          { "Limit from the right", function() template("limit(,x,0,1)", 7) end },
          { "Limit at positive infinity", function() template("limit(,x,infinity)", 12) end },
          { "Limit at negative infinity", function() template("limit(,x,-infinity)", 13) end },
-         { "Tangent line at a point", function() template("tangent(,x,0)", 7) end },
-         { "Linearization at a point", function() template("linearize(,x,0)", 9) end },
+         { "Tangent line at a point", function() template("tangent(,x,0)", 5) end },
+         { "Linearization at a point", function() template("linearize(,x,0)", 5) end },
+         { "Implicit derivative dy/dx", function() template("implicit(,x,y)", 5) end },
          { "Taylor polynomial at a point", function() template("taylor(,x,0,3)", 7) end },
          { "Maclaurin polynomial", function() template("maclaurin(,x,3)", 5) end },
          { "Series convergence test", function() template("convergence(,n,1)", 5) end },
@@ -2259,6 +2319,9 @@ menu = {
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
         { "Hint walkthrough (Tab next)", function() stepsSetProgression("hint") end },
+        { "Check my next step  !a", function() menustring("!a ") end },
+        { "Angles in radians (RAD)", function() stepsSetAngle("radians") end },
+        { "Angles in degrees (DEG)", function() stepsSetAngle("degrees") end },
        },
        -- Native wording first, the callable form after it. A tool palette has no submenu, second
        -- line or tooltip, so where the pair runs past 44 characters the argument spelling gives way
@@ -2361,6 +2424,7 @@ menu = {
        	 { "Limit  limit(expr,var,value)",	function() menustring( "limit(" ) end },
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
+       	 { "Implicit Derivative  implicit(eq,x,y)",	function() menustring( "implicit(" ) end },
        	 { "Taylor Polynomial  taylor(expr,var,a,n)",	function() menustring( "taylor(" ) end },
        	 { "Maclaurin Polynomial  maclaurin(expr,var,n)",	function() menustring( "maclaurin(" ) end },
        	 { "Convergence  convergence(term,var,start)",	function() menustring( "convergence(" ) end },
@@ -2477,6 +2541,8 @@ steps = {
 	mode = nil,
 	automatic = true,
 	variable = "x",
+	-- MATH-007. The learner's angle unit, sent with every request and shown on every screen.
+	angle = "radians",
 	detail = 1,
 	progression = "full",
 	walkthrough = "full",
@@ -2771,6 +2837,35 @@ PHYSICS_FIXTURES = {
 			})
 		end,
 	},
+	{
+		label = "Find how hard two masses pull together",
+		problem = "Everything with mass pulls on everything else. Two bags of 2 and 3 kilograms " ..
+		          "a metre apart do too, but so weakly that nobody ever feels it.",
+		mode = "gravitation",
+		run = function()
+			return nps_nspire.gravitation("gravitational force", "first mass", "2.0 kg",
+			                              "second mass", "3.0 kg", "separation", "1.0 m")
+		end,
+	},
+	{
+		label = "Find how hard a stretched spring pulls back",
+		problem = "A spring needs 200 newtons for every metre it is stretched. Pull it 5 " ..
+		          "centimetres and it pulls back. How hard?",
+		mode = "oscillation",
+		run = function()
+			return nps_nspire.oscillation("restoring force", "stiffness", "200 N/m",
+			                              "displacement", "5 cm")
+		end,
+	},
+	{
+		label = "Find how far apart the crests of a sound are",
+		problem = "A note shakes the air 170 times a second and the sound moves at 340 metres " ..
+		          "per second. How far apart are its crests?",
+		mode = "wave",
+		run = function()
+			return nps_nspire.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+		end,
+	},
 }
 
 physicsBrowser = {
@@ -2800,6 +2895,7 @@ function stepRequest(expr)
 		if letter == "v" then return { mode = "variable", text = rest } end
 		if letter == "g" then return { mode = "plain", text = rest } end
 		if letter == "!" then return { mode = "reopen", text = rest } end
+		if letter == "a" then return { mode = "attempt", text = rest } end
 		if letter == "m" then return { mode = "manifest", text = rest } end
 		if letter == "h" then return { mode = "progression", text = rest } end
 		-- Diagnostic. The typed adapter path only exists in this build and cannot be exercised on
@@ -3398,6 +3494,7 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Limit at negative infinity"] = "Find the behavior as the variable decreases without bound.",
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
+    ["Implicit derivative dy/dx"] = "Fill an equation in x and y. The answer is dydx in both variables, with its conditions.",
     ["Taylor polynomial at a point"] = "Fill the expression. Change 0 to the center and 3 to the order. Shows the remainder.",
     ["Maclaurin polynomial"] = "A Taylor polynomial centered at 0. Change 3 to the order. An approximation, not an equality.",
     ["Series convergence test"] = "Fill the term in n. Change 1 to the first index. Names the test that decides it.",
@@ -3518,7 +3615,7 @@ end
 function incrementalSolve.start(text, variable)
 	if not incrementalSolve.available() then return false end
 	incrementalSolve.release()
-	local ok, progress = pcall(nps_nspire.solve_begin, text, variable, "linear")
+	local ok, progress = pcall(nps_nspire.solve_begin, text, variable, "linear", "exact", steps.angle)
 	if not ok or type(progress) ~= "table" or progress.state ~= "pending" then
 		if ok and type(progress) == "table" then pcall(nps_nspire.solve_close) end
 		return false
@@ -3719,6 +3816,30 @@ local function runPhysicsFixture()
 	addME(prompt, answer)
 end
 
+-- The unit applies from the next request. A record already open keeps the one it was solved under,
+-- which its header shows beside the active one when they differ.
+function stepsSetAngle(value)
+	if value ~= "radians" and value ~= "degrees" then return nil end
+	steps.angle = value
+	steps.status = "angles: " .. value
+	return steps.status
+end
+
+function angleTag(unit)
+	return unit == "degrees" and "DEG" or unit == "radians" and "RAD" or nil
+end
+
+-- Giac is left in radians between requests, because the native backend shares it and always asks in
+-- radians. Degree mode is set for this one evaluation and put back even when the evaluation raises.
+function angleCaseval(expr)
+	if steps.angle ~= "degrees" then return nps_nspire.caseval(expr) end
+	nps_nspire.caseval("angle_radian:=0")
+	local ok, answer = pcall(nps_nspire.caseval, expr)
+	nps_nspire.caseval("angle_radian:=1")
+	if not ok then error(answer, 0) end
+	return answer
+end
+
 function stepsSetProgression(value)
 	if value ~= "full" and value ~= "hint" then return nil end
 	steps.progression = value
@@ -3765,6 +3886,72 @@ local function invalidExpressionContext(r, text)
 	       type(r.normalized_expression) ~= "string" or r.normalized_expression == ""
 end
 
+-- Whole states only, each transformation starting where the previous one ended.
+function attemptRoute(r)
+	local chain, state = {}, nil
+	for i, s in ipairs(r.steps or {}) do
+		if s.kind == "transformation" and type(s.before) == "string" and type(s.after) == "string" then
+			if state == nil then
+				state = s.before
+				chain.start = s.before
+			end
+			if s.before == state then
+				chain[#chain + 1] = { step = i, after = s.after }
+				state = s.after
+			end
+		end
+	end
+	return chain
+end
+
+local ATTEMPT_EQUIVALENCE = {
+	["equivalent"] = "equivalent",
+	["corroborated"] = "agrees at samples, not proved",
+	["not equivalent"] = "NOT EQUIVALENT",
+	["not comparable"] = "cannot be judged here",
+	["cancelled"] = "judging cancelled",
+	["resource exceeded"] = "too large to judge",
+}
+
+-- STEP-013 and STEP-014, against the last state seen, revealing and rechecking nothing for VER-019.
+function attemptFeedback(text)
+	local r = steps.result
+	if not hasSteps or not nps_nspire.judge_attempt then return "no attempt checker in this build" end
+	if type(r) ~= "table" or answerWithoutSteps(r) or canonicalStepCount(r) == 0 then
+		steps.status = "attempt needs a walkthrough to compare against"
+		return steps.status
+	end
+	if text == "" then return "nothing to judge" end
+	local chain = attemptRoute(r)
+	if chain.start == nil then
+		steps.status = "attempt: this walkthrough records no whole states to compare against"
+		return steps.status
+	end
+	local hint = steps.walkthrough == "hint"
+	local limit = exposedStepCount(r)
+	local current, route = chain.start, {}
+	for _, link in ipairs(chain) do
+		if hint and link.step <= limit then current = link.after else route[#route + 1] = link.after end
+	end
+	local verdict, why = nps_nspire.judge_attempt(current, text, route, steps.variable)
+	if type(verdict) ~= "table" then
+		steps.status = "attempt refused: " .. tostring(why)
+		return steps.status
+	end
+	local line = "attempt: " .. (ATTEMPT_EQUIVALENCE[verdict.equivalence] or verdict.equivalence)
+	if verdict.usefulness == "advances" then
+		line = line .. ", useful, reaches state " .. tostring(verdict.reaches) .. " of " .. tostring(#route)
+	elseif verdict.usefulness == "no progress" then
+		line = line .. ", but no progress"
+	elseif verdict.usefulness == "valid not on route" then
+		line = line .. ", valid but not this walkthrough's route"
+	end
+	if verdict.detail and verdict.detail ~= "" then line = line .. " (" .. verdict.detail .. ")" end
+	steps.attempt = { text = text, against = current, verdict = verdict }
+	steps.status = line
+	return line
+end
+
 -- A solve opens the derivation and returns either its answer or a hint-safe history placeholder.
 function runSteps(mode, text)
 	if mode == "variable" then
@@ -3792,6 +3979,7 @@ function runSteps(mode, text)
 		if choice == "off" or choice == "full" then return stepsSetProgression("full") end
 		return "hint mode: use !h on or !h off (currently " .. steps.progression .. ")"
 	end
+	if mode == "attempt" then return attemptFeedback(text) end
 	if mode == "reopen" then
 		if not steps.result then return "no steps yet" end
 		openSteps()
@@ -3814,14 +4002,12 @@ function runSteps(mode, text)
 		   type(backend.version) ~= "string" or backend.version == "" or type(modules) ~= "table" then
 			return "capability manifest invalid"
 		end
-		local build = stepManifest.id:match("([^.]+)$") or stepManifest.id
-		if #build > 27 then build = build:sub(1, 12) .. "..." .. build:sub(-12) end
-		return stepManifest.artifact .. " " .. build .. ", " .. backend.name .. " " ..
+		return stepManifest.artifact .. " " .. shortBuild(stepManifest.id) .. ", " .. backend.name .. " " ..
 		       backend.version .. ", " .. tostring(#modules) .. " modules"
 	end
 	if mode == "help" then
 		return "!d !i !s expr, !k find v; v0 = 5 m/s; ..., bare !d !i !s !k sets the mode, " ..
-		       "!g plain Giac, !v name, !h on|off, !! last steps, !m manifest, !t typed check. " ..
+		       "!g plain Giac, !v name, !h on|off, !a your next step, !! last steps, !m manifest, !t typed check. " ..
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end
@@ -3843,11 +4029,16 @@ function runSteps(mode, text)
 	local profileStartedAt = startResourceProfile(mode)
 	local t0 = profileStartedAt or timer.getMilliSecCounter()
 	armResourceProfile(mode, t0, profileStartedAt, { request_failed = true })
-	local r, why = nps_nspire[mode](text, steps.variable)
+	local r, why
+	if mode == "walkthrough" or mode == "solve" or mode == "differentiate" or mode == "integrate" then
+		r, why = nps_nspire[mode](text, steps.variable, "exact", steps.angle)
+	else
+		r, why = nps_nspire[mode](text, steps.variable)
+	end
 	local t1 = timer.getMilliSecCounter()
 	if r == nil and mode == "walkthrough" and why == nil then
 		steps.status = nil
-		local answer = nps_nspire.caseval(text) or "Error"
+		local answer = angleCaseval(text) or "Error"
 		if profileStartedAt then
 			armResourceProfile(mode, t0, profileStartedAt, { total_ms = timer.getMilliSecCounter() - t0 })
 		end
@@ -4126,6 +4317,15 @@ local function paintStatusIcon(gc, icon, x, y, w, h)
 	return type(nps_nspire.ui_icon) == "function" and nps_nspire.ui_icon(gc, icon, x, y, w, h)
 end
 
+-- The unit a record was solved under, and the active one beside it when they differ, so a record
+-- reopened after a mode change is not read in the other unit.
+function recordAngleTag(r)
+	local recorded = angleTag(r and r.angle_convention)
+	if not recorded then return "" end
+	local active = angleTag(steps.angle)
+	return recorded == active and ("  " .. recorded) or ("  " .. recorded .. " (now " .. active .. ")")
+end
+
 local function paintStepsHeader(gc, w)
 	local r = steps.result
 	steps.resultOverflow = false
@@ -4137,7 +4337,7 @@ local function paintStepsHeader(gc, w)
 	local heading = steps.view == "result" and "RESULT  " or
 	                (steps.walkthrough == "hint" and "HINT  " or "STEPS  ")
 	local title = heading .. stepModeLabel(r.mode) .. "  " .. steps.variable .. "  " ..
-	              string.upper(STEP_DETAILS[steps.detail])
+	              string.upper(STEP_DETAILS[steps.detail]) .. recordAngleTag(r)
 	gc:setFont("sansserif", "b", 9)
 	title = fitHeaderText(gc, title, metricsX - 2 * STEP_MARGIN)
 	gc:setColorRGB(37, 57, 87)
@@ -4568,6 +4768,7 @@ function readFullText()
 		if selected then
 			add("Input: ", selected[1])
 			add("Result: ", selected[2])
+			add("Record: ", historyRecordText(selected))
 		elseif fctEditor then
 			add("Input: ", fctEditor:getExpression())
 		end
@@ -4793,7 +4994,11 @@ local function replayHistory()
 		local pending = steps.pendingHistory
 		steps.pendingHistory = nil
 		dispinfos = false
-		for _, pair in ipairs(pending) do addME(pair[1], pair[2]) end
+		for _, pair in ipairs(pending) do
+			addME(pair[1], pair[2])
+			local row = steps.histText[#steps.histText]
+			row.build, row.state = pair.build, "archived"
+		end
 	end
 	if steps.pendingExpression and fctEditor then
 		local text = steps.pendingExpression
@@ -4824,12 +5029,16 @@ function on.paint(gc)
 	baseOn.paint(gc)
 	replayHistory()
 	finishResourceProfile()
+	-- MATH-007. The active angle unit is always on screen, whatever the status line says.
+	gc:setFont("sansserif", "b", 9)
+	gc:setColorRGB(37, 57, 87)
+	gc:drawString(angleTag(steps.angle), 8, 0, "top")
 	if steps.status then
 		gc:setFont("sansserif", "r", 9)
 		local status = steps.status
-		if gc:getStringWidth(status) > scrWidth - 16 then
+		if gc:getStringWidth(status) > scrWidth - 48 then
 			local cue = "  HELP text"
-			status = fitHeaderText(gc, status, scrWidth - 16 - gc:getStringWidth(cue)) .. cue
+			status = fitHeaderText(gc, status, scrWidth - 48 - gc:getStringWidth(cue)) .. cue
 		end
 		gc:setColorRGB(60, 60, 140)
 		gc:drawString(status, scrWidth - gc:getStringWidth(status) - 8, 0, "top")
@@ -5018,6 +5227,26 @@ end)
 -- recomputed on the next request rather than saved, since the core is deterministic and a saved
 -- record would be a copy of what it produces. A restored table is data (section 17): every field
 -- is type checked and ranged before it is used.
+-- VER-020. Reopened rows are announced as archived, naming the builds when they are not this one.
+function archivedHistoryStatus(rows)
+	local build = currentBuild()
+	local from, mixed = nil, false
+	for _, row in ipairs(rows) do
+		if row.build ~= build then
+			local name = row.build and shortBuild(row.build) or "an unrecorded build"
+			if from and from ~= name then mixed = true end
+			from = from or name
+		end
+	end
+	local text = "reopened " .. tostring(#rows) .. (#rows == 1 and " archived result" or " archived results")
+	if mixed then
+		text = text .. " from several other builds"
+	elseif from then
+		text = text .. " from " .. from
+	end
+	return text .. ", not revalidated under " .. (build and shortBuild(build) or "no loaded build")
+end
+
 function on.save()
 	local expression
 	local variable = isStepsVariable(steps.variable) and steps.variable or "x"
@@ -5025,9 +5254,12 @@ function on.save()
 		local typed = fctEditor:getExpression()
 		if type(typed) == "string" and typed ~= "" then expression = typed end
 	end
+	-- A row keeps its build and drops its state, since a reopened row is archived whatever it was.
+	local history = {}
+	for index, row in ipairs(steps.histText) do history[index] = { row[1], row[2], build = row.build } end
 	return { variable = variable, mode = steps.mode, detail = steps.detail,
 	         progression = steps.progression, automatic = steps.automatic,
-	         history = steps.histText, expression = expression }
+	         history = history, expression = expression }
 end
 
 function on.restore(saved)
@@ -5052,7 +5284,10 @@ function on.restore(saved)
 		for _, pair in ipairs(saved.history) do
 			if type(pair) == "table" and type(pair[1]) == "string" and type(pair[2]) == "string" then
 				if #pending == HISTORY_MAX_ENTRIES then table.remove(pending, 1) end
-				pending[#pending + 1] = { pair[1], pair[2] }
+				-- A build that is not a bounded string is unrecorded, never taken for this one.
+				local build = type(pair.build) == "string" and pair.build ~= "" and #pair.build <= 256 and
+				              pair.build or nil
+				pending[#pending + 1] = { pair[1], pair[2], build = build }
 			end
 		end
 		if #pending > 0 then steps.pendingHistory = pending end
@@ -5060,9 +5295,15 @@ function on.restore(saved)
 	if type(saved.expression) == "string" and saved.expression ~= "" then
 		steps.pendingExpression = saved.expression
 	end
+	local setting
 	if steps.mode then
-		steps.status = "every enter: " .. stepModeLabel(steps.mode) .. " steps in " .. steps.variable
+		setting = "every enter: " .. stepModeLabel(steps.mode) .. " steps in " .. steps.variable
 	elseif not steps.automatic then
-		steps.status = "plain Giac"
+		setting = "plain Giac"
 	end
+	if steps.pendingHistory then
+		local reopened = archivedHistoryStatus(steps.pendingHistory)
+		setting = setting and reopened .. ". " .. setting or reopened
+	end
+	if setting then steps.status = setting end
 end
