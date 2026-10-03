@@ -1,0 +1,61 @@
+problem: sin(x+y)
+outcome: rewritten
+result: ((sin(x) * cos(y)) + (cos(x) * sin(y)))
+detail: every angle is a single variable
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.trigonometric-identities
+  envelope version: 1
+  normalized problem: sin((x + y))
+  requested method: texpand
+  angle convention: either, the identities hold in radians and in degrees
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Expand sin((x + y))
+    rule: plan.trig-expand, Expand sums and multiples of angles
+    claim: no claim
+    explanation: Use the angle-sum and double-angle identities until every angle is a single variable.
+    detail: Each step names the identity it uses. Every step and the result are checked exactly.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Expand sums and multiples of angles
+    applicability: the expression is a polynomial in sines and cosines of rational multiples of its variables with rational coefficients
+    fact: sin((x + y))
+    rationale: The expression is a polynomial in sines and cosines of rational multiples of its variables.
+    verification: exact exponential normal form, passed, Expand sin((x + y))
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Expand
+      goal: Expand one sine or cosine
+      rule: trig.angle-sum, Angle-sum identity
+      claim: equivalent expression
+      explanation: The identity used is sin(a + b) = sin(a) cos(b) + cos(a) sin(b).
+      detail: It holds for every angle, so the expression keeps its value.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      action: Use sin(a + b) = sin(a) cos(b) + cos(a) sin(b).
+      before: sin((x + y))
+      after: ((sin(x) * cos(y)) + (cos(x) * sin(y)))
+      reversible: yes
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes
+    1.2 check
+      phase: Check
+      goal: Check the result against the expression as typed
+      rule: trig.check-identity, Check the result is the same function
+      claim: equivalent expression
+      explanation: Write both as sums of powers of e to the i times the angle and compare every coefficient.
+      detail: Two trigonometric polynomials are the same function exactly when their exponential forms match.
+      proof obligation: obl.trig.identity-holds, the rewritten expression equals the one before it
+      target claim: ((sin(x) * cos(y)) + (cos(x) * sin(y))) equals sin((x + y))
+      check method: exact exponential normal form
+      expected: identical exponential forms
+      observed: both sides have the same exponential form, coefficient for coefficient
+      verification: exact exponential normal form, passed, both sides have the same exponential form, coefficient for coefficient
+      verified: yes

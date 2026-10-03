@@ -253,13 +253,14 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 34,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 35,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
     "algebra.quadratic.pure-square.one-unknown",
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
+    "algebra.trigonometric-identities",
     "number.integer-method.literal",
     "matrix.ref.rational",
     "matrix.rref.rational",
@@ -727,6 +728,22 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
 do
+    giac_calls = 0
+    local expanded = nps.walkthrough("texpand(sin(x+y))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(expanded) == "table" and expanded.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-010", type(expanded) == "table" and expanded.mode == "texpand" and expanded.solved and
+             expanded.result == "((sin(x) * cos(y)) + (cos(x) * sin(y)))" and
+             expanded.status == "solved and verified" and rules["trig.angle-sum"] and rules["trig.check-identity"],
+             "a trigonometric identity reaches the native walkthrough through the bridge, named and checked")
+    local collected = nps.walkthrough("tcollect(sin(x)^2 + cos(x)^2)", "x", "exact")
+    check(type(collected) == "table" and collected.mode == "tcollect" and collected.solved and collected.result == "1",
+          "tcollect applies the Pythagorean identity through the bridge")
+    local refused = nps.walkthrough("texpand(sin(x+1))", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "outside envelope" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "a constant inside an angle is a native refusal with no steps")
+    check(giac_calls == 0, "texpand and tcollect never ask Giac")
     -- The rows after this one count Giac calls from here, and a rewrite may consult it.
     local calls_before = giac_calls
     local product = nps.walkthrough("simplify(3\195\1512)", "x", "exact")

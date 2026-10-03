@@ -574,6 +574,10 @@ bool read_decimal_coefficient(const Arena &arena, const std::vector<NodeId> &fac
 
 }  // namespace
 
+NodeId canonical_rational(Arena &arena, const Rational &value) {
+    return rational_node(arena, value);
+}
+
 bool canonical_less(const Arena &arena, NodeId a, NodeId b) {
     return compare(arena, a, b) < 0;
 }

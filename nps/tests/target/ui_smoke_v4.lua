@@ -4888,6 +4888,24 @@ if os.getenv("NPS_COMMAND_MODULE") then
         if env.steps.active then env.on.escapeKey() end
     end
 
+    for _, case in ipairs({{"Expand Trig", "texpand(", "sin(x+y))", "texpand"},
+                           {"Collect Trig", "tcollect(", "sin(x)^2+cos(x)^2)", "tcollect"}}) do
+        env.fctEditor.editor:setExpression("\\0el {}")
+        check(select_integer_menu(case[1]) and env.fctEditor:getExpression() == case[2],
+              "the existing trig menu entry inserts the native walkthrough command: " .. case[2])
+        env.fctEditor:addString(case[3])
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
+              record and record.mode == case[4] and record.solved and record.status == "solved and verified",
+              "the trig menu entry opens the verified identity walkthrough without a CAS fallback: " .. case[2])
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+    end
+
     -- CALC-012. The desolve menu entry runs natively and still reaches Giac outside the family.
     env.fctEditor.editor:setExpression("\\0el {}")
     check(select_integer_menu("Differential Equation") and env.fctEditor:getExpression() == "desolve(",
