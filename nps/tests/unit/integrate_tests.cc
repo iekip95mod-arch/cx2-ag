@@ -126,10 +126,14 @@ void test_methods(TestSink &t) {
              Method{"x*exp(x^2)", "exp(x^2)/2", "i.substitution"},
              Method{"sin(x)*cos(x)", "sin(x)^2/2", "i.substitution"},
              Method{"2x/(x^2+1)", "ln(x^2+1)", "i.substitution"},
+             Method{"2x/(x^2+1)^2", "-1/(x^2+1)", "i.substitution"},
+             Method{"cos(x)/sin(x)^2", "-1/sin(x)", "i.substitution"},
              Method{"x*exp(x)", "x*exp(x)-exp(x)", "i.parts"},
              Method{"x*sin(x)", "-x*cos(x)+sin(x)", "i.parts"},
              Method{"x*cos(2x)", "x*sin(2x)/2+cos(2x)/4", "i.parts"},
              Method{"x^2*exp(x)", "x^2*exp(x)-2*(x*exp(x)-exp(x))", "i.parts"},
+             Method{"x^4*exp(x)", "x^4*exp(x)-4*(x^3*exp(x)-3*(x^2*exp(x)-2*(x*exp(x)-exp(x))))", "i.parts"},
+             Method{"(2x+1)*sin(x)", "-(2x+1)*cos(x)+2*sin(x)", "i.parts"},
          }) {
         const Integrated s = run(example.input, "x");
         t.equal(integrate_outcome_name(s.outcome), "integrated",
@@ -215,6 +219,17 @@ void test_methods(TestSink &t) {
                     s.detail.find("derivative check is inconclusive") != std::string::npos &&
                     uses_rule(withheld, "x", "i.substitution"),
                 std::string("a substitution whose derivative check cannot close natively is withheld: ") + withheld);
+    }
+    {
+        const Integrated s = run("x^5*exp(x)", "x");
+        t.check(s.outcome == IntegrateOutcome::UnsupportedForm && !uses_rule("x^5*exp(x)", "x", "i.parts"),
+                "integration by parts stops at a polynomial of degree four, got " + s.detail);
+    }
+    {
+        const Integrated s = run("x^2*sin(x^2)", "x");
+        t.check(s.outcome == IntegrateOutcome::UnsupportedForm && !uses_rule("x^2*sin(x^2)", "x", "i.parts") &&
+                    s.detail.find("neither the substitution nor the parts pattern") != std::string::npos,
+                "integration by parts is not tried against a function of a nonlinear argument, got " + s.detail);
     }
     for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
         const Integrated s = run(refused, "x");
