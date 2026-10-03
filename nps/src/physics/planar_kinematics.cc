@@ -56,10 +56,12 @@ bool valid_axes(PlanarAxes axes) {
     return false;
 }
 
-bool normalized(const Rational &source, Rational *value) {
-    *value = source;
-    return normalise(&value->num, &value->den);
-}
+using measure::normalize_copy;
+using measure::normalized_rational_node;
+using measure::verification;
+using measure::add_check;
+using measure::add_transformation;
+using measure::transformation_step;
 
 bool valid_vector(const Vector &vector, std::string *detail) {
     const Rational components[3] = {vector.x, vector.y, vector.z};
@@ -67,12 +69,12 @@ bool valid_vector(const Vector &vector, std::string *detail) {
     const size_t active = vector.rank == 3 ? 3 : 2;
     Rational normalized_value;
     for (size_t axis = 0; axis < active; ++axis) {
-        if (!normalized(components[axis], &normalized_value)) {
+        if (!normalize_copy(components[axis], &normalized_value)) {
             *detail = std::string("the ") + names[axis] + " component has an invalid exact value";
             return false;
         }
     }
-    if (!normalized(vector.unit.scale, &normalized_value) || normalized_value.num <= 0) {
+    if (!normalize_copy(vector.unit.scale, &normalized_value) || normalized_value.num <= 0) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
@@ -88,30 +90,18 @@ bool valid_vector(const Vector &vector, std::string *detail) {
     return true;
 }
 
-NodeId rational_node(Arena &arena, const Rational &source) {
-    Rational value;
-    if (!normalized(source, &value))
-        return kNoNode;
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    const NodeId numerator = arena.integer(integer_text(value.num));
-    const NodeId denominator = arena.integer(integer_text(value.den));
-    return arena.binary(Kind::Mul, numerator,
-                        arena.binary(Kind::Pow, denominator, arena.integer("-1")));
-}
-
 NodeId vector_node(Arena &arena, const Vector &vector) {
     std::vector<NodeId> components;
-    components.push_back(rational_node(arena, vector.x));
-    components.push_back(rational_node(arena, vector.y));
+    components.push_back(normalized_rational_node(arena, vector.x));
+    components.push_back(normalized_rational_node(arena, vector.y));
     if (vector.rank == 3)
-        components.push_back(rational_node(arena, vector.z));
+        components.push_back(normalized_rational_node(arena, vector.z));
     return arena.call("vector", components);
 }
 
 NodeId vector_model_node(Arena &arena, const Vector &vector, MotionStage stage) {
     return arena.call("staged_vector",
-                      {vector_node(arena, vector), rational_node(arena, vector.unit.scale),
+                      {vector_node(arena, vector), normalized_rational_node(arena, vector.unit.scale),
                        arena.symbol(vector.frame.name), dimension_node(arena, vector.unit.dimension),
                        arena.integer(integer_text(vector.rank)),
                        arena.symbol(motion_stage_name(stage))});
@@ -119,7 +109,7 @@ NodeId vector_model_node(Arena &arena, const Vector &vector, MotionStage stage) 
 
 NodeId time_model_node(Arena &arena, const Quantity &time, MotionStage stage) {
     return arena.call("staged_scalar",
-                      {rational_node(arena, time.value), rational_node(arena, time.unit.scale),
+                      {normalized_rational_node(arena, time.value), normalized_rational_node(arena, time.unit.scale),
                        dimension_node(arena, time.unit.dimension),
                        arena.symbol(motion_stage_name(stage))});
 }
@@ -151,78 +141,11 @@ NodeId displacement_equation(Arena &arena, const Vector &velocity, const Vector 
                              const Quantity &time) {
     return displacement_equation(arena, vector_node(arena, velocity),
                                  vector_node(arena, acceleration),
-                                 rational_node(arena, time.value));
+                                 normalized_rational_node(arena, time.value));
 }
 
 NodeId symbolic_displacement_equation(Arena &arena) {
     return displacement_equation(arena, arena.symbol("v0"), arena.symbol("a"), arena.symbol("t"));
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
-               const char *rule_name, const std::string &goal, const std::string &explanation,
-               const char *obligation_id, const std::string &obligation, const char *method,
-               const std::string &verification_detail, EvidenceStrength passing,
-               VerificationOutcome outcome, const std::string &target, const std::string &expected,
-               const std::string &observed, size_t backend_requests = 0) {
-    if (!meter.step())
-        return false;
-    Step step;
-    step.phase = "check";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.claim = ClaimType::Definition;
-    step.proof_obligations.push_back({obligation_id, obligation});
-    step.verifications.push_back(verification(method, verification_detail, passing, outcome));
-    step.backend_requests = static_cast<uint32_t>(backend_requests);
-    CheckPayload payload;
-    payload.target_claim = target;
-    payload.check_method = method;
-    payload.expected_relation = expected;
-    payload.observed_result = observed;
-    derivation.add_check(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
-                        NodeId before, const std::string &action, NodeId after, bool reversible) {
-    if (!meter.rewrite() || !meter.step())
-        return false;
-    TransformationPayload payload;
-    payload.before = before;
-    payload.after = after;
-    payload.concrete_action = action;
-    payload.reversible = reversible;
-    derivation.add_transformation(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-Step transformation_step(const char *rule_id, const char *rule_name, const std::string &goal,
-                         const std::string &explanation, const std::string &detailed,
-                         ClaimType claim, const VerificationRecord &record,
-                         size_t backend_requests = 0) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = claim;
-    step.verifications.push_back(record);
-    step.backend_requests = static_cast<uint32_t>(backend_requests);
-    return step;
 }
 
 std::string describe_motion(const PlanarKinematicsProblem &problem, const Vector &displacement,
@@ -314,8 +237,8 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     // scale overwrite the value and leave a negative interval unjudged.
     Rational normalized_time;
     Rational normalized_time_scale;
-    if (!normalized(problem.elapsed_time.value, &normalized_time) || normalized_time.num <= 0 ||
-        !normalized(problem.elapsed_time.unit.scale, &normalized_time_scale) ||
+    if (!normalize_copy(problem.elapsed_time.value, &normalized_time) || normalized_time.num <= 0 ||
+        !normalize_copy(problem.elapsed_time.unit.scale, &normalized_time_scale) ||
         normalized_time_scale.num <= 0) {
         return failed(PlanarKinematicsOutcome::InvalidProblem, DerivationStatus::InvalidInput,
                       "the elapsed time has an invalid exact value or unit scale");
@@ -687,11 +610,11 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
     for (size_t axis = 0; axis < 2; ++axis) {
         const NodeId before = arena.binary(
             Kind::Add,
-            arena.binary(Kind::Mul, rational_node(arena, velocity_components[axis]),
-                         rational_node(arena, time_si)),
-            arena.binary(Kind::Mul, rational_node(arena, acceleration_components[axis]),
-                         rational_node(arena, half_time_squared)));
-        const NodeId after = rational_node(arena, displacement_components[axis]);
+            arena.binary(Kind::Mul, normalized_rational_node(arena, velocity_components[axis]),
+                         normalized_rational_node(arena, time_si)),
+            arena.binary(Kind::Mul, normalized_rational_node(arena, acceleration_components[axis]),
+                         normalized_rational_node(arena, half_time_squared)));
+        const NodeId after = normalized_rational_node(arena, displacement_components[axis]);
         if (arena.failed()) {
             return failed(PlanarKinematicsOutcome::ResourceExceeded,
                           DerivationStatus::ResourceLimitReached, status_name(arena.status()));
@@ -752,10 +675,10 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
         const NodeId target = arena.binary(
             Kind::Mul,
             arena.binary(Kind::Mul,
-                         arena.binary(Kind::Add, rational_node(arena, velocity_components[1]),
-                                      rational_node(arena, final_components[1])),
-                         rational_node(arena, Rational{1, 2})),
-            rational_node(arena, time_si));
+                         arena.binary(Kind::Add, normalized_rational_node(arena, velocity_components[1]),
+                                      normalized_rational_node(arena, final_components[1])),
+                         normalized_rational_node(arena, Rational{1, 2})),
+            normalized_rational_node(arena, time_si));
         if (arena.failed()) {
             return failed(PlanarKinematicsOutcome::ResourceExceeded,
                           DerivationStatus::ResourceLimitReached, status_name(arena.status()));
@@ -771,7 +694,7 @@ PlanarKinematicsResult solve_body(Arena &arena, Derivation &derivation, Meter &m
         if (usable_exact) {
             const NodeId backend_value = canonicalize(arena, response.value);
             const NodeId local_value =
-                canonicalize(arena, rational_node(arena, displacement_components[1]));
+                canonicalize(arena, normalized_rational_node(arena, displacement_components[1]));
             agrees = !arena.failed() && backend_value == local_value;
         }
         if (arena.failed()) {

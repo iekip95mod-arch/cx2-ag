@@ -575,7 +575,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.requested_method = "differentiate by rule";
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain, principal values";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);
@@ -693,6 +693,14 @@ DiffResult differentiate_body(Arena &arena, Derivation &derivation, NodeId expre
     if (contains_list(arena, expression)) {
         result.outcome = DiffOutcome::UnsupportedForm;
         result.detail = "list and matrix differentiation is not supported";
+        result.status = DerivationStatus::Unsupported;
+        record_context(derivation, budget, expression, result.status, mode);
+        return result;
+    }
+    // d/dx sin(x) is cos(x) only when x is in radians, so the rules do not run on degrees.
+    if (derivation.request.angle_mode == AngleMode::Degrees && angle_dependent(arena, expression, variable)) {
+        result.outcome = DiffOutcome::UnsupportedForm;
+        result.detail = "the trigonometric derivative rules assume radians, and degree mode is active";
         result.status = DerivationStatus::Unsupported;
         record_context(derivation, budget, expression, result.status, mode);
         return result;
