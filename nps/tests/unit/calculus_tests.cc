@@ -244,6 +244,9 @@ void run_calculus_tests(TestSink &t) {
                 (result.value == kNoNode ? result.detail : print(arena, result.value)));
         t.check(result.status == DerivationStatus::SolvedAndVerified && derivation.all_verified_from(0),
                 std::string("native calculus evidence: ") + example.command);
+        t.check(result.outcome == CalculusOutcome::Evaluated,
+                std::string("native calculus outcome: ") + example.command + " got " +
+                    calculus_outcome_name(result.outcome));
         invariants::Pass audit;
         std::vector<std::string> broken;
         audit.walk(arena, derivation, false, true, &broken);
