@@ -5128,7 +5128,7 @@ function archivedHistoryStatus(rows)
 			from = from or name
 		end
 	end
-	local text = "reopened " .. tostring(#rows) .. " archived results"
+	local text = "reopened " .. tostring(#rows) .. (#rows == 1 and " archived result" or " archived results")
 	if mixed then
 		text = text .. " from several other builds"
 	elseif from then
@@ -5185,10 +5185,15 @@ function on.restore(saved)
 	if type(saved.expression) == "string" and saved.expression ~= "" then
 		steps.pendingExpression = saved.expression
 	end
+	local setting
 	if steps.mode then
-		steps.status = "every enter: " .. stepModeLabel(steps.mode) .. " steps in " .. steps.variable
+		setting = "every enter: " .. stepModeLabel(steps.mode) .. " steps in " .. steps.variable
 	elseif not steps.automatic then
-		steps.status = "plain Giac"
+		setting = "plain Giac"
 	end
-	if steps.pendingHistory then steps.status = archivedHistoryStatus(steps.pendingHistory) end
+	if steps.pendingHistory then
+		local reopened = archivedHistoryStatus(steps.pendingHistory)
+		setting = setting and reopened .. ". " .. setting or reopened
+	end
+	if setting then steps.status = setting end
 end

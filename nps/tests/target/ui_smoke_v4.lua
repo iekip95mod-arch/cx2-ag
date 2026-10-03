@@ -8418,6 +8418,25 @@ do
     check(unknown, "a row saved without a usable build is archived with no build rather than this one")
     check(record(unrecorded, 1) == "archived, build not recorded, not revalidated under this build",
           "and says its build was not recorded")
+    local bounded = loadIsolated(built(NEW))
+    bounded.on.restore({ history = { { " 1+1", " 2", build = "" }, { " 2+2", " 4", build = ("b"):rep(257) },
+                                     { " 3+3", " 6", build = ("c"):rep(256) } } })
+    bounded.on.paint(gc)
+    local boundedRows = bounded.steps.histText
+    check(boundedRows[1].build == nil and boundedRows[2].build == nil and boundedRows[3].build == ("c"):rep(256),
+          "an empty or overlong saved build is unrecorded, and one at the 256 byte limit is kept")
+    local nobuild = loadIsolated(built(NEW))
+    nobuild.on.restore({ history = { { saved.history[1][1], saved.history[1][2] },
+                                     { saved.history[2][1], " wrong" } } })
+    nobuild.on.paint(gc)
+    enter(nobuild, "1+1")
+    enter(nobuild, "2+2")
+    local rowsNobuild = nobuild.steps.histText
+    check(rowsNobuild[1].state == "revalidated" and rowsNobuild[1].build == NEW,
+          "a row with no recorded build that matches under this build is revalidated onto this build")
+    check(rowsNobuild[2].state == "diverged" and rowsNobuild[2].build == nil and
+              record(nobuild, 2) == "archived under an unrecorded build, this build gives a different result",
+          "and one that differs stays unrecorded and says this build disagrees")
     local pending = loadIsolated(built(NEW))
     pending.on.restore({ history = { { " !s 2*x+5=13", " 4", build = OLD } } })
     pending.on.paint(gc)
@@ -8448,14 +8467,26 @@ do
         env.on.restore({ history = history })
         statuses[name] = env.steps.status
     end
-    check(statuses.same == "reopened 1 archived results, not revalidated under newbuild",
+    check(statuses.same == "reopened 1 archived result, not revalidated under newbuild",
           "rows reopened under the build that saved them are still archived rather than current")
-    check(statuses.unrecorded == "reopened 1 archived results from an unrecorded build, not " ..
+    check(statuses.unrecorded == "reopened 1 archived result from an unrecorded build, not " ..
               "revalidated under newbuild",
           "rows with no build are announced as from an unrecorded one")
     check(statuses.mixed == "reopened 2 archived results from several other builds, not " ..
               "revalidated under newbuild",
           "and rows from more than one other build are announced as such")
+    local bare = loadIsolated(built(NEW))
+    bare.on.restore({ mode = "solve" })
+    local modeText = bare.steps.status
+    local moded = loadIsolated(built(NEW))
+    moded.on.restore({ mode = "solve", history = { { " 1+1", " 2", build = NEW } } })
+    check(type(modeText) == "string" and modeText:find("every enter: ", 1, true) == 1 and
+              moded.steps.status == "reopened 1 archived result, not revalidated under newbuild. " .. modeText,
+          "reopening in a steps mode announces the archived rows and still names the mode")
+    local plain = loadIsolated(built(NEW))
+    plain.on.restore({ automatic = false, history = { { " 1+1", " 2", build = NEW } } })
+    check(plain.steps.status == "reopened 1 archived result, not revalidated under newbuild. plain Giac",
+          "and reopening in plain Giac still says plain Giac")
 
     evidence("VER-020", builds_saved and archived and announced_mismatch and revalidated and diverged and
                  unknown,
