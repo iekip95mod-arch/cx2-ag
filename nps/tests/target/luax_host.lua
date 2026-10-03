@@ -289,7 +289,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 37,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 39,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -308,6 +308,8 @@ local expected_modules = {
     "calculus.linearization.single-variable",
     "calculus.derivative.implicit",
     "calculus.ode.separable.first-order",
+    "calculus.taylor-polynomial.single-variable",
+    "calculus.series.convergence",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.constant-acceleration.two-dimension",
@@ -501,6 +503,75 @@ do
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
     end
+    -- CALC-011. The Taylor family checks itself natively, so the bridge carries the order, the
+    -- center, the remainder and whether the polynomial equals the function or only approximates it.
+    for _, case in ipairs({
+        {"maclaurin(exp(x),x,3)", "maclaurin", "3", "0", true, "approximately equal", "exp(c)"},
+        {"taylor(x^3,x,1,3)", "taylor", "3", "1", false, "equal", "0"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and
+              command_has_rule(record, "taylor.polynomial") and command_has_rule(record, "taylor.remainder") and
+              command_has_rule(record, "taylor.check-polynomial"),
+              case[1] .. " exposes the native Taylor walkthrough with its remainder and final check")
+        check(record.mode == case[2] and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+        check(record.taylor_order == case[3] and record.taylor_center == case[4],
+              case[1] .. " reports the order and the center it was asked for")
+        check(record.approximation == case[5] and record.relation == case[6],
+              case[1] .. " states whether the polynomial equals the function or approximates it")
+        check(type(record.taylor_remainder) == "string" and record.taylor_remainder:find(case[7], 1, true) ~= nil,
+              case[1] .. " carries the remainder the polynomial leaves out")
+    end
+    for _, case in ipairs({
+        {"taylor(sin(x),x,1,2)", "unsupported form"},
+        {"maclaurin(exp(x),x,20)", "resource exceeded"},
+        {"taylor(x^2,x,0,-1)", "invalid input"},
+        {"maclaurin(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.taylor_remainder == nil and type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the Taylor envelope and says why")
+    end
+    -- CALC-011 convergence. The verdict is the answer, and the bridge names the test that decided it.
+    for _, case in ipairs({
+        {"convergence((1/2)^n,n,0)", "converges absolutely", "series.ratio-test", "2", "converges absolutely, sum = 2"},
+        {"convergence((-1)^n/n,n,1)", "converges conditionally", "series.alternating-test", nil, "converges conditionally"},
+        {"convergence(1/n,n,1)", "diverges", "series.p-comparison", nil, "diverges"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and record.mode == "convergence" and
+              command_has_rule(record, "series.terms-defined") and command_has_rule(record, case[3]) and
+              command_has_rule(record, "series.check-form"),
+              case[1] .. " exposes the native convergence walkthrough with its hypotheses and final check")
+        check(record.series_verdict == case[2] and record.series_test == case[3] and
+              record.series_sum == case[4] and record.result == case[5],
+              case[1] .. " reports its verdict, the test that decided it and a geometric sum")
+    end
+    for _, case in ipairs({
+        {"convergence(1/ln(n),n,2)", "unsupported form"},
+        {"convergence(1/(n-3),n,1)", "invalid input"},
+        {"convergence(1/n,n,1/2)", "invalid input"},
+        {"convergence((1/2)^n,n,70)", "resource exceeded", "resource limit reached"},
+        {"convergence(2^n/n,n,62)", "resource exceeded", "resource limit reached"},
+    }) do
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.series_verdict == nil and record.series_test == nil and
+              (case[3] == nil or record.status == case[3]) and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the convergence envelope and says why")
+    end
+    do
+        local record = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "decimal")
+        check(not record.solved and record.outcome == "unsupported form",
+              "the Taylor family refuses decimal mode rather than approximating its coefficients")
+    end
     -- MATH-007. The angle mode is a fourth argument, every record names the one it ran under, and
     -- trigonometric calculus in degree mode is refused without a backend answer read in radians.
     do
@@ -533,6 +604,13 @@ do
         check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
               implicit_trig.angle_convention == "degrees",
               "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        local taylor_plain = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "exact", "degrees")
+        check(taylor_plain.solved and taylor_plain.angle_convention == "degrees",
+              "a Taylor polynomial without trig answers in degree mode and records it")
+        local taylor_trig = nps.walkthrough("maclaurin(sin(x),x,3)", "x", "exact", "degrees")
+        check(not taylor_trig.has_result and taylor_trig.outcome == "unsupported form" and
+              taylor_trig.taylor_remainder == nil and taylor_trig.angle_convention == "degrees",
+              "a Taylor polynomial of a trigonometric function is refused in degree mode rather than read as radians")
         check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
               "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
     end

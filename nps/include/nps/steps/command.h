@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Implicit, Desolve };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Implicit, Desolve, Taylor, Maclaurin, Convergence };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
@@ -21,6 +21,9 @@ struct Command {
     // Desolve reads an optional initial point y(x0) = y0 on the dependent variable above.
     NodeId initial_point = kNoNode;
     NodeId initial_value = kNoNode;
+    NodeId order = kNoNode;
+    int64_t degree = 0;
+    int64_t index_start = 0;
     std::string operand_text;
     std::string variable_name;
     std::string detail;

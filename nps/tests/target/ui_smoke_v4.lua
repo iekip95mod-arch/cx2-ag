@@ -1092,7 +1092,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 191, "every palette entry survives the regrouping: " .. entries .. " of 191")
+    check(entries == 197, "every palette entry survives the regrouping: " .. entries .. " of 197")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4597,6 +4597,12 @@ do
         { "Templates", "Derivative, how fast something changes", "(x^2,x)", "differentiate", "x^2" },
         { "Templates", "Integral, the area under a curve", "∫(1/x,x)", "integrate", "1/x" },
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
+        { "Calculus", "Taylor Polynomial  taylor(expr,var,a,n)", "taylor(exp(x),x,0,3)", "taylor", "exp(x)" },
+        { "Calculus", "Maclaurin Polynomial  maclaurin(expr,var,n)", "maclaurin(sin(x),x,5)", "maclaurin", "sin(x)" },
+        { "Templates", "Taylor polynomial at a point", "taylor(exp(x),x,0,3)", "taylor", "exp(x)" },
+        { "Templates", "Maclaurin polynomial", "maclaurin(sin(x),x,3)", "maclaurin", "sin(x)" },
+        { "Calculus", "Convergence  convergence(term,var,start)", "convergence(1/n^2,n,1)", "convergence", "1/n^2" },
+        { "Templates", "Series convergence test", "convergence(1/n,n,1)", "convergence", "1/n" },
         { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
         { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
         { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
@@ -7210,7 +7216,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 23 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 26 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -7228,12 +7234,19 @@ do
     -- CALC-007. The implicit template says what the answer is written in.
     check(state.labels[23] == "Implicit derivative dy/dx" and state.descriptions[23]:find("dydx", 1, true) ~= nil,
           "the implicit template is offered and names the derivative symbol")
+    -- CALC-011. The Taylor templates follow them and say what the polynomial is and is not.
+    check(state.labels[24] == "Taylor polynomial at a point" and state.labels[25] == "Maclaurin polynomial" and
+          state.descriptions[24]:find("remainder", 1, true) ~= nil and
+          state.descriptions[25]:find("approximation", 1, true) ~= nil,
+          "the Taylor templates are offered with guidance on the order, the remainder and the approximation")
+    check(state.labels[26] == "Series convergence test" and state.descriptions[26]:find("first index", 1, true) ~= nil,
+          "the convergence template is offered with guidance on the first index")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 23, "up from the first template reaches the final template")
+    check(state.selected == 26, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()
