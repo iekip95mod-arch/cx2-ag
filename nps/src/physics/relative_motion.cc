@@ -37,10 +37,12 @@ bool valid_axes(RelativeMotionAxes axes) {
     return false;
 }
 
-bool normalized(const Rational &source, Rational *value) {
-    *value = source;
-    return normalise(&value->num, &value->den);
-}
+using measure::normalize_copy;
+using measure::normalized_rational_node;
+using measure::verification;
+using measure::add_check;
+using measure::add_transformation;
+using measure::transformation_step;
 
 bool valid_vector(const Vector &vector, std::string *detail) {
     const Rational components[3] = {vector.x, vector.y, vector.z};
@@ -48,12 +50,12 @@ bool valid_vector(const Vector &vector, std::string *detail) {
     const size_t active = vector.rank == 3 ? 3 : 2;
     Rational normalized_value;
     for (size_t axis = 0; axis < active; ++axis) {
-        if (!normalized(components[axis], &normalized_value)) {
+        if (!normalize_copy(components[axis], &normalized_value)) {
             *detail = std::string("the ") + names[axis] + " component has an invalid exact value";
             return false;
         }
     }
-    if (!normalized(vector.unit.scale, &normalized_value) || normalized_value.num <= 0) {
+    if (!normalize_copy(vector.unit.scale, &normalized_value) || normalized_value.num <= 0) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
@@ -76,30 +78,18 @@ bool valid_vector(const Vector &vector, std::string *detail) {
     return false;
 }
 
-NodeId rational_node(Arena &arena, const Rational &source) {
-    Rational value;
-    if (!normalized(source, &value))
-        return kNoNode;
-    if (value.den == 1)
-        return arena.integer(integer_text(value.num));
-    const NodeId numerator = arena.integer(integer_text(value.num));
-    const NodeId denominator = arena.integer(integer_text(value.den));
-    return arena.binary(Kind::Mul, numerator,
-                        arena.binary(Kind::Pow, denominator, arena.integer("-1")));
-}
-
 NodeId vector_node(Arena &arena, const Vector &vector) {
     std::vector<NodeId> components;
-    components.push_back(rational_node(arena, vector.x));
-    components.push_back(rational_node(arena, vector.y));
+    components.push_back(normalized_rational_node(arena, vector.x));
+    components.push_back(normalized_rational_node(arena, vector.y));
     if (vector.rank == 3)
-        components.push_back(rational_node(arena, vector.z));
+        components.push_back(normalized_rational_node(arena, vector.z));
     return arena.call("vector", components);
 }
 
 NodeId vector_model_node(Arena &arena, const Vector &vector) {
     return arena.call("framed_vector",
-                      {vector_node(arena, vector), rational_node(arena, vector.unit.scale),
+                      {vector_node(arena, vector), normalized_rational_node(arena, vector.unit.scale),
                        arena.symbol(vector.frame.name), dimension_node(arena, vector.unit.dimension),
                        arena.integer(integer_text(vector.rank))});
 }
@@ -135,7 +125,7 @@ NodeId symbolic_relative_equation(Arena &arena, const RelativeMotionProblem &pro
 
 bool needs_conversion(const Vector &vector) {
     Rational scale;
-    return !normalized(vector.unit.scale, &scale) || scale.num != 1 || scale.den != 1;
+    return !normalize_copy(vector.unit.scale, &scale) || scale.num != 1 || scale.den != 1;
 }
 
 // units.cc's to_si(Vector) refuses rank one, since every other Vector consumer is rank two or
@@ -180,76 +170,6 @@ bool vector_sub_relative(const Vector &a, const Vector &b, Vector *out, std::str
     difference.precision = precision_sum(difference.x, a.precision, b.precision);
     *out = std::move(difference);
     return true;
-}
-
-VerificationRecord verification(const char *method, const std::string &detail,
-                                EvidenceStrength passing, VerificationOutcome outcome) {
-    VerificationRecord record;
-    record.method = method;
-    record.detail = detail;
-    record.outcome = outcome;
-    record.strength = strength_for(outcome, passing);
-    return record;
-}
-
-bool add_check(Derivation &derivation, Meter &meter, StepId parent, const char *rule_id,
-               const char *rule_name, const std::string &goal, const std::string &explanation,
-               const char *obligation_id, const std::string &obligation, const char *method,
-               const std::string &verification_detail, EvidenceStrength passing,
-               VerificationOutcome outcome, const std::string &target,
-               const std::string &expected, const std::string &observed,
-               size_t backend_requests = 0) {
-    if (!meter.step())
-        return false;
-    Step step;
-    step.phase = "check";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.claim = ClaimType::Definition;
-    step.proof_obligations.push_back({obligation_id, obligation});
-    step.verifications.push_back(verification(method, verification_detail, passing, outcome));
-    step.backend_requests = static_cast<uint32_t>(backend_requests);
-    CheckPayload payload;
-    payload.target_claim = target;
-    payload.check_method = method;
-    payload.expected_relation = expected;
-    payload.observed_result = observed;
-    derivation.add_check(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-bool add_transformation(Derivation &derivation, Meter &meter, StepId parent, Step step,
-                        NodeId before, const std::string &action, NodeId after, bool reversible) {
-    if (!meter.rewrite() || !meter.step())
-        return false;
-    TransformationPayload payload;
-    payload.before = before;
-    payload.after = after;
-    payload.concrete_action = action;
-    payload.reversible = reversible;
-    derivation.add_transformation(parent, std::move(step), std::move(payload));
-    return true;
-}
-
-// detailed has no default on purpose. STEP-021 wants every transformation to say how to recognise
-// its rule again, and a builder that lets the field be left out is why it was empty here.
-Step transformation_step(const char *rule_id, const char *rule_name, const std::string &goal,
-                         const std::string &explanation, const std::string &detailed,
-                         ClaimType claim,
-                         const VerificationRecord &record, size_t backend_requests = 0) {
-    Step step;
-    step.phase = "solve";
-    step.goal = goal;
-    step.rule_id = rule_id;
-    step.rule_name = rule_name;
-    step.explanation_short = explanation;
-    step.explanation_detailed = detailed;
-    step.claim = claim;
-    step.verifications.push_back(record);
-    step.backend_requests = static_cast<uint32_t>(backend_requests);
-    return step;
 }
 
 RelativeDirection direction_of(const Vector &velocity) {
@@ -617,9 +537,9 @@ RelativeMotionResult solve_body(Arena &arena, Derivation &derivation, Meter &met
     const char *axis_names[2] = {"i", "j"};
     for (size_t axis = 0; axis < 2; ++axis) {
         const NodeId before = arena.binary(
-            Kind::Add, rational_node(arena, subject_components[axis]),
-            arena.unary(Kind::Neg, rational_node(arena, reference_components[axis])));
-        const NodeId after = rational_node(arena, relative_components[axis]);
+            Kind::Add, normalized_rational_node(arena, subject_components[axis]),
+            arena.unary(Kind::Neg, normalized_rational_node(arena, reference_components[axis])));
+        const NodeId after = normalized_rational_node(arena, relative_components[axis]);
         if (arena.failed()) {
             return failed(RelativeMotionOutcome::ResourceExceeded,
                           DerivationStatus::ResourceLimitReached, status_name(arena.status()));

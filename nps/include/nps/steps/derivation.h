@@ -265,6 +265,15 @@ enum class NumericMode : uint8_t {
 
 const char *numeric_mode_name(NumericMode m);
 
+// MATH-007. The angle unit the learner selected. Recorded as the context's angle convention so a
+// saved derivation names the unit it was produced under.
+enum class AngleMode : uint8_t {
+    Radians,
+    Degrees,
+};
+
+const char *angle_mode_name(AngleMode m);
+
 struct SolutionContext {
     std::string application_version;
     std::string capability_manifest_id;
@@ -290,6 +299,7 @@ struct SolutionContext {
 struct SolveRequest {
     std::string original_expression;
     NumericMode numeric_mode = NumericMode::Exact;
+    AngleMode angle_mode = AngleMode::Radians;
 };
 
 class Derivation {
