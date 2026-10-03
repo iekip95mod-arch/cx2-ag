@@ -73,6 +73,8 @@ set(CORE_SOURCES
     src/steps/differentiate.cc
     src/steps/integrate.cc
     src/steps/calculus.cc
+    src/steps/implicit.cc
+    src/steps/separable.cc
     src/physics/catch_up.cc
     src/physics/density.cc
     src/physics/modern.cc
@@ -122,6 +124,8 @@ set(TEST_SOURCES
     tests/unit/differentiate_tests.cc
     tests/unit/integrate_tests.cc
     tests/unit/calculus_tests.cc
+    tests/unit/implicit_tests.cc
+    tests/unit/separable_tests.cc
     tests/unit/ui_canvas_tests.cc
     tests/unit/integrity_tests.cc
     tests/unit/units_tests.cc
@@ -364,6 +368,7 @@ set_source_files_properties("${NPS_GIAC_SRC}/sha256.c" PROPERTIES LANGUAGE CXX)
 add_library(nps_gmp INTERFACE)
 if(CMAKE_CROSSCOMPILING)
     set(NPS_GMP_INCLUDE_DIR "${NPS_NDL_SDK}/toolchain/install/include")
+    set(NPS_GMP_INCLUDE_DIRS "${NPS_GMP_INCLUDE_DIR}")
     set(NPS_GMP_LIBRARY "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a")
     if(NOT EXISTS "${NPS_GMP_INCLUDE_DIR}/gmp.h" OR NOT EXISTS "${NPS_GMP_LIBRARY}")
         message(FATAL_ERROR "the ndl GMP 6.3.0 installation is incomplete")
@@ -376,8 +381,8 @@ else()
     target_link_libraries(nps_gmp INTERFACE PkgConfig::NPS_GMP)
 endif()
 
-# Inputs that #222 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
-# bytes depend on them. The check below cannot hold those to the tracked-source rule until #222 moves
+# Inputs that #490 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
+# bytes depend on them. The check below cannot hold those to the tracked-source rule until #490 moves
 # those hashes onto sources, so the call that hashed one says so here. Naming the call rather than a
 # path pattern keeps the exemption from covering a tracked source that happens to sit beside one.
 function(nps_defer_manifest_inputs)
@@ -458,7 +463,7 @@ function(nps_hash_ndl_inputs output)
         "${sdk}/toolchain/install/bin/arm-none-eabi-ld"
         "${sdk}/toolchain/install/include/gmp.h"
         "${sdk}/toolchain/install/lib/libgmp.a")
-    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #222.
+    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #490.
     nps_defer_manifest_inputs(${inputs})
     nps_hash_inputs(hash ${inputs})
     set(${output} "${hash}" PARENT_SCOPE)
@@ -482,7 +487,7 @@ function(nps_hash_giac_inputs output)
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
-    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #222.
+    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #490.
     nps_defer_manifest_inputs(
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
@@ -1155,11 +1160,11 @@ else()
     nps_hash_inputs(NPS_HOST_STEP_HASH ${NPS_COMMON_MANIFEST_INPUTS})
     nps_add_manifest(nps_manifest_host host 0 0 none not-installed none absent
                      "${NPS_HOST_STEP_HASH}" "" "" "" "")
-    target_link_libraries(nps_manifest_host PRIVATE nps_flags)
+    target_link_libraries(nps_manifest_host PRIVATE nps_flags nps_gmp)
 
     nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}" "")
-    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
+    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags nps_gmp)
     add_executable(nps_manifest_probe_test tests/unit/manifest_scheme_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_probe_host>)
     target_compile_definitions(nps_manifest_probe_test PRIVATE
@@ -1177,7 +1182,7 @@ else()
     nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
                      lua5.1.luagiac.caseval-v1 external-required-unvalidated
                      "${NPS_SPLIT_HOST_STEP_HASH}" "" "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
-    target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
+    target_link_libraries(nps_manifest_split_host PRIVATE nps_flags nps_gmp)
     if(NPS_RETAINED_FAULT_INJECTION)
         target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
     endif()
@@ -1196,7 +1201,7 @@ else()
     nps_add_manifest(nps_manifest_unified_host unified 1 0 Giac bundled-static
                      nps.giac.typed-v1 bundled-static
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
-    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags)
+    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags nps_gmp)
     add_executable(nps_manifest_unified_test tests/unit/manifest_scheme_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_unified_host>)
     target_compile_definitions(nps_manifest_unified_test PRIVATE
@@ -1246,7 +1251,7 @@ else()
     # catalog is the only inventory that names the rules a host run cannot reach.
     add_executable(nps_coverage tools/coverage.cc src/steps/schema.cc)
     target_include_directories(nps_coverage PRIVATE include)
-    target_link_libraries(nps_coverage PRIVATE nps_flags)
+    target_link_libraries(nps_coverage PRIVATE nps_flags nps_gmp)
 
     # A device run has no TestSink, so what it found reaches the evidence file through here. The
     # record names the packaged artifact and the digest it was read from, and this refuses to turn
@@ -1476,7 +1481,9 @@ include(CTest)
 # The lint cannot judge the module without the SDK headers, and a custom target has no ENVIRONMENT
 # property, so the path the configure already knows is handed over through env the way the packaging
 # steps hand over theirs.
-set(NPS_UI_LINT_CPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/etl/include")
+string(JOIN ":" NPS_UI_LINT_GMP_CPATH ${NPS_GMP_INCLUDE_DIRS})
+set(NPS_UI_LINT_CPATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/etl/include:${NPS_UI_LINT_GMP_CPATH}")
 add_custom_target(resident_exit_lint
     COMMAND ${CMAKE_COMMAND} -E env "NDL_SDK=${NPS_NDL_SDK}" "CPATH=${NPS_UI_LINT_CPATH}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lint-resident-exit.sh"
@@ -1695,6 +1702,18 @@ if(NOT CMAKE_CROSSCOMPILING)
     # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
     # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
+
+    # Their staging directories go in the build tree rather than /tmp, which parallel lanes share,
+    # and each selftest removes its own. The audit runs all four against an empty root of its own and
+    # fails on anything they leave there.
+    set_tests_properties(device_evidence_selftest device_run_selftest coverage_selftest
+                         traceability_selftest PROPERTIES
+                         ENVIRONMENT "NPS_SCRATCH_DIR=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch")
+    add_test(NAME selftest_scratch_cleanup
+             COMMAND "${CMAKE_COMMAND}"
+                     "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch-audit"
+                     "-DSELFTESTS=$<TARGET_FILE:nps_device_evidence>;$<TARGET_FILE:nps_device_run>;$<TARGET_FILE:nps_coverage>;$<TARGET_FILE:nps_traceability>"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/selftest_scratch_cleanup.cmake")
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
     # claim line in turn and the suite has to fail while it is gone.
