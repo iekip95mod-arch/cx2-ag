@@ -173,6 +173,11 @@ void test_methods(TestSink &t) {
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
                 "a base whose derivative folds to zero is not taken as a substitution");
     }
+    {
+        const Integrated s = run("x^9223372036854775807*exp(ln(x))", "x");
+        t.equal(integrate_outcome_name(s.outcome), "unsupported form",
+                "substitution matching leaves exponents outside the integer range unfolded");
+    }
     for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
         const Integrated s = run(refused, "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",

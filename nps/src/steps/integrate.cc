@@ -686,8 +686,12 @@ NodeId cancel_like_bases(Arena &arena, NodeId product) {
         bool merged = false;
         for (auto &entry : powers) {
             if (entry.first == base) {
-                entry.second += exponent;
+                int64_t sum = 0;
+                if (!add_checked(entry.second, exponent, &sum))
+                    return product;
+                entry.second = sum;
                 merged = true;
+                break;
             }
         }
         if (!merged)
