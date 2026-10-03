@@ -105,6 +105,8 @@ struct TestSink {
     // How many times each check sentence ran, keyed by group. A group whose total differs between
     // two platforms parted somewhere inside it, and only a per-sentence tally says where.
     std::map<std::pair<std::string, std::string>, int> label_counts;
+    // VER-015 rows the golden pass counted, written to the evidence file as they are.
+    std::vector<std::string> check_kind_rows;
     std::vector<RuleCase> rule_cases;
     std::string group;
 

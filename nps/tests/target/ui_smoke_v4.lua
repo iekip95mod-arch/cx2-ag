@@ -2988,6 +2988,24 @@ do
         end
     end
 
+    -- Derived from each entry's own skeleton, so a hand-counted caret offset on a new entry is caught too.
+    for item = 2, #main_menu[2] do
+        if main_menu[2][item] ~= "-" then
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            math011_skeleton = fctEditor:getExpression()
+            math011_slot = math011_skeleton:find("(", 1, true) or #math011_skeleton
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            fctEditor:addString("Q")
+            check(fctEditor:getExpression() == math011_skeleton:sub(1, math011_slot) .. "Q" ..
+                      math011_skeleton:sub(math011_slot + 1),
+                  "template " .. main_menu[2][item][1] .. " leaves the caret in its first slot")
+        end
+    end
+
     -- Every kind the requirement names, driven rather than read. The loop above proves a template
     -- yields linear syntax; these prove the caret lands in the slot the student fills first, which
     -- is what makes a skeleton a template rather than an insert. The last two have no slot, and a
@@ -3640,6 +3658,8 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
+        { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()
@@ -4478,6 +4498,8 @@ do
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
         { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
         { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
+        { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
+        { "Templates", "Linearization at a point", "linearize(x^2,x,0)", "linearize", "x^2" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }

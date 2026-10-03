@@ -156,7 +156,7 @@ makes both of them reachable.
 `source`: read on 2026-09-25. nps/lua/nps_v4.lua:2803 sends projectile true for the thrown ball, and
 the problem table at nps/lua/nps_v4.lua:2814-2821 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
-nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
 nps/src/core/capability_manifest.cc:40-41 and required of the loaded module at
