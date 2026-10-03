@@ -34,6 +34,7 @@ local function check(ok, what)
         failures = failures + 1
         print("FAIL: " .. what)
     end
+    return ok
 end
 
 local function evidence(requirement, ok, what)
@@ -1038,7 +1039,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 188, "every palette entry survives the regrouping: " .. entries .. " of 188")
+    check(entries == 190, "every palette entry survives the regrouping: " .. entries .. " of 190")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -2987,6 +2988,24 @@ do
         end
     end
 
+    -- Derived from each entry's own skeleton, so a hand-counted caret offset on a new entry is caught too.
+    for item = 2, #main_menu[2] do
+        if main_menu[2][item] ~= "-" then
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            math011_skeleton = fctEditor:getExpression()
+            math011_slot = math011_skeleton:find("(", 1, true) or #math011_skeleton
+            fctEditor.editor:setExpression("\\0el {}")
+            fctEditor:fixContent()
+            main_menu[2][item][2]()
+            fctEditor:addString("Q")
+            check(fctEditor:getExpression() == math011_skeleton:sub(1, math011_slot) .. "Q" ..
+                      math011_skeleton:sub(math011_slot + 1),
+                  "template " .. main_menu[2][item][1] .. " leaves the caret in its first slot")
+        end
+    end
+
     -- Every kind the requirement names, driven rather than read. The loop above proves a template
     -- yields linear syntax; these prove the caret lands in the slot the student fills first, which
     -- is what makes a skeleton a template rather than an insert. The last two have no slot, and a
@@ -3639,6 +3658,8 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
+        { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
     }
     for _, solver in ipairs(physicsSolvers) do
         local module = copyModule()
@@ -4124,9 +4145,9 @@ local function writeEvidence()
     combined:close()
     local emitted = after:sub(#before + 1)
     local expected = {
-        "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
+        "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
         "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "PLAT-006", "PLAT-012",
+        "UI-018", "PLAT-006", "PLAT-012",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -4477,6 +4498,8 @@ do
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
         { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
         { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
+        { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
+        { "Templates", "Linearization at a point", "linearize(x^2,x,0)", "linearize", "x^2" },
     }
     module.walkthrough = function(command, variable)
         attempted[#attempted + 1] = { command, variable }
@@ -5159,7 +5182,9 @@ do
             if type(item) == "table" and item[1] == "Read Full Text" then read_text = item[2] end
         end
     end
-    check(type(read_text) == "function", "long dynamic text has a discoverable full-text reading action")
+    -- UI-018 is claimed only if every reachability, focus, footer and resize check below held.
+    local ui018 = check(type(read_text) == "function",
+                        "long dynamic text has a discoverable full-text reading action")
     local saved_width = platform.window.width
     for _, width in ipairs({ 320, 180 }) do
         platform.window.width = function() return width end
@@ -5172,7 +5197,7 @@ do
                 bounded = bounded and call.x >= 0 and call.x + gc:getStringWidth(call.text) <= width
             end
         end
-        check(bounded, "status text stays within the " .. width .. " pixel display")
+        ui018 = check(bounded, "status text stays within the " .. width .. " pixel display") and ui018
         if read_text then
             read_text()
             local tail, fits = false, true
@@ -5186,9 +5211,9 @@ do
                 end
                 env.on.arrowDown()
             end
-            check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
+            ui018 = check(tail and fits, "the complete error scrolls into view without clipping at " .. width ..
                   " (tail=" .. tostring(tail) .. ", fits=" .. tostring(fits) ..
-                  ", status=" .. tostring(env.steps.status) .. ")")
+                  ", status=" .. tostring(env.steps.status) .. ")") and ui018
             env.on.escapeKey()
         end
     end
@@ -5219,22 +5244,22 @@ do
           "an interior caret leaves horizontal math-editor movement with the native widget")
     env.on.help()
     local seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and fits,
-          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and fits,
+          "unsubmitted math has a complete wrapped alternative to native horizontal scrolling") and ui018
     env.on.escapeKey()
-    check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
-          "closing the text reader preserves the entry and returns its focus")
+    ui018 = check(env.fctEditor:getExpression() == input_text and env.theView:getFocus() == env.fctEditor,
+          "closing the text reader preserves the entry and returns its focus") and ui018
 
     env.addME(input_text, answer_text)
     local focused = env.histME2[#env.histME2]
     env.theView:setFocus(focused)
     env.on.help()
     seen, fits = scan_reader(100)
-    check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-          "a selected history entry exposes both complete expressions without clipped math boxes")
+    ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+          "a selected history entry exposes both complete expressions without clipped math boxes") and ui018
     env.on.escapeKey()
-    check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
-          "closing the history reader restores the selected native editor")
+    ui018 = check(env.theView:getFocus() == focused and focused.editor.visible and focused.editor.x >= 0,
+          "closing the history reader restores the selected native editor") and ui018
 
     local manifest = {}
     for key, value in pairs(fake_manifest) do manifest[key] = value end
@@ -5251,6 +5276,7 @@ do
         record.steps, record.step_count = {first}, 1
         record.original_expression, record.normalized_expression = expression, expression
         record.display_result = answer_text
+        record.assumptions = string.rep("a and ", 60) .. "ASSUMPTION_TAIL"
         return record
     end
     env = loadIsolated(module)
@@ -5263,22 +5289,23 @@ do
         env.resizeGC(gc)
         drawn, draw_calls = {}, {}
         env.on.paint(gc)
-        check(table.concat(drawn):find("T text", 1, true) ~= nil,
-              "abbreviated walkthrough text names its reader shortcut at " .. width)
+        ui018 = check(table.concat(drawn):find("T text", 1, true) ~= nil,
+              "abbreviated walkthrough text names its reader shortcut at " .. width) and ui018
         env.on.charIn("t")
         seen, fits = scan_reader(160)
-        check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
+        ui018 = check(seen:find("INPUT_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true)
               and seen:find("VARIABLE_TAIL", 1, true) and seen:find("MANIFEST_TAIL", 1, true)
-              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true) and fits,
-              "full request, result, variable, module and step text remain reachable at " .. width)
+              and seen:find("METHOD_TAIL", 1, true) and seen:find("EXPLANATION_TAIL", 1, true)
+              and seen:find("ASSUMPTION_TAIL", 1, true) and fits,
+              "full request, result, variable, module, step and assumption text remain reachable at " .. width) and ui018
         env.on.escapeKey()
-        check(env.steps.active and env.steps.view == "list",
-              "the reader returns to the same walkthrough without changing its view")
+        ui018 = check(env.steps.active and env.steps.view == "list",
+              "the reader returns to the same walkthrough without changing its view") and ui018
         env.on.enterKey()
         env.steps.detail = 2
         seen, fits = scan_reader(160)
-        check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
-              "existing step detail scrolls the complete explanation and oversized formula at " .. width)
+        ui018 = check(seen:find("EXPLANATION_TAIL", 1, true) and seen:find("ANSWER_TAIL", 1, true) and fits,
+              "existing step detail scrolls the complete explanation and oversized formula at " .. width) and ui018
         env.on.escapeKey()
     end
     platform.window.width = saved_width
@@ -5307,11 +5334,15 @@ do
     for _, call in ipairs(draw_calls) do
         if call.y >= 190 and call.y < 226 then footer_fits = footer_fits and call.y + 12 <= 226 end
     end
-    check(footer_fits, "guided preview lines stop before the footer controls")
+    ui018 = check(footer_fits, "guided preview lines stop before the footer controls") and ui018
     env.on.charIn("t")
     seen, fits = scan_reader(160)
-    check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
-          "abbreviated guided labels and problem previews retain complete readable text")
+    ui018 = check(seen:find("FIXTURE_TAIL", 1, true) and seen:find("PROBLEM_TAIL", 1, true) and fits,
+          "abbreviated guided labels and problem previews retain complete readable text") and ui018
+    evidence("UI-018", ui018,
+             "long input, answers, assumptions, variables, modules and step text stay reachable through "
+             .. "a full-text reader and scrolling at 320 and 180 pixels, closing a reader restores focus "
+             .. "and view, and guided previews stop before the footer controls")
     env.on.escapeKey()
     env.PHYSICS_FIXTURES[1].run = function()
         error("short error\n" .. string.rep("additional failure context ", 40) .. "RAW_ERROR_TAIL", 0)
@@ -8295,6 +8326,87 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- MATH-007. The angle unit is chosen from the Steps menu, shown on every screen, sent with each
+-- request, bracketed around ordinary Giac evaluation so Giac is back in radians afterwards, and a
+-- reopened record names the unit it was solved under beside the active one.
+do
+    (function()
+    local module = copyModule()
+    local evaluated, requested = {}, {}
+    module.caseval = function(command)
+        if command == "version()" then return nps_split.caseval(command) end
+        evaluated[#evaluated + 1] = command
+        if command == "boom" then error("giac raised") end
+        return "giac(" .. command .. ")"
+    end
+    module.walkthrough = function(command, variable, numeric, angle)
+        if command:sub(1, 5) ~= "diff(" then return nil end
+        requested[#requested + 1] = { command = command, numeric = numeric, angle = angle }
+        local record = {}
+        for key, value in pairs(fake_result) do record[key] = value end
+        record.request_expression = command
+        record.mode = "differentiate"
+        record.original_expression = "x^2"
+        record.normalized_expression = "x^2"
+        record.angle_convention = angle or "radians"
+        return record
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    evaluated = {}
+    local function paintedHere()
+        drawn = {}
+        env.on.paint(gc)
+        return table.concat(drawn, "\n")
+    end
+    check(env.steps.angle == "radians" and paintedHere():find("RAD", 1, true) ~= nil,
+          "the shell starts in radians and shows RAD")
+    local selected = false
+    for _, category in ipairs(env.menu) do
+        if category[1] == "Steps" then
+            for index = 2, #category do
+                if type(category[index]) == "table" and category[index][1] == "Angles in degrees (DEG)" then
+                    category[index][2]()
+                    selected = true
+                end
+            end
+        end
+    end
+    check(selected and env.steps.angle == "degrees" and paintedHere():find("DEG", 1, true) ~= nil,
+          "the Steps menu selects degrees and the screen shows DEG")
+
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 3 and evaluated[1] == "angle_radian:=0" and evaluated[2] == "sin(30)" and
+          evaluated[3] == "angle_radian:=1",
+          "ordinary evaluation runs in degrees and puts Giac back in radians: " .. table.concat(evaluated, " | "))
+    evaluated = {}
+    local ok = pcall(env.angleCaseval, "boom")
+    check(not ok and evaluated[#evaluated] == "angle_radian:=1",
+          "Giac is put back in radians even when the evaluation raises")
+
+    env.fctEditor.editor:setExpression("\\0el {diff(x^2,x)}")
+    env.on.enterKey()
+    check(#requested == 1 and requested[1].angle == "degrees" and requested[1].numeric == "exact",
+          "a native walkthrough is sent the active angle mode")
+    check(env.steps.active and env.steps.result.angle_convention == "degrees",
+          "the walkthrough record carries the mode it was solved under")
+    env.stepsSetAngle("radians")
+    drawn = {}
+    env.on.paint(gc)
+    local header = table.concat(drawn, "\n")
+    check(header:find("DEG (now RAD)", 1, true) ~= nil,
+          "a record solved in degrees says so beside the active radian mode: " .. header:sub(1, 160))
+    env.closeSteps()
+    evaluated = {}
+    env.fctEditor.editor:setExpression("\\0el {sin(30)}")
+    env.on.enterKey()
+    check(#evaluated == 1 and evaluated[1] == "sin(30)", "radian mode evaluates without touching the Giac setting")
+    evidence("MATH-007", selected and requested[1].angle == "degrees" and header:find("DEG (now RAD)", 1, true) ~= nil,
+             "the shell selects degree or radian mode from the Steps menu, shows it on every screen, sends it with each request and names a reopened record's mode")
     end)()
 end
 
