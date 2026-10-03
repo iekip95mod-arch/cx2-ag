@@ -128,6 +128,7 @@ void test_methods(TestSink &t) {
              Method{"2x/(x^2+1)", "ln(x^2+1)", "i.substitution"},
              Method{"2x/(x^2+1)^2", "-1/(x^2+1)", "i.substitution"},
              Method{"cos(x)/sin(x)^2", "-1/sin(x)", "i.substitution"},
+             Method{"x*(x^2)^3", "(x^2)^4/8", "i.substitution"},
              Method{"x*exp(x)", "x*exp(x)-exp(x)", "i.parts"},
              Method{"x*sin(x)", "-x*cos(x)+sin(x)", "i.parts"},
              Method{"x*cos(2x)", "x*sin(2x)/2+cos(2x)/4", "i.parts"},
@@ -231,7 +232,7 @@ void test_methods(TestSink &t) {
                     s.detail.find("neither the substitution nor the parts pattern") != std::string::npos,
                 "integration by parts is not tried against a function of a nonlinear argument, got " + s.detail);
     }
-    for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
+    for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)", "x/sqrt(x^2+1)"}) {
         const Integrated s = run(refused, "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
                 std::string("a form no substitution or parts pattern fits is still refused: ") + refused);

@@ -533,9 +533,7 @@ NodeId integrate_call(Context &ctx, NodeId id, StepId parent) {
                        substitution_action(a, coefficient, "Use " + print(a, outer)));
 }
 
-// A power of a power is one power, so 1/x^2 reaches the same rule as x^-2 rather than being
-// refused for a base that is not linear. Only the exponents are folded, so the integrand is still
-// shown to the reader as it was written.
+// A power of a power read as one power, so 1/x^2 reaches the same rule as x^-2.
 void power_parts(Arena &a, NodeId power, NodeId *base, NodeId *exponent) {
     *base = a.children(power)[0];
     *exponent = a.children(power)[1];
@@ -732,12 +730,19 @@ bool integrate_by_substitution(Context &ctx, NodeId id, StepId parent, NodeId *o
             if (depends_on(a, argument, ctx.variable) && !quietly_linear(ctx, argument))
                 candidates.push_back({argument, call1(a, a.text(f).c_str(), u), i});
         } else if (n.kind == Kind::Pow) {
-            NodeId base = kNoNode;
-            NodeId exponent = kNoNode;
-            power_parts(a, f, &base, &exponent);
-            if (!depends_on(a, exponent, ctx.variable) && depends_on(a, base, ctx.variable) &&
-                !quietly_linear(ctx, base))
-                candidates.push_back({base, a.binary(Kind::Pow, u, exponent), i});
+            const auto offer = [&](NodeId base, NodeId exponent) {
+                if (!depends_on(a, exponent, ctx.variable) && depends_on(a, base, ctx.variable) &&
+                    !quietly_linear(ctx, base))
+                    candidates.push_back({base, a.binary(Kind::Pow, u, exponent), i});
+            };
+            const NodeId written_base = a.children(f)[0];
+            offer(written_base, a.children(f)[1]);
+            NodeId flat_base = kNoNode;
+            NodeId flat_exponent = kNoNode;
+            power_parts(a, f, &flat_base, &flat_exponent);
+            // Both readings, so x (x^2)^3 still names x^2 while 1/(x^2+1)^2 names x^2+1.
+            if (flat_base != written_base)
+                offer(flat_base, flat_exponent);
         }
     }
     if (factors.size() > 1) {
