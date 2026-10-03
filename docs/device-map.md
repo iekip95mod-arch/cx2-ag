@@ -116,14 +116,14 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4175), `vector_addition` (lua_module.cc:4178),
-`vector_cross` (lua_module.cc:4179), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, `export_text` (lua_module.cc:4146), and a set of platform entry points for
+`optics`, `unit_conversion` (lua_module.cc:4210), `vector_addition` (lua_module.cc:4213),
+`vector_cross` (lua_module.cc:4214), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4181), and a set of platform entry points for
 memory, tracing, integrity and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-09-26, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4051, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4086, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -141,8 +141,8 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4147, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:2883-2884. Its menu entry is still needed, and a shape the family does not read still
+lua_module.cc:4182, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:2918-2919. Its menu entry is still needed, and a shape the family does not read still
 returns nil so the shell falls back to Giac.
 
 ## What the shell can reach
@@ -158,10 +158,10 @@ returns nil so the shell falls back to Giac.
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-09-25. nps/lua/nps_v4.lua:2749 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2760-2767 carries no projectile key at all, which is how the
+`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2809 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2820-2827 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
-nps/src/physics/planar_kinematics.cc:246 reads that flag and reports either
+nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
 nps/src/core/capability_manifest.cc:42-43 and required of the loaded module at
@@ -194,8 +194,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3178, measureMath
-sets the expression at :3212, and the history editor sets its expression at :1438.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3237, measureMath
+sets the expression at :3271, and the history editor sets its expression at :1438.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)

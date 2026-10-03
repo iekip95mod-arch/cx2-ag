@@ -2,6 +2,7 @@
 #include <utility>
 #include <vector>
 
+#include "nps/core/evaluate.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/physics/vector_components.h"
@@ -29,6 +30,39 @@ class SequenceBackend : public Backend {
   private:
     std::vector<std::string> replies_;
     size_t next_ = 0;
+};
+
+// Answers from the request it was sent, so a check that never mentions the formula cannot catch its lie.
+class ArithmeticBackend : public SequenceBackend {
+  public:
+    explicit ArithmeticBackend(bool wrong_cosine) : SequenceBackend({}), wrong_cosine_(wrong_cosine) {}
+
+    bool typed(const Request &request, Arena &arena, TypedResult *out) override {
+        ops.push_back(request.op);
+        Rational value;
+        if (!evaluate_rational(arena, request.target, {}, &value))
+            return false;
+        if (request.op == Op::Cos || request.op == Op::Sin) {
+            const Rational angle = value;
+            if (!evaluate_rational_function(request.op == Op::Cos ? "cos" : "sin", angle, &value))
+                return false;
+            if (request.op == Op::Cos && wrong_cosine_)
+                value = {1, 2};
+        }
+        const NodeId numerator = arena.integer(std::to_string(value.num));
+        out->tag = ResultTag::Exact;
+        out->value = value.den == 1
+                         ? numerator
+                         : arena.binary(Kind::Mul, numerator,
+                                        arena.binary(Kind::Pow, arena.integer(std::to_string(value.den)),
+                                                     arena.integer("-1")));
+        return true;
+    }
+
+    std::vector<Op> ops;
+
+  private:
+    bool wrong_cosine_;
 };
 
 class InvalidNodeBackend : public Backend {
@@ -674,32 +708,42 @@ void run_vector_components_tests(TestSink &t) {
     }
 
     {
-        // VER-012. The backend is scripted to answer the check with the very result it gave for the
-        // value, which is the thing the requirement forbids a rule from accepting. The check asks
-        // whether a difference is zero, so echoing a non-zero value back cannot answer it, and the
-        // component is refused rather than justified by its own source.
-        Arena arena;
-        Derivation derivation;
-        SequenceBackend backend({"sqrt(3)/2", "sqrt(3)/2"});
-        MagnitudeAngleExpr input;
-        input.magnitude = parsed(arena, "10");
-        input.angle = parsed(arena, "30");
-        input.angle_unit = AngleUnit::Degrees;
-        input.frame.name = "lab";
-        set_length_unit(&input);
-        const VectorComponentsResult result =
-            magnitude_angle_to_components(arena, derivation, input, backend);
-        const bool refused = result.outcome == VectorComponentsOutcome::VerificationFailed &&
-                             !result.has_components && derivation.size() == 0;
-        const bool two_distinct_questions =
-            backend.commands.size() >= 2 && backend.commands[0] != backend.commands[1];
-        t.check(refused, "a result echoed back as its own evidence does not stand");
-        t.check(two_distinct_questions,
-                "because the value and the check are two different questions to the backend");
-        t.evidence("VER-012", refused && two_distinct_questions,
-                   "the value a rule takes from the backend and the evidence that it is correct "
-                   "are separate backend questions, and a backend that answers the check with the "
-                   "same result it gave for the value fails the check rather than passing it");
+        bool truthful_solved = false;
+        bool wrong_refused = false;
+        for (const bool wrong_cosine : {false, true}) {
+            Arena arena;
+            Derivation derivation;
+            ArithmeticBackend backend(wrong_cosine);
+            MagnitudeAngleExpr input;
+            input.magnitude = parsed(arena, "10");
+            input.angle = parsed(arena, "0");
+            input.angle_unit = AngleUnit::Radians;
+            input.frame.name = "lab";
+            set_length_unit(&input);
+            const VectorComponentsResult result =
+                magnitude_angle_to_components(arena, derivation, input, backend);
+            Rational x;
+            Rational y;
+            if (wrong_cosine)
+                wrong_refused = result.outcome == VectorComponentsOutcome::VerificationFailed &&
+                                !result.has_components && derivation.size() == 0 &&
+                                backend.ops.size() == 2 && backend.ops[1] == Op::IsZero;
+            else
+                truthful_solved = result.outcome == VectorComponentsOutcome::Solved &&
+                                  result.has_components &&
+                                  evaluate_rational(arena, result.components.x, {}, &x) &&
+                                  rational_equal(x, {10, 1}) &&
+                                  evaluate_rational(arena, result.components.y, {}, &y) &&
+                                  rational_equal(y, {0, 1});
+        }
+        t.check(truthful_solved,
+                "a backend that answers every question truthfully yields the true components");
+        t.check(wrong_refused,
+                "a wrong cosine from the backend is refused by a check that asks about the formula");
+        t.evidence("VER-012", truthful_solved && wrong_refused,
+                   "the check a rule puts to the backend compares the backend's value with the "
+                   "formula it stands for, so a wrong value is refused even by a backend that "
+                   "answers the check truthfully, which a check built from the value alone cannot do");
     }
 
     {
