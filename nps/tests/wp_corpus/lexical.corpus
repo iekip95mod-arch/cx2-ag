@@ -1,0 +1,57 @@
+# WP Milestone 1 lexical corpus. Offsets are byte ranges of the text line, computed apart from the reader.
+case cart
+text A red cart moving at 5 m/s speeds up at 3 m/s^2 for 4 s. How fast is it moving then?
+expect quantity 5 m/s (L T^-1) from "5 m/s" at 21..26
+expect quantity 3 m/s^2 (L T^-2) from "3 m/s^2" at 40..47
+expect quantity 4 s (T) from "4 s" at 52..55
+expect status grounded
+end
+case block
+text A block of 2 kg takes up 250 cm^3. What is its density?
+expect quantity 2 kg (M) from "2 kg" at 11..15
+expect quantity 250 cm^3 (L^3) from "250 cm^3" at 25..33
+expect status grounded
+end
+case typographic
+text A ball is released from rest and falls with uniform acceleration of 9.8 m/s² for three seconds.
+expect quantity 9.8 m/s^2 (L T^-2) from "9.8 m/s²" at 68..77
+expect quantity 3 s (T) from "three seconds" at 82..95
+expect concept initial_speed_equals_zero from "released from rest" at 10..28
+expect concept constant_acceleration from "uniform acceleration" at 44..64
+expect status grounded
+end
+case words
+text A car travels 120 kilometres in 2 hours, then slows down at 1.5 meters per second squared.
+expect quantity 120 km (L) from "120 kilometres" at 14..28
+expect quantity 2 h (T) from "2 hours" at 32..39
+expect quantity 1.5 m/s^2 (L T^-2) from "1.5 meters per second squared" at 60..89
+expect concept acceleration_opposes_velocity from "slows down" at 46..56
+expect status grounded
+end
+case signed
+text The rod is 3/4 m long and its acceleration is -2 m/s^2.
+expect quantity 3/4 m (L) from "3/4 m" at 11..16
+expect quantity -2 m/s^2 (L T^-2) from "-2 m/s^2" at 46..54
+expect status grounded
+end
+case counts
+text One of the two carts starts at rest.
+expect concept initial_speed_equals_zero from "starts at rest" at 21..35
+expect status grounded
+end
+case refusals
+text The 20% grade climbs 3-5 m in 3 × 10^8 s with a 5 ± 0.1 kg load costing €4.
+expect quantity 4 (1) from "4" at 77..78
+expect refused percentage from "20%" at 4..7: a percentage is not read yet
+expect refused range from "3-5 m" at 21..26: a range of values is not read yet
+expect refused scientific notation from "3 × 10^8" at 30..39: scientific notation is not read yet
+expect refused tolerance from "5 ± 0.1 kg" at 49..60: a tolerance is not read yet
+expect refused unsupported character from "€" at 74..77: a character outside the supported text
+expect status unsupported
+end
+case units
+text It moves 5 furlongs/s and 2 m/fortnight.
+expect refused unknown unit from "5 furlongs/s" at 9..21: a unit this table does not know
+expect refused unknown unit from "2 m/fortnight" at 26..39: a unit this table does not know
+expect status unsupported
+end
