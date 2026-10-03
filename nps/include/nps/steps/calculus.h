@@ -21,6 +21,11 @@ enum class CalculusOutcome : uint8_t {
 
 const char *calculus_outcome_name(CalculusOutcome outcome);
 
+// What a convergence test decided about the whole series, kept apart from its sum.
+enum class SeriesVerdict : uint8_t { None, ConvergesAbsolutely, ConvergesConditionally, Diverges };
+
+const char *series_verdict_name(SeriesVerdict verdict);
+
 struct CalculusResult {
     CalculusOutcome outcome = CalculusOutcome::UnsupportedForm;
     NodeId value = kNoNode;
@@ -31,6 +36,12 @@ struct CalculusResult {
     NodeId slope = kNoNode;
     NodeId point_value = kNoNode;
     bool approximate = false;
+    // The Taylor family. remainder is the Lagrange form of what the polynomial leaves out.
+    NodeId remainder = kNoNode;
+    // The convergence family. test is the rule that decided the verdict, and value is the sum
+    // when the series is geometric.
+    SeriesVerdict verdict = SeriesVerdict::None;
+    std::string test;
     bool answer_only = false;
     bool backend_attempted = false;
     bool backend_compared = false;

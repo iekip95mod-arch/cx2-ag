@@ -44,6 +44,42 @@ do
     check(nps.math_display("3/4") == "(3 / 4)", "math display remains usable after refusal")
 end
 do
+    local judged = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "2*x - 4 = 0", "x = 2" }, "x")
+    evidence("STEP-013", type(judged) == "table" and judged.equivalence == "equivalent" and
+             judged.method == "comparison of the single solutions" and
+             judged.strength == "symbolically equivalent under assumptions",
+             "judge_attempt copies an exact equivalence verdict into Lua")
+    evidence("STEP-014", judged.usefulness == "valid not on route" and judged.reaches == 0,
+             "judge_attempt reports usefulness apart from validity")
+    local next_state = nps.judge_attempt("2*x + 3 = 7", "2*x - 4 = 0", { "2*x - 4 = 0", "x = 2" }, "x")
+    check(next_state.usefulness == "advances" and next_state.reaches == 1,
+          "judge_attempt reads the route it was handed")
+    local slipped = nps.judge_attempt("2*x + 3 = 7", "2*x = 10", nil, "x")
+    check(slipped.equivalence == "not equivalent" and slipped.usefulness == "not judged" and
+          slipped.detail == "the attempt's solution is 5 and the state's is 2",
+          "judge_attempt copies a refutation and its detail")
+    local other = nps.judge_attempt("2*y + 3 = 7", "2*y = 4", {}, "y")
+    check(other.equivalence == "equivalent", "judge_attempt honours the variable it is given")
+    local unparsed, why = nps.judge_attempt("2*x + 3 = 7", "2*x ==", {}, "x")
+    check(unparsed == nil and type(why) == "string" and why:find("attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused and named")
+    local badroute, routewhy = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "x = (" }, "x")
+    check(badroute == nil and routewhy:find("route state: ", 1, true) == 1,
+          "a route state that does not parse is refused and named")
+    local badvar, varwhy = nps.judge_attempt("x", "x", {}, "two words")
+    check(badvar == nil and type(varwhy) == "string", "a variable that is not an identifier is refused")
+    check(not pcall(nps.judge_attempt, "x\0y", "x", {}, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { 3 }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { "x\0" }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", "x", "x"),
+          "judge_attempt rejects invalid Lua arguments before owning native resources")
+    local long = {}
+    for i = 1, 513 do long[i] = "x" end
+    check(not pcall(nps.judge_attempt, "x", "x", long, "x"), "judge_attempt bounds the route it reads")
+    check(nps.judge_attempt("x + x", "2*x", {}, "x").equivalence ~= nil,
+          "judge_attempt remains usable after refusal")
+end
+do
     local fills = {}
     local gc = {
         setColorRGB = function() end,
@@ -253,7 +289,7 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
+check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 39,
       "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
@@ -270,6 +306,10 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.derivative.implicit",
+    "calculus.ode.separable.first-order",
+    "calculus.taylor-polynomial.single-variable",
+    "calculus.series.convergence",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.constant-acceleration.two-dimension",
@@ -286,6 +326,9 @@ local expected_modules = {
     "physics.optics.spherical-mirror.image",
     "physics.optics.double-slit.maxima",
     "physics.optics.single-slit.minima",
+    "physics.gravitation.point-masses",
+    "physics.oscillation.restoring-force",
+    "physics.wave.speed-frequency-wavelength",
     "units.chain-link-conversion",
     "units.si"
 }
@@ -427,6 +470,30 @@ do
         check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
               case[1] .. " names the family it answered")
     end
+    -- CALC-012. A separable desolve runs natively and one the family refuses returns nil for Giac.
+    for _, case in ipairs({
+        {"desolve(y'=x*y,x,y)", "(y = exp((((x^2) * (2^-1)) + C)))", true, nil},
+        {"desolve(y'=x/y^2,x,y)", "(((y^3) * (3^-1)) = (((x^2) * (2^-1)) + C))", false, nil},
+        {"desolve([y'=x*y,y(0)=2],x,y)", "(y = exp((((x^2) * (2^-1)) + ln(2))))", true, "ln(2)"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(type(record) == "table" and record.solved and record.has_result and
+              not record.answer_only and record.status == "solved and verified" and
+              record.result == case[2],
+              case[1] .. " is solved natively and verified")
+        check(record.mode == "differential equation" and record.outcome == "solved" and
+              record.explicit_solution == case[3] and record.constant == case[4] and
+              record.request_expression == case[1],
+              case[1] .. " reports its form, its constant and the request it answered")
+        check(command_has_rule(record, "ode.separable.separate") and
+              command_has_rule(record, "ode.separable.check-solution") and giac_calls == 0,
+              case[1] .. " carries the separation and the final check without asking Giac")
+    end
+    for _, text in ipairs({"desolve(y'=x+y,x,y)", "desolve(y''=y,x,y)", "desolve(y'=x*y)"}) do
+        check(nps.walkthrough(text, "x", "exact") == nil,
+              text .. " is left to Giac rather than refused natively")
+    end
     for _, case in ipairs({
         {"tangent(1/x,x,0)", "unsupported form"},
         {"tangent(x^2,x)", "unsupported form"},
@@ -435,6 +502,145 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-011. The Taylor family checks itself natively, so the bridge carries the order, the
+    -- center, the remainder and whether the polynomial equals the function or only approximates it.
+    for _, case in ipairs({
+        {"maclaurin(exp(x),x,3)", "maclaurin", "3", "0", true, "approximately equal", "exp(c)"},
+        {"taylor(x^3,x,1,3)", "taylor", "3", "1", false, "equal", "0"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and
+              command_has_rule(record, "taylor.polynomial") and command_has_rule(record, "taylor.remainder") and
+              command_has_rule(record, "taylor.check-polynomial"),
+              case[1] .. " exposes the native Taylor walkthrough with its remainder and final check")
+        check(record.mode == case[2] and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+        check(record.taylor_order == case[3] and record.taylor_center == case[4],
+              case[1] .. " reports the order and the center it was asked for")
+        check(record.approximation == case[5] and record.relation == case[6],
+              case[1] .. " states whether the polynomial equals the function or approximates it")
+        check(type(record.taylor_remainder) == "string" and record.taylor_remainder:find(case[7], 1, true) ~= nil,
+              case[1] .. " carries the remainder the polynomial leaves out")
+    end
+    for _, case in ipairs({
+        {"taylor(sin(x),x,1,2)", "unsupported form"},
+        {"maclaurin(exp(x),x,20)", "resource exceeded"},
+        {"taylor(x^2,x,0,-1)", "invalid input"},
+        {"maclaurin(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.taylor_remainder == nil and type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the Taylor envelope and says why")
+    end
+    -- CALC-011 convergence. The verdict is the answer, and the bridge names the test that decided it.
+    for _, case in ipairs({
+        {"convergence((1/2)^n,n,0)", "converges absolutely", "series.ratio-test", "2", "converges absolutely, sum = 2"},
+        {"convergence((-1)^n/n,n,1)", "converges conditionally", "series.alternating-test", nil, "converges conditionally"},
+        {"convergence(1/n,n,1)", "diverges", "series.p-comparison", nil, "diverges"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and record.mode == "convergence" and
+              command_has_rule(record, "series.terms-defined") and command_has_rule(record, case[3]) and
+              command_has_rule(record, "series.check-form"),
+              case[1] .. " exposes the native convergence walkthrough with its hypotheses and final check")
+        check(record.series_verdict == case[2] and record.series_test == case[3] and
+              record.series_sum == case[4] and record.result == case[5],
+              case[1] .. " reports its verdict, the test that decided it and a geometric sum")
+    end
+    for _, case in ipairs({
+        {"convergence(1/ln(n),n,2)", "unsupported form"},
+        {"convergence(1/(n-3),n,1)", "invalid input"},
+        {"convergence(1/n,n,1/2)", "invalid input"},
+        {"convergence((1/2)^n,n,70)", "resource exceeded", "resource limit reached"},
+        {"convergence(2^n/n,n,62)", "resource exceeded", "resource limit reached"},
+    }) do
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.series_verdict == nil and record.series_test == nil and
+              (case[3] == nil or record.status == case[3]) and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the convergence envelope and says why")
+    end
+    do
+        local record = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "decimal")
+        check(not record.solved and record.outcome == "unsupported form",
+              "the Taylor family refuses decimal mode rather than approximating its coefficients")
+    end
+    -- MATH-007. The angle mode is a fourth argument, every record names the one it ran under, and
+    -- trigonometric calculus in degree mode is refused without a backend answer read in radians.
+    do
+        local plain = nps.walkthrough("diff(x^2,x)", "x", "exact")
+        check(plain.angle_convention == "radians", "a walkthrough without an angle mode runs and records radians")
+        for _, command in ipairs({"diff(x^2,x)", "solve(2*x+5=13,x)", "limit(x^2,x,3)", "int(x,x)", "expand((x+1)^2)"}) do
+            script("0", "0", "0", "0")
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(record.angle_convention == "degrees" and record.outcome ~= "invalid input",
+                  command .. " records the degree mode it ran under")
+        end
+        for _, command in ipairs({"diff(sin(x),x)", "int(cos(x),x)", "limit(sin(x)/x,x,0)", "solve(sin(x)=1,x)"}) do
+            giac_calls = 0
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(not record.has_result and not record.answer_only and giac_calls == 0 and
+                  record.angle_convention == "degrees",
+                  command .. " in degree mode gets no answer read in radians and no backend call")
+        end
+        giac_calls = 0
+        script("cos(x)", "0")
+        local radians = nps.walkthrough("diff(sin(x),x)", "x", "exact", "radians")
+        check(radians.solved and radians.has_result and giac_calls > 0 and radians.angle_convention == "radians",
+              "the same trigonometric derivative still answers and cross-checks in radian mode")
+        local ok = pcall(nps.walkthrough, "diff(x^2,x)", "x", "exact", "gradians")
+        check(not ok, "an unknown angle mode is an error rather than a silent radian")
+        local implicit_plain = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact", "degrees")
+        check(implicit_plain.solved and implicit_plain.angle_convention == "degrees",
+              "implicit differentiation without trig answers in degree mode and records it")
+        local implicit_trig = nps.walkthrough("implicit(sin(x)+y^2=25,x,y)", "x", "exact", "degrees")
+        check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
+              implicit_trig.angle_convention == "degrees",
+              "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        local taylor_plain = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "exact", "degrees")
+        check(taylor_plain.solved and taylor_plain.angle_convention == "degrees",
+              "a Taylor polynomial without trig answers in degree mode and records it")
+        local taylor_trig = nps.walkthrough("maclaurin(sin(x),x,3)", "x", "exact", "degrees")
+        check(not taylor_trig.has_result and taylor_trig.outcome == "unsupported form" and
+              taylor_trig.taylor_remainder == nil and taylor_trig.angle_convention == "degrees",
+              "a Taylor polynomial of a trigonometric function is refused in degree mode rather than read as radians")
+        check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
+              "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -637,6 +843,25 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+check(nps.math_display("[1..3]") == "[1..3]" and nps.math_display("(0..1]") == "(0..1]",
+      "an interval displays with the bracket each end was given")
+check(nps.walkthrough("[1..3]", "x") == nil and nps.walkthrough("convert(x,interval)", "x") == nil,
+      "interval input the native side does not walk through still reaches Giac unchanged")
+do
+    -- The rows after this one count Giac calls from here, and a rewrite may consult it.
+    local calls_before = giac_calls
+    local product = nps.walkthrough("simplify(3\195\1512)", "x", "exact")
+    check(type(product) == "table" and product.solved and product.result == "6",
+          "a MathPrint times sign reaches the native walkthrough as multiplication")
+    local square = nps.walkthrough("simplify(x\194\178+x\194\178)", "x", "exact")
+    local ascii = nps.walkthrough("simplify(x^2+x^2)", "x", "exact")
+    check(type(square) == "table" and square.solved and square.result == "(2 * (x^2))" and
+          square.result == ascii.result,
+          "a superscript square collects exactly as x^2 does: " .. tostring(square and square.result))
+    check(nps.math_display("6\195\1832") == "(6 / 2)" and nps.math_display("\226\136\154(4)") == "sqrt(4)",
+          "MathPrint divide and radical signs display in the project's own grammar")
+    giac_calls = calls_before
+end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and
@@ -862,6 +1087,10 @@ do
         { "optics", { "thin lens", "image distance", "focal length", "10 cm",
                       "object distance", "15 cm" } },
         { "vector_addition", { "(1, 2) m", "(3, 4) m" } },
+        { "gravitation", { "gravitational force", "first mass", "2 kg", "second mass", "3 kg",
+                           "separation", "1 m" } },
+        { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
+        { "wave", { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
             local arguments = { unpack(calculation[2]) }
@@ -877,7 +1106,7 @@ end
 
 local before_answer_only = giac_calls
 script("x")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.solved == false and r.answer_only == true,
       "a refused integral can return a Giac answer without claiming a derivation")
 check(r.result == "x" and r.giac_tag == "exact",
@@ -1350,6 +1579,69 @@ check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
 r = nps.vector_cross("not a vector", "(1, 2, 3) m")
 check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
       "the cross product bridge returns a structured parse refusal")
+
+-- G is carried as the exact rational 6674/10^14, so 2.0 kg and 3.0 kg a metre apart give 4.0044e-10 N exactly.
+r = nps.gravitation("gravitational force", "first mass", "2.0 kg", "second mass", "3.0 kg",
+                    "separation", "1.0 m")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified" and
+      r.unknown == "gravitational force",
+      "the gravitation bridge returns a verified solution for the force")
+check(r.result == "gravitational force = 0.00000000040 kg m/s^2" and
+      r.value == "0.00000000040" and r.exact_value == "0.00000000040044" and
+      r.unit == "kg m/s^2" and r.precision.kind == "measured" and
+      r.precision.significant_digits == 2,
+      "the gravitation bridge reports the measured force beside its exact value")
+check(type(r.equation) == "string" and type(r.substituted) == "string" and
+      type(r.assumptions) == "string" and r.assumptions:find("point mass", 1, true) ~= nil and
+      r.assumptions:find("6.674e-11", 1, true) ~= nil,
+      "the gravitation bridge carries its relation and the point-mass and constant conditions")
+local gravitation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then gravitation_rules[s.rule] = true end end
+check(gravitation_rules["physics.gravitation.definition"] and
+      gravitation_rules["physics.gravitation.check-dimensions"] and
+      gravitation_rules["physics.gravitation.substitute"] and
+      gravitation_rules["physics.gravitation.check-candidate"],
+      "the gravitation bridge retains its definition, dimension, substitution and check steps")
+r = nps.gravitation("separation", "gravitational force", "1 N", "first mass", "1 kg",
+                    "second mass", "1 kg")
+check(r.outcome == "unsupported unknown" and r.solved == false and r.result == nil and
+      r.detail:find("power -2", 1, true) ~= nil,
+      "the gravitation bridge refuses the separation it cannot isolate linearly")
+r = nps.gravitation("mass", "first mass", "1 kg", "second mass", "1 kg", "separation", "1 m")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and
+      r.detail:find("mass", 1, true) ~= nil and #r.steps == 0,
+      "the gravitation bridge returns a structured refusal for a name the law does not use")
+
+r = nps.oscillation("restoring force", "stiffness", "200 N/m", "displacement", "5 cm")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "restoring force" and
+      r.result == "restoring force = 10 kg m/s^2" and r.value == "10" and r.exact_value == "10" and
+      r.unit == "kg m/s^2" and r.precision.kind == "exact",
+      "the oscillation bridge returns the exact restoring force of a stretched spring")
+local oscillation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then oscillation_rules[s.rule] = true end end
+check(oscillation_rules["physics.oscillation.convert-units"] and
+      oscillation_rules["physics.oscillation.substitute"] and
+      oscillation_rules["physics.oscillation.check-candidate"] and
+      r.assumptions:find("small-angle", 1, true) ~= nil,
+      "the oscillation bridge retains the centimetre conversion and the linearity condition")
+r = nps.oscillation("restoring force", "stiffness", "200 N", "displacement", "5 cm")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the oscillation bridge refuses a stiffness given as a force")
+
+r = nps.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "wavelength" and
+      r.result == "wavelength = 2 m" and r.value == "2" and r.unit == "m",
+      "the wave bridge isolates the wavelength from the speed and the frequency")
+check(r.assumptions:find("non-dispersive", 1, true) ~= nil,
+      "the wave bridge carries the uniform medium condition")
+r = nps.gravitation("gravitational force", "first mass", "2 kg", "second mass", "3 kg")
+check(r.outcome == "missing known" and r.solved == false and r.result == nil,
+      "the gravitation bridge refuses a law given one known too few")
+check(not pcall(nps.wave, "wavelength", "wave speed", "340 m/s"),
+      "the wave bridge raises rather than guessing when the second known pair is absent")
+r = nps.wave("wavelength", "wave speed", "340", "frequency", "170 s^-1")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the wave bridge refuses a speed given without its unit")
 
 local exact_precision = { kind = "exact", significant_digits = 0 }
 local measured_two = { kind = "measured", significant_digits = 2 }
@@ -2030,6 +2322,9 @@ check(begun.frame_capacity > 0 and begun.frame_peak_bytes <= begun.frame_capacit
       "solve_begin reports a frame budget and stays inside it")
 check(begun.original_expression == raw_equation,
       "the incremental owner preserves the source bytes of its request")
+check(begun.angle_convention == "radians" and
+      nps.solve_begin(raw_equation, "x", "linear", "exact", "degrees").angle_convention == "degrees",
+      "the incremental owner records the angle mode it was started under")
 local advances, partial, progress = 0, nil, nps.solve_begin(raw_equation, "x", "linear")
 repeat
     advances = advances + 1
@@ -2095,9 +2390,24 @@ check(giac_calls == 0 and r.outcome == "no solution" and r.solved == false and
       r.has_result == true and r.result == nil and r.status == "solved and verified" and
       type(r.steps) == "table" and #r.steps > 0,
       "verified inconsistent kinematics publishes an empty result set")
-r = nps.integrate_local("x*sin(x)", "x")
+r = nps.integrate_local("exp(x)*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only refusal cannot become answer-only")
+do
+    local function rules_of(record)
+        local found = {}
+        for _, step in ipairs(type(record) == "table" and record.steps or {}) do found[step.rule] = true end
+        return found
+    end
+    local substituted = nps.integrate_local("2*x*cos(x^2)", "x")
+    local parts = nps.integrate_local("x*exp(x)", "x")
+    local substituted_rules, parts_rules = rules_of(substituted), rules_of(parts)
+    evidence("CALC-006", giac_calls == 0 and substituted.solved and substituted.answer_only == false and
+             substituted.status == "solved and verified" and substituted_rules["i.substitution"] and
+             substituted_rules["i.substitution-rewrite"] and parts.solved and
+             parts.status == "solved and verified" and parts_rules["i.parts"],
+             "substitution and integration by parts reach the bridge as recorded methods without Giac")
+end
 r = nps.kinematics_local(quadratic_problem)
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only quadratic kinematics refusal cannot become answer-only")
@@ -2279,7 +2589,7 @@ check(r.result ~= nil and r.answer_only == false,
       "and the derivative computed before that stop is still the answer")
 
 script("Error: Bad Argument Value")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
       "a backend error cannot turn a core refusal into answer-only success")
 
@@ -2550,7 +2860,7 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "judge_attempt" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
