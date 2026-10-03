@@ -1131,3 +1131,71 @@ case integral.power.negative-exponent-written-as-a-difference
   result -x^-1
 
 # The numeric mode cases that used to sit here are in numeric_mode.txt, which holds every family's.
+
+# Named methods, CALC-006. Each answer was worked by hand: differentiating it returns the input.
+
+case integral.substitution.cosine-of-a-square
+  family integral
+  input 2x*cos(x^2)
+  variable x
+  expect integrated
+  result sin(x^2)
+
+case integral.substitution.power-of-a-quadratic
+  family integral
+  input 2x*(x^2+1)^3
+  variable x
+  expect integrated
+  result (x^2+1)^4/4
+
+case integral.substitution.exponential-of-a-square
+  family integral
+  input x*exp(x^2)
+  variable x
+  expect integrated
+  result exp(x^2)/2
+
+case integral.substitution.sine-times-cosine
+  family integral
+  input sin(x)*cos(x)
+  variable x
+  expect integrated
+  result sin(x)^2/2
+
+case integral.parts.linear-times-exponential
+  family integral
+  input x*exp(x)
+  variable x
+  expect integrated
+  result x*exp(x)-exp(x)
+
+case integral.parts.linear-times-sine
+  family integral
+  input x*sin(x)
+  variable x
+  expect integrated
+  result -x*cos(x)+sin(x)
+
+case integral.parts.linear-times-cosine-of-a-multiple
+  family integral
+  input x*cos(2x)
+  variable x
+  expect integrated
+  result x*sin(2x)/2+cos(2x)/4
+
+# These were pinned in invalid.txt while the integrator had no substitution or parts. Each moved here
+# with its answer when those methods landed.
+
+case integral.parts.square-times-sine
+  family integral
+  input x^2*sin(x)
+  variable x
+  expect integrated
+  result x^2*(-cos(x))+2*(x*sin(x)+cos(x))
+
+case integral.substitution.cotangent-written-out
+  family integral
+  input cos(x)/sin(x)
+  variable x
+  expect integrated
+  result ln(sin(x))

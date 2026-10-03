@@ -1,15 +1,15 @@
-problem: ln(1-2*t)
-variable: t
+problem: 2x/(x^2-1)
+variable: x
 outcome: integrated
-result: (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C)
+result: (ln(((x^2) + (-1))) + C)
 context
   application version: nps 0.2
   capability manifest: <current>
   problem family: calculus.integral.indefinite.single-variable
   envelope version: <not recorded>
-  normalized problem: ln((1 + (-(2 * t))))
+  normalized problem: ((2 * x) * (((x^2) + (-1))^(-1)))
   requested method: integrate by rule
-  active assumption: (1 + (-(2 * t))) > 0
+  active assumption: ((x^2) + (-1)) > 0
   angle convention: radians
   branch convention: real domain, principal values
   unit policy: exact integers, decimals as written, no unit conversion
@@ -19,7 +19,7 @@ context
 steps
   1 plan
     phase: plan
-    goal: Integrate ln((1 + (-(2 * t)))) with respect to t
+    goal: Integrate ((2 * x) * (((x^2) + (-1))^(-1))) with respect to x
     rule: calculus.integrate.rules, Integrate by rule
     claim: no claim
     explanation: Work outwards in, applying the rule that matches each form, then check by differentiating
@@ -27,7 +27,7 @@ steps
     strategy: Integrate by rule
     applicability: every form in the integrand has an antiderivative rule
     applicability: every function argument and every power base is the variable, linear in it, the inner function of a recorded substitution, or inside a polynomial that integration by parts differentiates
-    fact: integrate with respect to t
+    fact: integrate with respect to x
     rationale: each rule is applied to the form it matches and the parts are integrated in turn, and the answer is then differentiated to confirm it gives the integrand back
     verification: registered antiderivative rule dispatch, passed, every visited form matched a registered antiderivative rule
     verification: registered inner-form analysis, passed, every matched inner form was linear, the inner function of a recorded substitution, or inside a polynomial differentiated by parts
@@ -35,32 +35,46 @@ steps
     verified: nothing claimed
     1.1 transformation
       phase: integrate
-      goal: Integrate ln((1 + (-(2 * t))))
-      rule: i.logarithm-parts, Integration by parts
+      goal: Integrate ((2 * x) * (((x^2) + (-1))^(-1)))
+      rule: i.substitution, Integration by substitution
       claim: equivalent expression
-      explanation: Differentiate the logarithm and integrate its constant multiplier
-      detail: Choose ln((1 + (-(2 * t)))) as the factor to differentiate and 1 as the factor to integrate. A primitive of 1 is ((1 + (-(2 * t))) * ((-2)^-1)). Multiplying this by the derivative of the logarithm gives 1. Integration by parts therefore gives (((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) minus the integral of 1. The logarithm's argument must stay positive.
-      domain restriction: (1 + (-(2 * t))) > 0
+      explanation: Name the inner function u, integrate in u, then put the inner function back
+      detail: Let u = ((x^2) + (-1)). Then du = (2 * x) dx, and the rest of the integrand is exactly that, so the integral is written in u alone. The antiderivative in u is then written back in terms of x.
+      domain restriction: ((x^2) + (-1)) > 0
       proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-      action: Use integration by parts, leaving only the integral of 1
-      before: int(ln((1 + (-(2 * t)))), t)
-      after: ((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t)))
+      action: Let u = ((x^2) + (-1)), so du = (2 * x) dx
+      before: int(((2 * x) * (((x^2) + (-1))^(-1))), x)
+      after: ln(((x^2) + (-1)))
       reversible: no
-      verification: rule-local invariant, passed, the affine argument has constant nonzero derivative, so the product rule reduces the remaining integrand to 1
+      verification: rule-local invariant, passed, the rest of the integrand divided by the derivative of the inner function has no occurrence of the variable
       verified: yes
       1.1.1 transformation
         phase: integrate
-        goal: Integrate 1
-        rule: i.constant, Constant rule
-        claim: equivalent expression
-        explanation: A constant integrates to the constant times the variable
-        detail: Reach for this when the expression has no variable in it at all. Ask what differentiates to a constant: a constant times the variable does, because differentiating it leaves the constant behind. So 5 integrates to 5 x, and checking that by differentiating gets 5 back.
-        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
-        action: Multiply the constant by the variable
-        before: int(1, t)
-        after: (1 * t)
+        goal: Rewrite the integral in u
+        rule: i.substitution-rewrite, Rewrite the integral in the new variable
+        claim: definition
+        explanation: Replace the inner function by u and its derivative times dx by du
+        detail: Every x in the integrand is accounted for by u and du, so the new integral has u as its only variable.
+        proof obligation: obl.integrate.substitution-differential, the rest of the integrand is a constant multiple of the derivative of the inner function
+        action: Write the integral as int((u^(-1)), u)
+        before: int(((2 * x) * (((x^2) + (-1))^(-1))), x)
+        after: int((u^(-1)), u)
         reversible: no
-        verification: rule-local invariant, passed, the expression contains no occurrence of the variable
+        verification: rule-local invariant, passed, the rest of the integrand over (2 * x) is the constant 1
+        verified: yes
+      1.1.2 transformation
+        phase: integrate
+        goal: Integrate (u^(-1))
+        rule: i.reciprocal, Logarithmic integral
+        claim: equivalent expression
+        explanation: The integral of one over the variable is its natural logarithm
+        detail: The logarithm is only defined for a positive argument; for a negative one the antiderivative is the logarithm of the negated argument, so the restriction is recorded rather than hidden inside an absolute value.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Use the natural logarithm of u
+        before: int((u^(-1)), u)
+        after: ln(u)
+        reversible: no
+        verification: rule-local invariant, passed, the exponent is minus one and the base is the variable
         verified: yes
     1.2 transformation
       phase: integrate
@@ -71,8 +85,8 @@ steps
       detail: Differentiation loses constants, so every function that differentiates to the integrand has the form found plus some constant. The constant stands for all of them at once.
       proof obligation: obl.calculus.family-adds-a-constant, the after state is the antiderivative found plus one constant free nowhere before it
       action: Add the constant C
-      before: ((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t)))
-      after: (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C)
+      before: ln(((x^2) + (-1)))
+      after: (ln(((x^2) + (-1))) + C)
       reversible: no
       verification: rule-local invariant, passed, the derivative of a constant is zero
       verified: yes
@@ -84,9 +98,9 @@ steps
       explanation: Differentiate the result and compare it with the integrand
       detail: An antiderivative is right exactly when its derivative is the integrand, so the check is to differentiate it by the same rules and compare the two forms.
       proof obligation: obl.integrate.derivative-returns-integrand, the derivative of the antiderivative is the integrand
-      target claim: the derivative of (((((1 + (-(2 * t))) * ((-2)^-1)) * ln((1 + (-(2 * t))))) + (-(1 * t))) + C) is ln((1 + (-(2 * t))))
-      check method: differentiate by rule, then simplify the exact difference with Giac
-      expected: zero
-      observed: 0
-      verification: native differentiation and Giac exact difference, passed, the exact difference is zero under the recorded domain restrictions
+      target claim: the derivative of (ln(((x^2) + (-1))) + C) is ((2 * x) * (((x^2) + (-1))^(-1)))
+      check method: differentiate the result by rule and compare canonical forms
+      expected: (2 * x * ((-1 + (x^2))^-1))
+      observed: (2 * x * ((-1 + (x^2))^-1))
+      verification: differentiate the antiderivative, passed, the derivative of the result is the integrand
       verified: yes

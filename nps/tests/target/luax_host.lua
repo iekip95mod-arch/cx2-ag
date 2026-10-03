@@ -44,6 +44,42 @@ do
     check(nps.math_display("3/4") == "(3 / 4)", "math display remains usable after refusal")
 end
 do
+    local judged = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "2*x - 4 = 0", "x = 2" }, "x")
+    evidence("STEP-013", type(judged) == "table" and judged.equivalence == "equivalent" and
+             judged.method == "comparison of the single solutions" and
+             judged.strength == "symbolically equivalent under assumptions",
+             "judge_attempt copies an exact equivalence verdict into Lua")
+    evidence("STEP-014", judged.usefulness == "valid not on route" and judged.reaches == 0,
+             "judge_attempt reports usefulness apart from validity")
+    local next_state = nps.judge_attempt("2*x + 3 = 7", "2*x - 4 = 0", { "2*x - 4 = 0", "x = 2" }, "x")
+    check(next_state.usefulness == "advances" and next_state.reaches == 1,
+          "judge_attempt reads the route it was handed")
+    local slipped = nps.judge_attempt("2*x + 3 = 7", "2*x = 10", nil, "x")
+    check(slipped.equivalence == "not equivalent" and slipped.usefulness == "not judged" and
+          slipped.detail == "the attempt's solution is 5 and the state's is 2",
+          "judge_attempt copies a refutation and its detail")
+    local other = nps.judge_attempt("2*y + 3 = 7", "2*y = 4", {}, "y")
+    check(other.equivalence == "equivalent", "judge_attempt honours the variable it is given")
+    local unparsed, why = nps.judge_attempt("2*x + 3 = 7", "2*x ==", {}, "x")
+    check(unparsed == nil and type(why) == "string" and why:find("attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused and named")
+    local badroute, routewhy = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "x = (" }, "x")
+    check(badroute == nil and routewhy:find("route state: ", 1, true) == 1,
+          "a route state that does not parse is refused and named")
+    local badvar, varwhy = nps.judge_attempt("x", "x", {}, "two words")
+    check(badvar == nil and type(varwhy) == "string", "a variable that is not an identifier is refused")
+    check(not pcall(nps.judge_attempt, "x\0y", "x", {}, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { 3 }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { "x\0" }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", "x", "x"),
+          "judge_attempt rejects invalid Lua arguments before owning native resources")
+    local long = {}
+    for i = 1, 513 do long[i] = "x" end
+    check(not pcall(nps.judge_attempt, "x", "x", long, "x"), "judge_attempt bounds the route it reads")
+    check(nps.judge_attempt("x + x", "2*x", {}, "x").equivalence ~= nil,
+          "judge_attempt remains usable after refusal")
+end
+do
     local fills = {}
     local gc = {
         setColorRGB = function() end,
@@ -729,6 +765,10 @@ for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+check(nps.math_display("[1..3]") == "[1..3]" and nps.math_display("(0..1]") == "(0..1]",
+      "an interval displays with the bracket each end was given")
+check(nps.walkthrough("[1..3]", "x") == nil and nps.walkthrough("convert(x,interval)", "x") == nil,
+      "interval input the native side does not walk through still reaches Giac unchanged")
 do
     -- The rows after this one count Giac calls from here, and a rewrite may consult it.
     local calls_before = giac_calls
@@ -988,7 +1028,7 @@ end
 
 local before_answer_only = giac_calls
 script("x")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.solved == false and r.answer_only == true,
       "a refused integral can return a Giac answer without claiming a derivation")
 check(r.result == "x" and r.giac_tag == "exact",
@@ -2211,9 +2251,24 @@ check(giac_calls == 0 and r.outcome == "no solution" and r.solved == false and
       r.has_result == true and r.result == nil and r.status == "solved and verified" and
       type(r.steps) == "table" and #r.steps > 0,
       "verified inconsistent kinematics publishes an empty result set")
-r = nps.integrate_local("x*sin(x)", "x")
+r = nps.integrate_local("exp(x)*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only refusal cannot become answer-only")
+do
+    local function rules_of(record)
+        local found = {}
+        for _, step in ipairs(type(record) == "table" and record.steps or {}) do found[step.rule] = true end
+        return found
+    end
+    local substituted = nps.integrate_local("2*x*cos(x^2)", "x")
+    local parts = nps.integrate_local("x*exp(x)", "x")
+    local substituted_rules, parts_rules = rules_of(substituted), rules_of(parts)
+    evidence("CALC-006", giac_calls == 0 and substituted.solved and substituted.answer_only == false and
+             substituted.status == "solved and verified" and substituted_rules["i.substitution"] and
+             substituted_rules["i.substitution-rewrite"] and parts.solved and
+             parts.status == "solved and verified" and parts_rules["i.parts"],
+             "substitution and integration by parts reach the bridge as recorded methods without Giac")
+end
 r = nps.kinematics_local(quadratic_problem)
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only quadratic kinematics refusal cannot become answer-only")
@@ -2395,7 +2450,7 @@ check(r.result ~= nil and r.answer_only == false,
       "and the derivative computed before that stop is still the answer")
 
 script("Error: Bad Argument Value")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
       "a backend error cannot turn a core refusal into answer-only success")
 
@@ -2666,7 +2721,7 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "judge_attempt" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
