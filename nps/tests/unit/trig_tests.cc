@@ -38,6 +38,13 @@ void test_equivalence(TestSink &t) {
     t.check(compare("sin(x+1)", "sin(x+1)") == TrigReading::Unreadable, "a constant inside an angle is not read");
     t.check(compare("x*sin(x)", "x*sin(x)") == TrigReading::Unreadable, "a variable outside sine is not read");
     t.check(compare("tan(x)", "tan(x)") == TrigReading::Unreadable, "tan is not read");
+    t.check(compare("sin(x/3037000500)+sin(x/3037000501)", "sin(x/3037000500)+sin(x/3037000501)") ==
+                TrigReading::Unreadable,
+            "angle denominators beyond the frequency limit are refused");
+    t.check(compare("sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)",
+                    "sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)") ==
+                TrigReading::Unreadable,
+            "trigonometric equivalence refuses exponential term growth");
 }
 
 struct Run {

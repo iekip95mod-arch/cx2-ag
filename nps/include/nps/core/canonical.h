@@ -2,9 +2,10 @@
 #define NPS_CANONICAL_H
 
 #include "nps/core/ast.h"
-#include "nps/core/rational.h"
 
 namespace nps {
+
+struct Rational;
 
 // A second form of the same expression, for comparison only. The parsed tree is kept as written,
 // because PRD section 12.1 wants the AST lossless enough to preserve meaningful grouping and user

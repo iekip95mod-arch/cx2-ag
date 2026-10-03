@@ -58,7 +58,9 @@ bool laurent_add(const Laurent &a, const Laurent &b, Laurent *out) {
     return true;
 }
 
-bool laurent_mul(const Laurent &a, const Laurent &b, Laurent *out) {
+bool laurent_mul(const Laurent &a, const Laurent &b, size_t max_terms, Laurent *out) {
+    if (!a.empty() && !b.empty() && a.size() > max_terms / b.size())
+        return false;
     Laurent product;
     for (const auto &[left_key, left] : a) {
         for (const auto &[right_key, right] : b) {
@@ -179,9 +181,12 @@ bool gather_basis(const Arena &arena, NodeId id, Basis *basis) {
         }
         for (const auto &[name, value] : angle) {
             const size_t at = basis->index(name);
-            basis->denominators[at] = std::lcm(basis->denominators[at], value.den);
-            if (basis->denominators[at] > kMaxFrequency)
+            const int64_t common = std::gcd(basis->denominators[at], value.den);
+            if (value.den > kMaxFrequency || basis->denominators[at] / common > kMaxFrequency / value.den) {
                 ok = false;
+                break;
+            }
+            basis->denominators[at] = basis->denominators[at] / common * value.den;
         }
         return false;
     });
@@ -217,13 +222,14 @@ bool to_laurent(const Arena &arena, NodeId id, const Basis &basis, Laurent *out,
             if (!to_laurent(arena, kids[0], basis, &inner, depth + 1))
                 return false;
             Laurent minus{{zero, Complex{{-1, 1}, {0, 1}}}};
-            return laurent_mul(inner, minus, out);
+            return laurent_mul(inner, minus, arena.limits().max_nodes, out);
         }
         case Kind::Mul: {
             (*out)[zero] = Complex{{1, 1}, {0, 1}};
             for (NodeId child : kids) {
                 Laurent part;
-                if (!to_laurent(arena, child, basis, &part, depth + 1) || !laurent_mul(*out, part, out))
+                if (!to_laurent(arena, child, basis, &part, depth + 1) ||
+                    !laurent_mul(*out, part, arena.limits().max_nodes, out))
                     return false;
             }
             return true;
@@ -237,7 +243,7 @@ bool to_laurent(const Arena &arena, NodeId id, const Basis &basis, Laurent *out,
                 return false;
             (*out)[zero] = Complex{{1, 1}, {0, 1}};
             for (int64_t i = 0; i < exponent; ++i) {
-                if (!laurent_mul(*out, base, out))
+                if (!laurent_mul(*out, base, arena.limits().max_nodes, out))
                     return false;
             }
             return true;
