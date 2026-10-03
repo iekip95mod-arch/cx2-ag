@@ -454,6 +454,10 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
 
 }  // namespace
 
+NodeId substitute_symbol(Arena &arena, NodeId id, NodeId symbol, NodeId replacement) {
+    return substitute(arena, id, symbol, replacement);
+}
+
 const char *rearrange_outcome_name(RearrangeOutcome o) {
     switch (o) {
         case RearrangeOutcome::Isolated: return "isolated";
