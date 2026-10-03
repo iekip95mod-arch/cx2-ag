@@ -19,12 +19,32 @@ namespace nps {
 // The table is const char data rather than the engine's usual std::string, because it is read-only
 // for the life of the process and belongs in the image rather than on a handheld's heap.
 
+// VER-015's six kinds of check, which strength cannot stand in for since one spans several.
+enum class CheckKind : uint8_t {
+    RuleLocal,
+    GiacCrossCheck,
+    CandidateSubstitution,
+    CalculusInverse,
+    Dimensional,
+    NumericalCorroboration,
+};
+
+constexpr size_t kCheckKindCount = 6;
+
+const char *check_kind_name(CheckKind kind);
+
 // One way of discharging an obligation: a verification method, and what its evidence is worth when
 // it passes. The strength is the same declaration strength_for takes, so an entry and the call site
 // that produces the record can be compared directly.
 struct EvidenceAlternative {
+    // A constructor rather than an aggregate, so an entry without a kind does not compile.
+    constexpr EvidenceAlternative(const char *m, EvidenceStrength s, CheckKind k,
+                                  bool corroborates = false)
+        : method(m), strength(s), kind(k), may_corroborate(corroborates) {}
+
     const char *method;
     EvidenceStrength strength;
+    CheckKind kind;
     // Whether this method can come back agreeing without being independent of what it checked. Such
     // a record is Inconclusive at the strength above, which is byte for byte what a check that could
     // not evaluate would write if it overstated itself, so the schema is the only thing that can

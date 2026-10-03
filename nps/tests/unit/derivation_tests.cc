@@ -2118,7 +2118,55 @@ void test_rule_schema_coverage(TestSink &t) {
              EvidenceStrength::SymbolicallyEquivalentUnderAssumptions);
 }
 
+// VER-015's declarations: one method is one kind wherever registered, and each kind is used.
+void test_check_kind_declarations(TestSink &t) {
+    std::map<std::string, std::set<CheckKind> > kinds_by_method;
+    std::set<CheckKind> used;
+    for (size_t r = 0; r < declared_rule_count(); ++r) {
+        const RuleSchema &schema = declared_rule(r);
+        for (size_t o = 0; o < schema.obligation_count; ++o) {
+            for (size_t a = 0; a < schema.obligations[o].evidence_count; ++a) {
+                const EvidenceAlternative &alternative = schema.obligations[o].evidence[a];
+                kinds_by_method[alternative.method].insert(alternative.kind);
+                used.insert(alternative.kind);
+            }
+        }
+    }
+    std::string split;
+    for (const auto &entry : kinds_by_method) {
+        if (entry.second.size() > 1)
+            split += (split.empty() ? "" : ", ") + entry.first;
+    }
+    t.equal(split, "", "no verification method is declared as two kinds of check");
+    t.equal(std::to_string(used.size()), std::to_string(kCheckKindCount),
+            "every one of the six check kinds is declared by some rule");
+    std::set<std::string> names;
+    for (size_t k = 0; k < kCheckKindCount; ++k)
+        names.insert(check_kind_name(static_cast<CheckKind>(k)));
+    t.check(names.size() == kCheckKindCount && names.count("unknown") == 0,
+            "the six check kinds have six distinct names");
+    const struct {
+        const char *method;
+        CheckKind kind;
+    } known[] = {
+        {"rule-local equality invariant", CheckKind::RuleLocal},
+        {"Giac zero check", CheckKind::GiacCrossCheck},
+        {"substitution", CheckKind::CandidateSubstitution},
+        {"differentiate the antiderivative", CheckKind::CalculusInverse},
+        {"native differentiation and Giac exact difference", CheckKind::CalculusInverse},
+        {"dimensional analysis", CheckKind::Dimensional},
+        {"exact evaluation at 6 rational assignments", CheckKind::NumericalCorroboration},
+    };
+    for (const auto &k : known) {
+        const std::set<CheckKind> &got = kinds_by_method[k.method];
+        t.check(got.size() == 1 && *got.begin() == k.kind,
+                std::string("the method ") + k.method + " is declared as a " +
+                    check_kind_name(k.kind) + " check");
+    }
+}
+
 void run_derivation_tests(TestSink &t) {
+    test_check_kind_declarations(t);
     Arena arena;
     Derivation d;
 
