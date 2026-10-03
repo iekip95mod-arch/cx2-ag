@@ -557,10 +557,14 @@ do
         {"convergence(1/ln(n),n,2)", "unsupported form"},
         {"convergence(1/(n-3),n,1)", "invalid input"},
         {"convergence(1/n,n,1/2)", "invalid input"},
+        {"convergence((1/2)^n,n,70)", "resource exceeded", "resource limit reached"},
+        {"convergence(2^n/n,n,62)", "resource exceeded", "resource limit reached"},
     }) do
         local record = nps.walkthrough(case[1], "n", "exact")
         check(not record.solved and not record.has_result and record.outcome == case[2] and
-              record.series_verdict == nil and type(record.detail) == "string" and record.detail ~= "",
+              record.series_verdict == nil and record.series_test == nil and
+              (case[3] == nil or record.status == case[3]) and
+              type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the convergence envelope and says why")
     end
     do

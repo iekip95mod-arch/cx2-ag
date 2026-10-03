@@ -59,6 +59,8 @@ const char *const degree_ceiling =
 const char *const coefficient_ceiling =
     "the leading coefficients of this expression overflow the exact arithmetic the native calculus engine uses";
 // The remainder divides by the next order's factorial, and 20 factorial is the last one int64 holds.
+const char *const check_ceiling =
+    "the values the final check reads overflow the exact arithmetic the native calculus engine uses";
 constexpr int64_t kTaylorOrderCeiling = 19;
 const char *const taylor_ceiling =
     "the native Taylor engine handles orders up to 19 and this request is higher";
@@ -85,10 +87,20 @@ struct Calculation {
 
     bool work() { return !arena.failed() && meter.rewrite(); }
 
+    void clear_answer() {
+        result.value = kNoNode;
+        result.infinity = 0;
+        result.does_not_exist = false;
+        result.verdict = SeriesVerdict::None;
+        result.test.clear();
+        result.remainder = kNoNode;
+    }
+
     // The status as well as the sentence, which is what linear.cc:714 does for the same class. The
     // shell prints the status verbatim on the note line at nps_v4.lua:2758-2759, and keeping the
     // four refusal kinds distinct is asked for whether or not a given renderer branches on it.
     void refuse(Form form, const char *ceiling, const std::string &unsupported) {
+        clear_answer();
         const bool capacity = form == Form::BeyondCapacity;
         result.outcome = capacity ? CalculusOutcome::ResourceExceeded
                                   : CalculusOutcome::UnsupportedForm;
@@ -98,9 +110,23 @@ struct Calculation {
     }
 
     void refuse(const char *ceiling) {
+        clear_answer();
         result.outcome = CalculusOutcome::ResourceExceeded;
         result.status = DerivationStatus::ResourceLimitReached;
         result.detail = ceiling;
+    }
+
+    // Every final check reads exact values inside its envelope, so an unread one can only have overflowed.
+    bool withhold(bool read, const char *disagreement) {
+        if (!read) {
+            refuse(check_ceiling);
+            return false;
+        }
+        clear_answer();
+        result.outcome = CalculusOutcome::VerificationFailed;
+        result.status = DerivationStatus::VerificationFailed;
+        result.detail = disagreement;
+        return false;
     }
 
     NodeId folded(NodeId expression) {
@@ -915,10 +941,7 @@ struct Calculation {
         payload.observed_result = read ? print(arena, line) : "not exactly evaluable";
         derivation.add_check(kNoStep, std::move(check), std::move(payload));
         if (matched) return true;
-        result.outcome = CalculusOutcome::VerificationFailed;
-        result.status = DerivationStatus::VerificationFailed;
-        result.detail = "the assembled line failed its tangency check, so the answer is withheld";
-        return false;
+        return withhold(read, "the assembled line failed its tangency check, so the answer is withheld");
     }
 
     // CALC-011. The supported envelope is an expression whose derivatives up to the requested order
@@ -1132,10 +1155,7 @@ struct Calculation {
         derivation.add_check(kNoStep, std::move(check), std::move(payload));
         if (matched) return true;
         if (!work()) return false;
-        result.outcome = CalculusOutcome::VerificationFailed;
-        result.status = DerivationStatus::VerificationFailed;
-        result.detail = "the assembled polynomial failed its derivative check at the center, so the answer is withheld";
-        return false;
+        return withhold(read, "the assembled polynomial failed its derivative check at the center, so the answer is withheld");
     }
 
     // CALC-011 convergence. The envelope is a term C*r^n*R(n) with r a nonzero rational and R a
@@ -1194,6 +1214,7 @@ struct Calculation {
     }
 
     void invalid(const std::string &detail) {
+        clear_answer();
         result.outcome = CalculusOutcome::InvalidInput;
         result.status = DerivationStatus::InvalidInput;
         result.detail = detail;
@@ -1449,11 +1470,7 @@ struct Calculation {
                 result.verdict = SeriesVerdict::ConvergesConditionally;
             }
         }
-        if (!verify_series(model, sum, ratio)) {
-            result.verdict = SeriesVerdict::None;
-            result.test.clear();
-            return;
-        }
+        if (!verify_series(model, sum, ratio)) return;
         result.outcome = CalculusOutcome::Evaluated;
         result.value = sum;
     }
@@ -1509,10 +1526,7 @@ struct Calculation {
         derivation.add_check(kNoStep, std::move(check), std::move(payload));
         if (matched) return true;
         if (!work()) return false;
-        result.outcome = CalculusOutcome::VerificationFailed;
-        result.status = DerivationStatus::VerificationFailed;
-        result.detail = "the tested form failed its check against the original term, so the verdict is withheld";
-        return false;
+        return withhold(read, "the tested form failed its check against the original term, so the verdict is withheld");
     }
 
     void record_comparison(VerificationOutcome outcome, const std::string &detail,
@@ -1636,12 +1650,7 @@ struct Calculation {
         const NodeId model = arena.failed() || result.status == DerivationStatus::InvalidInput
             ? kNoNode : call(command.expression);
         if (arena.failed() || meter.stopped()) {
-            result.value = kNoNode;
-            result.infinity = 0;
-            result.does_not_exist = false;
-            result.verdict = SeriesVerdict::None;
-            result.test.clear();
-            result.remainder = kNoNode;
+            clear_answer();
             result.outcome = meter.halt() == Halt::Cancelled ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded;
             result.status = meter.halt() == Halt::Cancelled ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached;
             result.detail = arena.failed() ? status_name(arena.status()) : halt_name(meter.halt());

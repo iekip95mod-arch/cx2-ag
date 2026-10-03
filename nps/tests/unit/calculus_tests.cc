@@ -795,6 +795,27 @@ void run_calculus_tests(TestSink &t) {
                 where + "and the refusal invariants accept a definition the refusal cannot unmake" +
                     (broken.empty() ? "" : ", got " + broken.front()));
     }
+    // A point this large overflows the line check, which is this build's limit rather than a wrong line.
+    for (const char *text : {"tangent(x,x,9223372036854775807)", "linearize(x,x,9223372036854775807)",
+                             "tangent(x^2,x,3037000499)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        const std::string where = std::string(text) + ": ";
+        size_t unread = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "tangent.check-line" && recorded.verifications.size() == 1 &&
+                recorded.verifications[0].outcome == VerificationOutcome::Inconclusive)
+                ++unread;
+        }
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::ResourceExceeded &&
+                    result.status == DerivationStatus::ResourceLimitReached && unread == 1,
+                where + "an unreadable line check is refused as this build's limit: " +
+                    calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
     // The same refused shape built from a successful run's own two definitions. Only the point value
     // declares that it survives a refusal, and the assembled line is what criterion 8 is there for.
     {
@@ -1095,15 +1116,34 @@ void run_calculus_tests(TestSink &t) {
              SeriesRefusal{"convergence(1/(n^2-100),n,1)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
              SeriesRefusal{"convergence((n-2)/(n-2),n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
              SeriesRefusal{"convergence(1/n,n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
-             SeriesRefusal{"convergence(1/(n-5000),n,1)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
+             SeriesRefusal{"convergence(1/(n-5000),n,1)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence((1/2)^n,n,70)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence(2^n/n,n,62)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence(1/n^2,n,3037000500)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
         Arena arena;
         Derivation derivation;
         derivation.request.original_expression = refusal.text;
         const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, refusal.text, "n"));
-        t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None && !result.detail.empty() &&
-                result.outcome == refusal.outcome && result.status == refusal.status,
+        t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None && result.test.empty() &&
+                !result.detail.empty() && result.outcome == refusal.outcome && result.status == refusal.status,
                 "the convergence family refuses for the right reason: " + std::string(refusal.text) + ": " +
                 calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
+    // An overflowing term leaves the check unread, and the smaller start is the control that it reads.
+    for (const auto &sampled : {std::pair{"convergence(2^n/n,n,62)", VerificationOutcome::Inconclusive},
+                                std::pair{"convergence(2^n/n,n,30)", VerificationOutcome::Passed}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = sampled.first;
+        calculus_walkthrough(arena, derivation, parse_command(arena, sampled.first, "n"));
+        size_t matching = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "series.check-form" && recorded.verifications.size() == 1 &&
+                recorded.verifications[0].outcome == sampled.second)
+                ++matching;
+        }
+        t.check(matching == 1, "the term check records what it could read: " + std::string(sampled.first));
     }
     {
         // The first index decides which terms exist, so the same term is fine from a later start.
