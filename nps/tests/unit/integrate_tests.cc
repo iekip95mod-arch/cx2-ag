@@ -178,6 +178,19 @@ void test_methods(TestSink &t) {
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
                 "substitution matching leaves exponents outside the integer range unfolded");
     }
+    {
+        const Integrated s = run("2*x*(x^2+1)^a", "x");
+        t.check(s.outcome == IntegrateOutcome::UnsupportedForm && s.general.empty() &&
+                    s.detail == "only an integer exponent is supported here",
+                "a refusal inside the integral in u is the reason the whole integral gives, got " + s.detail);
+    }
+    for (const char *withheld : {"x*sqrt(x^2+1)", "2*x*ln(x^2+1)"}) {
+        const Integrated s = run(withheld, "x");
+        t.check(s.outcome == IntegrateOutcome::Refused && s.general.empty() &&
+                    s.detail.find("derivative check is inconclusive") != std::string::npos &&
+                    uses_rule(withheld, "x", "i.substitution"),
+                std::string("a substitution whose derivative check cannot close natively is withheld: ") + withheld);
+    }
     for (const char *refused : {"sin(x^2)", "exp(x)*sin(x)", "x*sin(x^2)*cos(x)"}) {
         const Integrated s = run(refused, "x");
         t.equal(integrate_outcome_name(s.outcome), "unsupported form",
@@ -263,7 +276,8 @@ void run_integrate_tests(TestSink &t) {
         size_t wrong_boundary = 0;
         size_t lost_policy = 0;
         for (NumericMode mode : {NumericMode::Exact, NumericMode::Decimal}) {
-            for (const char *text : {"1", "x", "x^2", "x^2+x", "sin(x)", "ln(x)", "ln(2*x+1)+ln(x)", "sqrt(x)", "sqrt(2*x+1)"}) {
+            for (const char *text : {"1", "x", "x^2", "x^2+x", "sin(x)", "ln(x)", "ln(2*x+1)+ln(x)", "sqrt(x)", "sqrt(2*x+1)",
+                                     "2*x*cos(x^2)", "2*x/(x^2-1)", "x*exp(x)", "x^2*exp(x)"}) {
                 Arena reference_arena;
                 Derivation reference;
                 reference.request.numeric_mode = mode;
