@@ -1,13 +1,13 @@
-problem: x*sin(x)
+problem: exp(x)*sin(x)
 variable: x
 outcome: unsupported form
-detail: a product of two expressions that both contain the variable needs integration by parts or a substitution, which is not implemented
+detail: a product of two expressions that both contain the variable needs integration by parts or a substitution, and neither the substitution nor the parts pattern matches this product
 context
   application version: nps 0.2
   capability manifest: <current>
   problem family: calculus.integral.indefinite.single-variable
   envelope version: <not recorded>
-  normalized problem: (x * sin(x))
+  normalized problem: (exp(x) * sin(x))
   requested method: integrate by rule
   angle convention: radians
   branch convention: real domain, principal values

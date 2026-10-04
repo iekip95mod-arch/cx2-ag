@@ -3,10 +3,12 @@
 #include <string>
 #include <vector>
 
+#include "nps/core/print.h"
 #include "nps/physics/work.h"
 #include "nps/steps/schema.h"
 #include "unit/adapter_tests.h"
 #include "../step_invariants.h"
+#include "../../src/physics/measurement_support.h"
 
 namespace nps {
 namespace {
@@ -118,6 +120,79 @@ class FailingBackend : public Backend {
 }
 
 void run_work_tests(TestSink &t) {
+    // The helpers the physics families share, each of which used to be copied into every family.
+    {
+        Arena arena;
+        const NodeId half = measure::normalized_rational_node(arena, Rational{2, 4});
+        const NodeId raw = measure::rational_node(arena, Rational{2, 4});
+        t.check(half != kNoNode && print(arena, half) == "(1 * (2^-1))" && print(arena, raw) == "(2 * (4^-1))",
+                "the normalising rational node reduces first and the plain one writes the fraction as given");
+        t.check(measure::normalized_rational_node(arena, Rational{1, 0}) == kNoNode,
+                "the normalising rational node refuses a zero denominator rather than writing it");
+        const VerificationRecord passed = measure::verification("exact", "", EvidenceStrength::StructurallyValid, true);
+        const VerificationRecord failed = measure::verification("exact", "", EvidenceStrength::StructurallyValid, false);
+        t.check(passed.outcome == VerificationOutcome::Passed && failed.outcome == VerificationOutcome::Failed &&
+                    failed.strength == strength_for(VerificationOutcome::Failed, EvidenceStrength::StructurallyValid),
+                "the boolean verification maps onto the passed and failed outcomes");
+        Budget spent;
+        spent.max_steps = 0;
+        Meter meter(spent);
+        Derivation derivation;
+        Step step;
+        step.verifications.push_back(passed);
+        const bool recorded = measure::add_check(derivation, meter, kNoStep, step, "target", "expected", "observed");
+        t.check(!recorded && derivation.size() == 0,
+                "a shared check the step budget cannot pay for records nothing");
+        Meter open{Budget()};
+        const bool transformed = measure::add_transformation(derivation, open, kNoStep, step, half, "act", raw, false);
+        const TransformationPayload *payload = derivation.transformation(0);
+        t.check(transformed && payload && payload->before == half && payload->after == raw &&
+                    payload->concrete_action == "act" && !payload->reversible,
+                "the before-action-after transformation keeps each argument where the caller put it");
+        Derivation paid;
+        Meter paid_meter{Budget()};
+        Step check;
+        check.verifications.push_back(measure::verification("exact", "", EvidenceStrength::StructurallyValid, true));
+        const bool paid_recorded = measure::add_check(paid, paid_meter, kNoStep, check, "target", "expected", "observed");
+        const CheckPayload *paid_payload = paid.check(0);
+        t.check(paid_recorded && paid.size() == 1 && paid_payload && paid_payload->check_method == "exact" &&
+                    paid_payload->target_claim == "target" && paid_payload->expected_relation == "expected" &&
+                    paid_payload->observed_result == "observed" && paid_meter.steps() == 1,
+                "a shared check the budget can pay for records the step's method and charges one step");
+        Derivation ruled;
+        Meter ruled_meter{Budget()};
+        const bool ruled_recorded = measure::add_check(
+            ruled, ruled_meter, kNoStep, "rule.id", "Rule", "goal", "short", "OBL-1", "obligation", "method",
+            "verified detail", EvidenceStrength::StructurallyValid, VerificationOutcome::Passed, "target", "expected",
+            "observed", 3);
+        const Step &ruled_step = ruled.at(0);
+        const CheckPayload *ruled_payload = ruled.check(0);
+        t.check(ruled_recorded && ruled_step.phase == "check" && ruled_step.rule_id == "rule.id" &&
+                    ruled_step.rule_name == "Rule" && ruled_step.goal == "goal" && ruled_step.explanation_short == "short" &&
+                    ruled_step.claim == ClaimType::Definition && ruled_step.proof_obligations.size() == 1 &&
+                    ruled_step.proof_obligations[0].id == "OBL-1" && ruled_step.verifications.size() == 1 &&
+                    ruled_step.verifications[0].method == "method" &&
+                    ruled_step.verifications[0].detail == "verified detail" && ruled_step.backend_requests == 3 &&
+                    ruled_payload && ruled_payload->check_method == "method" && ruled_payload->target_claim == "target" &&
+                    ruled_payload->expected_relation == "expected" && ruled_payload->observed_result == "observed",
+                "the rule-id check builds its own step and carries the backend count it was given");
+        const Step built = measure::transformation_step("rule.id", "Rule", "goal", "short", "detailed",
+                                                        ClaimType::EquivalentExpression, passed, 2);
+        t.check(built.phase == "solve" && built.rule_id == "rule.id" && built.rule_name == "Rule" &&
+                    built.goal == "goal" && built.explanation_short == "short" &&
+                    built.explanation_detailed == "detailed" && built.claim == ClaimType::EquivalentExpression &&
+                    built.verifications.size() == 1 && built.verifications[0].method == "exact" &&
+                    built.backend_requests == 2,
+                "the rule-first transformation step keeps each field where the caller put it");
+        Derivation ordered;
+        Meter ordered_meter{Budget()};
+        const bool ordered_recorded = measure::add_transformation(ordered, ordered_meter, kNoStep, built, half, raw, "act");
+        const TransformationPayload *ordered_payload = ordered.transformation(0);
+        t.check(ordered_recorded && ordered_payload && ordered_payload->before == half &&
+                    ordered_payload->after == raw && ordered_payload->concrete_action == "act" &&
+                    ordered_payload->reversible && ordered_meter.rewrites() == 1 && ordered_meter.steps() == 1,
+                "the before-after-action transformation is reversible by default and charges a rewrite and a step");
+    }
     const Vector force = parsed_vector("(3, 4) kg*m/s^2");
     const Vector displacement = parsed_vector("(2, 1) m");
 

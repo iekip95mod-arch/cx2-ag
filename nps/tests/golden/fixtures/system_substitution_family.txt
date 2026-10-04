@@ -1,0 +1,104 @@
+problem: [x + y + z = 2, x - y = 0]
+variable: [x, y, z]
+outcome: solution family
+result: [(x = (1 + ((-1 * (2^-1)) * z))), (y = (1 + ((-1 * (2^-1)) * z))), (z = z)]
+detail: infinitely many solutions, one for each value of the free unknowns
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.linear-system.substitution
+  envelope version: 1
+  normalized problem: [(((x + y) + z) = 2), ((x + (-y)) = 0)]
+  requested method: substitution
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Solve [(((x + y) + z) = 2), ((x + (-y)) = 0)] for [x, y, z]
+    rule: plan.system-substitution, Solve for one unknown and substitute
+    claim: no claim
+    explanation: Solve one equation for one unknown, put that into the others, and repeat.
+    detail: Each round leaves one fewer unknown in the remaining equations. Then the values are put back in reverse order.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Solve for one unknown and substitute
+    applicability: every equation is linear in the unknowns with exact rational coefficients, in at most 4 equations and 5 unknowns
+    fact: [(((x + y) + z) = 2), ((x + (-y)) = 0)]
+    rationale: Every equation is linear in the unknowns with exact rational coefficients.
+    verification: exact linear system analysis, passed, Solve [(((x + y) + z) = 2), ((x + (-y)) = 0)] for [x, y, z]
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Substitute
+      goal: Solve one equation for x
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of x.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve (((x + y) + z) = 2) for x: (x = (2 + (-1 * y) + (-1 * z))).
+      before: (((x + y) + z) = 2)
+      after: (x = (2 + (-1 * y) + (-1 * z)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.2 transformation
+      phase: Substitute
+      goal: Replace x in another equation
+      rule: system.substitute, Substitute into another equation
+      claim: solution set preserved
+      explanation: Put (2 + (-1 * y) + (-1 * z)) in place of x and collect the terms.
+      detail: Every solution of the system satisfies the isolated equation, so replacing the unknown keeps the solutions.
+      proof obligation: obl.system.substituted-equivalent, the new equation is the old one with the isolated unknown replaced
+      action: Replace x in ((x + (-y)) = 0) to get (((-2 * y) + (-1 * z)) = -2).
+      before: ((x + (-y)) = 0)
+      after: (((-2 * y) + (-1 * z)) = -2)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the new equation agrees with the old one after the substitution at every checked point
+      verified: yes
+    1.3 transformation
+      phase: Substitute
+      goal: Solve one equation for y
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of y.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve (((-2 * y) + (-1 * z)) = -2) for y: (y = (1 + ((-1 * (2^-1)) * z))).
+      before: (((-2 * y) + (-1 * z)) = -2)
+      after: (y = (1 + ((-1 * (2^-1)) * z)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.4 transformation
+      phase: Back substitute
+      goal: Write x without the unknowns already found
+      rule: system.back-substitute, Substitute the values already found
+      claim: solution set preserved
+      explanation: Put the values found later into the equation for x.
+      detail: Work back from the last unknown solved, so each value uses only numbers and free unknowns.
+      proof obligation: obl.system.back-substituted, the value is the isolated equation with the later values put in
+      action: Put the later values into (x = (2 + (-1 * y) + (-1 * z))) to get (x = (1 + ((-1 * (2^-1)) * z))).
+      before: (x = (2 + (-1 * y) + (-1 * z)))
+      after: (x = (1 + ((-1 * (2^-1)) * z)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the value agrees with the isolated equation once the later values are put in, at every checked point
+      verified: yes
+    1.5 check
+      phase: Check
+      goal: Check the answer in every original equation
+      rule: system.check-family-by-sampling, Check the family at several values
+      claim: solution set preserved
+      explanation: Pick values for the free unknowns and check every equation.
+      detail: Three choices of the free unknowns each have to satisfy every original equation. Agreement at sample values supports the family and is weaker than a proof.
+      proof obligation: obl.system.candidate-satisfies, the solution satisfies every equation of the system as typed
+      target claim: [(x = (1 + ((-1 * (2^-1)) * z))), (y = (1 + ((-1 * (2^-1)) * z))), (z = z)] satisfies every equation
+      check method: substitute sampled values of the free unknowns
+      expected: both sides of every equation equal
+      observed: every equation holds
+      verification: substitution at sampled free values, passed, every equation holds
+      verified: yes
