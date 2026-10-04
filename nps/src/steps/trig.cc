@@ -100,6 +100,8 @@ bool read_angle(const Arena &arena, NodeId id, std::map<std::string, Rational> *
     const ChildView kids = arena.children(id);
     switch (n.kind) {
         case Kind::Symbol: {
+            if (exactness(arena, id) == Exactness::ExactConstant)
+                return false;
             Rational &slot = (*out)[arena.text(id)];
             return rational_add(slot, Rational{1, 1}, &slot);
         }
@@ -344,17 +346,85 @@ NodeId half(Arena &arena) {
     return arena.binary(Kind::Pow, arena.integer("2"), arena.integer("-1"));
 }
 
-bool integer_multiple(const Arena &arena, NodeId argument, int64_t *k, NodeId *rest) {
-    if (arena.at(argument).kind != Kind::Mul || arena.children(argument).size() != 2)
-        return false;
-    for (size_t i = 0; i < 2; ++i) {
-        const NodeId factor = arena.children(argument)[i];
-        if (symbol_free(arena, factor) && small_integer(arena, factor, k)) {
-            *rest = arena.children(argument)[1 - i];
+// An angle as a rational scale times a variable or a sum, read through nested products and signs.
+bool scaled_angle(const Arena &arena, NodeId angle, Rational *scale, NodeId *carrier) {
+    *scale = Rational{1, 1};
+    NodeId at = angle;
+    for (int depth = 0; depth <= 32; ++depth) {
+        const Node &n = arena.at(at);
+        if (n.kind == Kind::Neg) {
+            if (!rational_mul(*scale, Rational{-1, 1}, scale))
+                return false;
+            at = arena.children(at)[0];
+            continue;
+        }
+        if (n.kind != Kind::Mul) {
+            *carrier = at;
             return true;
         }
+        NodeId next = kNoNode;
+        for (NodeId child : arena.children(at)) {
+            Rational value;
+            if (symbol_free(arena, child)) {
+                if (!evaluate_rational(arena, child, {}, &value) || !rational_mul(*scale, value, scale))
+                    return false;
+            } else if (next != kNoNode) {
+                return false;
+            } else {
+                next = child;
+            }
+        }
+        if (next == kNoNode)
+            return false;
+        at = next;
     }
     return false;
+}
+
+// A sum of rational multiples of the variables, in the order given.
+NodeId linear_angle(Arena &arena, const std::vector<std::pair<std::string, Rational>> &terms) {
+    std::vector<NodeId> parts;
+    for (const auto &[name, coefficient] : terms) {
+        const NodeId symbol = arena.symbol(name);
+        parts.push_back(coefficient.num == 1 && coefficient.den == 1
+                            ? symbol
+                            : arena.binary(Kind::Mul, canonical_rational(arena, coefficient), symbol));
+    }
+    return parts.size() == 1 ? parts[0] : arena.nary(Kind::Add, parts);
+}
+
+NodeId odd_even(Arena &arena, bool sine, NodeId positive, Applied *applied, std::string *what) {
+    *applied = sine ? Applied{"trig.odd", "Sine is odd", "sin(-a) = -sin(a)"}
+                    : Applied{"trig.even", "Cosine is even", "cos(-a) = cos(a)"};
+    *what = std::string("Use ") + applied->identity;
+    return sine ? arena.unary(Kind::Neg, call1(arena, "sin", positive)) : call1(arena, "cos", positive);
+}
+
+NodeId angle_sum(Arena &arena, bool sine, const std::vector<NodeId> &terms, Applied *applied, std::string *what) {
+    const NodeId first = terms[0];
+    std::vector<NodeId> others(terms.begin() + 1, terms.end());
+    NodeId second = others.size() == 1 ? others[0] : arena.nary(Kind::Add, others);
+    bool difference = false;
+    if (others.size() == 1 && arena.at(second).kind == Kind::Neg) {
+        second = arena.children(second)[0];
+        difference = true;
+    }
+    const NodeId sa = call1(arena, "sin", first), ca = call1(arena, "cos", first);
+    const NodeId sb = call1(arena, "sin", second), cb = call1(arena, "cos", second);
+    if (sine) {
+        *applied = difference ? Applied{"trig.angle-sum", "Angle-difference identity", "sin(a - b) = sin(a) cos(b) - cos(a) sin(b)"}
+                              : Applied{"trig.angle-sum", "Angle-sum identity", "sin(a + b) = sin(a) cos(b) + cos(a) sin(b)"};
+        *what = std::string("Use ") + applied->identity;
+        const NodeId right = arena.binary(Kind::Mul, ca, sb);
+        return arena.binary(Kind::Add, arena.binary(Kind::Mul, sa, cb),
+                            difference ? arena.unary(Kind::Neg, right) : right);
+    }
+    *applied = difference ? Applied{"trig.angle-sum", "Angle-difference identity", "cos(a - b) = cos(a) cos(b) + sin(a) sin(b)"}
+                          : Applied{"trig.angle-sum", "Angle-sum identity", "cos(a + b) = cos(a) cos(b) - sin(a) sin(b)"};
+    *what = std::string("Use ") + applied->identity;
+    const NodeId right = arena.binary(Kind::Mul, sa, sb);
+    return arena.binary(Kind::Add, arena.binary(Kind::Mul, ca, cb),
+                        difference ? right : arena.unary(Kind::Neg, right));
 }
 
 NodeId expand_here(Arena &arena, NodeId id, void *state, std::string *what) {
@@ -364,22 +434,15 @@ NodeId expand_here(Arena &arena, NodeId id, void *state, std::string *what) {
     const bool sine = arena.text(id) == "sin";
     const NodeId arg = arena.children(id)[0];
     const Node &a = arena.at(arg);
-    if (a.kind == Kind::Neg) {
-        const NodeId inner = arena.children(arg)[0];
-        *applied = sine ? Applied{"trig.odd", "Sine is odd", "sin(-a) = -sin(a)"}
-                        : Applied{"trig.even", "Cosine is even", "cos(-a) = cos(a)"};
-        *what = std::string("Use ") + applied->identity;
-        return sine ? arena.unary(Kind::Neg, call1(arena, "sin", inner)) : call1(arena, "cos", inner);
-    }
-    int64_t k = 0;
+    if (a.kind == Kind::Neg)
+        return odd_even(arena, sine, arena.children(arg)[0], applied, what);
+    Rational scale;
     NodeId rest = kNoNode;
-    if (integer_multiple(arena, arg, &k, &rest)) {
-        if (k < 0) {
+    if (a.kind == Kind::Mul && scaled_angle(arena, arg, &scale, &rest)) {
+        const int64_t k = scale.den == 1 ? scale.num : 0;
+        if (k < 0 && k >= -6) {
             const NodeId positive = k == -1 ? rest : arena.binary(Kind::Mul, arena.integer(std::to_string(-k)), rest);
-            *applied = sine ? Applied{"trig.odd", "Sine is odd", "sin(-a) = -sin(a)"}
-                            : Applied{"trig.even", "Cosine is even", "cos(-a) = cos(a)"};
-            *what = std::string("Use ") + applied->identity;
-            return sine ? arena.unary(Kind::Neg, call1(arena, "sin", positive)) : call1(arena, "cos", positive);
+            return odd_even(arena, sine, positive, applied, what);
         }
         if (k == 2) {
             *applied = sine ? Applied{"trig.double-angle", "Double-angle identity", "sin(2a) = 2 sin(a) cos(a)"}
@@ -396,56 +459,39 @@ NodeId expand_here(Arena &arena, NodeId id, void *state, std::string *what) {
             *what = "Write " + print(arena, arg) + " as " + print(arena, most) + " + " + print(arena, rest);
             return call1(arena, sine ? "sin" : "cos", arena.binary(Kind::Add, most, rest));
         }
-        return kNoNode;
+        if (arena.at(rest).kind != Kind::Add || scale.num == 0)
+            return kNoNode;
+        const NodeId factor = scale.num == 1 ? arena.binary(Kind::Pow, arena.integer(std::to_string(scale.den)),
+                                                            arena.integer("-1"))
+                                             : canonical_rational(arena, scale);
+        std::vector<NodeId> terms;
+        for (NodeId term : arena.children(rest))
+            terms.push_back(k == 1 ? term : arena.binary(Kind::Mul, factor, term));
+        return angle_sum(arena, sine, terms, applied, what);
     }
     if (a.kind == Kind::Add && arena.children(arg).size() >= 2) {
-        const ChildView terms = arena.children(arg);
-        const NodeId first = terms[0];
-        std::vector<NodeId> others;
-        for (size_t i = 1; i < terms.size(); ++i)
-            others.push_back(terms[i]);
-        NodeId second = others.size() == 1 ? others[0] : arena.nary(Kind::Add, others);
-        bool difference = false;
-        if (others.size() == 1 && arena.at(second).kind == Kind::Neg) {
-            second = arena.children(second)[0];
-            difference = true;
-        }
-        const NodeId sa = call1(arena, "sin", first), ca = call1(arena, "cos", first);
-        const NodeId sb = call1(arena, "sin", second), cb = call1(arena, "cos", second);
-        if (sine) {
-            *applied = difference ? Applied{"trig.angle-sum", "Angle-difference identity", "sin(a - b) = sin(a) cos(b) - cos(a) sin(b)"}
-                                  : Applied{"trig.angle-sum", "Angle-sum identity", "sin(a + b) = sin(a) cos(b) + cos(a) sin(b)"};
-            *what = std::string("Use ") + applied->identity;
-            const NodeId right = arena.binary(Kind::Mul, ca, sb);
-            return arena.binary(Kind::Add, arena.binary(Kind::Mul, sa, cb),
-                                difference ? arena.unary(Kind::Neg, right) : right);
-        }
-        *applied = difference ? Applied{"trig.angle-sum", "Angle-difference identity", "cos(a - b) = cos(a) cos(b) + sin(a) sin(b)"}
-                              : Applied{"trig.angle-sum", "Angle-sum identity", "cos(a + b) = cos(a) cos(b) - sin(a) sin(b)"};
-        *what = std::string("Use ") + applied->identity;
-        const NodeId right = arena.binary(Kind::Mul, sa, sb);
-        return arena.binary(Kind::Add, arena.binary(Kind::Mul, ca, cb),
-                            difference ? right : arena.unary(Kind::Neg, right));
+        std::vector<NodeId> terms;
+        for (NodeId term : arena.children(arg))
+            terms.push_back(term);
+        return angle_sum(arena, sine, terms, applied, what);
     }
     return kNoNode;
 }
 
-// A whole multiple above six anywhere expand_here would reach it, which split-multiple cannot take apart.
-bool multiple_too_large(const Arena &arena, NodeId angle) {
-    if (arena.at(angle).kind == Kind::Neg)
-        return multiple_too_large(arena, arena.children(angle)[0]);
-    if (arena.at(angle).kind == Kind::Add) {
-        for (NodeId term : arena.children(angle)) {
-            if (multiple_too_large(arena, term))
+// A whole multiple above six that expansion would reach, read by value with every enclosing scale.
+bool multiple_too_large(const Arena &arena, NodeId angle, Rational outer = Rational{1, 1}) {
+    Rational scale;
+    NodeId carrier = kNoNode;
+    if (!scaled_angle(arena, angle, &scale, &carrier) || !rational_mul(outer, scale, &scale))
+        return false;
+    if (arena.at(carrier).kind == Kind::Add) {
+        for (NodeId term : arena.children(carrier)) {
+            if (multiple_too_large(arena, term, scale))
                 return true;
         }
         return false;
     }
-    int64_t k = 0;
-    NodeId rest = kNoNode;
-    if (!integer_multiple(arena, angle, &k, &rest))
-        return false;
-    return k > 6 || k < -6 || multiple_too_large(arena, rest);
+    return scale.den == 1 && (scale.num > 6 || scale.num < -6);
 }
 
 const char *expand_refusal(const Arena &arena, NodeId id) {
@@ -509,11 +555,25 @@ NodeId pythagorean_here(Arena &arena, NodeId id, void *state, std::string *what)
     return kNoNode;
 }
 
+// The factors of a product with nested products opened, so 3*sin(x)*cos(x) shows its sine and cosine side by side.
+std::vector<NodeId> flat_factors(const Arena &arena, NodeId id) {
+    std::vector<NodeId> factors;
+    for (NodeId child : arena.children(id)) {
+        if (arena.at(child).kind != Kind::Mul) {
+            factors.push_back(child);
+            continue;
+        }
+        for (NodeId inner : flat_factors(arena, child))
+            factors.push_back(inner);
+    }
+    return factors;
+}
+
 NodeId product_here(Arena &arena, NodeId id, void *state, std::string *what) {
     Applied *applied = static_cast<Applied *>(state);
     if (arena.at(id).kind != Kind::Mul)
         return kNoNode;
-    const ChildView factors = arena.children(id);
+    const std::vector<NodeId> factors = flat_factors(arena, id);
     for (size_t i = 0; i < factors.size(); ++i) {
         if (!is_trig_call(arena, factors[i]) || arena.text(factors[i]) != "sin")
             continue;
@@ -538,13 +598,7 @@ NodeId product_here(Arena &arena, NodeId id, void *state, std::string *what) {
     return kNoNode;
 }
 
-NodeId half_angle_here(Arena &arena, NodeId id, void *state, std::string *what) {
-    Applied *applied = static_cast<Applied *>(state);
-    int64_t exponent = 0;
-    if (arena.at(id).kind != Kind::Pow || !small_integer(arena, arena.children(id)[1], &exponent) || exponent != 2 ||
-        !is_trig_call(arena, arena.children(id)[0]))
-        return kNoNode;
-    const NodeId call = arena.children(id)[0];
+NodeId half_angle(Arena &arena, NodeId call, Applied *applied, std::string *what) {
     const bool sine = arena.text(call) == "sin";
     const NodeId doubled = call1(arena, "cos", arena.binary(Kind::Mul, arena.integer("2"), arena.children(call)[0]));
     *applied = sine ? Applied{"trig.half-angle", "Half-angle identity", "sin(a)^2 = (1 - cos(2a))/2"}
@@ -554,7 +608,58 @@ NodeId half_angle_here(Arena &arena, NodeId id, void *state, std::string *what) 
                         arena.binary(Kind::Add, arena.integer("1"), sine ? arena.unary(Kind::Neg, doubled) : doubled));
 }
 
-// What collecting refuses before anything is recorded: a power above two, and a product of trig
+NodeId half_angle_here(Arena &arena, NodeId id, void *state, std::string *what) {
+    Applied *applied = static_cast<Applied *>(state);
+    if (arena.at(id).kind == Kind::Mul) {
+        const std::vector<NodeId> factors = flat_factors(arena, id);
+        for (size_t i = 0; i < factors.size(); ++i) {
+            for (size_t j = i + 1; j < factors.size(); ++j) {
+                if (factors[i] != factors[j] || !is_trig_call(arena, factors[i]))
+                    continue;
+                std::vector<NodeId> rest;
+                for (size_t k = 0; k < factors.size(); ++k) {
+                    if (k != i && k != j)
+                        rest.push_back(factors[k]);
+                }
+                rest.push_back(half_angle(arena, factors[i], applied, what));
+                return rest.size() == 1 ? rest[0] : arena.nary(Kind::Mul, rest);
+            }
+        }
+        return kNoNode;
+    }
+    int64_t exponent = 0;
+    if (arena.at(id).kind != Kind::Pow || !small_integer(arena, arena.children(id)[1], &exponent) || exponent != 2 ||
+        !is_trig_call(arena, arena.children(id)[0]))
+        return kNoNode;
+    return half_angle(arena, arena.children(id)[0], applied, what);
+}
+
+// The odd and even identities by value, for an angle whose first variable by name is negative.
+NodeId odd_even_here(Arena &arena, NodeId id, void *state, std::string *what) {
+    if (!is_trig_call(arena, id))
+        return kNoNode;
+    const NodeId arg = arena.children(id)[0];
+    std::map<std::string, Rational> angle;
+    if (!read_angle(arena, arg, &angle))
+        return kNoNode;
+    std::vector<std::pair<std::string, Rational>> turned;
+    for (const auto &[name, value] : angle) {
+        Rational minus;
+        if (value.num == 0)
+            continue;
+        if (turned.empty() && value.num > 0)
+            return kNoNode;
+        if (!rational_mul(value, Rational{-1, 1}, &minus))
+            return kNoNode;
+        turned.push_back({name, minus});
+    }
+    if (turned.empty())
+        return kNoNode;
+    const NodeId positive = arena.at(arg).kind == Kind::Neg ? arena.children(arg)[0] : linear_angle(arena, turned);
+    return odd_even(arena, arena.text(id) == "sin", positive, static_cast<Applied *>(state), what);
+}
+
+// What collecting refuses before anything is recorded: a power above two or of anything but one sine or cosine, and a product of trig
 // factors that are not a sine and cosine of one angle, which would need product-to-sum.
 const char *collect_refusal(const Arena &arena, NodeId id) {
     const char *why = nullptr;
@@ -567,11 +672,15 @@ const char *collect_refusal(const Arena &arena, NodeId id) {
                 why = "a power of a sine or cosine above two needs the identities applied more than once, which is outside the envelope";
                 return true;
             }
+            if (mentions_trig(arena, arena.children(n)[0]) && !is_trig_call(arena, arena.children(n)[0])) {
+                why = "a power of anything but a single sine or cosine has to be multiplied out first, which is outside the envelope";
+                return true;
+            }
         }
         if (node.kind == Kind::Mul) {
             std::vector<NodeId> trig;
             int degree = 0;
-            for (NodeId f : arena.children(n)) {
+            for (NodeId f : flat_factors(arena, n)) {
                 if (is_trig_call(arena, f)) {
                     trig.push_back(arena.children(f)[0]);
                     ++degree;
@@ -735,9 +844,11 @@ struct Run {
                 terms.push_back(canonical_rational(arena, value.re));
                 continue;
             }
-            size_t lead = 0;
-            while (key[lead] == 0)
-                ++lead;
+            size_t lead = key.size();
+            for (size_t v = 0; v < key.size(); ++v) {
+                if (key[v] != 0 && (lead == key.size() || basis.names[v] < basis.names[lead]))
+                    lead = v;
+            }
             std::vector<int> positive = key, negative = key;
             for (int &f : negative)
                 f = -f;
@@ -753,19 +864,15 @@ struct Run {
             if (!rational_add(cp.re, cn.re, &a_re) || !rational_add(cp.im, cn.im, &a_im) ||
                 !rational_sub(cn.im, cp.im, &b_re) || !rational_sub(cp.re, cn.re, &b_im) || a_im.num != 0 || b_im.num != 0)
                 return kNoNode;
-            std::vector<NodeId> parts;
+            std::map<std::string, Rational> by_name;
             for (size_t v = 0; v < positive.size(); ++v) {
                 if (positive[v] == 0)
                     continue;
                 const Rational coefficient{positive[v], basis.denominators[v]};
-                Rational reduced;
-                if (!rational_mul(coefficient, Rational{1, 1}, &reduced))
+                if (!rational_mul(coefficient, Rational{1, 1}, &by_name[basis.names[v]]))
                     return kNoNode;
-                const NodeId symbol = arena.symbol(basis.names[v]);
-                parts.push_back(reduced.num == 1 && reduced.den == 1 ? symbol
-                                : arena.binary(Kind::Mul, canonical_rational(arena, reduced), symbol));
             }
-            const NodeId angle = parts.size() == 1 ? parts[0] : arena.nary(Kind::Add, parts);
+            const NodeId angle = linear_angle(arena, {by_name.begin(), by_name.end()});
             if (a_re.num != 0) {
                 const NodeId c = call1(arena, "cos", angle);
                 terms.push_back(a_re.num == 1 && a_re.den == 1 ? c : arena.binary(Kind::Mul, canonical_rational(arena, a_re), c));
@@ -829,7 +936,7 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
     plan.goal = (expand ? "Expand " : "Collect ") + print(arena, expression);
     plan.rule_id = expand ? "plan.trig-expand" : "plan.trig-collect";
     plan.rule_name = expand ? "Expand sums and multiples of angles" : "Reduce squares and products to single angles";
-    plan.explanation_short = expand ? "Use the angle-sum and double-angle identities until every angle is a single variable."
+    plan.explanation_short = expand ? "Use the angle-sum and double-angle identities until no angle is a sum or a whole multiple."
                                     : "Use the Pythagorean, half-angle and double-angle identities, then collect like terms.";
     plan.explanation_detailed = "Each step names the identity it uses. Every step and the result are checked exactly.";
     PlanPayload payload;
@@ -858,6 +965,8 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
                 next = rewrite_first_subterm(arena, current, product_here, &applied, &what);
             if (next == kNoNode)
                 next = rewrite_first_subterm(arena, current, half_angle_here, &applied, &what);
+            if (next == kNoNode)
+                next = rewrite_first_subterm(arena, current, odd_even_here, &applied, &what);
         }
         if (next == kNoNode)
             break;
@@ -875,7 +984,17 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
         const NodeId collected = run.rendered(final_form, final_basis);
         if (collected == kNoNode)
             return run.finish(TrigOutcome::VerificationFailed, kNoNode, "the collected form has a nonreal coefficient");
-        if (collected != current) {
+        const auto terms_of = [&arena](NodeId n) {
+            std::vector<NodeId> terms;
+            if (arena.at(n).kind != Kind::Add)
+                terms.push_back(n);
+            else
+                for (NodeId term : arena.children(n))
+                    terms.push_back(term);
+            std::sort(terms.begin(), terms.end());
+            return terms;
+        };
+        if (terms_of(collected) != terms_of(current)) {
             const Applied collect{"trig.collect", "Collect like terms", "like terms combine"};
             if (!run.record(collect, current, collected, "Collect like terms to get " + print(arena, collected)))
                 return run.stopped();
@@ -919,7 +1038,8 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
                                                                  : TrigOutcome::ResourceExceeded,
                           kNoNode, why);
     return run.finish(TrigOutcome::Rewritten, current,
-                      expand ? "every angle is a single variable" : "squares and products reduced and like terms collected");
+                      expand ? "no sine or cosine of a sum or a whole multiple is left"
+                             : "squares and products reduced and like terms collected");
 }
 
 }  // namespace nps

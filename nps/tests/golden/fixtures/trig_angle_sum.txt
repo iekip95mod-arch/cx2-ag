@@ -1,7 +1,7 @@
 problem: sin(x+y)
 outcome: rewritten
 result: ((sin(x) * cos(y)) + (cos(x) * sin(y)))
-detail: every angle is a single variable
+detail: no sine or cosine of a sum or a whole multiple is left
 context
   application version: nps 0.2
   capability manifest: <current>
@@ -21,7 +21,7 @@ steps
     goal: Expand sin((x + y))
     rule: plan.trig-expand, Expand sums and multiples of angles
     claim: no claim
-    explanation: Use the angle-sum and double-angle identities until every angle is a single variable.
+    explanation: Use the angle-sum and double-angle identities until no angle is a sum or a whole multiple.
     detail: Each step names the identity it uses. Every step and the result are checked exactly.
     proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
     strategy: Expand sums and multiples of angles

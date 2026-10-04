@@ -950,6 +950,10 @@ do
     check(type(refused) == "table" and refused.outcome == "outside envelope" and not refused.solved and
           refused.result == nil and #refused.steps == 0,
           "a constant inside an angle is a native refusal with no steps")
+    local typed_pi = nps.walkthrough("texpand(sin(x+\207\128))", "x", "exact")
+    check(type(typed_pi) == "table" and typed_pi.outcome == "outside envelope" and not typed_pi.solved and
+          #typed_pi.steps == 0,
+          "a typed pi inside an angle is the same native refusal")
     check(giac_calls == 0, "texpand and tcollect never ask Giac")
     -- The rows after this one count Giac calls from here, and a rewrite may consult it.
     local calls_before = giac_calls
