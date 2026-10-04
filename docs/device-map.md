@@ -116,18 +116,18 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-03, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4367), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4370 to 4372), `vector_addition` (lua_module.cc:4373), `vector_cross`
-(lua_module.cc:4374), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`optics`, `unit_conversion` (lua_module.cc:4421), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4424 to 4426), `vector_addition` (lua_module.cc:4427), `vector_cross`
+(lua_module.cc:4428), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
 `math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
 dialogs.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3472, which
-reads the variable names against the model's own term names (lua_module.cc:3458). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3526, which
+reads the variable names against the model's own term names (lua_module.cc:3512). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4337 and defined at
-lua_module.cc:1828. It takes the state, the attempt, the later route states and the variable, and
+`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4391 and defined at
+lua_module.cc:1829. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -145,9 +145,14 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4339, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3025-3026. Its menu entry is still needed, and a shape the family does not read still
-returns nil so the shell falls back to Giac.
+lua_module.cc:4393, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3079-3080 and a `linsolve` command to `system_into` at lua_module.cc:3076-3077. Its
+menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
+nil at lua_module.cc:2990-2994, so the shell falls back to Giac at nps_v4.lua:4082. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2572-2620, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3043-3056. Outside
+exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
+native refusal and Giac is not consulted.
 
 ## What the shell can reach
 
@@ -270,8 +275,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1338 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 729 and `nps_nspire_module` at line 935,
+`source`: nps/CMakeLists.txt:1340 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 731 and `nps_nspire_module` at line 937,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines

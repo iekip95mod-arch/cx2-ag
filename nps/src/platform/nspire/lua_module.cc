@@ -36,6 +36,7 @@
 #include "nps/ui/bitmap.h"
 #include "nps/steps/integer.h"
 #include "nps/steps/matrix.h"
+#include "nps/steps/system.h"
 #include "nps/steps/rewrite.h"
 #include "nps/steps/rearrange.h"
 #include "nps/steps/solve_task.h"
@@ -2568,6 +2569,57 @@ int matrix_into(lua_State *L, CommandKind kind) {
     return 1;
 }
 
+int system_into(lua_State *L) {
+    size_t size = 0;
+    const char *text = luaL_checklstring(L, 1, &size);
+    const NumericMode mode = mode_argument(L, 3);
+    GcPause paused(L);
+    Arena arena;
+    Derivation d;
+    d.request.original_expression.assign(text, size);
+    d.request.numeric_mode = mode;
+    // l_walkthrough only dispatches here once the command parsed as Ready.
+    const Command command = parse_command(arena, d.request.original_expression, "x");
+    const SystemResult result =
+        solve_linear_system(arena, d, command.expression, command.variable, interactive_budget(),
+                            command.method == "substitution" ? SystemMethod::Substitution : SystemMethod::Elimination);
+    std::string normalized;
+    std::string normalization_detail;
+    if (!prepare_normalized_expression(arena, d.context, &normalized, &normalization_detail))
+        return expression_resource_failure(L, normalization_detail);
+    d.context.normalized_expression = normalized;
+    const bool solved = result.outcome == SystemOutcome::Solved || result.outcome == SystemOutcome::Family;
+    const bool has_result = solved || result.outcome == SystemOutcome::NoSolution;
+    const std::string printed = result.expression != kNoNode ? print(arena, result.expression) : std::string();
+    lua_newtable(L);
+    set_field(L, "mode", command_kind_name(command.kind));
+    set_field(L, "request_expression", d.request.original_expression);
+    set_field(L, "outcome", system_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", solved);
+    set_field(L, "has_result", has_result);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "result_form",
+              result_form_name(primary_result_form(!printed.empty(), false, result.status,
+                                                   ResultForm::NoResult)));
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_expression_context(L, d.context);
+    if (!printed.empty())
+        set_field(L, "result", printed);
+    set_field(L, "method", system_method_name(command.method == "substitution" ? SystemMethod::Substitution
+                                                                              : SystemMethod::Elimination));
+    if (has_result)
+        set_field(L, "solution_set", result.outcome == SystemOutcome::Solved ? "unique" :
+                                     result.outcome == SystemOutcome::Family ? "family" : "empty");
+    set_cost(L, arena, d, result.cost, 0);
+    if (d.size() == 0)
+        push_no_steps(L);
+    else
+        push_steps(L, arena, d);
+    return 1;
+}
+
 int bounded_integer_argument(lua_State *L, int index, int minimum, int maximum) {
     if (lua_type(L, index) != LUA_TNUMBER) luaL_argerror(L, index, "an integer is required");
     const lua_Number value = lua_tonumber(L, index);
@@ -3005,9 +3057,9 @@ int l_walkthrough(lua_State *L) {
         }
         if (kind != CommandKind::Limit && kind != CommandKind::DefiniteIntegral &&
             kind != CommandKind::Tangent && kind != CommandKind::Linearize &&
-            kind != CommandKind::Implicit && kind != CommandKind::Desolve &&
-            kind != CommandKind::Taylor && kind != CommandKind::Maclaurin &&
-            kind != CommandKind::Convergence) {
+            kind != CommandKind::LinearSystem && kind != CommandKind::Implicit &&
+            kind != CommandKind::Desolve && kind != CommandKind::Taylor &&
+            kind != CommandKind::Maclaurin && kind != CommandKind::Convergence) {
         lua_settop(L, 4);
         lua_pushvalue(L, 1);
         lua_pushlstring(L, command.operand_text.data(), command.operand_text.size());
@@ -3021,6 +3073,8 @@ int l_walkthrough(lua_State *L) {
         kind == CommandKind::Taylor || kind == CommandKind::Maclaurin ||
         kind == CommandKind::Convergence)
         return calculus_into(L);
+    if (kind == CommandKind::LinearSystem)
+        return system_into(L);
     if (kind == CommandKind::Implicit) return implicit_into(L);
     if (kind == CommandKind::Desolve)
         return separable_into(L);

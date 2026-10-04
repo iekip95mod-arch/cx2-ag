@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Implicit, Desolve, Taylor, Maclaurin, Convergence };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, LinearSystem, Implicit, Desolve, Taylor, Maclaurin, Convergence };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
@@ -26,6 +26,8 @@ struct Command {
     int64_t index_start = 0;
     std::string operand_text;
     std::string variable_name;
+    // A method a command names as an extra argument, such as linsolve's substitution.
+    std::string method;
     std::string detail;
 };
 
