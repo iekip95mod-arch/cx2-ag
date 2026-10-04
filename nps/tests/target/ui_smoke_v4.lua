@@ -1115,7 +1115,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 201, "every palette entry survives the regrouping: " .. entries .. " of 201")
+    check(entries == 202, "every palette entry survives the regrouping: " .. entries .. " of 202")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -5321,6 +5321,24 @@ if os.getenv("NPS_COMMAND_MODULE") then
         end
         check(env.steps.active and found_rule,
               "the integer menu exposes its operation's actual recorded method: " .. command)
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Simplify Powers") and env.fctEditor:getExpression() == "powsimp(",
+          "the power menu entry inserts the native walkthrough command")
+    env.fctEditor:addString("sqrt(x^2))")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
+              record and record.mode == "powsimp" and record.solved and record.result == "abs(x)" and
+              record.status == "solved and verified",
+              "the power menu entry opens the verified walkthrough without a CAS fallback")
         if env.steps.active then
             env.on.paint(gc)
             env.on.escapeKey()

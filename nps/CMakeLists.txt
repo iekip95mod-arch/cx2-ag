@@ -67,6 +67,7 @@ set(CORE_SOURCES
     src/steps/attempt.cc
     src/steps/command.cc
     src/steps/integer.cc
+    src/steps/power.cc
     src/steps/matrix_row.cc
     src/steps/matrix_form.cc
     src/steps/rational_expression.cc
@@ -120,6 +121,7 @@ set(TEST_SOURCES
     tests/unit/attempt_tests.cc
     tests/unit/command_tests.cc
     tests/unit/integer_tests.cc
+    tests/unit/power_tests.cc
     tests/unit/matrix_row_tests.cc
     tests/unit/matrix_form_tests.cc
     tests/unit/rational_expression_tests.cc

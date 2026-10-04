@@ -348,6 +348,7 @@ local expected_modules = {
     "algebra.rational-expression.single-variable",
     "algebra.partial-fractions.linear-factors",
     "number.integer-method.literal",
+    "algebra.powers-and-radicals.one-variable",
     "matrix.ref.rational",
     "matrix.rref.rational",
     "matrix.det.rational",
@@ -977,6 +978,38 @@ do
           quadratic.result == nil and #quadratic.steps == 0,
           "an irreducible quadratic denominator is a native refusal with no steps")
     check(giac_calls == 0, "normal and partfrac never ask Giac")
+end
+do
+    giac_calls = 0
+    local simplified = nps.walkthrough("powsimp(sqrt(x^2))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(simplified) == "table" and simplified.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-006", type(simplified) == "table" and simplified.mode == "powsimp" and simplified.solved and
+             simplified.result == "abs(x)" and simplified.status == "solved and verified" and
+             rules["pow.power-of-power"] and rules["pow.check-values"],
+             "a radical reaches the native walkthrough through the bridge with its sign condition kept")
+    local root = nps.walkthrough("powsimp(sqrt(12))", "x", "exact")
+    check(type(root) == "table" and root.solved and root.result == "(2 * sqrt(3))" and
+          root.status == "solved and verified",
+          "powsimp takes the largest square out of a numeric root through the bridge")
+    local refused = nps.walkthrough("powsimp(sqrt(-4))", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "no real value" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "an even root of a negative number is a native refusal with no steps")
+    local quotient = nps.walkthrough("powsimp(x^3/x)", "x", "exact")
+    check(type(quotient) == "table" and quotient.solved and quotient.result == "(x^2)" and
+          quotient.assumptions == "x is not zero",
+          "a quotient of powers publishes the condition it needs through the bridge: " ..
+          tostring(type(quotient) == "table" and quotient.assumptions))
+    local squared = nps.walkthrough("powsimp(sqrt(x)^2)", "x", "exact")
+    check(type(squared) == "table" and squared.solved and squared.result == "x" and squared.assumptions == "x >= 0",
+          "and a square root squared publishes that x is not negative: " ..
+          tostring(type(squared) == "table" and squared.assumptions))
+    check(simplified.assumptions == nil, "while the absolute value of a root of a square needs none")
+    local decimal = nps.walkthrough("powsimp(sqrt(x^2))", "x", "decimal")
+    check(type(decimal) == "table" and not decimal.solved and decimal.mode == "powsimp",
+          "powsimp refuses decimal mode")
+    check(giac_calls == 0, "powsimp never asks Giac")
 end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
