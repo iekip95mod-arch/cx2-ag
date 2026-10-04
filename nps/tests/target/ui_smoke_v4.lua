@@ -628,7 +628,7 @@ local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
     unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, work = 0, components = 0,
-    forces = 0, optics = 0,
+    forces = 0, optics = 0, gravitation = 0, oscillation = 0, wave = 0,
     catch_up = 0, relative_motion = 0, planar_kinematics = 0,
     resource_profile_begin = 0, resource_profile_finish = 0,
     solve_begin = 0, solve_advance = 0, solve_cancel = 0,
@@ -691,6 +691,9 @@ local fake_manifest = {
         { kind = "solver", id = "physics.optics.spherical-mirror.image" },
         { kind = "solver", id = "physics.optics.double-slit.maxima" },
         { kind = "solver", id = "physics.optics.single-slit.minima" },
+        { kind = "solver", id = "physics.gravitation.point-masses" },
+        { kind = "solver", id = "physics.oscillation.restoring-force" },
+        { kind = "solver", id = "physics.wave.speed-frequency-wavelength" },
         { kind = "solver", id = "units.chain-link-conversion" },
         { kind = "content", id = "units.si" },
     },
@@ -770,7 +773,61 @@ nps_split = {
         return fake_unit_conversion
     end,
     density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
-    optics = function(...) calls.optics = calls.optics + 1 last_args = { ... } return fake_optics end,
+    optics = function(...)
+        calls.optics = calls.optics + 1
+        last_args = { ... }
+        return optics_replies and optics_replies[last_args[1]] or fake_optics
+    end,
+    -- The three relation families copy the strings luax_host asserts the real bridge emits.
+    gravitation = function(...)
+        calls.gravitation = calls.gravitation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "gravitational force",
+            result = "gravitational force = 0.00000000040 kg m/s^2", value = "0.00000000040",
+            exact_value = "0.00000000040044", unit = "kg m/s^2",
+            precision = { kind = "measured", significant_digits = 2 },
+            nodes = 30, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Newton's law of gravitation", goal = "Find the gravitational force",
+                  short = "Use F = G*m1*m2/r^2", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
+    oscillation = function(...)
+        calls.oscillation = calls.oscillation + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "restoring force",
+            result = "restoring force = 10 kg m/s^2", value = "10", exact_value = "10",
+            unit = "kg m/s^2", precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Simple harmonic restoring force",
+                  goal = "Find the restoring force", short = "Use F = k*x", claim = "no claim",
+                  verified = true, failed = false, depth = 0 },
+            },
+        }
+    end,
+    wave = function(...)
+        calls.wave = calls.wave + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified", unknown = "wavelength",
+            result = "wavelength = 2 m", value = "2", exact_value = "2", unit = "m",
+            precision = { kind = "exact", significant_digits = 0 },
+            nodes = 20, step_count = 6, rewrites = 4, giac_calls = 0,
+            steps = {
+                { kind = "plan", name = "Mechanical wave relation", goal = "Find the wavelength",
+                  short = "Use v = f*lambda", claim = "no claim", verified = true,
+                  failed = false, depth = 0 },
+            },
+        }
+    end,
     vector_addition = function(...)
         calls.vector_addition = calls.vector_addition + 1
         last_args = { ... }
@@ -1039,7 +1096,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 192, "every palette entry survives the regrouping: " .. entries .. " of 192")
+    check(entries == 200, "every palette entry survives the regrouping: " .. entries .. " of 200")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -1047,8 +1104,9 @@ for box = 1, #registered_menu do
     if registered_menu[box][1] == "Steps" then step_menu_count = step_menu_count + 1 end
 end
 check(step_menu_count == 1 and registered_menu[3][2][1] == "Full walkthrough (all steps)" and
-      registered_menu[3][3][1] == "Hint walkthrough (Tab next)",
-      "one explicit Steps group exposes both progression settings")
+      registered_menu[3][3][1] == "Hint walkthrough (Tab next)" and
+      registered_menu[3][4][1] == "Check my next step  !a",
+      "one explicit Steps group exposes both progression settings and the attempt check")
 registered_menu[3][3][2]()
 check(steps.progression == "hint", "the Steps palette enables hint progression before solving")
 registered_menu[3][2][2]()
@@ -1159,7 +1217,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 25 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 28 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -2905,7 +2963,7 @@ do
     local optics_before = calls.optics
     local optics_index = nil
     for index, fixture in ipairs(PHYSICS_FIXTURES) do
-        if fixture.mode == "optics" then optics_index = index end
+        if fixture.mode == "optics" and optics_index == nil then optics_index = index end
     end
     check(optics_index ~= nil, "the guided browser carries an optics fixture")
     physicsBrowser.focus = optics_index
@@ -2920,6 +2978,157 @@ do
     check(steps.result.result == "image distance = 0.3 m",
           "the optics fixture shows the image distance the bridge returned")
     on.escapeKey()
+end
+
+-- The other four optics relations, each answered with the strings luax_host asserts the real
+-- bridge emits for the same arguments. Global, since this file is at Lua's 200-local ceiling.
+optics_replies = {
+    ["spherical mirror"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "image distance = 0.15 m", value = "0.15",
+        exact_value = "0.15", unit = "m", relation = "spherical mirror", unknown = "image distance",
+        magnification = "-0.5", precision = { kind = "exact", significant_digits = 0 },
+        convention = "distances are positive in front of the mirror, so a real object has do > 0",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Spherical mirror equation", goal = "Find the image distance",
+                    short = "Use 1/do + 1/di = 1/f", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["refraction"] = {
+        outcome = "total internal reflection", solved = false, answer_only = false,
+        status = "solved and verified", relation = "refraction", unknown = "transmitted sine",
+        detail = "the transmitted sine would be 1.6, above the critical sine 0.5",
+        critical_sine = "0.5", nodes = 15, step_count = 4, rewrites = 3, giac_calls = 0,
+        convention = "angles are measured from the normal, each sine is a non-negative ratio",
+        steps = { { kind = "plan", name = "Snell's law", goal = "Find the transmitted sine",
+                    short = "Use n1 sin(t1) = n2 sin(t2)", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["two-slit interference"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "fringe sine = 0.5", value = "0.5",
+        exact_value = "0.5", unit = "", relation = "two-slit interference", unknown = "fringe sine",
+        precision = { kind = "exact", significant_digits = 0 },
+        convention = "the order m counts bright fringes outward from the central maximum",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Two-slit maxima", goal = "Find the fringe sine",
+                    short = "Use d sin(t) = m lambda", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+    ["single-slit diffraction"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "fringe sine = 0.5", value = "0.5",
+        exact_value = "0.5", unit = "", relation = "single-slit diffraction", unknown = "fringe sine",
+        precision = { kind = "exact", significant_digits = 0 },
+        convention = "the order m counts diffraction minima outward",
+        nodes = 15, step_count = 5, rewrites = 3, giac_calls = 0,
+        steps = { { kind = "plan", name = "Single-slit minima", goal = "Find the fringe sine",
+                    short = "Use a sin(t) = m lambda", claim = "no claim", verified = true,
+                    failed = false, depth = 0 } },
+    },
+}
+do
+    local cases = {
+        { relation = "spherical mirror", result = "image distance = 0.15 m",
+          args = { "spherical mirror", "image distance", "focal length", "10 cm",
+                   "object distance", "30 cm" } },
+        { relation = "refraction", reflected = true,
+          args = { "refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
+                   "transmitted index", "1" } },
+        { relation = "two-slit interference", result = "fringe sine = 0.5",
+          args = { "two-slit interference", "fringe sine", "slit spacing", "6 cm", "fringe order", "1",
+                   "wavelength", "3 cm" } },
+        { relation = "single-slit diffraction", result = "fringe sine = 0.5",
+          args = { "single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "1", "wavelength", "3 cm" } },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(cases) do
+        local index = nil
+        -- Found by the relation its run names, since five fixtures now share the optics mode.
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == "optics" and index == nil then
+                local saved, seen = nps_nspire.optics, nil
+                nps_nspire.optics = function(relation) seen = relation return {} end
+                pcall(fixture.run)
+                nps_nspire.optics = saved
+                if seen == case.relation then index = position end
+            end
+        end
+        check(index ~= nil, "the guided browser carries a " .. case.relation .. " fixture")
+        local before = calls.optics
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls.optics == before + 1 and steps.result.mode == "optics",
+              "the " .. case.relation .. " fixture runs through the optics bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, "the " .. case.relation .. " fixture names the relation, unknown and knowns")
+        text = painted()
+        if case.reflected then
+            check(steps.result.outcome == "total internal reflection" and steps.result.result == nil,
+                  "the trapped-light fixture keeps its conclusion rather than inventing an answer")
+            check(text:find("total internal reflection", 1, true) ~= nil and
+                  text:find("critical sine 0.5", 1, true) ~= nil,
+                  "the trapped-light fixture shows the conclusion and the critical sine")
+        else
+            check(steps.result.result == case.result and mathBoxExact(case.result) ~= nil,
+                  "the " .. case.relation .. " answer renders whole in the viewer")
+        end
+        check(#steps.histText == history_before + 1,
+              "the " .. case.relation .. " fixture joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
+end
+
+-- Each relation family is found by mode, then has to reach its own bridge with names its model uses.
+do
+    local relation_cases = {
+        { mode = "gravitation", args = { "gravitational force", "first mass", "2.0 kg",
+                                          "second mass", "3.0 kg", "separation", "1.0 m" },
+          result = "gravitational force = 0.00000000040 kg m/s^2" },
+        { mode = "oscillation", args = { "restoring force", "stiffness", "200 N/m",
+                                          "displacement", "5 cm" },
+          result = "restoring force = 10 kg m/s^2" },
+        { mode = "wave", args = { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" },
+          result = "wavelength = 2 m" },
+    }
+    local focus_before = physicsBrowser.focus
+    for _, case in ipairs(relation_cases) do
+        local index = nil
+        for position, fixture in ipairs(PHYSICS_FIXTURES) do
+            if fixture.mode == case.mode then index = position end
+        end
+        check(index ~= nil, "the guided browser carries a " .. case.mode .. " fixture")
+        local before = calls[case.mode]
+        local history_before = #steps.histText
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(calls[case.mode] == before + 1 and steps.result.mode == case.mode,
+              "the " .. case.mode .. " fixture runs through its native bridge exactly once")
+        local same = #last_args == #case.args
+        for position, argument in ipairs(case.args) do
+            same = same and last_args[position] == argument
+        end
+        check(same, "the " .. case.mode .. " fixture names the unknown and knowns its model uses")
+        check(steps.result.result == case.result,
+              "the " .. case.mode .. " fixture keeps the answer the bridge returned")
+        painted()
+        check(mathBoxExact(case.result) ~= nil,
+              "the " .. case.mode .. " answer renders whole with its unit in the viewer")
+        check(#steps.histText == history_before + 1,
+              "the " .. case.mode .. " fixture joins document history")
+        on.escapeKey()
+    end
+    physicsBrowser.focus = focus_before
 end
 
 -- Every guided entry has to tell a student who has not taken the course what it does. That is a
@@ -3658,6 +3867,9 @@ do
         { "forces", "physics.forces.newton-second-law" },
         { "optics", "physics.optics.thin-lens.image" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
+        { "gravitation", "physics.gravitation.point-masses" },
+        { "oscillation", "physics.oscillation.restoring-force" },
+        { "wave", "physics.wave.speed-frequency-wavelength" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
         { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
     }
@@ -4145,9 +4357,9 @@ local function writeEvidence()
     combined:close()
     local emitted = after:sub(#before + 1)
     local expected = {
-        "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-016",
-        "STEP-020", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "UI-018", "PLAT-006", "PLAT-012", "VER-020",
+        "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-013",
+        "STEP-014", "STEP-016", "STEP-020", "VER-019", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
+        "UI-018", "PLAT-006", "PLAT-012", "UI-011", "VER-020",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -4496,6 +4708,12 @@ do
         { "Templates", "Derivative, how fast something changes", "(x^2,x)", "differentiate", "x^2" },
         { "Templates", "Integral, the area under a curve", "∫(1/x,x)", "integrate", "1/x" },
         { "Templates", "Integral between two limits", "∫(x,x,0,1)", "definite integral", "x" },
+        { "Calculus", "Taylor Polynomial  taylor(expr,var,a,n)", "taylor(exp(x),x,0,3)", "taylor", "exp(x)" },
+        { "Calculus", "Maclaurin Polynomial  maclaurin(expr,var,n)", "maclaurin(sin(x),x,5)", "maclaurin", "sin(x)" },
+        { "Templates", "Taylor polynomial at a point", "taylor(exp(x),x,0,3)", "taylor", "exp(x)" },
+        { "Templates", "Maclaurin polynomial", "maclaurin(sin(x),x,3)", "maclaurin", "sin(x)" },
+        { "Calculus", "Convergence  convergence(term,var,start)", "convergence(1/n^2,n,1)", "convergence", "1/n^2" },
+        { "Templates", "Series convergence test", "convergence(1/n,n,1)", "convergence", "1/n" },
         { "Calculus", "Implicit Derivative  implicit(eq,x,y)", "implicit(x*y=1,x,y)", "implicit", "x*y=1" },
         { "Templates", "Implicit derivative dy/dx", "implicit(x^2+y^2=25,x,y)", "implicit", "x^2+y^2=25" },
         { "Templates", "Tangent line at a point", "tangent(x^2,x,0)", "tangent", "x^2" },
@@ -4764,6 +4982,123 @@ do
     end)()
 end
 
+-- STEP-013, STEP-014 and VER-019 through the real bridge and the Steps menu.
+if os.getenv("NPS_COMMAND_MODULE") then
+    (function()
+    local module = copyModule()
+    local open_native = assert(package.loadlib(os.getenv("NPS_COMMAND_MODULE"), "luaopen_nps_split"))
+    local fixture, loaded = nps_split, package.loaded.nps_split
+    nps_split, package.loaded.nps_split = nil, nil
+    local native = open_native()
+    nps_split, package.loaded.nps_split = fixture, loaded
+    local judged = {}
+    module.walkthrough = function(...) return native.walkthrough(...) end
+    module.judge_attempt = function(...)
+        judged[#judged + 1] = { ... }
+        return native.judge_attempt(...)
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local start = "(((2 * x) + 5) = 13)"
+
+    local attempt_item
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Check my next step  !a" then attempt_item = item[2] end
+        end
+    end
+    attempt_item()
+    check(env.fctEditor.editor:getExpression():find("!a ", 1, true) ~= nil,
+          "the Steps menu types the attempt command into the entry line")
+    enter("!a 2*x = 8")
+    check(#judged == 0 and env.steps.status == "attempt needs a walkthrough to compare against",
+          "an attempt before any walkthrough is refused without calling the judge")
+
+    enter("solve(2*x+5=13,x)")
+    check(env.steps.active and env.steps.result.solved and env.steps.walkthrough == "full",
+          "control: a real linear walkthrough opens in full mode")
+    env.on.escapeKey()
+    local route = env.attemptRoute(env.steps.result)
+    check(route.start == start and #route == 2 and route[1].after == "(((2 * x) + -8) = 0)" and
+          route[2].after == "(x = 4)", "the attempt route is the chain of whole states the solve records")
+
+    enter("!a 2*x = 8")
+    local last = judged[#judged]
+    check(#judged == 1 and last[1] == start and last[2] == "2*x = 8" and #last[3] == 2 and
+          last[4] == "x", "in full mode an attempt is judged against the problem as posed")
+    evidence("STEP-013", env.steps.status == "attempt: equivalent, valid but not this walkthrough's route " ..
+             "(both have the one solution 4)",
+             "an equivalent attempt off the route is reported as valid and not this route")
+    enter("!a 2*x - 8 = 0")
+    evidence("STEP-014", env.steps.status:find("attempt: equivalent, useful, reaches state 1 of 2", 1, true) == 1,
+             "an attempt on the route is reported as useful and says how far it reaches")
+    enter("!a 2*x = 10")
+    evidence("STEP-013", env.steps.status ==
+             "attempt: NOT EQUIVALENT (the attempt's solution is 5 and the state's is 4)",
+             "an attempt that changes the solution is refuted with the two solutions")
+    enter("!a 2*x ==")
+    check(env.steps.status:find("attempt refused: attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused by name")
+
+    env.stepsSetProgression("hint")
+    enter("solve(2*x+5=13,x)")
+    check(env.steps.active and env.steps.walkthrough == "hint" and env.steps.revealed == 1,
+          "control: the same walkthrough in hint mode shows only its plan")
+    local statuses = {}
+    for i, step in ipairs(env.steps.result.steps) do statuses[i] = tostring(step.verified) .. tostring(step.failed) end
+    env.on.escapeKey()
+    enter("!a 2*x - 8 = 0")
+    last = judged[#judged]
+    check(last[1] == start and #last[3] == 2,
+          "before any step is revealed the attempt is judged against the problem as posed")
+    evidence("VER-019", env.steps.revealed == 1 and env.steps.status:find("useful, reaches state 1 of 2", 1, true),
+             "a useful attempt in hint mode reveals no step")
+    enter("!!")
+    env.on.tabKey()
+    check(env.steps.revealed == 2, "control: tab reveals the first transformation")
+    env.on.escapeKey()
+    enter("!a 2*x - 8 = 0")
+    last = judged[#judged]
+    check(last[1] == "(((2 * x) + -8) = 0)" and #last[3] == 1 and last[3][1] == "(x = 4)",
+          "after a reveal the attempt is judged against the revealed state and the rest of the route")
+    evidence("STEP-014", env.steps.status:find("attempt: equivalent, but no progress", 1, true) == 1,
+             "repeating the revealed state is valid and makes no progress")
+    enter("!a x = 4")
+    check(env.steps.status:find("useful, reaches state 1 of 1", 1, true) ~= nil and env.steps.revealed == 2,
+          "the answer is useful from the revealed state and still reveals nothing")
+    local unchanged = true
+    for i, step in ipairs(env.steps.result.steps) do
+        if statuses[i] ~= tostring(step.verified) .. tostring(step.failed) then unchanged = false end
+    end
+    evidence("VER-019", unchanged and #statuses == #env.steps.result.steps,
+             "judging attempts leaves every step's verification as the solve recorded it")
+
+    local failed = {}
+    for key, value in pairs(env.steps.result) do failed[key] = value end
+    failed.steps = {}
+    for i, step in ipairs(env.steps.result.steps) do
+        local copy = {}
+        for key, value in pairs(step) do copy[key] = value end
+        failed.steps[i] = copy
+    end
+    local check_step = failed.steps[#failed.steps]
+    check_step.verified, check_step.failed = false, true
+    failed.status = "verification failed"
+    env.steps.result = failed
+    enter("!a x = 4")
+    evidence("VER-019", env.steps.status:find("attempt: equivalent", 1, true) == 1 and
+             check_step.failed == true and check_step.verified == false and
+             failed.status == "verification failed" and env.steps.revealed == 2,
+             "an equivalent attempt leaves a failed check failed and the derivation's status as it was")
+    env.stepsSetProgression("full")
+    end)()
+end
+
 if os.getenv("NPS_COMMAND_MODULE") then
     (function()
     local module = copyModule()
@@ -4913,6 +5248,36 @@ if os.getenv("NPS_COMMAND_MODULE") then
         env.on.enterKey()
         check(dispatched == before_dispatch + 1 and evaluated == before_evaluation + 1,
               "an equation the separable family does not read falls back to Giac as before")
+        if env.steps.active then env.on.escapeKey() end
+    end
+
+    env.fctEditor.editor:setExpression("\\0el {}")
+    check(select_integer_menu("Solve Linear System") and env.fctEditor:getExpression() == "linsolve(",
+          "the existing linear system menu inserts the native walkthrough command")
+    env.fctEditor:addString("[x + y = 3, x - y = 1], [x, y])")
+    do
+        local before_dispatch, before_evaluation = dispatched, evaluated
+        env.on.enterKey()
+        local record = env.steps.result
+        check(dispatched == before_dispatch + 1 and evaluated == before_evaluation,
+              "the linear system menu dispatches once without a CAS fallback")
+        local reduced = false
+        for _, step in ipairs(record and record.steps or {}) do
+            reduced = reduced or step.rule == "matrix.row-add-multiple"
+        end
+        check(env.steps.active and record and record.mode == "linear system" and record.solved and
+              record.result == "[(x = 2), (y = 1)]" and record.status == "solved and verified" and reduced,
+              "the linear system menu opens the verified elimination walkthrough")
+        if env.steps.active then
+            env.on.paint(gc)
+            env.on.escapeKey()
+        end
+        env.fctEditor.editor:setExpression("\\0el {linsolve([x*y = 1, x + y = 2], [x, y])}")
+        env.on.enterKey()
+        record = env.steps.result
+        check(env.steps.active and record and record.mode == "linear system" and not record.solved and
+              record.result == nil and #record.steps == 0 and evaluated == before_evaluation,
+              "a nonlinear system stays a native refusal in the walkthrough viewer")
         if env.steps.active then env.on.escapeKey() end
     end
 
@@ -6992,7 +7357,7 @@ do
     local env, state = fixture()
     local solves = calls.giac
     state.open()
-    check(state.opens == 1 and #state.labels == 24 and not state.editor.editor.visible,
+    check(state.opens == 1 and #state.labels == 27 and not state.editor.editor.visible,
           "the application opens all templates in a retained viewport and parks its editor")
     check(state.labels[1] == "Fraction" and state.labels[6] == "Indefinite integral" and
           #state.descriptions == #state.labels, "retained templates separate concise names from guidance")
@@ -7010,16 +7375,23 @@ do
     -- CALC-007. The implicit template says what the answer is written in.
     check(state.labels[23] == "Implicit derivative dy/dx" and state.descriptions[23]:find("dydx", 1, true) ~= nil,
           "the implicit template is offered and names the derivative symbol")
-    -- CALC-013, #509. The parametric slope follows them and asks for both coordinates.
-    check(state.labels[24] == "Parametric slope at a parameter value" and
-          state.descriptions[24]:find("x(t) and y(t)", 1, true) ~= nil,
+    -- CALC-011. The Taylor templates follow them and say what the polynomial is and is not.
+    check(state.labels[24] == "Taylor polynomial at a point" and state.labels[25] == "Maclaurin polynomial" and
+          state.descriptions[24]:find("remainder", 1, true) ~= nil and
+          state.descriptions[25]:find("approximation", 1, true) ~= nil,
+          "the Taylor templates are offered with guidance on the order, the remainder and the approximation")
+    check(state.labels[26] == "Series convergence test" and state.descriptions[26]:find("first index", 1, true) ~= nil,
+          "the convergence template is offered with guidance on the first index")
+    -- CALC-013, #509. The parametric slope comes last and asks for both coordinates.
+    check(state.labels[27] == "Parametric slope at a parameter value" and
+          state.descriptions[27]:find("x(t) and y(t)", 1, true) ~= nil,
           "the parametric slope template is offered with guidance naming both coordinates")
     for i = 1, 4 do env.on.paint(gc) end
     check(state.decodes == 1 and state.paints == 4, "unchanged menu frames reuse the decoded image")
     env.on.charIn("hidden")
     check(state.editor:getExpression() == "", "typing in the menu cannot change its hidden editor")
     env.on.arrowUp()
-    check(state.selected == 24, "up from the first template reaches the final template")
+    check(state.selected == 27, "up from the first template reaches the final template")
     env.on.tabKey()
     check(state.selected == 1, "Tab wraps the retained selection")
     env.on.arrowRight()
@@ -8339,6 +8711,119 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- UI-011. The shell composes the export from the record it already holds and hands it to the writer.
+do
+    (function()
+    local exported = {}
+    local module = copyModule()
+    module.export_text = function(name, text)
+        exported[#exported + 1] = { name = name, text = text }
+        return "/documents/ndl/" .. name .. ".txt.tns"
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+        if env.steps.active then env.closeSteps() end
+    end
+    local function has(text, fragment) return text:find(fragment, 1, true) ~= nil end
+
+    enter("!x")
+    check(#exported == 0 and env.steps.histText[1][2] == " no steps to export yet",
+          "an export before any steps says there is nothing to export and writes nothing")
+
+    env.stepsSetProgression("full")
+    next_step_result = fake_result
+    enter("!i 1/x")
+    enter("!x")
+    local full = exported[1] and exported[1].text or ""
+    local complete = exported[1] and exported[1].name == "stepcas-export" and
+                     has(full, "StepCAS derivation export, format 1\n") and
+                     has(full, "Build: " .. fake_manifest.id) and
+                     has(full, "Input: 1/x") and has(full, "Normalized input: (x^(-1))") and
+                     has(full, "Outcome: EXACT + CONDITIONAL  |  solved and verified") and
+                     has(full, "Answer: " .. (env.steps.result.display_result or
+                                              env.steps.result.canonical) .. "\n") and
+                     has(full, "Assumes: x > 0") and
+                     has(full, "Steps: 4 of 4 shown") and
+                     has(full, "Step 2 of 4: Logarithmic integral") and
+                     has(full, "Requires: x > 0") and
+                     has(full, "Checked by: rule-local invariant: passed, the exponent is minus one") and
+                     has(full, "Rule i.reciprocal, claim: equivalent expression")
+    check(complete, "the export carries the build, the input, the outcome, the answer, the conditions " ..
+                    "and each step with the check that verified it")
+    local _, normalized_lines = full:gsub("Normalized input: ", "")
+    check(normalized_lines == 1, "and names the normalized input once rather than under every step")
+    check(env.steps.status == "exported to /documents/ndl/stepcas-export.txt.tns",
+          "and the status line says where the file went")
+
+    enter("!x lab-3")
+    check(exported[2] and exported[2].name == "lab-3", "a name after !x chooses the file")
+
+    env.stepsSetProgression("hint")
+    next_step_result = fake_result
+    enter("!i 1/x")
+    enter("!x")
+    local hinted = exported[3] and exported[3].text or ""
+    local withheld = has(hinted, "Answer: withheld in hint mode until every step is revealed") and
+                     has(hinted, "Steps: 1 of 4 shown") and not has(hinted, "ln(x)") and
+                     not has(hinted, "Step 2 of 4") and
+                     has(hinted, "Outcome: EXACT + CONDITIONAL  |  solved and verified")
+    check(withheld, "in hint mode the export withholds the answer and every unrevealed step")
+    env.stepsSetProgression("full")
+
+    local unsupported = {}
+    for key, value in pairs(fake_result) do unsupported[key] = value end
+    unsupported.solved, unsupported.status = false, "unsupported"
+    unsupported.result_form = "unsupported symbolic form"
+    unsupported.result, unsupported.canonical, unsupported.agrees = nil, nil, nil
+    unsupported.detail = "no rule for this form"
+    next_step_result = unsupported
+    enter("!i 1/x")
+    enter("!x")
+    local partial = exported[4] and exported[4].text or ""
+    local distinct = has(partial, "Outcome: UNSUPPORTED  |  unsupported") and
+                     not has(partial, "EXACT") and not has(partial, "Answer: ")
+    check(distinct, "an unsupported outcome exports as unsupported, with no answer line to read as complete")
+
+    module.export_text = function() return nil, "export name must be 1 to 32 lower case letters" end
+    enter("!x Bad")
+    check(env.steps.status == "export refused: export name must be 1 to 32 lower case letters",
+          "a writer refusal reaches the status line")
+    module.export_text = function() error("disk full", 0) end
+    enter("!x")
+    check(env.steps.status == "export refused: disk full", "and so does a writer that raises")
+    module.export_text = nil
+    enter("!x")
+    check(env.steps.histText[#env.steps.histText][2] == " no export in this build",
+          "a module without the writer says export is unavailable")
+
+    check(has(full, "Outcome: EXACT + CONDITIONAL  |  solved and verified  |  ") and
+              has(hinted, "Outcome: EXACT + CONDITIONAL  |  solved and verified\n"),
+          "the full export carries the cross-check verdict and the hint export leaves it out")
+    check(env.runSteps("help", ""):find("!x name exports them", 1, true) ~= nil,
+          "the typed help names the export command")
+    local export_item
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Export steps  !x" then export_item = item[2] end
+        end
+    end
+    if export_item then export_item() end
+    local menu_types = export_item ~= nil and env.fctEditor.editor:getExpression():find("!x ", 1, true) ~= nil
+    check(menu_types, "the Steps menu types the export command into the entry line")
+
+    evidence("UI-011", complete and withheld and distinct and menu_types,
+             "!x, typed or from the Steps menu, writes the open derivation as plain text through the " ..
+             "module's export_text, with the " ..
+             "build, input, outcome class and status, answer, conditions and each step's check, " ..
+             "withholding what hint mode withholds and keeping a partial outcome distinct. The writer " ..
+             "is stubbed here and its file output is checked by luax_host")
     end)()
 end
 

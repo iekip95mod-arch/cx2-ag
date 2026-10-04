@@ -114,12 +114,26 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-09-26, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-10-03, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4174), `vector_addition` (lua_module.cc:4177),
-`vector_cross` (lua_module.cc:4178), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, and a set of platform entry points for memory, tracing, integrity and the OS
-dialogs.
+`optics`, `unit_conversion` (lua_module.cc:4464), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4467 to 4469), `vector_addition` (lua_module.cc:4470), `vector_cross`
+(lua_module.cc:4471), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4435), and a set of platform entry points for
+memory, tracing, integrity and the OS dialogs.
+
+`export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
+library. `source`: read on 2026-10-03, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4339, and
+nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
+
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3529, which
+reads the variable names against the model's own term names (lua_module.cc:3515). Any engine built on
+`RelationModel` can be exposed the same way with a one-line binding.
+
+`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4433 and defined at
+lua_module.cc:1829. It takes the state, the attempt, the later route states and the variable, and
+returns a verdict table without reading or writing any derivation.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -136,32 +150,46 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4146, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:2922-2923. Its menu entry is still needed, and a shape the family does not read still
-returns nil so the shell falls back to Giac.
+lua_module.cc:4436, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3082-3083 and a `linsolve` command to `system_into` at lua_module.cc:3079-3080. Its
+menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
+nil at lua_module.cc:2992-2996, so the shell falls back to Giac at nps_v4.lua:4099. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2572-2620, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3045-3058. Outside
+exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
+native refusal and Giac is not consulted.
 
 ## What the shell can reach
 
 <!-- covers: nps/lua/nps_v4.lua -->
 
-`source`: read on 2026-09-24, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
-`catch_up`, `density`, `forces`, `kinematics`, `magnitude_angle_to_components`, `optics`,
-`planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`, `vector_cross` and
-`work`.
+`source`: read on 2026-09-25, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
+`catch_up`, `density`, `forces`, `gravitation`, `kinematics`, `magnitude_angle_to_components`,
+`optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `unit_conversion`, `vector_addition`,
+`vector_cross`, `wave` and `work`.
 
 `planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2811 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2823-2829 carries no projectile key at all, which is how the
+`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2862 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2873-2880 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:43-44 and required of the loaded module at
-nps/lua/nps_v4.lua:66-67, so a build missing either one refuses to start rather than offering a
+nps/src/core/capability_manifest.cc:47-48 and required of the loaded module at
+nps/lua/nps_v4.lua:69-70, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
+
+`judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
+`source`, nps/lua/nps_v4.lua:2941 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:3984 calls the binding with the last revealed state and the rest of the route.
+
+`export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
+`!x`: `source`, read on 2026-10-03, nps/lua/nps_v4.lua:2324 is that menu entry, nps/lua/nps_v4.lua:2948
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4036 composes the text with
+derivationExportText and calls the binding under pcall.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -170,8 +198,8 @@ with only `planar_kinematics` wired, so no open issue tracks the other two. When
 paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
-manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:106 and every StepCAS surface stays
-off. The build fails first, at nps/src/core/capability_manifest.cc:67, if the compiled manifest outgrows
+manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:109 and every StepCAS surface stays
+off. The build fails first, at nps/src/core/capability_manifest.cc:74, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
@@ -189,8 +217,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3239, measureMath
-sets the expression at :3273, and the history editor sets its expression at :1438.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3324, measureMath
+sets the expression at :3358, and the history editor sets its expression at :1441.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -257,8 +285,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1336 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 727 and `nps_nspire_module` at line 933,
+`source`: nps/CMakeLists.txt:1340 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 731 and `nps_nspire_module` at line 937,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines

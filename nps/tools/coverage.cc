@@ -84,6 +84,7 @@ const struct {
     const char *what;
 } kGroupsWithNoFamily[] = {
     {"acceptance corpus", "the corpus audit's own evidence"},
+    {"attempt", "judging a learner's own step against any family's route"},
     {"canonical", "core normalization every family shares"},
     {"coverage", "this tool's own evidence"},
     {"derivation", "the derivation record itself"},
@@ -218,7 +219,7 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
 }
 
 // Rule and kind pairs with no case, pinned so a change that moves the count updates it.
-constexpr size_t kRuleCaseGaps = 958;
+constexpr size_t kRuleCaseGaps = 1042;
 
 struct RuleCaseJoin {
     size_t rows = 0;

@@ -12,6 +12,7 @@ enum class Tok : uint8_t {
     Star,
     Slash,
     Caret,
+    DotDot,
     Superscript,
     LParen,
     RParen,
@@ -112,6 +113,12 @@ class Lexer {
             return t;
         }
 
+        if (src_.compare(pos_, 2, "..") == 0) {
+            pos_ += 2;
+            t.kind = Tok::DotDot;
+            t.end = pos_;
+            return t;
+        }
         ++pos_;
         switch (c) {
             case '+': t.kind = Tok::Plus; break;
@@ -236,7 +243,8 @@ class Lexer {
         t->kind = Tok::Number;
         while (pos_ < src_.size() && is_digit(src_[pos_]))
             ++pos_;
-        if (pos_ < src_.size() && src_[pos_] == '.') {
+        // Two dots are the interval separator, so 1..3 leaves the number at 1.
+        if (pos_ < src_.size() && src_[pos_] == '.' && src_.compare(pos_, 2, "..") != 0) {
             t->has_dot = true;
             ++pos_;
             while (pos_ < src_.size() && is_digit(src_[pos_]))
@@ -457,6 +465,22 @@ class Parser {
         return power();
     }
 
+    // The upper end and closing bracket of an interval whose lower end was just read.
+    NodeId interval_rest(NodeId lower, bool lower_closed) {
+        advance();
+        const NodeId upper = relation();
+        if (stop())
+            return kNoNode;
+        if (tok_.kind != Tok::RBracket && tok_.kind != Tok::RParen) {
+            error(Status::SyntaxError, "an interval ends with a closing bracket");
+            return kNoNode;
+        }
+        const bool upper_closed = tok_.kind == Tok::RBracket;
+        advance();
+        last_was_number_ = false;
+        return arena_.interval(lower, upper, lower_closed, upper_closed);
+    }
+
     NodeId power() {
         NodeId base = atom();
         if (stop())
@@ -532,6 +556,8 @@ class Parser {
                         const NodeId item = relation();
                         if (stop())
                             return kNoNode;
+                        if (items.empty() && tok_.kind == Tok::DotDot)
+                            return interval_rest(item, true);
                         items.push_back(item);
                         if (tok_.kind == Tok::LBracket && arena_.at(item).kind == Kind::List)
                             continue;
@@ -553,6 +579,8 @@ class Parser {
                 NodeId inner = relation();
                 if (stop())
                     return kNoNode;
+                if (tok_.kind == Tok::DotDot)
+                    return interval_rest(inner, false);
                 if (tok_.kind != Tok::RParen) {
                     error(Status::SyntaxError, "expected a closing parenthesis");
                     return kNoNode;
