@@ -1794,6 +1794,21 @@ const ObligationSchema kMatrixDeterminantResult[] = {
     {"obl.matrix.det-correction", "the original determinant equals the diagonal product divided by the nonzero accumulated factor", kMatrixDeterminantCorrection, 1},
 };
 
+// algebra.trigonometric-identities
+const EvidenceAlternative kExponentialForm[] = {
+    {"exact exponential normal form", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
+};
+const ObligationSchema kTrigStrategy[] = {
+    {"pre.trig.polynomial-in-sin-cos",
+     "the expression is a polynomial in sines and cosines of rational multiples of its variables with rational coefficients",
+     kExponentialForm, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const ObligationSchema kTrigIdentity[] = {
+    {"obl.trig.identity-holds", "the rewritten expression equals the one before it", kExponentialForm, 1},
+};
+
 // algebra.rational-expression.single-variable
 const EvidenceAlternative kRationalReading[] = {
     {"exact rational function reading", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
@@ -2651,6 +2666,18 @@ const RuleSchema kRules[] = {
      FailureBehavior::WithholdResult},
     {"matrix.det-correction", ClaimType::EquivalentExpression, kMatrixDeterminantResult, 1,
      FailureBehavior::WithholdResult},
+    {"plan.trig-expand", ClaimType::NoClaim, kTrigStrategy, 2, FailureBehavior::WithholdResult},
+    {"plan.trig-collect", ClaimType::NoClaim, kTrigStrategy, 2, FailureBehavior::WithholdResult},
+    {"trig.odd", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.even", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.double-angle", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.split-multiple", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.angle-sum", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.pythagorean", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.double-angle-product", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.half-angle", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.collect", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
+    {"trig.check-identity", ClaimType::EquivalentExpression, kTrigIdentity, 1, FailureBehavior::WithholdResult},
     {"plan.rational-normal", ClaimType::NoClaim, kRationalStrategy, 2, FailureBehavior::WithholdResult},
     {"rat.excluded-values", ClaimType::Definition, kRationalExcluded, 1, FailureBehavior::CannotFail},
     {"rat.common-denominator", ClaimType::EquivalentExpression, kRationalSameValues, 1,

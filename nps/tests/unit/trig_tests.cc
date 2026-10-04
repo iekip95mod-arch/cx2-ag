@@ -1,0 +1,419 @@
+#include <string>
+#include <vector>
+
+#include "nps/core/parser.h"
+#include "nps/core/print.h"
+#include "nps/steps/trig.h"
+#include "unit/adapter_tests.h"
+#include "../step_invariants.h"
+
+namespace nps {
+namespace {
+
+TrigReading compare(const char *left, const char *right) {
+    Arena arena;
+    const ParseResult a = parse(arena, left);
+    const ParseResult b = parse(arena, right);
+    if (!a.ok() || !b.ok())
+        return TrigReading::Unreadable;
+    std::string why;
+    return trig_equivalent(arena, a.root, b.root, &why);
+}
+
+void test_equivalence(TestSink &t) {
+    t.check(compare("sin(2x)", "2*sin(x)*cos(x)") == TrigReading::Equal, "sin 2x is 2 sin x cos x");
+    t.check(compare("cos(2x)", "cos(x)^2 - sin(x)^2") == TrigReading::Equal, "cos 2x is cos squared less sin squared");
+    t.check(compare("cos(2x)", "1 - 2*sin(x)^2") == TrigReading::Equal, "and one less twice sin squared");
+    t.check(compare("sin(x)^2 + cos(x)^2", "1") == TrigReading::Equal, "the Pythagorean identity holds exactly");
+    t.check(compare("sin(x+y)", "sin(x)*cos(y) + cos(x)*sin(y)") == TrigReading::Equal,
+            "the angle-sum identity holds in two variables");
+    t.check(compare("sin(x+y)", "sin(x)*cos(y) - cos(x)*sin(y)") == TrigReading::Different,
+            "and the same identity with a sign flipped does not");
+    t.check(compare("sin(x/2)^2", "(1 - cos(x))/2") == TrigReading::Equal, "the half-angle identity holds");
+    t.check(compare("sin(-x)", "-sin(x)") == TrigReading::Equal && compare("cos(-x)", "cos(x)") == TrigReading::Equal,
+            "sine is odd and cosine is even");
+    t.check(compare("sin(3x)", "3*sin(x) - 4*sin(x)^3") == TrigReading::Equal, "the triple angle identity holds");
+    t.check(compare("sin(3x)", "3*sin(x) - 3*sin(x)^3") == TrigReading::Different,
+            "a triple angle with the wrong coefficient does not");
+    t.check(compare("sin(x+1)", "sin(x+1)") == TrigReading::Unreadable, "a constant inside an angle is not read");
+    t.check(compare("sin(x+pi)", "sin(x+pi)") == TrigReading::Unreadable, "and pi inside an angle is a constant too");
+    t.check(compare("sin(x+y)", "sin(x+y)") == TrigReading::Equal, "while a second variable is read");
+    t.check(compare("x*sin(x)", "x*sin(x)") == TrigReading::Unreadable, "a variable outside sine is not read");
+    t.check(compare("tan(x)", "tan(x)") == TrigReading::Unreadable, "tan is not read");
+    t.check(compare("sin(x/3037000500)+sin(x/3037000501)", "sin(x/3037000500)+sin(x/3037000501)") ==
+                TrigReading::Unreadable,
+            "angle denominators beyond the frequency limit are refused");
+    t.check(compare("sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)",
+                    "sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)") ==
+                TrigReading::Unreadable,
+            "trigonometric equivalence refuses exponential term growth");
+}
+
+struct Run {
+    TrigResult result;
+    std::string answer;
+    std::vector<std::string> rules;
+    std::vector<std::string> broken;
+    bool equivalent = false;
+};
+
+Run run(const char *expression, TrigGoal goal, const Budget &budget = Budget(), TrigCheck check = trig_equivalent) {
+    Run out;
+    Arena arena;
+    Derivation d;
+    const ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok()) {
+        out.answer = "the test's own input did not parse";
+        return out;
+    }
+    out.result = trig_rewrite(arena, d, parsed.root, goal, budget, check);
+    if (out.result.expression != kNoNode) {
+        out.answer = print(arena, out.result.expression);
+        std::string why;
+        out.equivalent = trig_equivalent(arena, parsed.root, out.result.expression, &why) == TrigReading::Equal;
+    }
+    for (size_t i = 0; i < d.size(); ++i)
+        out.rules.push_back(d.at(static_cast<StepId>(i)).rule_id);
+    invariants::Pass audit;
+    audit.walk(arena, d, false, true, &out.broken);
+    return out;
+}
+
+bool has_rule(const Run &r, const char *rule) {
+    for (const std::string &id : r.rules) {
+        if (id == rule)
+            return true;
+    }
+    return false;
+}
+
+std::string outcome(const Run &r) {
+    return trig_outcome_name(r.result.outcome);
+}
+
+std::string status(const Run &r) {
+    return derivation_status_name(r.result.status);
+}
+
+std::string broken(const Run &r) {
+    return r.broken.empty() ? std::string() : ", got " + r.broken.front();
+}
+
+bool every_angle_a_variable(const std::string &answer) {
+    Arena arena;
+    const ParseResult parsed = parse(arena, answer);
+    if (!parsed.ok())
+        return false;
+    bool any = false;
+    const bool compound = arena.any_node(parsed.root, [&](NodeId n) {
+        const Node &node = arena.at(n);
+        if (node.kind != Kind::Call || (arena.text(n) != "sin" && arena.text(n) != "cos"))
+            return false;
+        any = true;
+        return arena.at(arena.children(n)[0]).kind != Kind::Symbol;
+    });
+    return any && !compound;
+}
+
+bool no_angle_a_sum(const std::string &answer) {
+    Arena arena;
+    const ParseResult parsed = parse(arena, answer);
+    if (!parsed.ok())
+        return false;
+    return !arena.any_node(parsed.root, [&](NodeId n) {
+        return arena.at(n).kind == Kind::Call && (arena.text(n) == "sin" || arena.text(n) == "cos") &&
+               arena.at(arena.children(n)[0]).kind == Kind::Add;
+    });
+}
+
+void test_expand(TestSink &t) {
+    {
+        const Run r = run("sin(x+y)", TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", "the sine of a sum expands");
+        t.equal(r.answer, "((sin(x) * cos(y)) + (cos(x) * sin(y)))", "by the angle-sum identity");
+        t.check(has_rule(r, "trig.angle-sum") && has_rule(r, "trig.check-identity"),
+                "which is named, and the result is checked");
+        t.equal(status(r), "solved and verified", "and every step and the check pass");
+        t.check(r.broken.empty(), "the record passes the invariant pass" + broken(r));
+        t.evidence("ALG-010", r.result.outcome == TrigOutcome::Rewritten && has_rule(r, "trig.angle-sum") && r.equivalent,
+                   "a trigonometric identity is applied, named and checked exactly");
+    }
+    {
+        const Run r = run("cos(x-y)", TrigGoal::Expand);
+        t.check(r.equivalent && has_rule(r, "trig.angle-sum"), "the cosine of a difference expands the same way");
+    }
+    {
+        const Run r = run("cos(2x)", TrigGoal::Expand);
+        t.check(has_rule(r, "trig.double-angle") && r.equivalent, "a double angle expands by the double-angle identity");
+        t.equal(status(r), "solved and verified", "and is verified");
+    }
+    {
+        const Run r = run("sin(3x)", TrigGoal::Expand);
+        t.check(has_rule(r, "trig.angle-sum") && has_rule(r, "trig.double-angle") && r.equivalent,
+                "a triple angle splits into a sum and then a double angle");
+        t.check(r.broken.empty(), "the triple angle record passes the invariant pass" + broken(r));
+    }
+    {
+        const Run r = run("sin(-x) + cos(-2x)", TrigGoal::Expand);
+        t.check(has_rule(r, "trig.odd") && has_rule(r, "trig.even") && r.equivalent,
+                "a negative angle uses the odd and even identities");
+    }
+    t.equal(outcome(run("sin(x)*cos(y)", TrigGoal::Expand)), "already in form", "nothing to expand is already in form");
+    {
+        const Run r = run("sin(x+1)", TrigGoal::Expand);
+        t.equal(outcome(r), "outside envelope", "a constant inside an angle is outside the envelope");
+        t.check(r.rules.empty(), "and is refused before anything is recorded");
+    }
+    t.equal(outcome(run("x*sin(x)", TrigGoal::Expand)), "outside envelope", "a variable outside sine is refused");
+    t.equal(outcome(run("tan(x+y)", TrigGoal::Expand)), "outside envelope", "tan is refused");
+    t.equal(outcome(run("x^2+1", TrigGoal::Expand)), "not trigonometric", "an expression with no sine or cosine is not trigonometric");
+    for (const char *text : {"sin(7x)", "cos(-7x)", "sin(7x + y)", "sin(2*(x + 7y))", "sin(2*7*x)", "sin(14*x/2)",
+                             "sin(3*(2*(3x)))", "cos(x + 7y - 7y)", "sin((14x + 2y)/2)", "sin(2*(x + 4y))"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.equal(outcome(r), "outside envelope", std::string("a multiple above six is outside the envelope: ") + text);
+        t.check(r.rules.empty(), std::string("and is refused before anything is recorded: ") + text);
+    }
+    for (const char *text : {"sin(x + 6x)", "sin(x+x+x+x+x+x+x)"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", std::string("terms of six or less expand even when they add past six: ") + text);
+        t.check(r.equivalent && every_angle_a_variable(r.answer) && status(r) == "solved and verified",
+                std::string("and reach no multiple above six: ") + text + " = " + r.answer.substr(0, 80));
+    }
+    for (const char *text : {"sin(2*3*x)", "cos(6*x/2)", "sin(5*(2x/5))", "cos(-(2*3*x))", "sin((14x + 7y)/7)"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", std::string("a whole multiple is read by its value: ") + text);
+        t.check(r.equivalent && every_angle_a_variable(r.answer) && status(r) == "solved and verified",
+                std::string("and expands to single variables: ") + text + " = " + r.answer.substr(0, 80));
+    }
+    for (const char *text : {"sin((x+y)/2)", "cos(2*(x+y)/2)", "sin((x+y)*(-1/2))"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.check(outcome(r) == "rewritten" && has_rule(r, "trig.angle-sum") && r.equivalent && no_angle_a_sum(r.answer),
+                std::string("a fraction of a sum is still a sum: ") + text + " = " + r.answer.substr(0, 80));
+    }
+    t.check(has_rule(run("sin((x+y)*(-1/2))", TrigGoal::Expand), "trig.odd"),
+            "and a negative fraction of one is turned by the odd identity");
+    {
+        const Run r = run("sin(x + y/2)", TrigGoal::Expand);
+        t.equal(r.result.detail, "no sine or cosine of a sum or a whole multiple is left",
+                "a finished expansion claims only what it reached");
+        t.equal(outcome(run("sin(3x/2)", TrigGoal::Expand)), "already in form",
+                "three halves of a variable is not a whole multiple of it");
+    }
+    {
+        const Run r = run("sin(x+pi)", TrigGoal::Expand);
+        t.equal(outcome(r), "outside envelope", "pi inside an angle is a constant inside an angle");
+        t.check(r.rules.empty(), "and is refused before anything is recorded");
+    }
+    {
+        const Run r = run("sin(6x) + cos(6x)", TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", "a multiple of six in two calls expands past sixty-four steps");
+        t.check(r.equivalent && every_angle_a_variable(r.answer),
+                "and is finished only when every angle is a single variable: " + r.answer.substr(0, 80));
+        t.check(r.broken.empty(), "the long expansion passes the invariant pass" + broken(r));
+    }
+}
+
+void test_collect(TestSink &t) {
+    {
+        const Run r = run("sin(x)^2 + cos(x)^2", TrigGoal::Collect);
+        t.equal(r.answer, "1", "sine squared plus cosine squared collects to one");
+        t.check(has_rule(r, "trig.pythagorean"), "by the Pythagorean identity");
+        t.equal(status(r), "solved and verified", "and is verified");
+        t.check(r.broken.empty(), "the Pythagorean record passes the invariant pass" + broken(r));
+    }
+    {
+        const Run r = run("sin(x)*cos(x)", TrigGoal::Collect);
+        t.check(has_rule(r, "trig.double-angle-product") && r.equivalent,
+                "a sine times the cosine of the same angle collects by the double angle read backwards");
+    }
+    {
+        const Run r = run("sin(x)^2", TrigGoal::Collect);
+        t.check(has_rule(r, "trig.half-angle") && r.equivalent, "a square reduces by the half-angle identity");
+        t.check(r.answer.find("cos((2 * x))") != std::string::npos, "to a cosine of the double angle: " + r.answer);
+    }
+    {
+        const Run r = run("2*sin(x)^2 + cos(2x)", TrigGoal::Collect);
+        t.equal(r.answer, "1", "twice sine squared plus cosine 2x collects to one");
+        t.check(has_rule(r, "trig.collect"), "with the like terms collected at the end");
+        t.check(r.broken.empty(), "the collecting record passes the invariant pass" + broken(r));
+    }
+    {
+        const Run r = run("sin(x)*cos(y)", TrigGoal::Collect);
+        t.equal(outcome(r), "outside envelope", "a product of different angles needs product-to-sum, which is refused");
+        t.check(r.result.detail.find("product") != std::string::npos, "and the refusal says so");
+    }
+    {
+        const Run r = run("sin(x)^2 + cos(y)^2", TrigGoal::Collect);
+        t.check(!has_rule(r, "trig.pythagorean") && r.equivalent && status(r) == "solved and verified",
+                "squares of different angles are not collapsed by the Pythagorean identity");
+    }
+    t.equal(outcome(run("sin(x)^3", TrigGoal::Collect)), "outside envelope", "a power above two is refused");
+    t.equal(outcome(run("cos(2x)", TrigGoal::Collect)), "already in form", "a linear form is already collected");
+    {
+        const Run r = run("3*sin(x)*cos(x)", TrigGoal::Collect);
+        t.check(has_rule(r, "trig.double-angle-product") && r.equivalent && status(r) == "solved and verified",
+                "a coefficient written first does not hide a sine and cosine of one angle");
+    }
+    for (const char *text : {"sin(x)*sin(x)", "3*cos(x)*cos(x)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(has_rule(r, "trig.half-angle") && r.equivalent && status(r) == "solved and verified",
+                std::string("a sine or cosine times itself is reduced by the half-angle identity: ") + text);
+    }
+    for (const char *text : {"(sin(x)+cos(x))^2", "(2*sin(x))^2"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.equal(outcome(r), "outside envelope", std::string("a power of anything but one sine or cosine is refused: ") + text);
+        t.check(r.rules.empty() && r.result.detail.find("power") != std::string::npos,
+                std::string("before anything is recorded, saying why: ") + text);
+    }
+    {
+        const Run r = run("sin(x)+cos(x)", TrigGoal::Collect);
+        t.equal(outcome(r), "already in form", "terms that only reorder are already collected");
+        t.check(r.rules.empty(), "and record no step");
+    }
+    for (const char *text : {"sin(-x)", "cos(-x) + sin(x)", "sin(y-x) + sin(x-y)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check((has_rule(r, "trig.odd") || has_rule(r, "trig.even")) && r.equivalent &&
+                    status(r) == "solved and verified",
+                std::string("a negative angle is turned by the named odd or even identity: ") + text);
+    }
+    for (const char *text : {"cos(y) + sin(x-y)", "sin(x-y) + cos(y)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(!has_rule(r, "trig.odd") && r.equivalent && r.answer.find("sin((x + (-1 * y)))") != std::string::npos,
+                "collecting keeps an angle that already leads with a positive variable the way it was: " + r.answer);
+    }
+    t.equal(outcome(run("sin(x+pi)^2", TrigGoal::Collect)), "outside envelope", "pi inside an angle is refused");
+}
+
+bool cancel_now(void *) {
+    return true;
+}
+
+void test_budgets(TestSink &t) {
+    Budget cancelling;
+    cancelling.poll = cancel_now;
+    const Run cancelled = run("sin(x+y)", TrigGoal::Expand, cancelling);
+    t.equal(outcome(cancelled), "cancelled", "a cancelled rewrite says so");
+    t.check(cancelled.result.expression == kNoNode, "and offers nothing");
+    Budget short_budget;
+    short_budget.max_steps = 2;
+    const Run halted = run("sin(3x)", TrigGoal::Expand, short_budget);
+    t.equal(outcome(halted), "resource exceeded", "a step budget that runs out is a resource limit");
+    t.check(halted.result.expression == kNoNode && halted.broken.empty(),
+            "with no expression and a verified prefix" + broken(halted));
+}
+
+int check_calls = 0;
+int scripted_call = 0;
+TrigReading scripted_reading = TrigReading::Equal;
+
+TrigReading scripted_check(const Arena &arena, NodeId left, NodeId right, std::string *why) {
+    if (++check_calls != scripted_call)
+        return trig_equivalent(arena, left, right, why);
+    *why = "the scripted check answered this call";
+    return scripted_reading;
+}
+
+Run scripted(const char *expression, TrigGoal goal, int call, TrigReading reading) {
+    check_calls = 0;
+    scripted_call = call;
+    scripted_reading = reading;
+    return run(expression, goal, Budget(), scripted_check);
+}
+
+void test_checks(TestSink &t) {
+    for (TrigGoal goal : {TrigGoal::Expand, TrigGoal::Collect}) {
+        const char *text = goal == TrigGoal::Expand ? "sin(x+y)" : "sin(x)^2 + cos(x)^2";
+        const std::string label = std::string(" (") + text + ")";
+        const Run control = scripted(text, goal, 0, TrigReading::Equal);
+        const int calls = check_calls;
+        t.check(outcome(control) == "rewritten" && calls >= 2,
+                "a check that answers nothing itself leaves a rewrite of one step and a final check" + label);
+
+        const Run step_failed = scripted(text, goal, 1, TrigReading::Different);
+        t.equal(outcome(step_failed), "verification failed", "a step whose check disagrees fails verification" + label);
+        t.check(step_failed.result.status == DerivationStatus::VerificationFailed &&
+                    step_failed.result.expression == kNoNode && check_calls == 1,
+                "and stops there with no result" + label);
+        t.equal(step_failed.result.detail, "the scripted check answered this call", "saying what the check said" + label);
+
+        const Run step_unread = scripted(text, goal, 1, TrigReading::Unreadable);
+        t.equal(outcome(step_unread), "outside envelope",
+                "a step the check cannot read is outside the envelope, not failed verification" + label);
+        t.check(step_unread.result.status == DerivationStatus::Unsupported && step_unread.result.expression == kNoNode,
+                "and is unsupported with no result" + label);
+
+        const Run final_failed = scripted(text, goal, calls, TrigReading::Different);
+        t.equal(outcome(final_failed), "verification failed",
+                "a final check that disagrees fails verification after every step passed" + label);
+        t.check(final_failed.result.status == DerivationStatus::VerificationFailed &&
+                    final_failed.result.expression == kNoNode && final_failed.rules.size() >= 2,
+                "and offers no result while keeping the steps that passed" + label);
+
+        const Run final_unread = scripted(text, goal, calls, TrigReading::Unreadable);
+        t.equal(outcome(final_unread), "outside envelope",
+                "a final check that cannot read the result is outside the envelope, not a resource limit" + label);
+        t.check(final_unread.result.status == DerivationStatus::Unsupported && final_unread.result.expression == kNoNode,
+                "and is unsupported with no result" + label);
+    }
+}
+
+void test_ceilings(TestSink &t) {
+    const std::string frequency = "every angle, and every sum of angles a product reaches, has to be at most 64";
+    for (const char *text : {"sin(x/63 + 6x)", "sin(6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x)", "sin(x/65)"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find(frequency) == 0,
+                std::string("an angle past 64 base angles is refused for its frequency: ") + text + ", got " +
+                    r.result.detail.substr(0, 60));
+    }
+    for (const char *text : {"sin(x/40)^2 + cos(x/41)^2", "sin(40x)*cos(40x)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find(frequency) == 0,
+                std::string("so is one whose common base angle or product passes it: ") + text + ", got " +
+                    r.result.detail.substr(0, 60));
+    }
+    for (const char *text : {"sin(64x)", "sin(x/64)", "sin(32x)*cos(32x)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(outcome(r) != "outside envelope",
+                std::string("while 64 base angles is still read: ") + text + ", got " + r.result.detail.substr(0, 60));
+    }
+    {
+        const Run r = run("sin(x)^9", TrigGoal::Expand);
+        t.equal(r.result.detail, "a whole power above 8 is past what the exact check reads",
+                "a power above eight is refused for its power");
+        t.equal(outcome(run("sin(x)^8", TrigGoal::Expand)), "already in form", "while a power of eight is read");
+    }
+    {
+        const Run r = run("sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)",
+                          TrigGoal::Expand);
+        t.equal(r.result.detail, "the product has more exponential terms than the exact check reads",
+                "a product past the term limit is refused for its size");
+    }
+    {
+        const Run r = run("sin(x+1)", TrigGoal::Expand);
+        t.check(r.result.detail.find("no constant inside an angle") != std::string::npos,
+                "a constant inside an angle still says so: " + r.result.detail.substr(0, 60));
+    }
+    t.check(compare("sin(x/63 + 6x)", "sin(x/63 + 6x)") == TrigReading::Unreadable,
+            "the equivalence check refuses the same angle");
+    {
+        Arena arena;
+        const ParseResult a = parse(arena, "sin(x/63 + 6x)");
+        std::string why;
+        t.check(a.ok() && trig_equivalent(arena, a.root, a.root, &why) == TrigReading::Unreadable &&
+                    why.find(frequency) == 0,
+                "and names the frequency as its reason: " + why.substr(0, 60));
+    }
+}
+
+}  // namespace
+
+void run_trig_tests(TestSink &sink) {
+    test_equivalence(sink);
+    test_expand(sink);
+    test_collect(sink);
+    test_budgets(sink);
+    test_checks(sink);
+    test_ceilings(sink);
+}
+
+}  // namespace nps

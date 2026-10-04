@@ -110,6 +110,14 @@ void run_command_tests(TestSink &t) {
                     !command.detail.empty(),
                 std::string("determinant signature refusals cannot fall through to CAS: ") + text);
     }
+    for (const char *text : {"texpand(sin(x+y))", "tcollect(sin(x)^2)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command.expression != kNoNode &&
+                    (command_kind_name(command.kind) == std::string("texpand") ||
+                     command_kind_name(command.kind) == std::string("tcollect")),
+                std::string("a trigonometric rewrite dispatches its one expression: ") + text);
+    }
     {
         Arena arena;
         const Command command = parse_command(arena, "powsimp(sqrt(x^2))", "x");

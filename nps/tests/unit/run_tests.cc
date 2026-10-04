@@ -934,6 +934,8 @@ int main_body() {
     run_power_tests(sink);
     sink.begin_group("quadratic");
     run_quadratic_tests(sink);
+    sink.begin_group("trig");
+    run_trig_tests(sink);
     sink.begin_group("rational expression");
     run_rational_expression_tests(sink);
     sink.begin_group("system");
