@@ -5351,8 +5351,10 @@ if os.getenv("NPS_COMMAND_MODULE") then
         if env.steps.active then env.on.escapeKey() end
     end
 
-    for _, case in ipairs({{"Expand Trig", "texpand(", "sin(x+y))", "texpand"},
-                           {"Collect Trig", "tcollect(", "sin(x)^2+cos(x)^2)", "tcollect"}}) do
+    for _, case in ipairs({{"Expand Trig", "texpand(", "sin(x+y))", "texpand",
+                            "((sin(x) * cos(y)) + (cos(x) * sin(y)))", "trig.angle-sum"},
+                           {"Collect Trig", "tcollect(", "sin(x)^2+cos(x)^2)", "tcollect", "1",
+                            "trig.pythagorean"}}) do
         env.fctEditor.editor:setExpression("\\0el {}")
         check(select_integer_menu(case[1]) and env.fctEditor:getExpression() == case[2],
               "the existing trig menu entry inserts the native walkthrough command: " .. case[2])
@@ -5363,6 +5365,12 @@ if os.getenv("NPS_COMMAND_MODULE") then
         check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
               record and record.mode == case[4] and record.solved and record.status == "solved and verified",
               "the trig menu entry opens the verified identity walkthrough without a CAS fallback: " .. case[2])
+        local found_rule = false
+        for _, step in ipairs(record and record.steps or {}) do
+            found_rule = found_rule or step.rule == case[6]
+        end
+        check(env.steps.active and record and record.result == case[5] and found_rule,
+              "the trig menu entry records the named identity it applied: " .. case[2])
         if env.steps.active then
             env.on.paint(gc)
             env.on.escapeKey()
