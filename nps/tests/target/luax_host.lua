@@ -376,6 +376,7 @@ local expected_modules = {
     "physics.density.mass-volume",
     "physics.vectors.cartesian-addition.two-dimension",
     "physics.vectors.cartesian-cross-product.three-dimension",
+    "physics.vectors.cartesian-scalar-product",
     "physics.vectors.magnitude-components.two-dimension",
     "physics.forces.newton-second-law",
     "physics.work.constant-force-dot-product",
@@ -1354,6 +1355,7 @@ do
         { "optics", { "thin lens", "image distance", "focal length", "10 cm",
                       "object distance", "15 cm" } },
         { "vector_addition", { "(1, 2) m", "(3, 4) m" } },
+        { "scalar_product", { "(1, 2) m", "(3, 4) m", "degrees" } },
         { "gravitation", { "gravitational force", "first mass", "2 kg", "second mass", "3 kg",
                            "separation", "1 m" } },
         { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
@@ -1854,6 +1856,71 @@ check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
 r = nps.vector_cross("not a vector", "(1, 2, 3) m")
 check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
       "the cross product bridge returns a structured parse refusal")
+
+giac_calls = 0
+r = nps.scalar_product("3 i + 4 j N", "2 i + 1 j m")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "the scalar product bridge returns a verified solution")
+check(r.result == "10 kg m^2/s^2" and r.value == r.result and r.precision.kind == "exact",
+      "the scalar product bridge returns one number carrying the product dimension")
+check(r.angle == "not asked" and r.interpretation == nil and r.has_numeric_angle == false and
+      r.numeric_angle == nil and r.giac_calls == 0 and giac_calls == 0,
+      "a product asked for no angle places none and calls no backend")
+local dot_rules = {}
+for _, s in ipairs(r.steps) do dot_rules[s.rule] = true end
+check(dot_rules["vec.dot.plan"] and dot_rules["vec.dot.check-rank"] and
+      dot_rules["vec.dot.check-frame"] and dot_rules["vec.dot.check-dimension"] and
+      dot_rules["vec.dot.definition"] and dot_rules["vec.dot.substitute"] and
+      dot_rules["vec.dot.component-sum"] and dot_rules["vec.dot.check-commutative"] and
+      dot_rules["vec.dot.check-magnitude-bound"] and not dot_rules["vec.dot.interpret-angle"],
+      "the scalar product bridge retains both readings, the component sum and its two checks")
+script("phi", "0", "53.13010235415598")
+giac_calls = 0
+r = nps.scalar_product("3 i + 4 j m", "5 i + 0 j m", "degrees")
+check(r.solved == true and r.status == "solved and verified" and r.result == "15 m^2",
+      "the scalar product bridge keeps the product when it is also asked for the angle")
+check(r.angle == "acute" and r.angle_unit == "degrees" and r.has_numeric_angle == true and
+      r.numeric_angle == "53.13010235415598 degrees" and r.giac_calls == 3 and giac_calls == 3,
+      "a backend measures the angle in the unit asked for, beside the exact sign reading")
+check(r.interpretation ==
+      "the angle between them is less than a right angle, measured at 53.13010235415598 degrees",
+      "the measured angle reaches the record's meaning line after the exact placement")
+dot_rules = {}
+for _, s in ipairs(r.steps) do dot_rules[s.rule] = true end
+check(dot_rules["vec.dot.angle-plan"] and dot_rules["vec.dot.check-nonzero"] and
+      dot_rules["vec.dot.interpret-angle"] and dot_rules["vec.dot.measure-angle"],
+      "the angle record carries the non-zero check, the sign placement and the measurement")
+script("phi", "0", "0.9272952180016122")
+r = nps.scalar_product("3 i + 4 j m", "5 i + 0 j m", "radians")
+check(r.angle_unit == "radians" and r.numeric_angle == "0.9272952180016122 radians",
+      "the bridge passes a radians request through rather than defaulting to degrees")
+script("phi", "1")
+r = nps.scalar_product("3 i + 4 j m", "5 i + 0 j m", "degrees")
+check(r.outcome == "verification failed" and r.solved == false and r.result == nil and
+      r.has_numeric_angle == false and r.numeric_angle == nil,
+      "an angle the identity rejects withholds the answer rather than reporting it")
+r = nps.scalar_product("0 i + 0 j m", "3 i + 4 j m", "degrees")
+check(r.outcome == "zero vector" and r.solved == false and r.result == nil and
+      r.interpretation == nil and type(r.detail) == "string" and
+      r.detail:find("first operand is the zero vector", 1, true) ~= nil,
+      "the scalar product bridge refuses the angle of a zero operand and says which one")
+r = nps.scalar_product("0 i + 0 j m", "3 i + 4 j m")
+check(r.outcome == "solved" and r.solved == true and r.result == "0 m^2",
+      "the same zero operand still has a product, so the refusal is the angle's alone")
+r = nps.scalar_product("(1, 2, 3) m", "4 i + 5 j + 6 k m")
+check(r.outcome == "solved" and r.solved == true and r.result == "32 m^2" and
+      command_has_rule(r, "vec.dot.component-sum"),
+      "the scalar product bridge dots two rank-three vectors, one written in unit-vector form")
+r = nps.scalar_product("(1, 2) m", "(3, 4, 5) m")
+check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
+      "the scalar product bridge refuses operands whose ranks disagree")
+r = nps.scalar_product("not a vector", "(1, 2) m")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
+      "the scalar product bridge returns a structured parse refusal")
+r = nps.scalar_product("(1, 2) m", "(3, 4) m", "gradians")
+check(r.outcome == "invalid input" and r.detail == "angle unit must be degrees or radians" and
+      #r.steps == 0,
+      "the scalar product bridge refuses an angle unit it does not know without solving")
 
 -- G is carried as the exact rational 6674/10^14, so 2.0 kg and 3.0 kg a metre apart give 4.0044e-10 N exactly.
 r = nps.gravitation("gravitational force", "first mass", "2.0 kg", "second mass", "3.0 kg",
@@ -2635,6 +2702,13 @@ r = nps.magnitude_angle_to_components({
 })
 check(r.outcome == "backend failure" and r.has_components == false,
       "an unavailable component backend is a typed failure")
+r = nps.scalar_product("3 i + 4 j m", "5 i + 0 j m", "degrees")
+check(r.solved == true and r.result == "15 m^2" and r.angle == "acute" and
+      r.interpretation == "the angle between them is less than a right angle",
+      "with no backend the scalar product still places the angle from the exact sign")
+check(r.has_numeric_angle == false and r.numeric_angle == nil and r.giac_calls == 0 and
+      not command_has_rule(r, "vec.dot.measure-angle") and command_has_rule(r, "vec.dot.interpret-angle"),
+      "and claims no measured number and no step measuring one")
 luagiac = { caseval = function(command)
     giac_calls = giac_calls + 1
     local reply = table.remove(replies, 1)
