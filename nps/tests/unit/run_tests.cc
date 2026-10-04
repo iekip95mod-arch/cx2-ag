@@ -28,6 +28,8 @@ void run_task_tests(TestSink &sink);
 void run_solve_task_tests(TestSink &sink);
 void run_command_tests(TestSink &sink);
 void run_calculus_tests(TestSink &sink);
+void run_implicit_tests(TestSink &sink);
+void run_separable_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
 void run_matrix_row_tests(TestSink &sink);
@@ -172,6 +174,32 @@ void test_shapes() {
     equal(parse_print("x"), "x", "a bare symbol");
     equal(parse_print("1.5"), "1.5", "a decimal keeps its text");
     equal(parse_print("1e3"), "1e3", "an exponent belongs to the literal");
+    equal(parse_print("[1..3]"), "[1..3]", "the interval the menu inserts reads as a closed interval");
+    equal(parse_print("(1..3]"), "(1..3]", "a round bracket opens an end");
+    equal(parse_print("[x..x+1)"), "[x..(x + 1))", "endpoints are expressions and the closing bracket sets the right end");
+    equal(parse_print("(0..1)"), "(0..1)", "an open interval keeps both round brackets");
+    equal(parse_print("[1.5..2]"), "[1.5..2]", "a decimal endpoint stops before the two dots");
+    equal(parse_print("(1)"), "1", "a parenthesized value is still not an interval");
+    equal(parse_giac("[1..3]"), "(1)..(3)", "a closed interval reaches Giac in its own dotted form");
+    equal(parse_giac("(1..3]"), "", "an open end has no Giac spelling, so nothing is sent");
+    {
+        Arena arena;
+        const ParseResult closed = parse(arena, "[1..3]");
+        const ParseResult half = parse(arena, "[1..3)");
+        check(closed.ok() && half.ok() && closed.root != half.root && arena.at(closed.root).kind == Kind::Interval,
+              "an interval is its own node kind, and its ends are part of what it is");
+    }
+    for (const char *source : {"[1..3]", "(1..3]", "[x..x+1)", "(-2..2^3)", "[1.5..2]"}) {
+        Arena arena;
+        const ParseResult first = parse(arena, source);
+        const ParseResult again = first.ok() ? parse(arena, print(arena, first.root)) : first;
+        check(first.ok() && again.ok() && again.root == first.root,
+              std::string("an interval printed and parsed again is the same node: ") + source);
+    }
+    for (const char *invalid : {"1..3", "[1..]", "[..3]", "[1..2..3]", "[1,2..3]", "(1..3"}) {
+        Arena arena;
+        check(!parse(arena, invalid).ok(), std::string("a malformed interval is refused: ") + invalid);
+    }
     equal(parse_print("\xE2\x88\x92" "1"), "(-1)", "TI minus admits negative constants");
     equal(parse_print("2\xE2\x88\x92" "3"), "(2 + (-3))", "TI subtraction retains the ordinary AST");
     equal(parse_print("\xE2\x88\x92" "x^2"), "(-(x^2))", "TI unary minus preserves power precedence");
@@ -184,6 +212,27 @@ void test_shapes() {
         Arena arena;
         const ParseResult malformed = parse(arena, "2\xE2\x88\x92@");
         check(!malformed.ok() && malformed.offset == 4, "TI minus preserves original byte offsets on errors");
+    }
+    equal(parse_print("3\xC3\x97" "2"), "(3 * 2)", "MathPrint times is multiplication");
+    equal(parse_print("2\xC2\xB7" "x"), "(2 * x)", "a middle dot is multiplication");
+    equal(parse_print("2\xE2\x8B\x85" "x"), "(2 * x)", "a dot operator is multiplication");
+    equal(parse_print("6\xC3\xB7" "2"), "(6 * (2^(-1)))", "MathPrint divide is division");
+    equal(parse_print("\xE2\x88\x9A(4)"), "sqrt(4)", "a radical sign followed by a bracket is a square root");
+    equal(parse_print("x\xC2\xB2"), "(x^2)", "a superscript two is a square");
+    equal(parse_print("x\xC2\xB3+1"), "((x^3) + 1)", "a superscript three binds before addition");
+    equal(parse_print("x\xC2\xB9\xE2\x81\xB0"), "(x^10)", "superscript digits read as one exponent");
+    equal(parse_print("x\xE2\x81\xBB\xC2\xB9"), "(x^(-1))", "a superscript minus makes a negative power");
+    equal(parse_print("2x\xC2\xB2"), "(2 * (x^2))", "a superscript binds to its base before an implied product");
+    equal(parse_print("x\xE2\x89\xA4" "2"), "(x <= 2)", "a less-or-equal sign is the ASCII relation");
+    equal(parse_print("x\xE2\x89\xA5" "2"), "(x >= 2)", "a greater-or-equal sign is the ASCII relation");
+    for (const char *invalid : {"x\xE2\x81\xBB", "\xC2\xB2", "x\xC2", "\xE2\x88\x9A", "x\xE2\x89\xA0" "2"}) {
+        Arena arena;
+        check(!parse(arena, invalid).ok(), "a lone superscript minus, a bare superscript, a cut character, a bare radical and an unsupported not-equal are refused");
+    }
+    {
+        Arena arena;
+        const ParseResult cut = parse(arena, "2\xC3\x97@");
+        check(!cut.ok() && cut.offset == 3, "MathPrint operators keep original byte offsets on errors: " + std::to_string(cut.offset));
     }
     for (const char *invalid : {"\xE2\x88", "\xE2\x88\x92", "1e\xE2\x88\x92",
                                "1\xE2\x80\x93" "2", "1\xE2\x80\x94" "2"}) {
@@ -842,6 +891,11 @@ void write_evidence(const TestSink &s) {
     for (const Evidence &e : s.evidence_records)
         fprintf(f, "evidence\t%s\t%s\t%s\t%s\n", e.requirement.c_str(), e.passed ? "pass" : "fail",
                 e.group.c_str(), e.what.c_str());
+    for (const std::string &row : s.check_kind_rows)
+        fprintf(f, "%s\n", row.c_str());
+    for (const RuleCase &c : s.rule_cases)
+        fprintf(f, "%s\n",
+                nps_tools::rule_case_row(c.rule_id, c.kind, c.passed, c.group, c.what).c_str());
     fclose(f);
 }
 
@@ -875,16 +929,30 @@ int main_body() {
     run_derivation_tests(sink);
     sink.begin_group("linear");
     run_linear_tests(sink);
+    sink.begin_group("power");
+    run_power_tests(sink);
     sink.begin_group("quadratic");
     run_quadratic_tests(sink);
+    sink.begin_group("trig");
+    run_trig_tests(sink);
+    sink.begin_group("rational expression");
+    run_rational_expression_tests(sink);
+    sink.begin_group("system");
+    run_system_tests(sink);
     sink.begin_group("rearrange");
     run_rearrange_tests(sink);
     sink.begin_group("rewrite");
     run_rewrite_tests(sink);
+    sink.begin_group("attempt");
+    run_attempt_tests(sink);
     sink.begin_group("command");
     run_command_tests(sink);
     sink.begin_group("calculus");
     run_calculus_tests(sink);
+    sink.begin_group("implicit");
+    run_implicit_tests(sink);
+    sink.begin_group("separable");
+    run_separable_tests(sink);
     sink.begin_group("ui canvas");
     run_ui_canvas_tests(sink);
     sink.begin_group("integer");
