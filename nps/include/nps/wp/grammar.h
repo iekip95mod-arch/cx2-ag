@@ -107,6 +107,58 @@ ConfirmResult confirm_motion(const GrammarResult &interpreted, const std::string
 // One line per role, goal, assumption, clarification and unused span, as the corpus annotates them.
 std::string grammar_summary(const GrammarResult &result);
 
+// Binds a confirmation to what the draft was built from, then commits it only if it still validates.
+ConfirmResult commit_confirmed(ProblemIR draft, const SourceDocument &source, const std::string &confirmed_by);
+
+// PRD section 26.16, WP Milestone 3. Two bodies on one line, each leaving at its own time and place,
+// read sentence by sentence with events, per-body ownership and singular coreference.
+constexpr const char *kPursuitGrammarVersion = "wp3-pursuit 1";
+constexpr const char *kPursuitFamily = "physics.kinematics.catch-up.equal-position";
+
+// A fact about one body. A body written as a clarification id is a pronoun still to be resolved.
+struct BodyFact {
+    std::string body;
+    std::string role;
+    std::string value;
+    std::string unit;
+    std::string production;
+    bool inferred = false;
+    Span span;
+};
+
+struct BodyEvent {
+    std::string id;
+    std::string body;
+    std::string description;
+    Span span;
+};
+
+struct PursuitResult {
+    GrammarOutcome outcome = GrammarOutcome::Unsupported;
+    std::string detail;
+    LexicalReading lexical;
+    std::vector<std::string> bodies;
+    std::vector<Span> body_spans;
+    std::vector<BodyFact> facts;
+    std::vector<BodyEvent> events;
+    std::vector<Clarification> clarifications;
+    std::string goal_role;
+    Span goal_span;
+    std::vector<Span> unused;
+    Span same_place;
+    Span same_direction;
+    std::optional<ProblemIR> draft;
+    InterpretationSet set;
+};
+
+PursuitResult interpret_pursuit(const std::string &source_id, const std::string &text,
+                                const LexicalLimits &limits = LexicalLimits());
+
+ConfirmResult confirm_pursuit(const PursuitResult &interpreted, const std::string &current_text,
+                              const std::vector<ClarificationAnswer> &answers, const std::string &confirmed_by);
+
+std::string pursuit_summary(const PursuitResult &result);
+
 }  // namespace nps::wp
 
 #endif
