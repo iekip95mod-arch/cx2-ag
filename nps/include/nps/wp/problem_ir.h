@@ -183,6 +183,9 @@ struct IrValidation {
 // The hex SHA-256 of the original text, which the IR's source hash has to match.
 std::string source_hash(const std::string &original_utf8);
 
+// True when the span's original offsets lie inside the source and cover exactly its surface text.
+bool span_matches(const Span &span, const SourceDocument &source);
+
 IrValidation validate(const ProblemIR &ir, const SourceDocument &source);
 
 // A ProblemIR that passed validation with a confirmation. It cannot be edited, only corrected.
