@@ -7,6 +7,7 @@
 #include "nps/core/evaluate.h"
 #include "nps/steps/differentiate.h"
 #include "nps/steps/numeric_mode.h"
+#include "nps/steps/rearrange.h"
 #include "nps/steps/rewrite.h"
 #include "nps/core/print.h"
 
@@ -51,6 +52,8 @@ void refuse(Context &ctx, const std::string &why) {
 }
 
 NodeId antiderive(Context &ctx, NodeId id, StepId parent);
+bool integrate_by_substitution(Context &ctx, NodeId id, StepId parent, NodeId *out);
+bool integrate_by_parts(Context &ctx, NodeId id, StepId parent, NodeId *out);
 
 Step envelope(const std::string &goal, const char *rule_id, const std::string &rule_name,
               const char *why) {
@@ -332,8 +335,12 @@ NodeId integrate_product(Context &ctx, NodeId id, StepId parent) {
                                 "the factor taken out contains no occurrence of the variable");
     }
 
+    NodeId out = kNoNode;
+    if (integrate_by_substitution(ctx, id, parent, &out) || integrate_by_parts(ctx, id, parent, &out))
+        return out;
     refuse(ctx, "a product of two expressions that both contain the variable needs integration "
-                "by parts or a substitution, which is not implemented");
+                "by parts or a substitution, and neither the substitution nor the parts pattern "
+                "matches this product");
     return kNoNode;
 }
 
@@ -351,9 +358,12 @@ NodeId integrate_power(Context &ctx, NodeId id, StepId parent, NodeId base, Node
     }
     NodeId coefficient;
     if (!linear_in(ctx, base, &coefficient)) {
+        NodeId out = kNoNode;
+        if (!ctx.failed && integrate_by_substitution(ctx, id, parent, &out))
+            return out;
         refuse(ctx, "the base " + print(a, base) +
-                        " is not linear in the variable, which would need a substitution that is "
-                        "not implemented");
+                        " is not linear in the variable, and no factor is a constant multiple of "
+                        "its derivative, so no substitution applies");
         return kNoNode;
     }
     const bool direct = base == ctx.variable;
@@ -484,9 +494,12 @@ NodeId integrate_call(Context &ctx, NodeId id, StepId parent) {
     }
     NodeId coefficient;
     if (!linear_in(ctx, u, &coefficient)) {
+        NodeId out = kNoNode;
+        if (!ctx.failed && integrate_by_substitution(ctx, id, parent, &out))
+            return out;
         refuse(ctx, "the argument " + print(a, u) +
-                        " is not linear in the variable, which would need a substitution that is "
-                        "not implemented");
+                        " is not linear in the variable, and no factor is a constant multiple of "
+                        "its derivative, so no substitution applies");
         return kNoNode;
     }
     if (name == "ln") return integrate_logarithm(ctx, id, u, coefficient, parent);
@@ -520,6 +533,19 @@ NodeId integrate_call(Context &ctx, NodeId id, StepId parent) {
                        substitution_action(a, coefficient, "Use " + print(a, outer)));
 }
 
+// A power of a power read as one power, so 1/x^2 reaches the same rule as x^-2.
+void power_parts(Arena &a, NodeId power, NodeId *base, NodeId *exponent) {
+    *base = a.children(power)[0];
+    *exponent = a.children(power)[1];
+    if (a.at(*base).kind != Kind::Pow)
+        return;
+    const NodeId flattened = canonicalize(a, power);
+    if (flattened != kNoNode && a.at(flattened).kind == Kind::Pow) {
+        *base = a.children(flattened)[0];
+        *exponent = a.children(flattened)[1];
+    }
+}
+
 NodeId antiderive(Context &ctx, NodeId id, StepId parent) {
     Arena &a = ctx.arena;
     if (ctx.failed || id == kNoNode)
@@ -537,19 +563,9 @@ NodeId antiderive(Context &ctx, NodeId id, StepId parent) {
             // Only the variable reaches here, and it is its own first power.
             return integrate_power(ctx, id, parent, id, a.integer("1"));
         case Kind::Pow: {
-            // A power of a power is one power, so 1/x^2 reaches the same rule as x^-2 rather than
-            // being refused for a base that is not linear. Only the exponents are folded, so the
-            // integrand is still shown to the reader as it was written.
-            NodeId base = a.children(id)[0];
-            NodeId exponent = a.children(id)[1];
-            const Node &inner = a.at(base);
-            if (inner.kind == Kind::Pow) {
-                const NodeId flattened = canonicalize(a, id);
-                if (flattened != kNoNode && a.at(flattened).kind == Kind::Pow) {
-                    base = a.children(flattened)[0];
-                    exponent = a.children(flattened)[1];
-                }
-            }
+            NodeId base = kNoNode;
+            NodeId exponent = kNoNode;
+            power_parts(a, id, &base, &exponent);
             return integrate_power(ctx, id, parent, base, exponent);
         }
         case Kind::Add:
@@ -580,17 +596,402 @@ bool mentions_symbol(const Arena &arena, NodeId id, const std::string &name) {
     return false;
 }
 
-// C unless the integrand already uses it, then the first of C1 to C9 it does not.
-NodeId constant_symbol(Arena &arena, NodeId expression) {
-    if (!mentions_symbol(arena, expression, "C"))
-        return arena.symbol("C");
+// The letter unless the integrand already uses it, then the first of letter1 to letter9 it does not.
+NodeId unused_symbol(Arena &arena, NodeId expression, const char *letter) {
+    if (!mentions_symbol(arena, expression, letter))
+        return arena.symbol(letter);
     for (char digit = '1'; digit <= '9'; ++digit) {
-        std::string name = "C";
+        std::string name = letter;
         name.push_back(digit);
         if (!mentions_symbol(arena, expression, name))
             return arena.symbol(name);
     }
     return kNoNode;
+}
+
+// Whether u is linear in the variable, asked without letting linear_in's decimal refusal stand.
+bool quietly_linear(Context &ctx, NodeId u) {
+    const bool failed = ctx.failed;
+    const std::string detail = ctx.detail;
+    NodeId coefficient = kNoNode;
+    const bool linear = linear_in(ctx, u, &coefficient);
+    ctx.failed = failed;
+    ctx.detail = detail;
+    return linear;
+}
+
+bool substitutable_function(const std::string &name) {
+    return name == "sin" || name == "cos" || name == "exp" || name == "sqrt" || name == "ln";
+}
+
+struct Candidate {
+    NodeId inner = kNoNode;
+    // The integrand's outer shape with the inner function replaced by u.
+    NodeId outer = kNoNode;
+    size_t factor = 0;
+};
+
+// The derivative of an inner function, differentiated by rule into a scratch record. False with the
+// context failed when the meter ran out, and false alone when the rules refused the form.
+bool inner_derivative(Context &ctx, NodeId inner, NodeId *out) {
+    Derivation scratch;
+    const DiffResult d = differentiate(ctx.arena, scratch, inner, ctx.variable, ctx.meter);
+    if (d.outcome == DiffOutcome::Cancelled || d.outcome == DiffOutcome::ResourceExceeded) {
+        ctx.failed = true;
+        ctx.detail = d.detail;
+        return false;
+    }
+    if (d.outcome != DiffOutcome::Differentiated || d.derivative == kNoNode)
+        return false;
+    *out = d.derivative;
+    return true;
+}
+
+// value over divisor in canonical form, with the divisor inverted factor by factor so that like
+// bases cancel. The canonical form keeps the reciprocal of a product whole, so x over 2 x stays x
+// times (2 x)^-1 unless the product is taken apart first.
+void collect_reciprocals(Arena &arena, NodeId factor, std::vector<NodeId> *out) {
+    if (arena.at(factor).kind == Kind::Mul) {
+        for (NodeId inner : arena.children(factor))
+            collect_reciprocals(arena, inner, out);
+        return;
+    }
+    out->push_back(arena.binary(Kind::Pow, factor, arena.integer("-1")));
+}
+
+// The canonical form leaves x times x^-1 alone because x/x has no value at zero. The multiplier a
+// substitution needs is only ever used as a constant, and the derivative check judges the answer, so
+// integer powers of one base are summed here.
+NodeId cancel_like_bases(Arena &arena, NodeId product) {
+    if (product == kNoNode || arena.at(product).kind != Kind::Mul)
+        return product;
+    std::vector<std::pair<NodeId, int64_t>> powers;
+    for (NodeId factor : arena.children(product)) {
+        NodeId base = factor;
+        int64_t exponent = 1;
+        if (arena.at(factor).kind == Kind::Pow && folded_integer(arena, arena.children(factor)[1], &exponent))
+            base = arena.children(factor)[0];
+        else
+            exponent = 1;
+        bool merged = false;
+        for (auto &entry : powers) {
+            if (entry.first == base) {
+                int64_t sum = 0;
+                if (!add_checked(entry.second, exponent, &sum))
+                    return product;
+                entry.second = sum;
+                merged = true;
+                break;
+            }
+        }
+        if (!merged)
+            powers.push_back({base, exponent});
+    }
+    std::vector<NodeId> kept;
+    for (const auto &entry : powers) {
+        if (entry.second == 0)
+            continue;
+        kept.push_back(entry.second == 1 ? entry.first
+                                         : arena.binary(Kind::Pow, entry.first, arena.integer(integer_text(entry.second))));
+    }
+    if (kept.empty())
+        return arena.integer("1");
+    return canonicalize(arena, kept.size() == 1 ? kept[0] : arena.nary(Kind::Mul, kept));
+}
+
+NodeId quotient_by_factors(Arena &arena, NodeId value, NodeId divisor) {
+    const NodeId folded = canonicalize(arena, divisor);
+    if (folded == kNoNode)
+        return kNoNode;
+    std::vector<NodeId> factors{value};
+    collect_reciprocals(arena, folded, &factors);
+    return cancel_like_bases(arena, canonicalize(arena, arena.nary(Kind::Mul, factors)));
+}
+
+bool integrate_by_substitution(Context &ctx, NodeId id, StepId parent, NodeId *out) {
+    Arena &a = ctx.arena;
+    std::vector<NodeId> factors;
+    if (a.at(id).kind == Kind::Mul) {
+        for (NodeId f : a.children(id))
+            factors.push_back(f);
+    } else {
+        factors.push_back(id);
+    }
+    const NodeId u = unused_symbol(a, id, "u");
+    if (u == kNoNode)
+        return false;
+
+    std::vector<Candidate> candidates;
+    for (size_t i = 0; i < factors.size(); ++i) {
+        const NodeId f = factors[i];
+        const Node &n = a.at(f);
+        if (n.kind == Kind::Call && a.children(f).size() == 1 && substitutable_function(a.text(f))) {
+            const NodeId argument = a.children(f)[0];
+            if (depends_on(a, argument, ctx.variable) && !quietly_linear(ctx, argument))
+                candidates.push_back({argument, call1(a, a.text(f).c_str(), u), i});
+        } else if (n.kind == Kind::Pow) {
+            const auto offer = [&](NodeId base, NodeId exponent) {
+                if (!depends_on(a, exponent, ctx.variable) && depends_on(a, base, ctx.variable) &&
+                    !quietly_linear(ctx, base))
+                    candidates.push_back({base, a.binary(Kind::Pow, u, exponent), i});
+            };
+            const NodeId written_base = a.children(f)[0];
+            offer(written_base, a.children(f)[1]);
+            NodeId flat_base = kNoNode;
+            NodeId flat_exponent = kNoNode;
+            power_parts(a, f, &flat_base, &flat_exponent);
+            // Both readings, so x (x^2)^3 still names x^2 while 1/(x^2+1)^2 names x^2+1.
+            if (flat_base != written_base)
+                offer(flat_base, flat_exponent);
+        }
+    }
+    if (factors.size() > 1) {
+        for (size_t i = 0; i < factors.size(); ++i)
+            candidates.push_back({factors[i], u, i});
+    }
+
+    for (const Candidate &candidate : candidates) {
+        if (ctx.failed || a.failed())
+            return true;
+        std::vector<NodeId> rest;
+        for (size_t i = 0; i < factors.size(); ++i) {
+            if (i != candidate.factor)
+                rest.push_back(factors[i]);
+        }
+        const NodeId remaining = rest.empty() ? a.integer("1") : rest.size() == 1 ? rest[0] : a.nary(Kind::Mul, rest);
+        NodeId derivative = kNoNode;
+        if (!inner_derivative(ctx, candidate.inner, &derivative)) {
+            if (ctx.failed)
+                return true;
+            continue;
+        }
+        const NodeId ratio = quotient_by_factors(a, remaining, derivative);
+        if (ratio == kNoNode) {
+            ctx.exhausted = true;
+            refuse(ctx, "the working space ran out while matching a substitution");
+            return true;
+        }
+        // A derivative that folds to zero makes the multiplier a division by zero, not a constant.
+        if (depends_on(a, ratio, ctx.variable) || divides_by_zero(a, ratio) || literal(a, ratio, 0))
+            continue;
+
+        const NodeId inner_integrand = literal(a, ratio, 1) ? candidate.outer : a.binary(Kind::Mul, ratio, candidate.outer);
+        const std::string u_name = a.text(u);
+        const std::string differential = print(a, canonicalize(a, derivative));
+        Step s = envelope("Integrate " + print(a, id), "i.substitution", "Integration by substitution",
+                          "Name the inner function u, integrate in u, then put the inner function back");
+        const std::string named = "Let " + u_name + " = " + print(a, candidate.inner);
+        std::string detail = named;
+        detail += ". Then d";
+        detail += u_name;
+        detail += " = ";
+        detail += differential;
+        detail += " dx, and the rest of the integrand is ";
+        detail += literal(a, ratio, 1) ? std::string("exactly that") : print(a, ratio) + " times it";
+        detail += ", so the integral is written in ";
+        detail += u_name;
+        detail += " alone. The antiderivative in ";
+        detail += u_name;
+        detail += " is then written back in terms of ";
+        detail += a.text(ctx.variable);
+        detail += ".";
+        s.explanation_detailed = detail;
+        s.verifications.push_back(rule_invariant(
+            "the rest of the integrand divided by the derivative of the inner function has no occurrence of the variable"));
+        std::string action = named;
+        action += ", so d";
+        action += u_name;
+        action += " = ";
+        action += differential;
+        action += " d";
+        action += a.text(ctx.variable);
+        const StepId here = record(ctx, parent, std::move(s), int_of(a, id, ctx.variable), kNoNode, action);
+        if (here == kNoStep)
+            return true;
+
+        Step rewrite = envelope("Rewrite the integral in " + u_name, "i.substitution-rewrite",
+                                "Rewrite the integral in the new variable",
+                                "Replace the inner function by u and its derivative times dx by du");
+        rewrite.claim = ClaimType::Definition;
+        rewrite.proof_obligations.clear();
+        rewrite.proof_obligations.push_back({"obl.integrate.substitution-differential",
+            "the rest of the integrand is a constant multiple of the derivative of the inner function"});
+        std::string accounted = "Every " + a.text(ctx.variable);
+        accounted += " in the integrand is accounted for by ";
+        accounted += u_name;
+        accounted += " and d";
+        accounted += u_name;
+        accounted += ", so the new integral has ";
+        accounted += u_name;
+        accounted += " as its only variable.";
+        rewrite.explanation_detailed = accounted;
+        VerificationRecord differential_check = rule_invariant(
+            "the rest of the integrand over " + differential + " is the constant " + print(a, ratio));
+        differential_check.evidence_id = "obl.integrate.substitution-differential";
+        rewrite.verifications.push_back(differential_check);
+        // Recorded without carrying the after side's conditions, which are about u rather than the variable.
+        if (!ctx.meter.step()) {
+            halted(ctx);
+            return true;
+        }
+        TransformationPayload rewritten;
+        rewritten.before = int_of(a, id, ctx.variable);
+        rewritten.after = int_of(a, inner_integrand, u);
+        rewritten.concrete_action = "Write the integral as " + print(a, rewritten.after);
+        const StepId rewrite_id = ctx.derivation.add_transformation(here, std::move(rewrite), std::move(rewritten));
+        carry_restrictions(ctx, rewrite_id, int_of(a, id, ctx.variable), kNoNode);
+
+        std::optional<Rational> inner_point;
+        Rational at_point;
+        if (ctx.branch_point &&
+            evaluate_rational(a, candidate.inner, {{a.text(ctx.variable), *ctx.branch_point}}, &at_point))
+            inner_point = at_point;
+        // The inner run keeps its own restrictions, which are about u. The answer's own come from the
+        // antiderivative once it is written back in the variable.
+        Context inner(a, ctx.derivation, u, ctx.meter, ctx.mode, inner_point);
+        const NodeId in_u = antiderive(inner, inner_integrand, here);
+        if (inner.failed) {
+            ctx.failed = true;
+            ctx.exhausted = inner.exhausted;
+            ctx.detail = inner.detail;
+            return true;
+        }
+        const NodeId back = substitute_symbol(a, in_u, u, candidate.inner);
+        ctx.derivation.complete_transformation(here, back);
+        carry_restrictions(ctx, here, kNoNode, back);
+        *out = back;
+        return true;
+    }
+    return false;
+}
+
+bool polynomial_degree(Context &ctx, NodeId f, int64_t *degree) {
+    Arena &a = ctx.arena;
+    if (!depends_on(a, f, ctx.variable)) {
+        *degree = 0;
+        return true;
+    }
+    if (f == ctx.variable) {
+        *degree = 1;
+        return true;
+    }
+    const Kind kind = a.at(f).kind;
+    if (kind == Kind::Neg)
+        return polynomial_degree(ctx, a.children(f)[0], degree);
+    if (kind == Kind::Add || kind == Kind::Mul) {
+        int64_t accumulated = 0;
+        for (NodeId child : a.children(f)) {
+            int64_t next = 0;
+            if (!polynomial_degree(ctx, child, &next))
+                return false;
+            accumulated = kind == Kind::Add ? std::max(accumulated, next) : accumulated + next;
+            if (accumulated > 4)
+                return false;
+        }
+        *degree = accumulated;
+        return true;
+    }
+    if (kind == Kind::Pow) {
+        int64_t n = 0;
+        int64_t base = 0;
+        if (!folded_integer(a, a.children(f)[1], &n) || n < 1 || n > 4 ||
+            !polynomial_degree(ctx, a.children(f)[0], &base) || base * n > 4)
+            return false;
+        *degree = base * n;
+        return true;
+    }
+    return false;
+}
+
+// A factor to differentiate in integration by parts: a polynomial in the variable of degree one to
+// four, which reaches zero after at most four derivatives.
+bool polynomial_factor(Context &ctx, NodeId f) {
+    int64_t degree = 0;
+    return polynomial_degree(ctx, f, &degree) && degree >= 1;
+}
+
+bool parts_partner(Context &ctx, NodeId f) {
+    const Arena &a = ctx.arena;
+    if (a.at(f).kind != Kind::Call || a.children(f).size() != 1)
+        return false;
+    const std::string name = a.text(f);
+    return (name == "exp" || name == "sin" || name == "cos") && quietly_linear(ctx, a.children(f)[0]);
+}
+
+bool integrate_by_parts(Context &ctx, NodeId id, StepId parent, NodeId *out) {
+    Arena &a = ctx.arena;
+    if (a.at(id).kind != Kind::Mul)
+        return false;
+    const ChildView factors = a.children(id);
+    NodeId differentiated = kNoNode;
+    NodeId integrated = kNoNode;
+    for (size_t partner = 0; partner < factors.size() && differentiated == kNoNode; ++partner) {
+        if (!parts_partner(ctx, factors[partner]))
+            continue;
+        std::vector<NodeId> rest;
+        for (size_t i = 0; i < factors.size(); ++i) {
+            if (i != partner)
+                rest.push_back(factors[i]);
+        }
+        const NodeId polynomial = rest.size() == 1 ? rest.front() : a.nary(Kind::Mul, rest);
+        if (polynomial == kNoNode) {
+            ctx.exhausted = true;
+            refuse(ctx, "the working space ran out while setting up integration by parts");
+            return true;
+        }
+        if (polynomial_factor(ctx, polynomial)) {
+            differentiated = polynomial;
+            integrated = factors[partner];
+        }
+    }
+    const NodeId u_symbol = unused_symbol(a, id, "u");
+    const NodeId v_symbol = unused_symbol(a, id, "v");
+    if (differentiated == kNoNode || u_symbol == kNoNode || v_symbol == kNoNode)
+        return false;
+    const std::string u = a.text(u_symbol);
+    const std::string v_name = a.text(v_symbol);
+
+    NodeId derivative = kNoNode;
+    if (!inner_derivative(ctx, differentiated, &derivative))
+        return ctx.failed;
+    const std::string name = a.text(ctx.variable);
+    const NodeId du = canonicalize(a, derivative);
+    if (du == kNoNode) {
+        ctx.exhausted = true;
+        refuse(ctx, "the working space ran out while setting up integration by parts");
+        return true;
+    }
+    Step s = envelope("Integrate " + print(a, id), "i.parts", "Integration by parts",
+                      "Differentiate one factor, integrate the other, and subtract the integral of their product");
+    const std::string split =
+        "Let " + u + " = " + print(a, differentiated) + " and d" + v_name + " = " + print(a, integrated) + " d" + name;
+    s.explanation_detailed =
+        split + ". Then d" + u + " = " + print(a, du) + " d" + name + " and " + v_name +
+        " is an antiderivative of " + print(a, integrated) + ". Integration by parts gives " + u + " " + v_name +
+        " minus the integral of " + v_name + " d" + u + ". Differentiating " + print(a, differentiated) +
+        " makes the remaining integral simpler, which is why it is the factor chosen as " + u + ".";
+    s.verifications.push_back(rule_invariant(
+        "the product rule for u v, integrated, gives the integral of u dv plus the integral of v du"));
+    const StepId here = record(ctx, parent, std::move(s), int_of(a, id, ctx.variable), kNoNode, split);
+    if (here == kNoStep)
+        return true;
+    const NodeId v = antiderive(ctx, integrated, here);
+    if (ctx.failed)
+        return true;
+    const NodeId remaining = canonicalize(a, a.binary(Kind::Mul, v, du));
+    if (remaining == kNoNode) {
+        ctx.exhausted = true;
+        refuse(ctx, "the working space ran out while setting up integration by parts");
+        return true;
+    }
+    const NodeId w = antiderive(ctx, remaining, here);
+    if (ctx.failed)
+        return true;
+    const NodeId result = a.binary(Kind::Add, a.binary(Kind::Mul, differentiated, v), a.unary(Kind::Neg, w));
+    ctx.derivation.complete_transformation(here, result);
+    carry_restrictions(ctx, here, kNoNode, result);
+    *out = result;
+    return true;
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
@@ -603,7 +1004,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model,
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
     inputs.active_assumptions = assumptions;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain, principal values";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);
@@ -658,6 +1059,13 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         record_context(derivation, budget, expression, no_assumptions, result.status, mode);
         return result;
     }
+    if (derivation.request.angle_mode == AngleMode::Degrees && angle_dependent(arena, expression, variable)) {
+        result.outcome = IntegrateOutcome::UnsupportedForm;
+        result.detail = "the trigonometric integration rules assume radians, and degree mode is active";
+        result.status = DerivationStatus::Unsupported;
+        record_context(derivation, budget, expression, no_assumptions, result.status, mode);
+        return result;
+    }
     if (divides_by_zero(arena, expression)) {
         result.outcome = IntegrateOutcome::UnsupportedForm;
         result.detail = "the integrand divides by zero, which has no value to integrate";
@@ -699,7 +1107,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         VerificationOutcome::NotAttempted, "checked while traversing the integrand");
     register_strategy_precondition(
         plan, plan_step, "pre.integrate.linear-inner-forms",
-        "every function argument and every power base is the variable or linear in it",
+        "every function argument and every power base is the variable, linear in it, the inner "
+        "function of a recorded substitution, or inside a polynomial that integration by parts differentiates",
         "registered inner-form analysis", EvidenceStrength::StructurallyValid,
         VerificationOutcome::NotAttempted, "checked while matching power and function rules");
     StepId plan_id = derivation.add_plan(kNoStep, std::move(plan_step), std::move(plan));
@@ -733,7 +1142,7 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
     // The constant of integration, as a step of its own so the reader sees where it comes from.
     NodeId general = particular;
     if (!ctx.failed && particular != kNoNode && include_constant) {
-        NodeId c = constant_symbol(arena, integrand);
+        NodeId c = unused_symbol(arena, integrand, "C");
         if (c == kNoNode) {
             refuse(ctx, "the integrand uses every name this build has for the constant of "
                         "integration");
@@ -879,7 +1288,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
             "every form visited before the stop matched a registered antiderivative rule");
         derivation.complete_plan_precondition(
             plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-            "every inner form matched before the stop met its registered linearity requirement");
+            "every inner form matched before the stop was linear, the inner function of a recorded substitution, "
+            "or inside a polynomial differentiated by parts");
         const bool cancelled = back.outcome == DiffOutcome::Cancelled ||
                                check_tag == ResultTag::Cancelled || meter.halt() == Halt::Cancelled;
         // Settled before the trim, the same order and for the same reason as the refusal below: a
@@ -908,7 +1318,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
             "every form that produced a recorded step matched a registered antiderivative rule");
         derivation.complete_plan_precondition(
             plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-            "every inner form in a recorded step met its registered linearity requirement");
+            "every inner form in a recorded step was linear, the inner function of a recorded substitution, or "
+            "inside a polynomial differentiated by parts");
         // The conditions belong to the steps, so a step that survives has to take its conditions
         // with it. Settling before the trim rather than after, because a condition written onto a
         // step the trim then drops goes with it, where a step kept without its condition is a
@@ -942,7 +1353,8 @@ IntegrateResult integrate_impl(Arena &arena, Derivation &derivation, NodeId expr
         "every visited form matched a registered antiderivative rule");
     derivation.complete_plan_precondition(
         plan_id, "pre.integrate.linear-inner-forms", VerificationOutcome::Passed,
-        "every matched inner form met its registered linearity requirement");
+        "every matched inner form was linear, the inner function of a recorded substitution, or inside a "
+        "polynomial differentiated by parts");
 
     // Only now, because the refusals above that rewind would be writing a condition onto a step
     // about to be dropped, qualifying an answer nobody was given. The two paths that keep steps,

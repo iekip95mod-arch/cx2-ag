@@ -44,6 +44,91 @@ do
     check(nps.math_display("3/4") == "(3 / 4)", "math display remains usable after refusal")
 end
 do
+    local rule = nps.rule_definition("eq.linear.check-by-substitution")
+    evidence("UI-009", type(rule) == "table" and rule.rule == "eq.linear.check-by-substitution" and
+             rule.claim == "solution set preserved" and rule.on_failure == "withhold the result" and
+             #rule.obligations == 1 and rule.obligations[1].id == "obl.linear.candidate-satisfies" and
+             rule.obligations[1].text == "the candidate satisfies the original equation" and
+             #rule.obligations[1].evidence == 1 and
+             rule.obligations[1].evidence[1].method == "substitution" and
+             rule.obligations[1].evidence[1].strength == "candidate checked" and
+             rule.obligations[1].evidence[1].may_corroborate == false and rule.survives_refusal == false,
+             "rule_definition reads a rule's claim, obligations and evidence from its registration")
+    local cross = nps.rule_definition("calculus.differentiate.giac-cross-check")
+    check(type(cross) == "table" and #cross.obligations == 1 and #cross.obligations[1].evidence == 1 and
+          cross.obligations[1].evidence[1].method == "Giac Adapter Op::Differentiate compared after canonicalization" and
+          cross.obligations[1].evidence[1].may_corroborate == true,
+          "rule_definition marks evidence that may only corroborate")
+    local point = nps.rule_definition("tangent.point-value")
+    check(type(point) == "table" and point.claim == "definition" and point.survives_refusal == true,
+          "rule_definition carries a rule whose step outlives a refusal")
+    local strategy = nps.rule_definition("eq.linear.inverse-operations")
+    check(type(strategy) == "table" and strategy.claim == "no claim" and #strategy.obligations == 3,
+          "rule_definition answers for a strategy's plan as well as for a rule")
+    local collect = nps.rule_definition("eq.collect-like-terms")
+    check(collect.on_failure == "cannot fail" and
+          collect.obligations[1].evidence[1].method == "rule-local equality invariant",
+          "rule_definition carries a rule that cannot fail its obligation")
+    local missing, why = nps.rule_definition("eq.no-such-rule")
+    check(missing == nil and why == "no rule is registered under that id",
+          "an unregistered rule id is refused rather than invented")
+    check(not pcall(nps.rule_definition, "eq\0x") and not pcall(nps.rule_definition, {}),
+          "rule_definition rejects invalid Lua arguments")
+
+    local newton = nps.unit_definition("N")
+    evidence("UI-009", type(newton) == "table" and newton.quantity == "force" and
+             newton.dimension == "L M T^-2" and newton.si_unit == "kg m/s^2" and newton.scale == "1",
+             "unit_definition names the quantity a unit measures and its SI spelling")
+    local kmh = nps.unit_definition("km/h")
+    check(kmh.quantity == "velocity" and kmh.scale == "5/18" and kmh.si_unit == "m/s",
+          "unit_definition gives the exact scale to SI")
+    local product = nps.unit_definition("m*s")
+    check(type(product) == "table" and product.quantity == nil and product.si_unit == "m s",
+          "a unit no quantity is named for is still defined, without a name")
+    local unknown, unknown_why = nps.unit_definition("parsec")
+    check(unknown == nil and unknown_why == "unknown unit parsec", "an unknown unit is refused by name")
+    check(not pcall(nps.unit_definition, "m\0s") and not pcall(nps.unit_definition, {}),
+          "unit_definition rejects invalid Lua arguments")
+    local long, long_why = nps.unit_definition(string.rep("m", 4097))
+    check(long == nil and long_why == "unit exceeds the input limit", "unit_definition bounds its input")
+end
+do
+    local judged = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "2*x - 4 = 0", "x = 2" }, "x")
+    evidence("STEP-013", type(judged) == "table" and judged.equivalence == "equivalent" and
+             judged.method == "comparison of the single solutions" and
+             judged.strength == "symbolically equivalent under assumptions",
+             "judge_attempt copies an exact equivalence verdict into Lua")
+    evidence("STEP-014", judged.usefulness == "valid not on route" and judged.reaches == 0,
+             "judge_attempt reports usefulness apart from validity")
+    local next_state = nps.judge_attempt("2*x + 3 = 7", "2*x - 4 = 0", { "2*x - 4 = 0", "x = 2" }, "x")
+    check(next_state.usefulness == "advances" and next_state.reaches == 1,
+          "judge_attempt reads the route it was handed")
+    local slipped = nps.judge_attempt("2*x + 3 = 7", "2*x = 10", nil, "x")
+    check(slipped.equivalence == "not equivalent" and slipped.usefulness == "not judged" and
+          slipped.detail == "the attempt's solution is 5 and the state's is 2",
+          "judge_attempt copies a refutation and its detail")
+    local other = nps.judge_attempt("2*y + 3 = 7", "2*y = 4", {}, "y")
+    check(other.equivalence == "equivalent", "judge_attempt honours the variable it is given")
+    local unparsed, why = nps.judge_attempt("2*x + 3 = 7", "2*x ==", {}, "x")
+    check(unparsed == nil and type(why) == "string" and why:find("attempt: ", 1, true) == 1,
+          "an attempt that does not parse is refused and named")
+    local badroute, routewhy = nps.judge_attempt("2*x + 3 = 7", "2*x = 4", { "x = (" }, "x")
+    check(badroute == nil and routewhy:find("route state: ", 1, true) == 1,
+          "a route state that does not parse is refused and named")
+    local badvar, varwhy = nps.judge_attempt("x", "x", {}, "two words")
+    check(badvar == nil and type(varwhy) == "string", "a variable that is not an identifier is refused")
+    check(not pcall(nps.judge_attempt, "x\0y", "x", {}, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { 3 }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", { "x\0" }, "x") and
+          not pcall(nps.judge_attempt, "x", "x", "x", "x"),
+          "judge_attempt rejects invalid Lua arguments before owning native resources")
+    local long = {}
+    for i = 1, 513 do long[i] = "x" end
+    check(not pcall(nps.judge_attempt, "x", "x", long, "x"), "judge_attempt bounds the route it reads")
+    check(nps.judge_attempt("x + x", "2*x", {}, "x").equivalence ~= nil,
+          "judge_attempt remains usable after refusal")
+end
+do
     local fills = {}
     local gc = {
         setColorRGB = function() end,
@@ -253,23 +338,34 @@ do
     check(table.concat(backend_keys, ",") == "deployment,interface_id,name,version",
           "and carries exactly the four fields SymbolicBackendCapability defines")
 end
-check(type(manifest.installed_modules) == "table" and #manifest.installed_modules == 32,
-      "the published manifest lists the compiled solver and content modules")
 local expected_modules = {
     "algebra.linear-equation.one-unknown",
     "algebra.quadratic.pure-square.one-unknown",
+    "algebra.quadratic.formula.one-unknown",
+    "algebra.quadratic.factoring.one-unknown",
     "algebra.formula-rearrangement.single-occurrence",
     "algebra.polynomial-rewrite.single-expression",
+    "algebra.trigonometric-identities",
+    "algebra.rational-expression.single-variable",
+    "algebra.partial-fractions.linear-factors",
     "number.integer-method.literal",
+    "algebra.powers-and-radicals.one-variable",
     "matrix.ref.rational",
     "matrix.rref.rational",
     "matrix.det.rational",
+    "algebra.linear-system.elimination",
+    "algebra.linear-system.substitution",
     "calculus.derivative.single-variable",
     "calculus.integral.indefinite.single-variable",
     "calculus.integral.definite.single-variable",
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.parametric-slope.single-parameter",
+    "calculus.derivative.implicit",
+    "calculus.ode.separable.first-order",
+    "calculus.taylor-polynomial.single-variable",
+    "calculus.series.convergence",
     "physics.kinematics.constant-acceleration.one-dimension",
     "physics.kinematics.constant-acceleration.projectile.two-dimension",
     "physics.kinematics.constant-acceleration.two-dimension",
@@ -286,9 +382,23 @@ local expected_modules = {
     "physics.optics.spherical-mirror.image",
     "physics.optics.double-slit.maxima",
     "physics.optics.single-slit.minima",
+    "physics.gravitation.point-masses",
+    "physics.oscillation.restoring-force",
+    "physics.wave.speed-frequency-wavelength",
+    "physics.modern.photon-wavelength",
+    "physics.modern.photoelectric",
+    "physics.modern.mass-energy",
+    "physics.relativity.time-dilation",
+    "physics.relativity.length-contraction",
+    "physics.relativity.lorentz-transformation",
+    "physics.relativity.velocity-addition",
+    "physics.relativity.energy-momentum",
     "units.chain-link-conversion",
     "units.si"
 }
+check(type(manifest.installed_modules) == "table" and
+      #manifest.installed_modules == #expected_modules,
+      "the published manifest lists the compiled solver and content modules")
 for index, id in ipairs(expected_modules) do
     check(manifest.installed_modules[index].id == id,
           "the published manifest identifies installed module " .. id)
@@ -427,6 +537,51 @@ do
         check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
               case[1] .. " names the family it answered")
     end
+    -- CALC-013, #509. The record carries its own final check and names its slope apart from tangent's.
+    do
+        script("0", "0", "0", "0")
+        local record = nps.walkthrough("paramslope(t^2,t^3,t,2)", "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and
+              record.result == "3" and record.parametric_slope == "3" and record.tangent_slope == nil and
+              command_has_rule(record, "param.slope") and command_has_rule(record, "param.check-slope"),
+              "paramslope exposes the native parametric slope with its final check")
+        check(record.mode == "paramslope" and record.outcome == "evaluated",
+              "paramslope names the family it answered")
+        local vertical = nps.walkthrough("paramslope(t^2,t,t,0)", "x", "exact")
+        check(not vertical.solved and not vertical.has_result and
+              vertical.outcome == "unsupported form" and
+              tostring(vertical.detail):find("vertical", 1, true) ~= nil and
+              vertical.parametric_slope == nil,
+              "paramslope at a vertical tangent refuses and says why, with no slope")
+        local short = nps.walkthrough("paramslope(t,t^2,t)", "x", "exact")
+        check(not short.solved and not short.has_result and type(short.detail) == "string" and
+              short.detail:find("parametric slopes require", 1, true) ~= nil,
+              "paramslope with three arguments refuses and names what it needs")
+    end
+    -- CALC-012. A separable desolve runs natively and one the family refuses returns nil for Giac.
+    for _, case in ipairs({
+        {"desolve(y'=x*y,x,y)", "(y = exp((((x^2) * (2^-1)) + C)))", true, nil},
+        {"desolve(y'=x/y^2,x,y)", "(((y^3) * (3^-1)) = (((x^2) * (2^-1)) + C))", false, nil},
+        {"desolve([y'=x*y,y(0)=2],x,y)", "(y = exp((((x^2) * (2^-1)) + ln(2))))", true, "ln(2)"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(type(record) == "table" and record.solved and record.has_result and
+              not record.answer_only and record.status == "solved and verified" and
+              record.result == case[2],
+              case[1] .. " is solved natively and verified")
+        check(record.mode == "differential equation" and record.outcome == "solved" and
+              record.explicit_solution == case[3] and record.constant == case[4] and
+              record.request_expression == case[1],
+              case[1] .. " reports its form, its constant and the request it answered")
+        check(command_has_rule(record, "ode.separable.separate") and
+              command_has_rule(record, "ode.separable.check-solution") and giac_calls == 0,
+              case[1] .. " carries the separation and the final check without asking Giac")
+    end
+    for _, text in ipairs({"desolve(y'=x+y,x,y)", "desolve(y''=y,x,y)", "desolve(y'=x*y)"}) do
+        check(nps.walkthrough(text, "x", "exact") == nil,
+              text .. " is left to Giac rather than refused natively")
+    end
     for _, case in ipairs({
         {"tangent(1/x,x,0)", "unsupported form"},
         {"tangent(x^2,x)", "unsupported form"},
@@ -435,6 +590,145 @@ do
         check(not record.solved and not record.has_result and record.outcome == case[2] and
               type(record.detail) == "string" and record.detail ~= "",
               case[1] .. " refuses outside the tangent envelope and says why")
+    end
+    -- CALC-011. The Taylor family checks itself natively, so the bridge carries the order, the
+    -- center, the remainder and whether the polynomial equals the function or only approximates it.
+    for _, case in ipairs({
+        {"maclaurin(exp(x),x,3)", "maclaurin", "3", "0", true, "approximately equal", "exp(c)"},
+        {"taylor(x^3,x,1,3)", "taylor", "3", "1", false, "equal", "0"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and
+              command_has_rule(record, "taylor.polynomial") and command_has_rule(record, "taylor.remainder") and
+              command_has_rule(record, "taylor.check-polynomial"),
+              case[1] .. " exposes the native Taylor walkthrough with its remainder and final check")
+        check(record.mode == case[2] and record.outcome == "evaluated",
+              case[1] .. " names the family it answered")
+        check(record.taylor_order == case[3] and record.taylor_center == case[4],
+              case[1] .. " reports the order and the center it was asked for")
+        check(record.approximation == case[5] and record.relation == case[6],
+              case[1] .. " states whether the polynomial equals the function or approximates it")
+        check(type(record.taylor_remainder) == "string" and record.taylor_remainder:find(case[7], 1, true) ~= nil,
+              case[1] .. " carries the remainder the polynomial leaves out")
+    end
+    for _, case in ipairs({
+        {"taylor(sin(x),x,1,2)", "unsupported form"},
+        {"maclaurin(exp(x),x,20)", "resource exceeded"},
+        {"taylor(x^2,x,0,-1)", "invalid input"},
+        {"maclaurin(x^2,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.taylor_remainder == nil and type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the Taylor envelope and says why")
+    end
+    -- CALC-011 convergence. The verdict is the answer, and the bridge names the test that decided it.
+    for _, case in ipairs({
+        {"convergence((1/2)^n,n,0)", "converges absolutely", "series.ratio-test", "2", "converges absolutely, sum = 2"},
+        {"convergence((-1)^n/n,n,1)", "converges conditionally", "series.alternating-test", nil, "converges conditionally"},
+        {"convergence(1/n,n,1)", "diverges", "series.p-comparison", nil, "diverges"},
+    }) do
+        giac_calls = 0
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(record.solved and record.has_result and not record.answer_only and giac_calls == 0 and
+              record.status == "solved and verified" and record.mode == "convergence" and
+              command_has_rule(record, "series.terms-defined") and command_has_rule(record, case[3]) and
+              command_has_rule(record, "series.check-form"),
+              case[1] .. " exposes the native convergence walkthrough with its hypotheses and final check")
+        check(record.series_verdict == case[2] and record.series_test == case[3] and
+              record.series_sum == case[4] and record.result == case[5],
+              case[1] .. " reports its verdict, the test that decided it and a geometric sum")
+    end
+    for _, case in ipairs({
+        {"convergence(1/ln(n),n,2)", "unsupported form"},
+        {"convergence(1/(n-3),n,1)", "invalid input"},
+        {"convergence(1/n,n,1/2)", "invalid input"},
+        {"convergence((1/2)^n,n,70)", "resource exceeded", "resource limit reached"},
+        {"convergence(2^n/n,n,62)", "resource exceeded", "resource limit reached"},
+    }) do
+        local record = nps.walkthrough(case[1], "n", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              record.series_verdict == nil and record.series_test == nil and
+              (case[3] == nil or record.status == case[3]) and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the convergence envelope and says why")
+    end
+    do
+        local record = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "decimal")
+        check(not record.solved and record.outcome == "unsupported form",
+              "the Taylor family refuses decimal mode rather than approximating its coefficients")
+    end
+    -- MATH-007. The angle mode is a fourth argument, every record names the one it ran under, and
+    -- trigonometric calculus in degree mode is refused without a backend answer read in radians.
+    do
+        local plain = nps.walkthrough("diff(x^2,x)", "x", "exact")
+        check(plain.angle_convention == "radians", "a walkthrough without an angle mode runs and records radians")
+        for _, command in ipairs({"diff(x^2,x)", "solve(2*x+5=13,x)", "limit(x^2,x,3)", "int(x,x)", "expand((x+1)^2)"}) do
+            script("0", "0", "0", "0")
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(record.angle_convention == "degrees" and record.outcome ~= "invalid input",
+                  command .. " records the degree mode it ran under")
+        end
+        for _, command in ipairs({"diff(sin(x),x)", "int(cos(x),x)", "limit(sin(x)/x,x,0)", "solve(sin(x)=1,x)"}) do
+            giac_calls = 0
+            local record = nps.walkthrough(command, "x", "exact", "degrees")
+            check(not record.has_result and not record.answer_only and giac_calls == 0 and
+                  record.angle_convention == "degrees",
+                  command .. " in degree mode gets no answer read in radians and no backend call")
+        end
+        giac_calls = 0
+        script("cos(x)", "0")
+        local radians = nps.walkthrough("diff(sin(x),x)", "x", "exact", "radians")
+        check(radians.solved and radians.has_result and giac_calls > 0 and radians.angle_convention == "radians",
+              "the same trigonometric derivative still answers and cross-checks in radian mode")
+        local ok = pcall(nps.walkthrough, "diff(x^2,x)", "x", "exact", "gradians")
+        check(not ok, "an unknown angle mode is an error rather than a silent radian")
+        local implicit_plain = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact", "degrees")
+        check(implicit_plain.solved and implicit_plain.angle_convention == "degrees",
+              "implicit differentiation without trig answers in degree mode and records it")
+        local implicit_trig = nps.walkthrough("implicit(sin(x)+y^2=25,x,y)", "x", "exact", "degrees")
+        check(not implicit_trig.has_result and implicit_trig.outcome == "unsupported form" and
+              implicit_trig.angle_convention == "degrees",
+              "implicit differentiation refuses a trigonometric relation in degree mode rather than reading it as radians")
+        local taylor_plain = nps.walkthrough("maclaurin(exp(x),x,3)", "x", "exact", "degrees")
+        check(taylor_plain.solved and taylor_plain.angle_convention == "degrees",
+              "a Taylor polynomial without trig answers in degree mode and records it")
+        local taylor_trig = nps.walkthrough("maclaurin(sin(x),x,3)", "x", "exact", "degrees")
+        check(not taylor_trig.has_result and taylor_trig.outcome == "unsupported form" and
+              taylor_trig.taylor_remainder == nil and taylor_trig.angle_convention == "degrees",
+              "a Taylor polynomial of a trigonometric function is refused in degree mode rather than read as radians")
+        check(nps.walkthrough("desolve(y'=sin(x),x,y)", "x", "exact", "degrees") == nil,
+              "a separable equation that leans on trig in degree mode is left to Giac rather than solved as radians")
+    end
+    -- CALC-007. The implicit derivative is an expression in both variables, so the bridge names the
+    -- symbol that stood for it and the divisor condition the answer carries.
+    do
+        giac_calls = 0
+        local record = nps.walkthrough("implicit(x^2+y^2=25,x,y)", "x", "exact")
+        check(record.solved and record.has_result and giac_calls == 0 and record.mode == "implicit" and
+              record.status == "solved and verified" and record.derivative_symbol == "dydx" and
+              command_has_rule(record, "implicit.chain-rule") and command_has_rule(record, "implicit.isolate") and
+              command_has_rule(record, "implicit.check"),
+              "implicit differentiation exposes the native walkthrough with its final check")
+        check(type(record.result) == "string" and record.result:find("x", 1, true) and record.result:find("y", 1, true),
+              "the implicit derivative is reported in both variables")
+        local names_divisor = false
+        for _, condition in ipairs(record.restrictions or {}) do
+            if condition:find("y", 1, true) and condition:find("not zero", 1, true) then names_divisor = true end
+        end
+        check(names_divisor, "the implicit derivative carries its nonzero divisor condition")
+    end
+    for _, case in ipairs({
+        {"implicit(x^2=4,x,y)", "unsupported form"},
+        {"implicit(x^2+y^2,x,y)", "not an equation"},
+        {"implicit(x^2+y^2=1,x)", "unsupported form"},
+    }) do
+        local record = nps.walkthrough(case[1], "x", "exact")
+        check(not record.solved and not record.has_result and record.outcome == case[2] and
+              type(record.detail) == "string" and record.detail ~= "",
+              case[1] .. " refuses outside the implicit envelope and says why")
     end
     for _, case in ipairs({
         {"limit(1/x,x,0,1)", "+infinity", "infinite limit"},
@@ -633,10 +927,111 @@ for _, text in ipairs({"ref([[1,2],[3,4]])", "rref([[1]])"}) do
 end
 check(giac_calls == 0, "matrix tracing never falls back to string evaluation")
 giac_calls = 0
-for _, text in ipairs({"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
+for _, text in ipairs({"unclaimedop(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)", "solve(x=1,x)+2"}) do
     check(nps.walkthrough(text, "x") == nil, "unhandled CAS input remains unchanged: " .. text)
 end
 check(giac_calls == 0, "classification of ordinary CAS input never invokes Giac")
+check(nps.math_display("[1..3]") == "[1..3]" and nps.math_display("(0..1]") == "(0..1]",
+      "an interval displays with the bracket each end was given")
+check(nps.walkthrough("[1..3]", "x") == nil and nps.walkthrough("convert(x,interval)", "x") == nil,
+      "interval input the native side does not walk through still reaches Giac unchanged")
+do
+    giac_calls = 0
+    local expanded = nps.walkthrough("texpand(sin(x+y))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(expanded) == "table" and expanded.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-010", type(expanded) == "table" and expanded.mode == "texpand" and expanded.solved and
+             expanded.result == "((sin(x) * cos(y)) + (cos(x) * sin(y)))" and
+             expanded.status == "solved and verified" and rules["trig.angle-sum"] and rules["trig.check-identity"],
+             "a trigonometric identity reaches the native walkthrough through the bridge, named and checked")
+    local collected = nps.walkthrough("tcollect(sin(x)^2 + cos(x)^2)", "x", "exact")
+    check(type(collected) == "table" and collected.mode == "tcollect" and collected.solved and collected.result == "1",
+          "tcollect applies the Pythagorean identity through the bridge")
+    local refused = nps.walkthrough("texpand(sin(x+1))", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "outside envelope" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "a constant inside an angle is a native refusal with no steps")
+    local typed_pi = nps.walkthrough("texpand(sin(x+\207\128))", "x", "exact")
+    check(type(typed_pi) == "table" and typed_pi.outcome == "outside envelope" and not typed_pi.solved and
+          #typed_pi.steps == 0,
+          "a typed pi inside an angle is the same native refusal")
+    check(giac_calls == 0, "texpand and tcollect never ask Giac")
+    -- The rows after this one count Giac calls from here, and a rewrite may consult it.
+    local calls_before = giac_calls
+    local product = nps.walkthrough("simplify(3\195\1512)", "x", "exact")
+    check(type(product) == "table" and product.solved and product.result == "6",
+          "a MathPrint times sign reaches the native walkthrough as multiplication")
+    local square = nps.walkthrough("simplify(x\194\178+x\194\178)", "x", "exact")
+    local ascii = nps.walkthrough("simplify(x^2+x^2)", "x", "exact")
+    check(type(square) == "table" and square.solved and square.result == "(2 * (x^2))" and
+          square.result == ascii.result,
+          "a superscript square collects exactly as x^2 does: " .. tostring(square and square.result))
+    check(nps.math_display("6\195\1832") == "(6 / 2)" and nps.math_display("\226\136\154(4)") == "sqrt(4)",
+          "MathPrint divide and radical signs display in the project's own grammar")
+    giac_calls = calls_before
+end
+do
+    giac_calls = 0
+    local record = nps.walkthrough("normal((x^2-1)/(x-1))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(record) == "table" and record.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-005", type(record) == "table" and record.mode == "normal" and record.solved and
+             record.result == "(x + 1)" and record.status == "solved and verified" and
+             type(record.assumptions) == "string" and record.assumptions ~= "" and
+             rules["rat.excluded-values"] and rules["rat.cancel-common-factor"] and rules["rat.check-equivalent"],
+             "a rational expression is reduced natively through the bridge and keeps its excluded value")
+    local sum = nps.walkthrough("normal(1/t + 1/(t+1), t)", "x", "exact")
+    check(type(sum) == "table" and sum.solved and sum.result == "(((2 * t) + 1) * (((t^2) + t)^-1))",
+          "normal takes the variable as its second argument")
+    local refused = nps.walkthrough("normal(sqrt(x)/x)", "x", "exact")
+    check(type(refused) == "table" and refused.mode == "normal" and not refused.solved and
+          refused.result == nil and refused.outcome == "not rational" and #refused.steps == 0,
+          "a form that is not rational is a native refusal with no steps")
+    local split = nps.walkthrough("partfrac((3x+5)/(x^2+4x+3))", "x", "exact")
+    local split_rules = {}
+    for _, step in ipairs(type(split) == "table" and split.steps or {}) do split_rules[step.rule] = true end
+    evidence("ALG-005", type(split) == "table" and split.mode == "partial fractions" and split.solved and
+             split.result == "((1 * ((x + 1)^-1)) + (2 * ((x + 3)^-1)))" and split.status == "solved and verified" and
+             split_rules["pf.cover-up"] and split_rules["pf.decompose"],
+             "partial fractions reach the native cover-up walkthrough through the bridge")
+    local quadratic = nps.walkthrough("partfrac(1/(x^2+1))", "x", "exact")
+    check(type(quadratic) == "table" and quadratic.outcome == "outside envelope" and not quadratic.solved and
+          quadratic.result == nil and #quadratic.steps == 0,
+          "an irreducible quadratic denominator is a native refusal with no steps")
+    check(giac_calls == 0, "normal and partfrac never ask Giac")
+end
+do
+    giac_calls = 0
+    local simplified = nps.walkthrough("powsimp(sqrt(x^2))", "x", "exact")
+    local rules = {}
+    for _, step in ipairs(type(simplified) == "table" and simplified.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-006", type(simplified) == "table" and simplified.mode == "powsimp" and simplified.solved and
+             simplified.result == "abs(x)" and simplified.status == "solved and verified" and
+             rules["pow.power-of-power"] and rules["pow.check-values"],
+             "a radical reaches the native walkthrough through the bridge with its sign condition kept")
+    local root = nps.walkthrough("powsimp(sqrt(12))", "x", "exact")
+    check(type(root) == "table" and root.solved and root.result == "(2 * sqrt(3))" and
+          root.status == "solved and verified",
+          "powsimp takes the largest square out of a numeric root through the bridge")
+    local refused = nps.walkthrough("powsimp(sqrt(-4))", "x", "exact")
+    check(type(refused) == "table" and refused.outcome == "no real value" and not refused.solved and
+          refused.result == nil and #refused.steps == 0,
+          "an even root of a negative number is a native refusal with no steps")
+    local quotient = nps.walkthrough("powsimp(x^3/x)", "x", "exact")
+    check(type(quotient) == "table" and quotient.solved and quotient.result == "(x^2)" and
+          quotient.assumptions == "x is not zero",
+          "a quotient of powers publishes the condition it needs through the bridge: " ..
+          tostring(type(quotient) == "table" and quotient.assumptions))
+    local squared = nps.walkthrough("powsimp(sqrt(x)^2)", "x", "exact")
+    check(type(squared) == "table" and squared.solved and squared.result == "x" and squared.assumptions == "x >= 0",
+          "and a square root squared publishes that x is not negative: " ..
+          tostring(type(squared) == "table" and squared.assumptions))
+    check(simplified.assumptions == nil, "while the absolute value of a root of a square needs none")
+    local decimal = nps.walkthrough("powsimp(sqrt(x^2))", "x", "decimal")
+    check(type(decimal) == "table" and not decimal.solved and decimal.mode == "powsimp",
+          "powsimp refuses decimal mode")
+    check(giac_calls == 0, "powsimp never asks Giac")
+end
 do
     local record = nps.walkthrough("det([[1,2],[3,4]])", "unused + variable", "exact")
     check(type(record) == "table" and record.mode == "determinant" and not record.solved and
@@ -663,6 +1058,64 @@ do
           not cancelled.solved and not cancelled.has_result and cancelled.result == nil,
           "a cancelled determinant request withholds the scalar answer")
     check(giac_calls == 0, "determinant refusal and cancellation do not evaluate a fallback")
+end
+do
+    giac_calls = 0
+    local text = "linsolve([x + y = 3, x - y = 1], [x, y])"
+    local record = nps.walkthrough(text, "unused + variable", "exact")
+    local rules = {}
+    for _, step in ipairs(type(record) == "table" and record.steps or {}) do rules[step.rule] = true end
+    evidence("ALG-013", type(record) == "table" and record.mode == "linear system" and record.solved and
+             record.has_result and record.outcome == "solved" and record.solution_set == "unique" and
+             record.result == "[(x = 2), (y = 1)]" and record.status == "solved and verified" and
+             record.request_expression == text and not record.answer_only and
+             rules["system.augmented-matrix"] and rules["matrix.row-add-multiple"] and
+             rules["matrix.rref-conclusion"] and rules["system.check-by-substitution"],
+             "a linear system reaches the native elimination walkthrough through the bridge")
+    check(record.method == "elimination", "elimination is the method when none is named")
+    local sub_text = "linsolve([x + y = 3, x - y = 1], [x, y], substitution)"
+    local sub = nps.walkthrough(sub_text, "x", "exact")
+    local sub_rules = {}
+    for _, step in ipairs(type(sub) == "table" and sub.steps or {}) do sub_rules[step.rule] = true end
+    evidence("ALG-013", type(sub) == "table" and sub.mode == "linear system" and sub.method == "substitution" and
+             sub.solved and sub.result == "[(x = 2), (y = 1)]" and sub.status == "solved and verified" and
+             sub.request_expression == sub_text and sub_rules["system.isolate-unknown"] and
+             sub_rules["system.substitute"] and sub_rules["system.check-by-substitution"] and
+             not sub_rules["system.augmented-matrix"],
+             "a named substitution method reaches the native substitution walkthrough through the bridge")
+    local unknown_method = nps.walkthrough("linsolve([x = 1], [x], graphing)", "x", "exact")
+    check(type(unknown_method) == "table" and unknown_method.outcome == "unsupported form" and
+          unknown_method.result == nil, "a method other than elimination or substitution is refused")
+    local none = nps.walkthrough("linsolve([x + y = 1, 2x + 2y = 3], [x, y])", "x", "exact")
+    check(type(none) == "table" and none.outcome == "no solution" and none.solution_set == "empty" and
+          none.has_result and not none.solved and none.result == nil and none.status == "solved and verified",
+          "an inconsistent system reports an empty solution set as a verified answer")
+    local family = nps.walkthrough("linsolve([x + y + z = 2, x - y = 0], [x, y, z])", "x", "exact")
+    check(type(family) == "table" and family.outcome == "solution family" and family.solution_set == "family" and
+          family.solved and type(family.result) == "string" and family.result:find("(z = z)", 1, true) ~= nil,
+          "an underdetermined system reports a family with its free unknown as the parameter")
+    for _, text in ipairs({"linsolve([x*y = 1, x + y = 2], [x, y])", "linsolve([a*x = 1], [x])",
+                           "linsolve([x + y, x = 1], [x, y])", "linsolve([x = 1], [x, x])"}) do
+        local refused = nps.walkthrough(text, "x", "exact")
+        check(type(refused) == "table" and refused.mode == "linear system" and not refused.solved and
+              not refused.has_result and refused.result == nil and refused.solution_set == nil and
+              refused.request_expression == text and #refused.steps == 0,
+              "a system outside the envelope is a native refusal with no steps: " .. text)
+    end
+    local arity = nps.walkthrough("linsolve([x = 1])", "x", "exact")
+    check(type(arity) == "table" and arity.outcome == "unsupported form" and arity.result == nil,
+          "linsolve without its list of unknowns is refused")
+    local decimal = nps.walkthrough(text, "x", "decimal")
+    check(type(decimal) == "table" and decimal.outcome == "unsupported form" and
+          decimal.numeric_mode == "decimal" and decimal.result == nil,
+          "a linear system in decimal mode is an explicit refusal")
+    nps.test_escape_pressed(true)
+    local cancelled = nps.walkthrough(text, "x", "exact")
+    nps.test_escape_pressed(false)
+    check(type(cancelled) == "table" and cancelled.outcome == "cancelled" and not cancelled.solved and
+          not cancelled.has_result and cancelled.result == nil,
+          "a cancelled linear system withholds its answer")
+    check(giac_calls == 0, "linear systems never ask Giac")
 end
 for _, text in ipairs({"diff(x,x,2)", "int(x,x,0)", "solve(x=1,x,y)", "simplify(x,x)",
                        "factor(x,2)", "rearrange(x=1)", "diff(x,x+1)", "solve(x=1,2)",
@@ -862,6 +1315,14 @@ do
         { "optics", { "thin lens", "image distance", "focal length", "10 cm",
                       "object distance", "15 cm" } },
         { "vector_addition", { "(1, 2) m", "(3, 4) m" } },
+        { "gravitation", { "gravitational force", "first mass", "2 kg", "second mass", "3 kg",
+                           "separation", "1 m" } },
+        { "oscillation", { "restoring force", "stiffness", "200 N/m", "displacement", "5 cm" } },
+        { "wave", { "wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1" } },
+        { "modern", { "Einstein photoelectric equation", "maximum kinetic energy",
+                      "photon energy", "5.0 eV", "work function", "2.3 eV" } },
+        { "relativity", { "Lorentz transformation", "station", "ship", "0.6 c",
+                          "event position", "300 m", "event time", "1 s" } },
     }) do
         for index, argument in ipairs(calculation[2]) do
             local arguments = { unpack(calculation[2]) }
@@ -877,7 +1338,7 @@ end
 
 local before_answer_only = giac_calls
 script("x")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.solved == false and r.answer_only == true,
       "a refused integral can return a Giac answer without claiming a derivation")
 check(r.result == "x" and r.giac_tag == "exact",
@@ -1193,8 +1654,70 @@ check(r.result == "transmitted sine = 0.6",
 r = nps.optics("refraction", "transmitted sine", "incident index", "2", "incident sine", "0.8",
                "transmitted index", "1")
 check(r.outcome == "total internal reflection" and r.solved == false and r.result == nil and
-      r.critical_sine == "0.5" and #r.steps > 0,
+      r.status == "solved and verified" and r.critical_sine == "0.5" and #r.steps > 0,
       "the optics bridge preserves total internal reflection as a recorded conclusion")
+do
+    check(r.detail == "the transmitted sine would be 1.6, above the critical sine 0.5" and
+          r.relation == "refraction" and r.unknown == "transmitted sine",
+          "total internal reflection says which transmitted sine could not exist")
+    local tir_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then tir_rules[s.rule] = true end end
+    check(tir_rules["physics.optics.total-internal-reflection"] and
+          tir_rules["physics.optics.refraction.snell"],
+          "the reflection conclusion keeps the record that proved it from the critical sine")
+
+    -- 1/di = 1/10 - 1/30 = 1/15 per centimetre, so the image is 15 cm out at half height.
+    r = nps.optics("spherical mirror", "image distance", "focal length", "10 cm",
+                   "object distance", "30 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "spherical mirror" and r.unknown == "image distance",
+          "the optics bridge returns a verified spherical mirror solution")
+    check(r.result == "image distance = 0.15 m" and r.value == "0.15" and r.unit == "m" and
+          r.magnification == "-0.5" and r.precision.kind == "exact",
+          "the mirror answer carries the real inverted half-size image")
+    check(r.convention:find("in front of the mirror", 1, true) ~= nil and r.critical_sine == nil,
+          "the mirror answer is read under the mirror's own sign convention")
+    local mirror_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then mirror_rules[s.rule] = true end end
+    check(mirror_rules["physics.optics.spherical-mirror.image"] and
+          mirror_rules["physics.optics.sign-convention"] and
+          mirror_rules["physics.optics.check-candidate"],
+          "the mirror bridge retains its relation, convention and candidate check")
+
+    -- d sin(t) = m lambda with 3 cm microwaves through slits 6 cm apart gives 1 * 3 / 6.
+    r = nps.optics("two-slit interference", "fringe sine", "slit spacing", "6 cm",
+                   "fringe order", "1", "wavelength", "3 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "two-slit interference" and r.unknown == "fringe sine",
+          "the optics bridge returns a verified two-slit solution")
+    check(r.result == "fringe sine = 0.5" and r.value == "0.5" and r.unit == "" and
+          r.magnification == nil and r.critical_sine == nil,
+          "the two-slit answer is a bare sine with no unit")
+    check(r.convention:find("bright fringes", 1, true) ~= nil,
+          "the two-slit answer counts bright fringes from the centre")
+    local slit_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then slit_rules[s.rule] = true end end
+    check(slit_rules["physics.optics.double-slit.maxima"] and
+          slit_rules["physics.optics.check-domain"],
+          "the two-slit bridge retains its relation and domain check")
+
+    r = nps.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "1", "wavelength", "3 cm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "single-slit diffraction" and r.result == "fringe sine = 0.5",
+          "the optics bridge returns a verified single-slit solution")
+    check(r.convention:find("diffraction minima", 1, true) ~= nil,
+          "the single-slit answer counts dark minima rather than bright fringes")
+    slit_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then slit_rules[s.rule] = true end end
+    check(slit_rules["physics.optics.single-slit.minima"],
+          "the single-slit bridge retains its own relation record")
+    r = nps.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm", "fringe order",
+                   "0", "wavelength", "3 cm")
+    check(r.solved == false and r.result == nil and r.outcome == "unphysical value" and
+          r.detail:find("central maximum", 1, true) ~= nil,
+          "the single-slit bridge refuses order zero, the central maximum rather than a minimum")
+end
 
 r = nps.optics("thin lens", "image distance", "focal length", "10 cm", "object distance", "3 s")
 check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil and
@@ -1289,6 +1812,205 @@ check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
 r = nps.vector_cross("not a vector", "(1, 2, 3) m")
 check(r.outcome == "invalid input" and type(r.detail) == "string" and #r.steps == 0,
       "the cross product bridge returns a structured parse refusal")
+
+-- G is carried as the exact rational 6674/10^14, so 2.0 kg and 3.0 kg a metre apart give 4.0044e-10 N exactly.
+r = nps.gravitation("gravitational force", "first mass", "2.0 kg", "second mass", "3.0 kg",
+                    "separation", "1.0 m")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified" and
+      r.unknown == "gravitational force",
+      "the gravitation bridge returns a verified solution for the force")
+check(r.result == "gravitational force = 0.00000000040 kg m/s^2" and
+      r.value == "0.00000000040" and r.exact_value == "0.00000000040044" and
+      r.unit == "kg m/s^2" and r.precision.kind == "measured" and
+      r.precision.significant_digits == 2,
+      "the gravitation bridge reports the measured force beside its exact value")
+check(type(r.equation) == "string" and type(r.substituted) == "string" and
+      type(r.assumptions) == "string" and r.assumptions:find("point mass", 1, true) ~= nil and
+      r.assumptions:find("6.674e-11", 1, true) ~= nil,
+      "the gravitation bridge carries its relation and the point-mass and constant conditions")
+local gravitation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then gravitation_rules[s.rule] = true end end
+check(gravitation_rules["physics.gravitation.definition"] and
+      gravitation_rules["physics.gravitation.check-dimensions"] and
+      gravitation_rules["physics.gravitation.substitute"] and
+      gravitation_rules["physics.gravitation.check-candidate"],
+      "the gravitation bridge retains its definition, dimension, substitution and check steps")
+r = nps.gravitation("separation", "gravitational force", "1 N", "first mass", "1 kg",
+                    "second mass", "1 kg")
+check(r.outcome == "unsupported unknown" and r.solved == false and r.result == nil and
+      r.detail:find("power -2", 1, true) ~= nil,
+      "the gravitation bridge refuses the separation it cannot isolate linearly")
+r = nps.gravitation("mass", "first mass", "1 kg", "second mass", "1 kg", "separation", "1 m")
+check(r.outcome == "invalid input" and type(r.detail) == "string" and
+      r.detail:find("mass", 1, true) ~= nil and #r.steps == 0,
+      "the gravitation bridge returns a structured refusal for a name the law does not use")
+
+r = nps.oscillation("restoring force", "stiffness", "200 N/m", "displacement", "5 cm")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "restoring force" and
+      r.result == "restoring force = 10 kg m/s^2" and r.value == "10" and r.exact_value == "10" and
+      r.unit == "kg m/s^2" and r.precision.kind == "exact",
+      "the oscillation bridge returns the exact restoring force of a stretched spring")
+local oscillation_rules = {}
+for _, s in ipairs(r.steps) do if s.rule then oscillation_rules[s.rule] = true end end
+check(oscillation_rules["physics.oscillation.convert-units"] and
+      oscillation_rules["physics.oscillation.substitute"] and
+      oscillation_rules["physics.oscillation.check-candidate"] and
+      r.assumptions:find("small-angle", 1, true) ~= nil,
+      "the oscillation bridge retains the centimetre conversion and the linearity condition")
+r = nps.oscillation("restoring force", "stiffness", "200 N", "displacement", "5 cm")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the oscillation bridge refuses a stiffness given as a force")
+
+r = nps.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+check(r.solved == true and r.status == "solved and verified" and r.unknown == "wavelength" and
+      r.result == "wavelength = 2 m" and r.value == "2" and r.unit == "m",
+      "the wave bridge isolates the wavelength from the speed and the frequency")
+check(r.assumptions:find("non-dispersive", 1, true) ~= nil,
+      "the wave bridge carries the uniform medium condition")
+r = nps.gravitation("gravitational force", "first mass", "2 kg", "second mass", "3 kg")
+check(r.outcome == "missing known" and r.solved == false and r.result == nil,
+      "the gravitation bridge refuses a law given one known too few")
+check(not pcall(nps.wave, "wavelength", "wave speed", "340 m/s"),
+      "the wave bridge raises rather than guessing when the second known pair is absent")
+r = nps.wave("wavelength", "wave speed", "340", "frequency", "170 s^-1")
+check(r.outcome == "dimension mismatch" and r.solved == false and r.result == nil,
+      "the wave bridge refuses a speed given without its unit")
+
+-- The modern family reads eV, nm, MeV and u, which the unit table does not carry, so the bridge
+-- attaches the declared unit to a bare number and accepts the same number written with it.
+do
+    r = nps.modern("Planck photon relation", "photon energy", "wavelength", "620 nm")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "Planck photon relation" and r.unknown == "photon energy",
+          "the modern bridge returns a verified photon energy")
+    -- hc = 1239.8 eV nm, so 1239.8 / 620 = 1.99968 eV, kept to the five figures of the constant.
+    check(r.result == "photon energy = 1.9997 eV" and r.value == "1.9997" and
+          r.exact_value == "6199/3100" and r.unit == "eV" and r.precision.kind == "measured" and
+          r.precision.significant_digits == 5,
+          "the photon energy of red light carries the tabulated constant's precision")
+    local bare = nps.modern("Planck photon relation", "photon energy", "wavelength", "620")
+    check(bare.solved == true and bare.result == "photon energy = 1.9997 eV",
+          "a bare wavelength is read in the family's declared nanometres")
+    local modern_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then modern_rules[s.rule] = true end end
+    check(modern_rules["physics.modern.check-dimensions"] and
+          modern_rules["physics.modern.substitute"] and
+          modern_rules["physics.modern.check-candidate"] and
+          type(r.assumptions) == "string" and r.assumptions:find("1239.8", 1, true) ~= nil,
+          "the modern bridge retains its dimension, substitution and candidate records")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "5.0 eV", "work function", "2.3 eV")
+    check(r.solved == true and r.result == "maximum kinetic energy = 2.7 eV",
+          "the photoelectric bridge subtracts the work function from the photon energy")
+    r = nps.modern("Mass-energy equivalence", "rest energy", "mass defect", "0.0304 u")
+    check(r.solved == true and r.result == "rest energy = 28.3 MeV" and r.unit == "MeV",
+          "the mass defect of helium-4 releases 28.3 MeV at 931.49 MeV per atomic mass unit")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "2.0 eV", "work function", "2.3 eV")
+    check(r.outcome == "unphysical value" and r.solved == false and r.result == nil and
+          r.detail:find("no electron is emitted", 1, true) ~= nil,
+          "a photon below the threshold emits nothing rather than a negative energy")
+    r = nps.modern("Planck photon relation", "photon energy", "wavelength", "620 m")
+    check(r.outcome == "dimension mismatch" and r.solved == false,
+          "a wavelength in metres is refused by the family rather than silently rescaled")
+    r = nps.modern("Einstein photoelectric equation", "maximum kinetic energy", "photon energy",
+                   "5.0 eV")
+    check(r.outcome == "missing known" and r.solved == false,
+          "the photoelectric bridge refuses a relation given one known too few")
+    r = nps.modern("Compton scattering", "photon energy", "wavelength", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern relation Compton scattering",
+          "the modern bridge names a relation it does not carry")
+    r = nps.modern("Planck photon relation", "color", "wavelength", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern variable color",
+          "the modern bridge names an unknown it does not carry")
+    r = nps.modern("Planck photon relation", "photon energy", "color", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern variable color",
+          "the modern bridge names a known it does not carry")
+end
+
+-- Relativity names both frames and the boost, and reports every output in the frame it belongs to.
+do
+    r = nps.relativity("Time dilation", "station", "ship", "0.600 c", "proper time", "4.00 s")
+    check(r.solved == true and r.status == "solved and verified" and
+          r.relation == "Time dilation" and r.rest_frame == "station" and r.moving_frame == "ship",
+          "the relativity bridge returns a verified dilation between two named frames")
+    check(r.lorentz_factor == "1.25" and r.result == "dilated time = 5.00 s in station" and
+          #r.outputs == 1 and r.outputs[1].variable == "dilated time" and
+          r.outputs[1].value == "5.00" and r.outputs[1].unit == "s" and
+          r.outputs[1].frame == "station" and r.outputs[1].precision.significant_digits == 3,
+          "gamma = 1.25 at 0.6 c stretches four seconds on the ship to five at the station")
+    check(type(r.convention) == "string" and r.convention:find("positive x axis", 1, true) ~= nil,
+          "the answer is read under the declared boost direction")
+    local relativity_rules = {}
+    for _, s in ipairs(r.steps) do if s.rule then relativity_rules[s.rule] = true end end
+    check(relativity_rules["physics.relativity.plan"] and
+          relativity_rules["physics.relativity.check-frames"] and
+          relativity_rules["physics.relativity.check-boost"],
+          "the relativity bridge retains its plan, frame and boost checks")
+    r = nps.relativity("Length contraction", "station", "ship", "0.600 c", "proper length", "100 m")
+    check(r.solved == true and r.result == "contracted length = 80.0 m in station",
+          "a hundred metre ship at 0.6 c measures eighty metres from the station")
+    r = nps.relativity("Lorentz transformation", "station", "ship", "0.6 c", "event position",
+                       "300 m", "event time", "1 s")
+    check(r.solved == true and #r.outputs == 2 and
+          r.outputs[1].variable == "transformed event position" and
+          r.outputs[1].exact_value == "-224843968.5" and r.outputs[1].frame == "ship" and
+          r.outputs[2].variable == "transformed event time" and
+          r.outputs[2].exact_value == "749480695/599584916" and r.outputs[2].frame == "ship",
+          "the Lorentz transformation reports both coordinates of the event in the moving frame")
+    -- A flash one light-second out after one second is half a light-second out after half a second.
+    r = nps.relativity("Lorentz transformation", "station", "ship", "0.600 c", "event position",
+                       "299792458 m", "event time", "1.00 s")
+    check(r.solved == true and r.lorentz_factor == "1.25" and
+          r.result == "transformed event position = 150000000 m in ship, " ..
+                      "transformed event time = 0.500 s in ship" and
+          r.outputs[1].exact_value == "149896229" and r.outputs[2].exact_value == "0.5",
+          "a light flash keeps light speed in the ship's frame")
+    r = nps.relativity("Relativistic velocity addition", "station", "ship", "0.500 c",
+                       "object velocity in the moving frame", "0.500 c")
+    check(r.solved == true and r.result == "object velocity in the rest frame = 0.800 c in station" and
+          r.lorentz_factor == nil,
+          "half of c on half of c adds to 0.8 c and never reaches c")
+    r = nps.relativity("Relativistic energy and momentum", "lab", "electron", "0.600 c",
+                       "rest energy", "0.511 MeV")
+    check(r.solved == true and #r.outputs == 3 and r.outputs[1].value == "0.639" and
+          r.outputs[2].value == "0.383" and r.outputs[3].value == "0.128" and
+          r.outputs[3].variable == "relativistic kinetic energy" and
+          r.result == "total energy = 0.639 MeV in lab, momentum energy pc = 0.383 MeV in lab, " ..
+                      "relativistic kinetic energy = 0.128 MeV in lab",
+          "an electron at 0.6 c reports its total, momentum and kinetic energies")
+    r = nps.relativity("Time dilation", "station", "ship", "0.5 c", "proper time", "4 s")
+    check(r.outcome == "inexact Lorentz factor" and r.solved == false and r.result == nil and
+          r.outputs == nil,
+          "a boost whose gamma is irrational reports nothing rather than an unchecked decimal")
+    r = nps.relativity("Time dilation", "ship", "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "frame mismatch" and r.solved == false,
+          "a frame cannot be boosted against itself")
+    r = nps.relativity("Time dilation", "station", "ship", "1 c", "proper time", "4 s")
+    check(r.outcome == "superluminal speed" and r.solved == false,
+          "a frame moving at c is refused")
+    r = nps.relativity("Time dilation", "station", "ship", "0.6 c", "rest energy", "4 s")
+    check(r.solved == false and r.result == nil,
+          "a known the relation does not read is refused")
+    local long_frame = string.rep("f", 5000)
+    r = nps.relativity("Time dilation", long_frame, "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and r.detail == "rest frame is too long" and #r.steps == 0,
+          "a rest frame name past the input bound is refused as a table-read name would be")
+    r = nps.relativity("Time dilation", "station", long_frame, "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and r.detail == "moving frame is too long",
+          "and so is a moving frame name past the same bound")
+    r = nps.relativity("Time travel", "station", "ship", "0.6 c", "proper time", "4 s")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown relativity relation Time travel",
+          "the relativity bridge names a relation it does not carry")
+    r = nps.relativity("Time dilation", "station", "ship", "0.6 c", "color", "4 s")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown relativity variable color",
+          "the relativity bridge names a known it does not carry")
+end
 
 local exact_precision = { kind = "exact", significant_digits = 0 }
 local measured_two = { kind = "measured", significant_digits = 2 }
@@ -1969,6 +2691,9 @@ check(begun.frame_capacity > 0 and begun.frame_peak_bytes <= begun.frame_capacit
       "solve_begin reports a frame budget and stays inside it")
 check(begun.original_expression == raw_equation,
       "the incremental owner preserves the source bytes of its request")
+check(begun.angle_convention == "radians" and
+      nps.solve_begin(raw_equation, "x", "linear", "exact", "degrees").angle_convention == "degrees",
+      "the incremental owner records the angle mode it was started under")
 local advances, partial, progress = 0, nil, nps.solve_begin(raw_equation, "x", "linear")
 repeat
     advances = advances + 1
@@ -2034,9 +2759,24 @@ check(giac_calls == 0 and r.outcome == "no solution" and r.solved == false and
       r.has_result == true and r.result == nil and r.status == "solved and verified" and
       type(r.steps) == "table" and #r.steps > 0,
       "verified inconsistent kinematics publishes an empty result set")
-r = nps.integrate_local("x*sin(x)", "x")
+r = nps.integrate_local("exp(x)*sin(x)", "x")
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only refusal cannot become answer-only")
+do
+    local function rules_of(record)
+        local found = {}
+        for _, step in ipairs(type(record) == "table" and record.steps or {}) do found[step.rule] = true end
+        return found
+    end
+    local substituted = nps.integrate_local("2*x*cos(x^2)", "x")
+    local parts = nps.integrate_local("x*exp(x)", "x")
+    local substituted_rules, parts_rules = rules_of(substituted), rules_of(parts)
+    evidence("CALC-006", giac_calls == 0 and substituted.solved and substituted.answer_only == false and
+             substituted.status == "solved and verified" and substituted_rules["i.substitution"] and
+             substituted_rules["i.substitution-rewrite"] and parts.solved and
+             parts.status == "solved and verified" and parts_rules["i.parts"],
+             "substitution and integration by parts reach the bridge as recorded methods without Giac")
+end
 r = nps.kinematics_local(quadratic_problem)
 check(giac_calls == 0 and r.answer_only == false and r.result == nil,
       "a local-only quadratic kinematics refusal cannot become answer-only")
@@ -2218,7 +2958,7 @@ check(r.result ~= nil and r.answer_only == false,
       "and the derivative computed before that stop is still the answer")
 
 script("Error: Bad Argument Value")
-r = nps.integrate("x*sin(x)", "x")
+r = nps.integrate("exp(x)*sin(x)", "x")
 check(r.giac_tag == "backend error" and r.result == nil and r.answer_only == false,
       "a backend error cannot turn a core refusal into answer-only success")
 
@@ -2312,10 +3052,24 @@ check(r.outcome == "outside the declared envelope" and r.solved == false and #r.
       r.detail:find("whose square root is not exact", 1, true) ~= nil,
       "a square with no exact root is refused by name rather than answered in decimals")
 
+-- ALG-004. A term of degree one goes to factoring, and to the formula when no integer pair exists.
 script("[-4,1]")
 r = nps.solve("x^2 + 3x = 4", "x")
-check(r.outcome == "not linear in the unknown" and #r.steps == 0 and r.has_result == true and
-      r.answer_only == true and r.status == "unsupported" and r.result == "[(-4), 1]",
+check(r.outcome == "solved" and r.solved == true and r.answer_only == false and
+      r.status == "solved and verified" and r.result == "(-4) and 1" and r.agrees == true and
+      command_has_rule(r, "eq.quadratic.factor") and command_has_rule(r, "eq.quadratic.zero-product-case"),
+      "a quadratic with an integer factor pair is solved natively by factoring and agrees with Giac")
+script("[]")
+r = nps.solve("x^2 + x + 1 = 0", "x")
+check(r.outcome == "no real solution" and r.has_result == true and r.answer_only == false and
+      command_has_rule(r, "eq.quadratic.reject-negative-discriminant") and
+      not command_has_rule(r, "eq.quadratic.factor"),
+      "a quadratic with no factor pair and a negative discriminant is settled by the formula")
+script("[(-1-sqrt(5))/2,(-1+sqrt(5))/2]")
+r = nps.solve("x^2 + x = 1", "x")
+check(r.outcome == "outside the declared envelope" and #r.steps == 0 and r.has_result == true and
+      r.answer_only == true and r.status == "unsupported" and
+      r.result == "[(((-1) + (-sqrt(5))) * (2^(-1))), (((-1) + sqrt(5)) * (2^(-1)))]",
       "a refused native quadratic retains every backend root as an explicitly separate answer")
 
 -- The linear rule states two answers that have no value to print, the same way the square-root rule
@@ -2489,7 +3243,8 @@ for _, name in ipairs({ "caseval", "canonical", "giac", "solve", "solve_local", 
                         "vector_addition", "relative_motion", "relative_motion_local", "work",
                         "work_local", "magnitude_angle_to_components",
                         "components_to_magnitude_angle", "typed_check", "solve_begin",
-                        "solve_advance", "solve_cancel", "solve_close" }) do
+                        "solve_advance", "solve_cancel", "solve_close", "judge_attempt",
+                        "rule_definition", "unit_definition" }) do
     check(failed_surface[name] == nil,
           "the integrity-failed surface withholds " .. name)
 end
@@ -2651,6 +3406,44 @@ local function writeEvidence()
     check(after:sub(1, #before) == before and
           emitted:find("evidence\tPLAT-009\t", 1, true) ~= nil,
           "luax evidence preserves prior TSV and emits its own requirement links")
+end
+
+-- UI-011's writer. The shell composes the text and the module writes it, since the shell has no io.
+do
+    local scratch = os.tmpname()
+    os.remove(scratch)
+    local directory = scratch:match("^(.*/)") or "./"
+    local stem = "luax-export-" .. tostring(os.time() % 100000) .. "-" .. tostring(math.random(1000, 9999))
+    nps.test_documents_directory(directory)
+    local text = "StepCAS derivation export, format 1\nOutcome: partial\n" .. string.rep("x", 1000)
+    local path, why = nps.export_text(stem, text)
+    local read = path and io.open(path, "rb")
+    local written = read and read:read("*a")
+    if read then read:close() end
+    check(path == directory .. stem .. ".txt.tns" and written == text,
+          "export_text writes the text it was given, byte for byte, to a .txt.tns in the documents directory")
+    if path then os.remove(path) end
+
+    for _, name in ipairs({ "", "../escape", "a/b", "Upper", "has space", string.rep("a", 33) }) do
+        local refused, reason = nps.export_text(name, "text")
+        check(refused == nil and type(reason) == "string" and reason:find("export name", 1, true),
+              "export_text refuses the name " .. string.format("%q", name) .. " before touching a file")
+    end
+    check(nps.export_text(string.rep("a", 32), "text") ~= nil, "and accepts a 32 character name")
+    os.remove(directory .. string.rep("a", 32) .. ".txt.tns")
+    local large, large_reason = nps.export_text(stem, string.rep("y", 64 * 1024 + 1))
+    check(large == nil and tostring(large_reason):find("64 KiB", 1, true) ~= nil,
+          "export_text refuses text larger than its limit rather than writing part of it")
+    check(nps.export_text(stem, string.rep("y", 64 * 1024)) ~= nil, "and writes text exactly at it")
+    os.remove(directory .. stem .. ".txt.tns")
+    check(not pcall(nps.export_text, stem) and not pcall(nps.export_text, {}, "text") and
+              not pcall(nps.export_text, "a\0b", "text"),
+          "export_text raises on a missing text, a non-string name or an embedded NUL")
+
+    nps.test_documents_directory("/nonexistent-documents/")
+    local unopened, unopened_reason = nps.export_text(stem, "text")
+    check(unopened == nil and unopened_reason == "could not open the export file",
+          "a documents directory that cannot be written reports the refusal rather than a path")
 end
 
 writeEvidence()

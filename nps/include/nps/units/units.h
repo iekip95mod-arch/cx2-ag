@@ -38,6 +38,9 @@ std::string dimension_text(const Dimension &d);
 // The SI spelling of a dimension: "m/s", "m/s^2", "kg m/s^2", "1" for a pure number.
 std::string si_unit_text(const Dimension &d);
 
+// The quantity a dimension measures, such as force, or null when no quantity here is named for it.
+const char *quantity_name(const Dimension &d);
+
 // A unit as typed, with its dimension and its scale to the SI unit of that dimension.
 struct Unit {
     std::string text;

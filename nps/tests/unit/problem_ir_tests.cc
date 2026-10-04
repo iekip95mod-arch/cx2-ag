@@ -152,6 +152,49 @@ void test_invariants(TestSink &t) {
     }
     {
         wp::ProblemIR ir = cart.ir;
+        ir.quantities.front().provenance.source_id = "other-text";
+        t.equal(fault(ir, source), "provenance mismatch", "provenance citing another source is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.entities.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit entity with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.states.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit state with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.relations.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit relation with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.confirmed_inferred_assumptions.front().provenance.explicit_fact = true;
+        t.equal(fault(ir, source), "missing provenance", "an explicit assumption with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.unused_information.front().original_begin += 1;
+        t.equal(fault(ir, source), "provenance mismatch", "an unused-information span has to match the source");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.quantities.front().coordinate_frame_id = "world";
+        t.equal(fault(ir, source), "missing reference", "an undeclared coordinate frame is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.coordinate_frames.push_back("world");
+        ir.quantities.front().coordinate_frame_id = "world";
+        t.equal(fault(ir, source), "valid", "a quantity may reference a declared coordinate frame");
+        ir.coordinate_frames.push_back("world");
+        t.equal(fault(ir, source), "duplicate id", "coordinate frame ids are unique within the revision");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
         ir.confirmation_record.confirmed = false;
         wp::IrValidation why;
         t.check(fault(ir, source) == "valid" && !wp::commit(ir, source, &why) && why.fault == wp::IrFault::NotConfirmed,
@@ -174,6 +217,10 @@ void test_reading(TestSink &t) {
     const size_t at = bad_revision.find("revision=1");
     bad_revision.replace(at, 10, "revision=x");
     t.equal(status(bad_revision), "malformed", "a revision that is not a number is malformed");
+    std::string bad_span = good;
+    const size_t span_at = bad_span.find("span=");
+    bad_span.insert(span_at + 5, "x");
+    t.equal(status(bad_span), "malformed", "a span that is not begin,end is malformed");
 }
 
 void test_correction(TestSink &t) {

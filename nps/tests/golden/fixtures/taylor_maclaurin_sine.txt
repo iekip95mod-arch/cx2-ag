@@ -1,0 +1,340 @@
+problem: maclaurin(sin(x),x,5)
+result: (x + ((-1 * (6^-1)) * (x^3)) + ((1 * (120^-1)) * (x^5)))
+remainder: (-1 * (720^-1) * (x^6) * sin(c))
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.taylor-polynomial.single-variable
+  envelope version: 1
+  normalized problem: maclaurin(sin(x), x, 5)
+  requested method: maclaurin
+  angle convention: radians
+  branch convention: real domain, principal values
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 transformation
+    phase: calculus
+    goal: Evaluate the function at the center
+    rule: taylor.derivative-value, Evaluate the function at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 0
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in the function
+    before: sin(x)
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 0
+    verified: yes
+  2 plan
+    phase: plan
+    goal: Differentiate sin(x) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: differentiate
+      goal: Differentiate sin(x)
+      rule: d.function, Trigonometric derivative
+      claim: equivalent expression
+      explanation: Use the known derivative of this function
+      detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the derivative of sin
+      before: d(sin(x), x)
+      after: cos(x)
+      reversible: no
+      verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+      verified: yes
+  3 transformation
+    phase: calculus
+    goal: Evaluate derivative 1 at the center
+    rule: taylor.derivative-value, Evaluate derivative 1 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 1
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in derivative 1
+    before: cos(x)
+    after: 1
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 1
+    verified: yes
+  4 plan
+    phase: plan
+    goal: Differentiate cos(x) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    4.1 transformation
+      phase: differentiate
+      goal: Differentiate cos(x)
+      rule: d.function, Trigonometric derivative
+      claim: equivalent expression
+      explanation: Use the known derivative of this function
+      detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the derivative of cos
+      before: d(cos(x), x)
+      after: (-sin(x))
+      reversible: no
+      verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+      verified: yes
+  5 transformation
+    phase: calculus
+    goal: Evaluate derivative 2 at the center
+    rule: taylor.derivative-value, Evaluate derivative 2 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 2
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in derivative 2
+    before: (-1 * sin(x))
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 2
+    verified: yes
+  6 plan
+    phase: plan
+    goal: Differentiate (-1 * sin(x)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    6.1 transformation
+      phase: differentiate
+      goal: Differentiate (-1 * sin(x))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take -1 outside the derivative
+      before: d((-1 * sin(x)), x)
+      after: (-1 * cos(x))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      6.1.1 transformation
+        phase: differentiate
+        goal: Differentiate sin(x)
+        rule: d.function, Trigonometric derivative
+        claim: equivalent expression
+        explanation: Use the known derivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the derivative of sin
+        before: d(sin(x), x)
+        after: cos(x)
+        reversible: no
+        verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+        verified: yes
+  7 transformation
+    phase: calculus
+    goal: Evaluate derivative 3 at the center
+    rule: taylor.derivative-value, Evaluate derivative 3 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 3
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in derivative 3
+    before: (-1 * cos(x))
+    after: -1
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 3
+    verified: yes
+  8 plan
+    phase: plan
+    goal: Differentiate (-1 * cos(x)) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    8.1 transformation
+      phase: differentiate
+      goal: Differentiate (-1 * cos(x))
+      rule: d.constant-multiple, Constant multiple rule
+      claim: equivalent expression
+      explanation: A constant factor stays where it is and the rest is differentiated
+      detail: Reach for this when one factor has no variable in it, as in 3 sin(x) or x squared over 2. Scaling something by a fixed number scales its rate of change by the same number, so the constant can be lifted out of the way and put back afterwards. This is not the product rule: that one is for when both factors change.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Take -1 outside the derivative
+      before: d((-1 * cos(x)), x)
+      after: (-1 * (-sin(x)))
+      reversible: no
+      verification: rule-local invariant, passed, the factor taken out contains no occurrence of the variable
+      verified: yes
+      8.1.1 transformation
+        phase: differentiate
+        goal: Differentiate cos(x)
+        rule: d.function, Trigonometric derivative
+        claim: equivalent expression
+        explanation: Use the known derivative of this function
+        detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+        proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+        action: Apply the derivative of cos
+        before: d(cos(x), x)
+        after: (-sin(x))
+        reversible: no
+        verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+        verified: yes
+  9 transformation
+    phase: calculus
+    goal: Evaluate derivative 4 at the center
+    rule: taylor.derivative-value, Evaluate derivative 4 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 4
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in derivative 4
+    before: sin(x)
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 4
+    verified: yes
+  10 plan
+    phase: plan
+    goal: Differentiate sin(x) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    10.1 transformation
+      phase: differentiate
+      goal: Differentiate sin(x)
+      rule: d.function, Trigonometric derivative
+      claim: equivalent expression
+      explanation: Use the known derivative of this function
+      detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the derivative of sin
+      before: d(sin(x), x)
+      after: cos(x)
+      reversible: no
+      verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+      verified: yes
+  11 transformation
+    phase: calculus
+    goal: Evaluate derivative 5 at the center
+    rule: taylor.derivative-value, Evaluate derivative 5 at the center
+    claim: definition
+    explanation: The value is exact at the center, so it fixes the coefficient of order 5
+    detail: Each Taylor coefficient needs one derivative of the function at the center. Differentiate the previous derivative once more, then substitute the center exactly. An undefined or inexact value stops the polynomial rather than being approximated.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute 0 for x in derivative 5
+    before: cos(x)
+    after: 1
+    reversible: no
+    verification: rule-local invariant, passed, The value is exact at the center, so it fixes the coefficient of order 5
+    verified: yes
+  12 plan
+    phase: plan
+    goal: Differentiate cos(x) with respect to x
+    rule: calculus.differentiate.rules, Differentiate by rule
+    claim: no claim
+    explanation: Work outwards in, applying the rule that matches each form
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Differentiate by rule
+    applicability: every form in the expression has a derivative rule
+    fact: differentiate with respect to x
+    rationale: each rule is applied to the form it matches and the parts are differentiated in turn, so every line of the result can be traced to the rule that produced it
+    verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    12.1 transformation
+      phase: differentiate
+      goal: Differentiate cos(x)
+      rule: d.function, Trigonometric derivative
+      claim: equivalent expression
+      explanation: Use the known derivative of this function
+      detail: Reach for this when a named function is applied to the bare variable, as in sin(x) rather than sin(2x). Each of these functions has a derivative worth learning by heart, and while the argument is the variable itself there is nothing further to account for. The moment the argument becomes anything else, the chain rule is the one that applies instead.
+      proof obligation: obl.calculus.rule-preserves-value, the rewritten subexpression has the value the original had
+      action: Apply the derivative of cos
+      before: d(cos(x), x)
+      after: (-sin(x))
+      reversible: no
+      verification: rule-local invariant, passed, the argument is the variable itself, so no chain rule is needed
+      verified: yes
+  13 transformation
+    phase: calculus
+    goal: Assemble the Taylor polynomial
+    rule: taylor.polynomial, Assemble the Taylor polynomial
+    claim: no claim
+    explanation: The polynomial matches the function and its first 5 derivatives at the center and approximates it nearby
+    detail: The coefficient of the power k of the distance from the center is the k-th derivative at the center divided by k factorial. Adding those terms up to the requested order gives the polynomial that matches the function and its first derivatives at the center.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Divide each derivative value by the factorial of its order and multiply by the matching power of x
+    before: maclaurin(sin(x), x, 5)
+    after: (x + ((-1 * (6^-1)) * (x^3)) + ((1 * (120^-1)) * (x^5)))
+    reversible: no
+    verification: rule-local invariant, passed, The polynomial matches the function and its first 5 derivatives at the center and approximates it nearby
+    verified: nothing claimed
+  14 transformation
+    phase: calculus
+    goal: State the remainder
+    rule: taylor.remainder, State the remainder
+    claim: no claim
+    explanation: Lagrange's theorem gives the error as the next derivative at some point between the center and x
+    detail: Lagrange's form of the remainder says what the polynomial leaves out. The next derivative is evaluated at some point c strictly between the center and x, which the theorem guarantees exists but does not name. It holds wherever the function has that next derivative on the interval between the center and x.
+    domain restriction: c lies strictly between 0 and x
+    domain restriction: the function has derivative 6 at every point between 0 and x
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Evaluate derivative 6 at an unnamed point c and divide by 6 factorial
+    before: (-1 * sin(x))
+    after: (-1 * (720^-1) * (x^6) * sin(c))
+    reversible: no
+    verification: rule-local invariant, passed, Lagrange's theorem gives the error as the next derivative at some point between the center and x
+    verified: nothing claimed
+  15 check
+    phase: check
+    goal: Check the polynomial against the derivatives at the center
+    rule: taylor.check-polynomial, Taylor agreement at the center
+    claim: equivalent expression
+    explanation: Differentiate the assembled polynomial and read each derivative at the center, which has to give back the values the coefficients came from
+    proof obligation: obl.calculus.taylor-agreement, the polynomial and the function have the same derivatives at the center up to the order
+    target claim: the assembled polynomial is the Taylor polynomial of the requested order
+    check method: differentiate the polynomial and evaluate each derivative at the center
+    expected: derivatives 0 through 5 equal the function's at the center
+    observed: (x + ((-1 * (6^-1)) * (x^3)) + ((1 * (120^-1)) * (x^5)))
+    verification: derivatives of the polynomial at the center, passed, every derivative of the polynomial up to the order matches the function's at the center
+    verified: yes
