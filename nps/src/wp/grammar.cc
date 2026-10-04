@@ -783,10 +783,11 @@ PursuitResult interpret_pursuit(const std::string &source_id, const std::string 
             if (meet == words.size())
                 return settle(r, GrammarOutcome::Unsupported, "the question does not ask when or where the bodies meet");
             const size_t meet_end = is_word(norm, words, meet + 1, "up") ? meet + 2 : meet + 1;
+            // As in a statement, the subject is the noun before the verb and any words between are adjectives.
             size_t subject = meet;
             for (size_t i = 0; i + 1 < meet; ++i) {
                 if (in_list(view(norm, words[i]), kDeterminers, std::size(kDeterminers)))
-                    subject = i + 1;
+                    subject = meet - 1;
             }
             size_t object = meet_end;
             if (is_word(norm, words, object, "with"))

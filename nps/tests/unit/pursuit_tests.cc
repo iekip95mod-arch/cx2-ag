@@ -200,6 +200,19 @@ void test_gates(TestSink &t) {
                                  "When does the bus catch up with the bicycle?";
     t.check(wp::interpret_pursuit("src", wrong_question).outcome == wp::GrammarOutcome::Unsupported,
             "a question naming different bodies is refused");
+    const std::string stated = "A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. ";
+    const wp::PursuitResult new_subject = wp::interpret_pursuit("src", stated + "When does the bus catch up with the car?");
+    t.check(new_subject.outcome == wp::GrammarOutcome::Unsupported &&
+                new_subject.detail == "the question names a body that was not introduced",
+            "a question whose subject alone was not introduced is refused: " + new_subject.detail);
+    const wp::PursuitResult new_object = wp::interpret_pursuit("src", stated + "When does the truck catch up with the bus?");
+    t.check(new_object.outcome == wp::GrammarOutcome::Unsupported &&
+                new_object.detail == "the question names a body that was not introduced",
+            "and so is one whose object alone was not introduced: " + new_object.detail);
+    const wp::PursuitResult described =
+        wp::interpret_pursuit("src", stated + "When does the faster truck catch up with the car?");
+    t.check(described.outcome == wp::GrammarOutcome::Interpreted,
+            "an adjective before the question's subject is read as it is in a statement: " + described.detail);
     const char *location_question =
         "A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. "
         "When does the truck meet the car at the same point?";
