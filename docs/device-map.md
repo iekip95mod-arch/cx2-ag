@@ -322,8 +322,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1349 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 740 and `nps_nspire_module` at line 946,
+`source`: nps/CMakeLists.txt:1356 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 742 and `nps_nspire_module` at line 948,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines
