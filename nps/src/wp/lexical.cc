@@ -335,7 +335,7 @@ class Reader {
                 if (numeral(power))
                     scientific_end = power + 1;
                 else if (times_ten)
-                    scientific_end = std::min(power, tokens_.size());
+                    scientific_end = power;
             }
             if (scientific_end != 0) {
                 refuse(LexFault::ScientificNotation, "scientific notation is not read yet", k, scientific_end);

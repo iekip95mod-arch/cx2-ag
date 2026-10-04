@@ -147,6 +147,12 @@ void test_refusals(TestSink &t) {
             "and so is a signed compact exponent");
     t.check(read("Light goes 3 x 10^-8 m/s.").quantities.empty() && read("Light goes 3e-8 m/s.").quantities.empty(),
             "leaving no stray quantity behind for the exponent");
+    t.equal(refusal("Light goes 3 x 10^ m/s."), "scientific notation 3 x 10^ unsupported",
+            "a written times-ten with no exponent is refused up to its caret");
+    t.equal(refusal("Light goes 3 x 10^"), "scientific notation 3 x 10^ unsupported",
+            "and when the text ends at the caret");
+    t.check(read("Light goes 3 x 10^ m/s.").quantities.empty() && read("Light goes 3 x 10^").quantities.empty(),
+            "leaving no stray quantity behind for a missing exponent");
     t.equal(refusal("The rod is 3/0 m long."), "unreadable number 3/0 m unsupported",
             "a fraction over zero is refused as a number, not as a unit");
     t.equal(refusal("The rod is 99999999999999999999999999999999 m long."),
