@@ -156,7 +156,7 @@ const ObligationSchema kFormulaStrategy[] = {
 
 // algebra.quadratic.factoring.one-unknown. The pair is found before the plan, so it is a precondition.
 const EvidenceAlternative kIntegerFactorPair[] = {
-    {"exact integer factor pair", EvidenceStrength::StructurallyValid},
+    {"exact integer factor pair", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kFactoringStrategy[] = {
@@ -170,7 +170,7 @@ const ObligationSchema kFactoringStrategy[] = {
 };
 
 const EvidenceAlternative kFactorEvaluation[] = {
-    {"exact evaluation of the factor", EvidenceStrength::StructurallyValid},
+    {"exact evaluation of the factor", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
 const ObligationSchema kFactorIsZero[] = {
