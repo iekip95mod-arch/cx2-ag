@@ -164,6 +164,17 @@ bool depends_on(const Arena &arena, NodeId id, NodeId variable) {
     return arena.any_node(id, [variable](NodeId current) { return current == variable; });
 }
 
+bool angle_dependent(const Arena &arena, NodeId id, NodeId variable) {
+    static constexpr std::string_view names[] = {"sin",  "cos",  "tan",  "sec",  "csc",  "cot",  "asin",
+                                                 "acos", "atan", "asec", "acsc", "acot", "atan2"};
+    return arena.any_node(id, [&arena, variable](NodeId current) {
+        if (arena.at(current).kind != Kind::Call ||
+            (variable != kNoNode && !depends_on(arena, current, variable))) return false;
+        const std::string &name = arena.text(current);
+        return std::find(std::begin(names), std::end(names), name) != std::end(names);
+    });
+}
+
 bool has_undefined_form(const Arena &arena, NodeId id) {
     return arena.any_node(id, [&arena](NodeId current) {
         const Node &node = arena.at(current);
@@ -262,6 +273,23 @@ NodeId Arena::unary(Kind kind, NodeId a) {
 
 NodeId Arena::binary(Kind kind, NodeId a, NodeId b) {
     return nary(kind, std::vector<NodeId>{a, b});
+}
+
+NodeId Arena::interval(NodeId lower, NodeId upper, bool lower_closed, bool upper_closed) {
+    if (failed())
+        return kNoNode;
+    if (lower >= nodes_.size() || upper >= nodes_.size()) {
+        fail(Status::SyntaxError);
+        return kNoNode;
+    }
+    Node n;
+    n.kind = Kind::Interval;
+    n.text = intern(std::string(1, lower_closed ? '[' : '(') + (upper_closed ? ']' : ')'));
+    n.small = 0;
+    n.small_valid = false;
+    n.depth = std::max(nodes_[lower].depth, nodes_[upper].depth) + 1;
+    n.size = 1;
+    return add_node(n, {lower, upper});
 }
 
 NodeId Arena::call(const std::string &name, const std::vector<NodeId> &args) {
