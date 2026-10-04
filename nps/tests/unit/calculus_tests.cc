@@ -84,6 +84,7 @@ void run_calculus_tests(TestSink &t) {
              std::pair{"defint_zero_width", "int(x,x,2,2)"},
              std::pair{"defint_reciprocal", "int(1/x,x,1,2)"},
              std::pair{"defint_elementary", "int(sin(2*x),x,0,1)"},
+             std::pair{"defint_substitution", "int(2*x*(x^2+1)^3,x,0,1)"},
              std::pair{"limit_continuous", "limit(x^2,x,2)"},
              std::pair{"limit_root_boundary", "limit(sqrt(x),x,0,1)"},
              std::pair{"limit_removable", "limit((x^2-1)/(x-1),x,1)"},
@@ -352,7 +353,7 @@ void run_calculus_tests(TestSink &t) {
                               "int(1/(2*x+1),x,-1,0)", "int(1/x,x,-1,0)",
                               "int(ln(x),x,0,1)", "int(ln(x),x,-2,-1)", "int(ln(x),x,0,0)",
                               "int(ln(2*x+1),x,-1,1)", "int(ln(x^2),x,1,2)",
-                              "int(sqrt(x),x,-1,1)", "int(x*sin(x),x,0,1)",
+                              "int(sqrt(x),x,-1,1)", "int(exp(x)*sin(x),x,0,1)",
                               "int(sqrt(x),x,-2,-1)", "int(sqrt(1-2*x),x,0,1)",
                               "int(sqrt(x^2+1),x,0,1)", "int(1/sqrt(x),x,0,1)",
                               "limit(1/(x-x),x,0)", "limit(0/(x-x),x,0)",
@@ -377,6 +378,17 @@ void run_calculus_tests(TestSink &t) {
             calc005_singular_interval_refused = explicit_refusal;
         t.check(result.value == kNoNode && result.status != DerivationStatus::SolvedAndVerified,
                 std::string("native calculus does not invent an answer: ") + text);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result =
+            calculus_walkthrough(arena, derivation, parse_command(arena, "int(2x*(x^2+1)^3,x,0,1)", "x"));
+        Rational value;
+        t.check(result.value != kNoNode && evaluate_rational(arena, result.value, {}, &value) &&
+                    rational_equal(value, Rational{15, 4}) &&
+                    result.status == DerivationStatus::SolvedAndVerified,
+                "a definite integral found by substitution evaluates the antiderivative written back in x");
     }
     {
         Arena arena;
@@ -737,6 +749,191 @@ void run_calculus_tests(TestSink &t) {
         check_golden(t, fixture.second ? "tangent_linearization" : "tangent_line",
                      "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" + rendered);
     }
+    // CALC-013's parametric slope, #509, dy/dt over dx/dt only where dx/dt is not zero.
+    {
+        const std::string text = "paramslope(t^2,t^3,t,2)";
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command.kind == CommandKind::ParamSlope,
+                "paramslope parses as the parametric slope command");
+        const CalculusResult result = calculus_walkthrough(arena, derivation, command);
+        t.check(result.outcome == CalculusOutcome::Evaluated &&
+                    result.status == DerivationStatus::SolvedAndVerified && result.value != kNoNode &&
+                    print(arena, result.value) == "3" && result.slope == result.value,
+                "a parametric slope is dy/dt over dx/dt at the parameter value: " + text + ": " +
+                    result.detail);
+        size_t definitions = 0;
+        bool restricted = false;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if ((recorded.rule_id == "param.x-value" || recorded.rule_id == "param.y-value" ||
+                 recorded.rule_id == "param.dx-dt" || recorded.rule_id == "param.dy-dt" ||
+                 recorded.rule_id == "param.slope") && recorded.claim == ClaimType::Definition &&
+                recorded.verified())
+                ++definitions;
+            if (recorded.rule_id == "param.slope")
+                for (const std::string &condition : recorded.domain_restrictions)
+                    restricted = restricted || condition == "dx/dt != 0 at t = 2";
+        }
+        t.check(definitions == 5,
+                "the curve point, both rates and their ratio are recorded as verified definitions");
+        t.check(restricted, "and the ratio records that dx/dt is not zero at the parameter value");
+        t.check(records_verified_rule(derivation, "param.check-slope"),
+                "and the final check multiplies the slope back by dx/dt");
+        t.check(records_verified_rule(derivation, "d.power"),
+                "the component derivatives come from the registered derivative rules");
+        t.equal(derivation.context.problem_family_id, "calculus.parametric-slope.single-parameter",
+                "the derivation names the parametric slope family");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        audit.walk(arena, derivation, false, false, &broken);
+        t.check(broken.empty(), "the parametric slope derivation satisfies the step invariants" +
+                                    (broken.empty() ? std::string() : ": " + broken.front()));
+        check_golden(t, "paramslope_polynomial",
+                     "problem: " + text + "\nresult: " + print(arena, result.value) + "\n" +
+                         render_derivation(arena, derivation));
+    }
+    {
+        // A vertical tangent. Both rates are exact and dx/dt is zero, so there is no dy/dx to give.
+        const std::string text = "paramslope(t^2,t,t,0)";
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                           parse_command(arena, text, "x"));
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                    result.status == DerivationStatus::Unsupported &&
+                    result.detail.find("vertical") != std::string::npos,
+                "a parameter value where dx/dt is zero is refused as a vertical tangent: " +
+                    result.detail);
+        t.check(records_verified_rule(derivation, "param.dx-dt") &&
+                    records_verified_rule(derivation, "param.dy-dt") &&
+                    !records_verified_rule(derivation, "param.slope"),
+                "the refusal keeps the two rates it read and records no ratio");
+        invariants::Pass audit;
+        std::vector<std::string> broken;
+        const bool has_answer = false;
+        audit.walk(arena, derivation, true, true, &broken, &has_answer);
+        t.check(broken.empty(), "and the refusal invariants accept what it kept" +
+                                    (broken.empty() ? std::string() : ": " + broken.front()));
+        check_golden(t, "paramslope_vertical",
+                     "problem: " + text + "\nresult: none\n" + render_derivation(arena, derivation));
+    }
+    {
+        // Both rates zero is 0/0 rather than a vertical tangent, and the refusal says which.
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "paramslope(t^2,t^3,t,0)", "x"));
+        t.check(result.value == kNoNode && result.status == DerivationStatus::Unsupported &&
+                    result.detail.find("0/0") != std::string::npos &&
+                    result.detail.find("vertical") == std::string::npos,
+                "a parameter value where both rates vanish is refused as 0/0, not as vertical: " +
+                    result.detail);
+    }
+    {
+        // Undefined, irrational and overflowing coordinates fail the same exact read, so the refusal claims none of them.
+        bool refused = true;
+        std::string details;
+        for (const char *text : {"paramslope(ln(t),t,t,-1)", "paramslope(t,ln(t),t,-1)",
+                                 "paramslope(cos(t),sin(t),t,1)", "paramslope(t,exp(t),t,1)",
+                                 "paramslope(t,sqrt(t),t,2)", "paramslope(t^30,t,t,10)"}) {
+            Arena arena;
+            Derivation derivation;
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"));
+            refused = refused && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                      result.status == DerivationStatus::Unsupported &&
+                      result.detail.find("cannot place the curve point") != std::string::npos &&
+                      result.detail.find("no point") == std::string::npos &&
+                      !records_verified_rule(derivation, "param.slope");
+            details += std::string(" ") + text + ": " + result.detail;
+        }
+        t.check(refused, "a coordinate with no exact rational value is refused without claiming the curve has no point:" +
+                             details);
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult defined = calculus_walkthrough(arena, derivation,
+                                                            parse_command(arena, "paramslope(ln(t),t,t,1)", "x"));
+        t.check(defined.outcome == CalculusOutcome::Evaluated && print(arena, defined.value) == "1" &&
+                    records_verified_rule(derivation, "param.x-value") &&
+                    records_verified_rule(derivation, "param.y-value"),
+                "and the same coordinate where it is defined reads its point and answers: " + defined.detail);
+    }
+    for (const char *text : {"paramslope(t,t^2,t,sqrt(2))", "paramslope(1/t,t,t,0)",
+                             "paramslope(t,t*tan(t),t,1)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                           parse_command(arena, text, "x"));
+        t.check(result.value == kNoNode && !result.detail.empty() &&
+                    result.status == DerivationStatus::Unsupported,
+                "the parametric slope refuses outside its envelope: " + std::string(text) + ": " +
+                    result.detail);
+    }
+    {
+        // MATH-007. Degree mode refuses trigonometry in either coordinate, and answers a curve without it.
+        bool refused = true;
+        for (const char *text : {"paramslope(sin(t),t,t,0)", "paramslope(t,sin(t),t,0)"}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.angle_mode = AngleMode::Degrees;
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"));
+            refused = refused && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                      result.detail.find("degree mode") != std::string::npos;
+        }
+        t.check(refused, "a parametric slope with trigonometry in either coordinate is refused in degree mode");
+        Arena arena;
+        Derivation derivation;
+        derivation.request.angle_mode = AngleMode::Degrees;
+        const CalculusResult plain = calculus_walkthrough(arena, derivation,
+                                                          parse_command(arena, "paramslope(t^2,t^3,t,2)", "x"));
+        t.check(plain.outcome == CalculusOutcome::Evaluated && print(arena, plain.value) == "3",
+                "and a parametric slope without trigonometry still answers in degree mode");
+    }
+    for (const char *text : {"paramslope(t,t^2,t)", "paramslope(t,t^2,2,1)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.kind == CommandKind::ParamSlope && command.status != CommandStatus::Ready,
+                "a parametric slope without four arguments or with a non-identifier parameter is not "
+                "ready: " + std::string(text));
+    }
+    {
+        // Cancellation and a step budget each stop the family with their own status.
+        const std::string text = "paramslope(t^2,t^3,t,2)";
+        for (const bool cancel : {true, false}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.original_expression = text;
+            Budget budget;
+            size_t polls = 0;
+            if (cancel) {
+                // The third poll lands after the first component, so the stop falls inside the family.
+                budget.poll = [](void *context) { return ++*static_cast<size_t *>(context) > 2; };
+                budget.poll_context = &polls;
+            } else {
+                budget.max_steps = 4;
+            }
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"), budget);
+            t.check(result.value == kNoNode &&
+                        result.outcome == (cancel ? CalculusOutcome::Cancelled
+                                                  : CalculusOutcome::ResourceExceeded) &&
+                        result.status == (cancel ? DerivationStatus::Cancelled
+                                                 : DerivationStatus::ResourceLimitReached),
+                    std::string("a parametric slope stopped by ") +
+                        (cancel ? "cancellation" : "its step budget") + " reports that stop: " +
+                        result.detail);
+            t.check(records_verified_rule(derivation, "d.power") &&
+                        !records_verified_rule(derivation, "param.slope"),
+                    std::string("and keeps the verified work from before the ") +
+                        (cancel ? "cancellation" : "budget ran out") + " with no ratio");
+        }
+    }
     // Neighboring refusals. A point outside the domain, a value that is not exact there, and a form
     // the differentiation engine has no rule for are each refused rather than answered.
     for (const char *text : {"tangent(1/x,x,0)", "linearize(1/x,x,0)", "tangent(sqrt(x),x,2)",
@@ -782,6 +979,27 @@ void run_calculus_tests(TestSink &t) {
         t.check(broken.empty(),
                 where + "and the refusal invariants accept a definition the refusal cannot unmake" +
                     (broken.empty() ? "" : ", got " + broken.front()));
+    }
+    // A point this large overflows the line check, which is this build's limit rather than a wrong line.
+    for (const char *text : {"tangent(x,x,9223372036854775807)", "linearize(x,x,9223372036854775807)",
+                             "tangent(x^2,x,3037000499)"}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, text, "x"));
+        const std::string where = std::string(text) + ": ";
+        size_t unread = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "tangent.check-line" && recorded.verifications.size() == 1 &&
+                recorded.verifications[0].outcome == VerificationOutcome::Inconclusive)
+                ++unread;
+        }
+        t.check(result.value == kNoNode && result.outcome == CalculusOutcome::ResourceExceeded &&
+                    result.status == DerivationStatus::ResourceLimitReached && unread == 1,
+                where + "an unreadable line check is refused as this build's limit: " +
+                    calculus_outcome_name(result.outcome) + ": " + result.detail);
     }
     // The same refused shape built from a successful run's own two definitions. Only the point value
     // declares that it survives a refusal, and the assembled line is what criterion 8 is there for.
@@ -839,6 +1057,343 @@ void run_calculus_tests(TestSink &t) {
                     std::string(text) + " failure " + std::to_string(failure) + ": " + result.detail);
         }
     }
+    // CALC-011. Each fixture's polynomial is read back at two points against the value it must have,
+    // so a wrong coefficient fails here as well as in the recorded check.
+    struct TaylorCase {
+        const char *golden;
+        const char *text;
+        bool approximate;
+        Rational at_one;
+        Rational at_two;
+    };
+    for (const TaylorCase &fixture : {
+             TaylorCase{"taylor_maclaurin_exponential", "maclaurin(exp(x),x,3)", true, {8, 3}, {19, 3}},
+             TaylorCase{"taylor_reciprocal_shifted", "taylor(1/x,x,1,3)", true, {1, 1}, {0, 1}},
+             TaylorCase{"taylor_polynomial_exact", "taylor(x^3,x,1,3)", false, {1, 1}, {8, 1}},
+             TaylorCase{"taylor_maclaurin_sine", "maclaurin(sin(x),x,5)", true, {101, 120}, {14, 15}}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = fixture.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, fixture.text, "x"));
+        t.check(result.outcome == CalculusOutcome::Evaluated && result.value != kNoNode &&
+                result.status == DerivationStatus::SolvedAndVerified,
+                "the Taylor family answers inside its envelope: " + std::string(fixture.text) + ": " + result.detail);
+        Rational one, two;
+        t.check(result.value != kNoNode &&
+                evaluate_rational(arena, result.value, {{"x", Rational{1, 1}}}, &one) &&
+                evaluate_rational(arena, result.value, {{"x", Rational{2, 1}}}, &two) &&
+                one.num == fixture.at_one.num && one.den == fixture.at_one.den &&
+                two.num == fixture.at_two.num && two.den == fixture.at_two.den,
+                "the Taylor polynomial has the coefficients the derivatives give: " + std::string(fixture.text) +
+                " is " + (result.value == kNoNode ? std::string("missing") : print(arena, result.value)));
+        t.check(result.approximate == fixture.approximate && result.remainder != kNoNode,
+                "the Taylor family states its remainder and calls the polynomial exact only when it is zero: " +
+                std::string(fixture.text));
+        size_t values = 0, remainders = 0, restrictions = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "taylor.derivative-value") {
+                ++values;
+                t.check(recorded.claim == ClaimType::Definition,
+                        "a derivative value at the center is a definition rather than an equivalence: " +
+                        std::string(fixture.text));
+            }
+            if (recorded.rule_id == "taylor.remainder") {
+                ++remainders;
+                restrictions = derivation.restrictions_at(static_cast<StepId>(i)).size();
+            }
+        }
+        int64_t order = 0;
+        const Command parsed = parse_command(arena, fixture.text, "x");
+        t.check(folded_integer(arena, parsed.order, &order) && values == static_cast<size_t>(order) + 1 &&
+                remainders == 1 && restrictions == (fixture.approximate ? 2u : 0u),
+                "the Taylor family records one value per order, one remainder and its hypotheses: " +
+                std::string(fixture.text) + " has " + std::to_string(values) + " values and " +
+                std::to_string(restrictions) + " restrictions");
+        const std::string rendered = render_derivation(arena, derivation);
+        t.check(rendered.find("taylor.check-polynomial") != std::string::npos,
+                "the Taylor family records its final derivative check: " + std::string(fixture.text));
+        check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nresult: " +
+                     (result.value == kNoNode ? std::string() : print(arena, result.value)) + "\nremainder: " +
+                     (result.remainder == kNoNode ? std::string() : print(arena, result.remainder)) + "\n" + rendered);
+    }
+    // The unnamed point of the remainder cannot reuse a name the expression already gives a symbol.
+    for (const auto &named : {std::pair{"maclaurin(exp(x),x,2)", "c lies strictly between 0 and x"},
+                              std::pair{"maclaurin(c*x^3,x,2)", "xi lies strictly between 0 and x"},
+                              std::pair{"maclaurin(c*xi*x^3,x,2)", "c1 lies strictly between 0 and x"}}) {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, named.first, "x"));
+        std::string stated;
+        for (size_t i = 0; i < derivation.size(); ++i)
+            if (derivation.at(static_cast<StepId>(i)).rule_id == "taylor.remainder" &&
+                !derivation.restrictions_at(static_cast<StepId>(i)).empty())
+                stated = derivation.restrictions_at(static_cast<StepId>(i))[0];
+        t.check(result.outcome == CalculusOutcome::Evaluated && stated == named.second,
+                "the remainder names an intermediate point the expression does not use: " + std::string(named.first) +
+                ": " + stated);
+    }
+    // The first-order polynomial is the linearization, which is the one place two families share an answer.
+    for (const char *center : {"0", "2", "-1/2"}) {
+        Arena arena;
+        Derivation first, second;
+        const std::string taylor = std::string("taylor(x^3-2*x,x,") + center + ",1)";
+        const std::string line = std::string("linearize(x^3-2*x,x,") + center + ")";
+        const CalculusResult polynomial = calculus_walkthrough(arena, first, parse_command(arena, taylor, "x"));
+        const CalculusResult linear = calculus_walkthrough(arena, second, parse_command(arena, line, "x"));
+        bool same = polynomial.value != kNoNode && linear.value != kNoNode;
+        for (int64_t at = -2; same && at <= 2; ++at) {
+            Rational a, b;
+            same = evaluate_rational(arena, polynomial.value, {{"x", Rational{at, 1}}}, &a) &&
+                   evaluate_rational(arena, linear.value, {{"x", Rational{at, 1}}}, &b) &&
+                   a.num == b.num && a.den == b.den;
+        }
+        t.check(same, "the order one Taylor polynomial is the linearization at the same center: " + taylor);
+    }
+    // Neighboring refusals, each for the reason the learner can act on.
+    struct TaylorRefusal {
+        const char *text;
+        CalculusOutcome outcome;
+        DerivationStatus status;
+    };
+    for (const TaylorRefusal &refusal : {
+             TaylorRefusal{"taylor(sin(x),x,1,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"taylor(1/x,x,0,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(sqrt(x),x,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"taylor(x^2,x,sqrt(2),2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(asin(x),x,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             TaylorRefusal{"maclaurin(exp(x),x,20)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = refusal.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, refusal.text, "x"));
+        t.check(result.value == kNoNode && !result.detail.empty() && result.outcome == refusal.outcome &&
+                result.status == refusal.status,
+                "the Taylor family refuses outside its envelope for the right reason: " + std::string(refusal.text) +
+                ": " + calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult beyond = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(exp(x),x,20)", "x"));
+        t.check(beyond.detail.find("orders up to 19") != std::string::npos && derivation.size() == 0,
+                "an order past the ceiling is refused as this build's limit before any derivative is taken: " +
+                beyond.detail);
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult ceiling = calculus_walkthrough(arena, derivation, parse_command(arena, "maclaurin(exp(x),x,19)", "x"));
+        t.check(ceiling.outcome == CalculusOutcome::Evaluated && ceiling.status == DerivationStatus::SolvedAndVerified,
+                "order 19 of a transcendental is inside the factorial ceiling and the default budget: " + ceiling.detail);
+    }
+    for (const auto &malformed : {std::pair{"taylor(x^2,x,0,-1)", CommandStatus::Invalid},
+                                  std::pair{"taylor(x^2,x,0,1/2)", CommandStatus::Invalid},
+                                  std::pair{"taylor(x^2,x,0)", CommandStatus::Unsupported},
+                                  std::pair{"maclaurin(x^2,x)", CommandStatus::Unsupported},
+                                  std::pair{"maclaurin(x^2,x,0,2)", CommandStatus::Unsupported}}) {
+        Arena arena;
+        const Command command = parse_command(arena, malformed.first, "x");
+        t.check(command.status == malformed.second && !command.detail.empty(),
+                "a malformed Taylor request is refused before any work: " + std::string(malformed.first) + ": " +
+                command.detail);
+    }
+    for (const char *text : {"maclaurin(exp(x),x,3)", "taylor(1/x,x,1,3)"}) {
+        for (unsigned failure = 0; failure < 3; ++failure) {
+            Arena arena;
+            Derivation derivation;
+            Budget budget;
+            if (failure == 0) budget.max_steps = 2;
+            if (failure == 1) budget.max_rewrites = 4;
+            if (failure == 2) budget.poll = [](void *) { return true; };
+            const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "x"), budget);
+            t.check(result.value == kNoNode && result.remainder == kNoNode &&
+                    result.outcome == (failure == 2 ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded) &&
+                    result.status == (failure == 2 ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached),
+                    "the Taylor family stops for cancellation and for its budgets: " + std::string(text) +
+                    " failure " + std::to_string(failure) + ": " + result.detail);
+        }
+    }
+    {
+        // Giac is never asked, because the family's final check is native.
+        Arena arena;
+        Derivation derivation;
+        CalculusBackend backend;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "maclaurin(exp(x),x,2)", "x"), Budget(), &backend);
+        t.check(result.outcome == CalculusOutcome::Evaluated && backend.commands.empty() && !result.backend_attempted,
+                "the Taylor family does not send its question to the backend");
+    }
+    // CALC-011 convergence. Each case names the test that has to decide it, so a series decided by
+    // the wrong test fails here even when the verdict happens to be right.
+    struct SeriesCase {
+        const char *golden;
+        const char *text;
+        SeriesVerdict verdict;
+        const char *test;
+        bool has_sum;
+        Rational sum;
+    };
+    for (const SeriesCase &fixture : {
+             SeriesCase{"series_geometric_sum", "convergence((1/2)^n,n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {2, 1}},
+             SeriesCase{"series_ratio_test", "convergence(n/2^n,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", false, {}},
+             SeriesCase{"series_ratio_diverges", "convergence(3^n/n^2,n,1)", SeriesVerdict::Diverges, "series.ratio-test", false, {}},
+             SeriesCase{"series_p_comparison", "convergence(1/n^2,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"series_harmonic_diverges", "convergence(1/n,n,1)", SeriesVerdict::Diverges, "series.p-comparison", false, {}},
+             SeriesCase{"series_alternating_conditional", "convergence((-1)^n/n,n,1)", SeriesVerdict::ConvergesConditionally, "series.alternating-test", false, {}},
+             SeriesCase{"series_divergence_test", "convergence(n/(n+1),n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"series_zero_terms", "convergence(0,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.zero-terms", true, {0, 1}},
+             SeriesCase{"", "convergence((-1)^n/n^2,n,1)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"", "convergence(3*(-2/3)^(n+1),n,1)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {4, 5}},
+             SeriesCase{"", "convergence(1/(n^2-4),n,3)", SeriesVerdict::ConvergesAbsolutely, "series.p-comparison", false, {}},
+             SeriesCase{"", "convergence(-(n^2+1)/(2*n^2),n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"", "convergence((-1)^n*n^3,n,1)", SeriesVerdict::Diverges, "series.divergence-test", false, {}},
+             SeriesCase{"", "convergence((-1)^n*n/(n^2+1),n,1)", SeriesVerdict::ConvergesConditionally, "series.alternating-test", false, {}},
+             SeriesCase{"", "convergence(5*(1/2)^n/3,n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {10, 3}},
+             SeriesCase{"", "convergence(2*(-(1/2)^n),n,0)", SeriesVerdict::ConvergesAbsolutely, "series.ratio-test", true, {-4, 1}}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = fixture.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, fixture.text, "n"));
+        const std::string sum = result.value == kNoNode ? std::string() : print(arena, result.value);
+        Rational observed;
+        const bool sum_matches = !fixture.has_sum
+            ? result.value == kNoNode
+            : result.value != kNoNode && evaluate_rational(arena, result.value, {}, &observed) &&
+                  observed.num == fixture.sum.num && observed.den == fixture.sum.den;
+        t.check(result.outcome == CalculusOutcome::Evaluated && result.status == DerivationStatus::SolvedAndVerified &&
+                result.verdict == fixture.verdict && result.test == fixture.test && sum_matches,
+                "the convergence family decides " + std::string(fixture.text) + " by " + fixture.test + ": " +
+                series_verdict_name(result.verdict) + " by " + result.test + " sum " + sum + ": " + result.detail);
+        const std::string rendered = render_derivation(arena, derivation);
+        t.check(rendered.find("series.terms-defined") != std::string::npos &&
+                rendered.find("series.check-form") != std::string::npos &&
+                rendered.find("series.terms-defined") < rendered.find(fixture.test),
+                "the convergence family checks the terms exist before its test and records its final check: " +
+                std::string(fixture.text));
+        size_t sampled = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id != "series.check-form") continue;
+            for (const VerificationRecord &evidence : recorded.verifications)
+                if (evidence.outcome == VerificationOutcome::Passed &&
+                    evidence.strength == EvidenceStrength::NumericallyCorroborated)
+                    ++sampled;
+        }
+        t.check(sampled == 1, "the term check at a few indices is recorded as sample agreement rather than proof: " +
+                std::string(fixture.text));
+        if (*fixture.golden)
+            check_golden(t, fixture.golden, "problem: " + std::string(fixture.text) + "\nverdict: " +
+                         series_verdict_name(result.verdict) + "\ntest: " + result.test + "\nsum: " +
+                         (sum.empty() ? std::string("none") : sum) + "\n" + rendered);
+    }
+    struct SeriesRefusal {
+        const char *text;
+        CalculusOutcome outcome;
+        DerivationStatus status;
+    };
+    for (const SeriesRefusal &refusal : {
+             SeriesRefusal{"convergence(1/ln(n),n,2)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(sin(n)/n^2,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(1/n^n,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(0^n,n,1)", CalculusOutcome::UnsupportedForm, DerivationStatus::Unsupported},
+             SeriesRefusal{"convergence(1/(n-3),n,1)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/(n^2-100),n,1)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence((n-2)/(n-2),n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/n,n,0)", CalculusOutcome::InvalidInput, DerivationStatus::InvalidInput},
+             SeriesRefusal{"convergence(1/(n-5000),n,1)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence((1/2)^n,n,70)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence(2^n/n,n,62)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached},
+             SeriesRefusal{"convergence(1/n^2,n,3037000500)", CalculusOutcome::ResourceExceeded, DerivationStatus::ResourceLimitReached}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = refusal.text;
+        const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, refusal.text, "n"));
+        t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None && result.test.empty() &&
+                !result.detail.empty() && result.outcome == refusal.outcome && result.status == refusal.status,
+                "the convergence family refuses for the right reason: " + std::string(refusal.text) + ": " +
+                calculus_outcome_name(result.outcome) + ": " + result.detail);
+    }
+    // An overflowing term leaves the check unread, and the smaller start is the control that it reads.
+    for (const auto &sampled : {std::pair{"convergence(2^n/n,n,62)", VerificationOutcome::Inconclusive},
+                                std::pair{"convergence(2^n/n,n,30)", VerificationOutcome::Passed}}) {
+        Arena arena;
+        Derivation derivation;
+        derivation.request.original_expression = sampled.first;
+        calculus_walkthrough(arena, derivation, parse_command(arena, sampled.first, "n"));
+        size_t matching = 0;
+        for (size_t i = 0; i < derivation.size(); ++i) {
+            const Step &recorded = derivation.at(static_cast<StepId>(i));
+            if (recorded.rule_id == "series.check-form" && recorded.verifications.size() == 1 &&
+                recorded.verifications[0].outcome == sampled.second)
+                ++matching;
+        }
+        t.check(matching == 1, "the term check records what it could read: " + std::string(sampled.first));
+    }
+    {
+        // The first index decides which terms exist, so the same term is fine from a later start.
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult later = calculus_walkthrough(arena, derivation, parse_command(arena, "convergence(1/(n-3),n,4)", "n"));
+        t.check(later.verdict == SeriesVerdict::Diverges && later.status == DerivationStatus::SolvedAndVerified,
+                "a term undefined before the first index does not stop the series: " + later.detail);
+    }
+    for (const auto &malformed : {std::pair{"convergence(1/n,n,1/2)", CommandStatus::Invalid},
+                                  std::pair{"convergence(1/n,n)", CommandStatus::Unsupported},
+                                  std::pair{"convergence(1/n,n,1,2)", CommandStatus::Unsupported}}) {
+        Arena arena;
+        const Command command = parse_command(arena, malformed.first, "n");
+        t.check(command.status == malformed.second && !command.detail.empty(),
+                "a malformed convergence request is refused before any work: " + std::string(malformed.first) + ": " +
+                command.detail);
+    }
+    for (const char *text : {"convergence((1/2)^n,n,0)", "convergence((-1)^n/n,n,1)"}) {
+        for (unsigned failure = 0; failure < 3; ++failure) {
+            Arena arena;
+            Derivation derivation;
+            Budget budget;
+            if (failure == 0) budget.max_steps = 2;
+            if (failure == 1) budget.max_rewrites = 4;
+            if (failure == 2) budget.poll = [](void *) { return true; };
+            const CalculusResult result = calculus_walkthrough(arena, derivation, parse_command(arena, text, "n"), budget);
+            t.check(result.value == kNoNode && result.verdict == SeriesVerdict::None &&
+                    result.outcome == (failure == 2 ? CalculusOutcome::Cancelled : CalculusOutcome::ResourceExceeded) &&
+                    result.status == (failure == 2 ? DerivationStatus::Cancelled : DerivationStatus::ResourceLimitReached),
+                    "the convergence family stops for cancellation and for its budgets: " + std::string(text) +
+                    " failure " + std::to_string(failure) + ": " + result.detail);
+        }
+    }
+    {
+        // CALC-011 asks for both halves, so its evidence joins a verified polynomial with every test.
+        Arena arena;
+        Derivation polynomial_record;
+        const CalculusResult polynomial = calculus_walkthrough(arena, polynomial_record,
+            parse_command(arena, "maclaurin(exp(x),x,3)", "x"));
+        Rational at_one;
+        bool decided = polynomial.status == DerivationStatus::SolvedAndVerified && polynomial.remainder != kNoNode &&
+                       evaluate_rational(arena, polynomial.value, {{"x", Rational{1, 1}}}, &at_one) &&
+                       at_one.num == 8 && at_one.den == 3;
+        for (const auto &series : {std::pair{"convergence(n/2^n,n,1)", "series.ratio-test"},
+                                   std::pair{"convergence(n/(n+1),n,1)", "series.divergence-test"},
+                                   std::pair{"convergence(1/n^2,n,1)", "series.p-comparison"},
+                                   std::pair{"convergence((-1)^n/n,n,1)", "series.alternating-test"}}) {
+            Derivation record;
+            const CalculusResult result = calculus_walkthrough(arena, record, parse_command(arena, series.first, "n"));
+            decided = decided && result.status == DerivationStatus::SolvedAndVerified && result.test == series.second;
+        }
+        t.evidence("CALC-011", decided,
+                   "a verified Taylor polynomial with its remainder, and the ratio, divergence, "
+                   "p-comparison and alternating tests each deciding a series after checking its hypotheses");
+    }
+    {
+        Arena arena;
+        Derivation derivation;
+        CalculusBackend backend;
+        const CalculusResult result = calculus_walkthrough(arena, derivation,
+            parse_command(arena, "convergence(1/n^2,n,1)", "n"), Budget(), &backend);
+        t.check(result.verdict == SeriesVerdict::ConvergesAbsolutely && backend.commands.empty() && !result.backend_attempted,
+                "the convergence family does not send its question to the backend");
+    }
 
     t.evidence("CALC-005",
                calc005_walkthrough && calc005_equal_bounds && calc005_reversed_bounds &&
@@ -872,5 +1427,7 @@ void run_calculus_tests(TestSink &t) {
     t.check(!has_any_evidence("CALC-008") && !has_any_evidence("CALC-009"),
             "unimplemented calculus requirements remain unevidenced");
 }
+
+
 
 }

@@ -63,6 +63,17 @@ local requiredSolvers = {
 	{ "catch_up", "physics.kinematics.catch-up.equal-position" },
 	{ "forces", "physics.forces.newton-second-law" },
 	{ "optics", "physics.optics.thin-lens.image" },
+	{ "gravitation", "physics.gravitation.point-masses" },
+	{ "oscillation", "physics.oscillation.restoring-force" },
+	{ "wave", "physics.wave.speed-frequency-wavelength" },
+	{ "modern", "physics.modern.photon-wavelength" },
+	{ "modern", "physics.modern.photoelectric" },
+	{ "modern", "physics.modern.mass-energy" },
+	{ "relativity", "physics.relativity.time-dilation" },
+	{ "relativity", "physics.relativity.length-contraction" },
+	{ "relativity", "physics.relativity.lorentz-transformation" },
+	{ "relativity", "physics.relativity.velocity-addition" },
+	{ "relativity", "physics.relativity.energy-momentum" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.projectile.two-dimension" },
 	{ "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
 }
@@ -2309,10 +2320,16 @@ menu = {
          { "Tangent line at a point", function() template("tangent(,x,0)", 5) end },
          { "Linearization at a point", function() template("linearize(,x,0)", 5) end },
          { "Implicit derivative dy/dx", function() template("implicit(,x,y)", 5) end },
+         { "Taylor polynomial at a point", function() template("taylor(,x,0,3)", 7) end },
+         { "Maclaurin polynomial", function() template("maclaurin(,x,3)", 5) end },
+         { "Series convergence test", function() template("convergence(,n,1)", 5) end },
+         { "Parametric slope at a parameter value", function() template("paramslope(,,t,0)", 6) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
         { "Hint walkthrough (Tab next)", function() stepsSetProgression("hint") end },
+        { "Check my next step  !a", function() menustring("!a ") end },
+        { "Export steps  !x", function() menustring("!x ") end },
         { "Angles in radians (RAD)", function() stepsSetAngle("radians") end },
         { "Angles in degrees (DEG)", function() stepsSetAngle("degrees") end },
        },
@@ -2324,6 +2341,7 @@ menu = {
        	 { "Open Shell  *",	function() menustring( "*" ) end },
        	 { "Open Script Editor",	function() menustring( "+\"\"" ) end },
 		 { "Read Full Text", function() readFullText() end },
+		 { "Read Definitions", function() readDefinitions() end },
        	 "-",
        	 { "Save Variables  write(\"a.tns\",0",	function() menustring( "write(\"a.tns\",0" ) end },
        	 { "Read Variables  eval(read(\"a.tns\"))",	function() menustring( "eval(read(\"a.tns\"))" ) end },
@@ -2418,6 +2436,10 @@ menu = {
        	 { "Tangent line  tangent(expr,var,point)",	function() menustring( "tangent(" ) end },
        	 { "Linearization  linearize(expr,var,point)",	function() menustring( "linearize(" ) end },
        	 { "Implicit Derivative  implicit(eq,x,y)",	function() menustring( "implicit(" ) end },
+       	 { "Taylor Polynomial  taylor(expr,var,a,n)",	function() menustring( "taylor(" ) end },
+       	 { "Maclaurin Polynomial  maclaurin(expr,var,n)",	function() menustring( "maclaurin(" ) end },
+       	 { "Convergence  convergence(term,var,start)",	function() menustring( "convergence(" ) end },
+       	 { "Parametric slope  paramslope(x,y,t,t0)",	function() menustring( "paramslope(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -2794,6 +2816,46 @@ PHYSICS_FIXTURES = {
 		end,
 	},
 	{
+		label = "Find where a curved mirror puts the image",
+		problem = "A candle stands 30 centimetres from a mirror curved like a bowl that focuses " ..
+		          "at 10 centimetres. Where does its picture form, and which way up?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("spherical mirror", "image distance", "focal length", "10 cm",
+			                         "object distance", "30 cm")
+		end,
+	},
+	{
+		label = "See why light can get trapped inside glass",
+		problem = "Glass that bends light twice as much as air, and a ray meeting its surface at " ..
+		          "a steep slant. Past a certain slant the light cannot get out at all.",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("refraction", "transmitted sine", "incident index", "2",
+			                         "incident sine", "0.8", "transmitted index", "1")
+		end,
+	},
+	{
+		label = "Find where bright bands form behind two slits",
+		problem = "Microwaves 3 centimetres long pass two slits 6 centimetres apart. At what " ..
+		          "slant is the first bright band beside the middle one?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("two-slit interference", "fringe sine", "slit spacing", "6 cm",
+			                         "fringe order", "1", "wavelength", "3 cm")
+		end,
+	},
+	{
+		label = "Find where the first dark band falls behind a gap",
+		problem = "The same 3 centimetre microwaves pass one gap 6 centimetres wide. At what " ..
+		          "slant does the first dark band fall?",
+		mode = "optics",
+		run = function()
+			return nps_nspire.optics("single-slit diffraction", "fringe sine", "slit spacing", "6 cm",
+			                         "fringe order", "1", "wavelength", "3 cm")
+		end,
+	},
+	{
 		label = "Find where a thrown ball lands",
 		problem = "A ball is thrown sideways off a ledge while gravity pulls it down. Find how " ..
 		          "far sideways it travels and how fast it is moving when it lands.",
@@ -2827,6 +2889,114 @@ PHYSICS_FIXTURES = {
 			})
 		end,
 	},
+	{
+		label = "Find how hard two masses pull together",
+		problem = "Everything with mass pulls on everything else. Two bags of 2 and 3 kilograms " ..
+		          "a metre apart do too, but so weakly that nobody ever feels it.",
+		mode = "gravitation",
+		run = function()
+			return nps_nspire.gravitation("gravitational force", "first mass", "2.0 kg",
+			                              "second mass", "3.0 kg", "separation", "1.0 m")
+		end,
+	},
+	{
+		label = "Find how hard a stretched spring pulls back",
+		problem = "A spring needs 200 newtons for every metre it is stretched. Pull it 5 " ..
+		          "centimetres and it pulls back. How hard?",
+		mode = "oscillation",
+		run = function()
+			return nps_nspire.oscillation("restoring force", "stiffness", "200 N/m",
+			                              "displacement", "5 cm")
+		end,
+	},
+	{
+		label = "Find how far apart the crests of a sound are",
+		problem = "A note shakes the air 170 times a second and the sound moves at 340 metres " ..
+		          "per second. How far apart are its crests?",
+		mode = "wave",
+		run = function()
+			return nps_nspire.wave("wavelength", "wave speed", "340 m/s", "frequency", "170 s^-1")
+		end,
+	},
+	{
+		label = "Find the energy carried by red light",
+		problem = "Light comes in small packets. Red light has a wavelength of 620 billionths of " ..
+		          "a metre. How much energy does one packet of it carry?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Planck photon relation", "photon energy", "wavelength", "620 nm")
+		end,
+	},
+	{
+		label = "Find the energy of an electron freed by light",
+		problem = "A 5.0 eV packet of light hits a metal that needs 2.3 eV to free an electron. " ..
+		          "What is left over as the electron's energy of motion?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Einstein photoelectric equation", "maximum kinetic energy",
+			                         "photon energy", "5.0 eV", "work function", "2.3 eV")
+		end,
+	},
+	{
+		label = "Find the energy that holds a helium core together",
+		problem = "A helium core weighs 0.0304 mass units less than its parts. That missing mass " ..
+		          "became energy. How much?",
+		mode = "modern",
+		run = function()
+			return nps_nspire.modern("Mass-energy equivalence", "rest energy", "mass defect", "0.0304 u")
+		end,
+	},
+	{
+		label = "Find how slow a fast ship's clock looks",
+		problem = "A ship passes a station at 0.600 of light speed. The ship's clock ticks 4.00 " ..
+		          "seconds. How long does the station say that took?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Time dilation", "station", "ship", "0.600 c",
+			                             "proper time", "4.00 s")
+		end,
+	},
+	{
+		label = "Find how short a fast ship looks",
+		problem = "The same ship is 100 metres long on board. Racing past at 0.600 of light speed, " ..
+		          "how long does the station measure it?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Length contraction", "station", "ship", "0.600 c",
+			                             "proper length", "100 m")
+		end,
+	},
+	{
+		label = "See light keep its speed for a passing ship",
+		problem = "The ship passes the station at 0.600 of light speed as the station flashes a " ..
+		          "light ahead. After 1.00 s the flash is 299792458 m out. Where and when is that " ..
+		          "for the ship?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Lorentz transformation", "station", "ship", "0.600 c",
+			                             "event position", "299792458 m", "event time", "1.00 s")
+		end,
+	},
+	{
+		label = "See why speeds near light do not simply add",
+		problem = "A ship at half light speed fires a probe forward at half light speed. Seen from " ..
+		          "the station the probe does not reach light speed.",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Relativistic velocity addition", "station", "ship",
+			                             "0.500 c", "object velocity in the moving frame", "0.500 c")
+		end,
+	},
+	{
+		label = "Find the energy of a fast electron",
+		problem = "An electron, 0.511 MeV when at rest, flies at 0.600 of light speed. Find its " ..
+		          "total energy, its momentum and its energy of motion.",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Relativistic energy and momentum", "lab", "electron",
+			                             "0.600 c", "rest energy", "0.511 MeV")
+		end,
+	},
 }
 
 physicsBrowser = {
@@ -2856,12 +3026,15 @@ function stepRequest(expr)
 		if letter == "v" then return { mode = "variable", text = rest } end
 		if letter == "g" then return { mode = "plain", text = rest } end
 		if letter == "!" then return { mode = "reopen", text = rest } end
+		if letter == "u" then return { mode = "unitdef", text = rest } end
+		if letter == "a" then return { mode = "attempt", text = rest } end
 		if letter == "m" then return { mode = "manifest", text = rest } end
 		if letter == "h" then return { mode = "progression", text = rest } end
 		-- Diagnostic. The typed adapter path only exists in this build and cannot be exercised on
 		-- the host, so this is where its evidence comes from: it runs every allowlisted operation
 		-- through the typed path and the string path and reports where they differ.
 		if letter == "t" then return { mode = "typedcheck", text = rest } end
+		if letter == "x" then return { mode = "export", text = rest } end
 		local m = STEP_MODES[letter]
 		-- An empty solver prefix selects its mode without invoking the solver.
 		if m and rest == "" then return { mode = "setmode", text = m.key } end
@@ -2971,8 +3144,11 @@ local function resultClass(r)
 end
 
 local function resultNote(r)
+	-- A verified conclusion with no answer, such as total internal reflection, is named by its outcome.
+	local state = r.status or r.outcome or "unavailable"
+	if not hasAnswer(r) and r.status == "solved and verified" and r.outcome then state = r.outcome end
 	local note = (r.answer_only and "CAS answer  |  " or "") .. resultClass(r) ..
-	             "  |  " .. (r.status or r.outcome or "unavailable") .. "  |  " .. stepVerdict(r)
+	             "  |  " .. state .. "  |  " .. stepVerdict(r)
 	if not r.solved and r.detail and r.detail ~= "" then note = note .. "  |  " .. r.detail end
 	return note
 end
@@ -3455,6 +3631,10 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Tangent line at a point"] = "Fill the expression and variable. Change 0 to the point the line touches.",
     ["Linearization at a point"] = "The tangent line read as an approximation near the point, not an equality.",
     ["Implicit derivative dy/dx"] = "Fill an equation in x and y. The answer is dydx in both variables, with its conditions.",
+    ["Taylor polynomial at a point"] = "Fill the expression. Change 0 to the center and 3 to the order. Shows the remainder.",
+    ["Maclaurin polynomial"] = "A Taylor polynomial centered at 0. Change 3 to the order. An approximation, not an equality.",
+    ["Series convergence test"] = "Fill the term in n. Change 1 to the first index. Names the test that decides it.",
+    ["Parametric slope at a parameter value"] = "Fill x(t) and y(t). Change 0 to the parameter value where dy/dx is wanted.",
 }
 
 function openTemplatePicker()
@@ -3843,6 +4023,72 @@ local function invalidExpressionContext(r, text)
 	       type(r.normalized_expression) ~= "string" or r.normalized_expression == ""
 end
 
+-- Whole states only, each transformation starting where the previous one ended.
+function attemptRoute(r)
+	local chain, state = {}, nil
+	for i, s in ipairs(r.steps or {}) do
+		if s.kind == "transformation" and type(s.before) == "string" and type(s.after) == "string" then
+			if state == nil then
+				state = s.before
+				chain.start = s.before
+			end
+			if s.before == state then
+				chain[#chain + 1] = { step = i, after = s.after }
+				state = s.after
+			end
+		end
+	end
+	return chain
+end
+
+local ATTEMPT_EQUIVALENCE = {
+	["equivalent"] = "equivalent",
+	["corroborated"] = "agrees at samples, not proved",
+	["not equivalent"] = "NOT EQUIVALENT",
+	["not comparable"] = "cannot be judged here",
+	["cancelled"] = "judging cancelled",
+	["resource exceeded"] = "too large to judge",
+}
+
+-- STEP-013 and STEP-014, against the last state seen, revealing and rechecking nothing for VER-019.
+function attemptFeedback(text)
+	local r = steps.result
+	if not hasSteps or not nps_nspire.judge_attempt then return "no attempt checker in this build" end
+	if type(r) ~= "table" or answerWithoutSteps(r) or canonicalStepCount(r) == 0 then
+		steps.status = "attempt needs a walkthrough to compare against"
+		return steps.status
+	end
+	if text == "" then return "nothing to judge" end
+	local chain = attemptRoute(r)
+	if chain.start == nil then
+		steps.status = "attempt: this walkthrough records no whole states to compare against"
+		return steps.status
+	end
+	local hint = steps.walkthrough == "hint"
+	local limit = exposedStepCount(r)
+	local current, route = chain.start, {}
+	for _, link in ipairs(chain) do
+		if hint and link.step <= limit then current = link.after else route[#route + 1] = link.after end
+	end
+	local verdict, why = nps_nspire.judge_attempt(current, text, route, steps.variable)
+	if type(verdict) ~= "table" then
+		steps.status = "attempt refused: " .. tostring(why)
+		return steps.status
+	end
+	local line = "attempt: " .. (ATTEMPT_EQUIVALENCE[verdict.equivalence] or verdict.equivalence)
+	if verdict.usefulness == "advances" then
+		line = line .. ", useful, reaches state " .. tostring(verdict.reaches) .. " of " .. tostring(#route)
+	elseif verdict.usefulness == "no progress" then
+		line = line .. ", but no progress"
+	elseif verdict.usefulness == "valid not on route" then
+		line = line .. ", valid but not this walkthrough's route"
+	end
+	if verdict.detail and verdict.detail ~= "" then line = line .. " (" .. verdict.detail .. ")" end
+	steps.attempt = { text = text, against = current, verdict = verdict }
+	steps.status = line
+	return line
+end
+
 -- A solve opens the derivation and returns either its answer or a hint-safe history placeholder.
 function runSteps(mode, text)
 	if mode == "variable" then
@@ -3870,10 +4116,26 @@ function runSteps(mode, text)
 		if choice == "off" or choice == "full" then return stepsSetProgression("full") end
 		return "hint mode: use !h on or !h off (currently " .. steps.progression .. ")"
 	end
+	if mode == "unitdef" then
+		steps.status = unitDefinitionText(text)
+		return steps.status
+	end
+	if mode == "attempt" then return attemptFeedback(text) end
 	if mode == "reopen" then
 		if not steps.result then return "no steps yet" end
 		openSteps()
 		return steps.status or "steps"
+	end
+	if mode == "export" then
+		if not steps.result then return "no steps to export yet" end
+		if not hasSteps or type(nps_nspire.export_text) ~= "function" then
+			return "no export in this build"
+		end
+		local ok, path, why = pcall(nps_nspire.export_text, text ~= "" and text or "stepcas-export",
+		                            derivationExportText(steps.result))
+		steps.status = ok and path and "exported to " .. path or
+		               "export refused: " .. tostring(ok and why or conciseFailure(path))
+		return steps.status
 	end
 	if mode == "typedcheck" then
 		if not hasSteps or not nps_nspire.typed_check then return "no typed path in this build" end
@@ -3897,7 +4159,8 @@ function runSteps(mode, text)
 	end
 	if mode == "help" then
 		return "!d !i !s expr, !k find v; v0 = 5 m/s; ..., bare !d !i !s !k sets the mode, " ..
-		       "!g plain Giac, !v name, !h on|off, !! last steps, !m manifest, !t typed check. " ..
+		       "!g plain Giac, !v name, !h on|off, !u unit, !a your next step, !! last steps, " ..
+		       "!x name exports them, !m manifest, !t typed check. " ..
 		       "In a kinematics line v0 is the starting speed, v the final speed, " ..
 		       "a the acceleration, t the time and x the distance travelled."
 	end
@@ -4507,6 +4770,40 @@ local function stepInfo(r, index, detailed)
 	return out
 end
 
+-- UI-011. The viewer's text for every step it would show, so the file withholds what it withholds.
+function derivationExportText(r)
+	local lines = { "StepCAS derivation export, format 1" }
+	local function add(label, value)
+		if value ~= nil and tostring(value) ~= "" then lines[#lines + 1] = label .. tostring(value) end
+	end
+	local shown, total = exposedStepCount(r), canonicalStepCount(r)
+	add("Build: ", stepManifest and stepManifest.id or "no StepCAS build loaded")
+	add("Input: ", r.input)
+	add("Normalized input: ", r.normalized_expression)
+	add("Variable: ", steps.variable)
+	add("Operation: ", stepModeLabel(r.mode))
+	if finalResultVisible(r) then
+		add("Outcome: ", resultNote(r))
+		add("Answer: ", answerText(r))
+		add("Assumes: ", r.assumptions)
+		add("Meaning: ", r.interpretation)
+	else
+		-- The class and status carry no value, so a partial record still reads as partial here.
+		add("Outcome: ", resultClass(r) .. "  |  " .. tostring(r.status or "unavailable"))
+		add("Answer: ", "withheld in hint mode until every step is revealed")
+	end
+	add("Steps: ", string.format("%d of %d shown", shown, total))
+	local normalized = r.normalized_expression and "Normalized input: " .. r.normalized_expression
+	for index = 1, shown do
+		lines[#lines + 1] = ""
+		for _, item in ipairs(stepInfo(r, index, true)) do
+			local text = item.math and item.label .. " " .. item.math or item.text
+			if text ~= normalized then lines[#lines + 1] = text end
+		end
+	end
+	return table.concat(lines, "\n") .. "\n"
+end
+
 local function resultLines()
 	local r = steps.result
 	local out = {}
@@ -4684,6 +4981,59 @@ function readFullText()
 	textReader.active = true
 	textReader.focus = theView and theView:getFocus()
 	updateOverlayEditors()
+end
+
+-- UI-009. Built from the registration and the unit table, never from prose kept beside them.
+function definitionParagraphs(r, index)
+	local paragraphs = {}
+	local s = projectedStep(r, index)
+	if not s then return { "No revealed step is selected." } end
+	paragraphs[#paragraphs + 1] = "Definitions for step " .. tostring(index) .. ": " .. tostring(s.name)
+	if type(s.rule) ~= "string" or s.rule == "" then
+		paragraphs[#paragraphs + 1] = "This step names no rule."
+	elseif not nps_nspire.rule_definition then
+		paragraphs[#paragraphs + 1] = "Rule: " .. s.rule .. ", no definitions in this build"
+	else
+		local rule, why = nps_nspire.rule_definition(s.rule)
+		if type(rule) ~= "table" then
+			paragraphs[#paragraphs + 1] = "Rule: " .. s.rule .. ", no registered definition (" .. tostring(why) .. ")"
+		else
+			paragraphs[#paragraphs + 1] = "Rule: " .. rule.rule
+			paragraphs[#paragraphs + 1] = "Claim: " .. rule.claim
+			for _, obligation in ipairs(rule.obligations) do
+				paragraphs[#paragraphs + 1] = "Obligation: " .. obligation.id .. ", " .. obligation.text
+				for _, evidence in ipairs(obligation.evidence) do
+					paragraphs[#paragraphs + 1] = "Checked by: " .. evidence.method .. ", " .. evidence.strength ..
+					                             (evidence.may_corroborate and ", may only corroborate" or "")
+				end
+			end
+			paragraphs[#paragraphs + 1] = "If unmet: " .. rule.on_failure
+		end
+	end
+	paragraphs[#paragraphs + 1] = "Variable: " .. tostring(steps.variable) .. ", the symbol this walkthrough works in"
+	return paragraphs
+end
+
+function readDefinitions()
+	if templatePicker.active then templatePicker.close() end
+	if textReader.active or not steps.active or not steps.result then return end
+	if not hasSteps or answerWithoutSteps(steps.result) then return end
+	textReader.paragraphs = definitionParagraphs(steps.result, steps.focus)
+	textReader.layout = nil
+	textReader.stepScroll = 0
+	textReader.active = true
+	textReader.focus = theView and theView:getFocus()
+	updateOverlayEditors()
+end
+
+-- A unit spelled as typed, answered from the unit table and the quantity names beside it.
+function unitDefinitionText(text)
+	if not hasSteps or not nps_nspire.unit_definition then return "no unit definitions in this build" end
+	if text == "" then return "name a unit, as in !u m/s^2" end
+	local unit, why = nps_nspire.unit_definition(text)
+	if type(unit) ~= "table" then return "unit refused: " .. tostring(why) end
+	return unit.unit .. ": " .. (unit.quantity or "no named quantity") .. ", dimension " .. unit.dimension ..
+	       ", SI " .. unit.si_unit .. ", scale " .. unit.scale
 end
 
 local function closeTextReader()
@@ -5057,6 +5407,7 @@ on.charIn = guarded(function(ch)
 	if templatePicker.active then return end
 	if textReader.active then return end
 	if (steps.active or physicsBrowser.active) and (ch == "t" or ch == "T") then return readFullText() end
+	if steps.active and (ch == "d" or ch == "D") then return readDefinitions() end
 	if not steps.active and not physicsBrowser.active then return baseOn.charIn(ch) end
 end)
 
