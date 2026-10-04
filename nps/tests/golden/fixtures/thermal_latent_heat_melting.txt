@@ -1,0 +1,139 @@
+problem: 2 kg of ice melting at 0 C; find the heat
+variable: heat
+outcome: solved
+result: 668000 kg m^2/s^2
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.thermal.latent-heat
+  envelope version: <not recorded>
+  normalized problem: (Q = (m * L))
+  requested method: latent heat at the transition temperature, exact SI substitution, linear isolation of the requested quantity
+  active assumption: the substance stays at its transition temperature throughout
+  active assumption: the whole mass changes phase and nothing else absorbs the heat
+  angle convention: <not recorded>
+  branch convention: real domain
+  unit policy: validate dimensions before substitution, convert exactly to SI, and round only the reported answer
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find heat
+    rule: physics.thermal.latent-heat.definition, Heat for a phase change
+    claim: no claim
+    explanation: Use Q = m*L and solve for the requested quantity
+    assumption before: the substance stays at its transition temperature throughout
+    assumption before: the whole mass changes phase and nothing else absorbs the heat
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply the latent heat relation Q = m*L
+    applicability: every quantity in Q = m*L uses compatible dimensions
+    applicability: the relation is linear in heat
+    fact: mass = 2 kg
+    fact: latent heat = 334000 J/kg
+    fact: find heat
+    alternative: general symbolic backend isolation
+    rationale: Q = m*L is linear in the requested unknown after exact SI substitution, so the local exact linear solver is sufficient and deterministic
+    verification: dimensional analysis, passed, L^2 M T^-2 against L^2 M T^-2
+    verification: registered relation-position model, passed, Q occurs at power one in Q = m*L
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the dimensions of Q = m*L
+      rule: physics.thermal.latent-heat.check-dimensions, Dimensional analysis
+      claim: definition
+      explanation: Both sides of Q = m*L must have the same dimension
+      proof obligation: physics.thermal.latent-heat.dimensions-agree, both sides of Q = m*L have the same dimension
+      target claim: Q = m*L is dimensionally consistent
+      check method: raise each factor dimension to its power and multiply
+      expected: equal dimensions
+      observed: L^2 M T^-2 against L^2 M T^-2
+      verification: dimensional analysis, passed, L^2 M T^-2 against L^2 M T^-2
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Substitute the known SI values
+      rule: physics.thermal.latent-heat.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its exact SI value
+      detail: After converting the known quantities to SI, put their values into Q = m*L. Leave the requested quantity as a symbol, then solve the resulting equation for it.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute the known quantities into Q = m*L after exact SI conversion
+      before: (Q = (m * L))
+      after: (Q = (2 * 334000))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, 2 known quantities were substituted
+      verified: yes
+    1.3 check
+      phase: check
+      goal: Check the candidate in Q = m*L
+      rule: physics.thermal.latent-heat.check-candidate, Substitution check
+      claim: implication
+      explanation: Put the candidate back into Q = m*L
+      proof obligation: physics.thermal.latent-heat.candidate-satisfies, the candidate satisfies Q = m*L
+      target claim: Q = 668000 satisfies Q = m*L
+      check method: substitute every exact SI value into the relation
+      expected: both sides of Q = m*L agree
+      observed: both sides are exactly equal
+      verification: exact substitution into the original relation, passed, both sides are exactly equal
+      verified: yes
+  2 plan
+    phase: plan
+    goal: Isolate Q
+    rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+    claim: no claim
+    explanation: Solve by undoing what was done to Q
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Inverse operations on a linear equation
+    applicability: the equation is degree one in Q
+    applicability: every other quantity is a rational constant
+    fact: one unknown, Q
+    rationale: collect the terms, remove the constant and isolate Q using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+    verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+    verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: solve
+      goal: Collect the terms in Q
+      rule: eq.collect-like-terms, Collect like terms
+      claim: solution set preserved
+      explanation: Moving every term to one side keeps both sides equal
+      detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Move every term to the left side
+      before: (Q = (2 * 334000))
+      after: (((1 * Q) + -668000) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+      verified: yes
+    2.2 transformation
+      phase: solve
+      goal: Isolate Q
+      rule: eq.divide-both-sides, Isolate the unknown
+      claim: solution set preserved
+      explanation: Applying the same operation to both sides preserves the solutions
+      detail: Remove the constant term by applying its opposite to both sides. The coefficient of Q is 1, so no division is needed.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Add 668000 to both sides
+      before: (((1 * Q) + -668000) = 0)
+      after: (Q = 668000)
+      reversible: yes
+      verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient 1 was checked to be non-zero
+      verified: yes
+    2.3 check
+      phase: check
+      goal: Check the answer
+      rule: eq.linear.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the answer back into the original equation
+      detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+      proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+      target claim: Q = 668000 satisfies the equation
+      check method: substitute the solution into the equation as it was typed
+      expected: both sides equal
+      observed: both sides are equal
+      verification: substitution, passed, both sides came out equal
+      verified: yes
