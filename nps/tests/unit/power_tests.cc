@@ -137,6 +137,37 @@ void test_laws(TestSink &t) {
         t.equal(r.answer, "(x^2)", "a quotient of powers subtracts the exponents");
         t.check(!r.assumptions.empty(), "and keeps x not zero: " + r.assumptions);
     }
+    for (const char *root : {"sqrt(x)^2", "(x^(1/2))^2", "(x^(1/4))^4"}) {
+        const Run r = run(root);
+        t.check(r.answer == "x" && r.assumptions.find("x") != std::string::npos,
+                std::string("an even root raised back keeps the condition that x is not negative: ") + root +
+                    " gave " + r.answer + " with " + r.assumptions);
+    }
+    // A result defined on a sign of x where the input is not has widened the domain, so it must say so.
+    {
+        std::string why;
+        t.check(compare("x", "sqrt(x)*sqrt(x)", &why) == PowerReading::Different &&
+                    why.find("new form has no value") != std::string::npos,
+                "the sweep below can see a widened domain: " + why);
+    }
+    for (const char *input : {"sqrt(x)^2", "(x^(1/2))^2", "(x^(1/4))^4", "sqrt(x)*sqrt(x)", "x^(1/2)*x^(1/3)",
+                              "sqrt(x^2)", "(x^3)^(1/3)", "(x^2)^(1/2)", "sqrt(x^3)", "(x^(1/2))^3",
+                              "sqrt(2*x)*sqrt(2*x)", "x^(1/2)*x^(-1/2)", "(sqrt(x))^4", "sqrt(4*x^2)"}) {
+        Arena arena;
+        Derivation d;
+        const ParseResult parsed = parse(arena, input);
+        const PowerResult result = simplify_powers(arena, d, parsed.root);
+        if (result.expression == kNoNode) {
+            t.check(false, std::string("the domain sweep input simplifies: ") + input);
+            continue;
+        }
+        std::string why;
+        const bool widened = power_equivalent(arena, result.expression, parsed.root, &why) == PowerReading::Different &&
+                             why.find("new form has no value") != std::string::npos;
+        t.check(!widened || !d.context.active_assumptions.empty(),
+                std::string("a result that widens the domain records the condition that narrows it: ") + input +
+                    " gave " + print(arena, result.expression));
+    }
     t.equal(run("x^2*x^3").answer, "(x^5)", "a product of powers adds the exponents");
     t.equal(run("(x^2)^3").answer, "(x^6)", "a power of a power multiplies them");
     t.equal(run("(x^3)^(1/3)").answer, "x", "an odd root of an odd power needs no condition");
@@ -187,6 +218,18 @@ void test_laws(TestSink &t) {
         t.check(r.rules.empty(), "and nothing is recorded");
     }
     t.equal(outcome(run("(-4)^(1/2)")), "no real value", "nor does the same written as an exponent");
+    for (const char *nowhere : {"0^-1", "1/0", "(1-1)^-1", "0^(-1/2)", "x*0^-1", "(x-x)^-1"}) {
+        const Run r = run(nowhere);
+        t.check(outcome(r) == "no real value" && r.result.expression == kNoNode && r.rules.empty(),
+                std::string("a form with no real value anywhere is refused rather than called already in form: ") +
+                    nowhere + " gave " + outcome(r));
+    }
+    for (const char *somewhere : {"x^-1", "0^2", "(x-1)^-1"}) {
+        const Run r = run(somewhere);
+        t.check(outcome(r) == "already in form" && status(r) == "solved and verified",
+                std::string("and one with a real value somewhere is still in form: ") + somewhere + " gave " +
+                    outcome(r));
+    }
     {
         const Run r = run("x*sqrt(1000000007*1000000009)");
         t.equal(outcome(r), "outside envelope", "a check that cannot be computed exactly is a refusal, not a failure");

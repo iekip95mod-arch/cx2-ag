@@ -464,6 +464,43 @@ bool read_shape(const Arena &arena, NodeId id, Shape *shape, Rational *degree, i
     }
 }
 
+// Points that fix a difference of this degree on one branch, once every power of x is a power of t.
+int64_t points_needed(int64_t L, const Rational &degree) {
+    return 2 * ((degree.num * L + degree.den - 1) / degree.den) + 1;
+}
+
+// The j-th probe point on the branch of this sign, x = sign ((j + 2) / 2)^L.
+void branch_point(int64_t L, int sign, int64_t j, Q *x) {
+    Q t;
+    mpq_set_si(t.get(), j + 2, 2);
+    mpq_canonicalize(t.get());
+    raise(t.get(), L, x->get());
+    if (sign < 0)
+        mpq_neg(x->get(), x->get());
+}
+
+// Whether a form has a real value at zero or at any probe point of either sign.
+Eval real_somewhere(const Arena &arena, NodeId id, const Shape &shape, const Rational &degree) {
+    RadicalSum value;
+    Q x;
+    Eval seen = evaluate(arena, id, x.get(), &value);
+    if (seen == Eval::Known || shape.symbol.empty())
+        return seen;
+    const int64_t L = 2 * shape.lcm;
+    const int64_t points = points_needed(L, degree) + 4;
+    for (int sign : {1, -1}) {
+        for (int64_t j = 0; j < points; ++j) {
+            branch_point(L, sign, j, &x);
+            const Eval e = evaluate(arena, id, x.get(), &value);
+            if (e == Eval::Known)
+                return e;
+            if (e == Eval::CannotCompute)
+                seen = e;
+        }
+    }
+    return seen;
+}
+
 }  // namespace
 
 PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, std::string *why) {
@@ -475,8 +512,7 @@ PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, s
     }
     const int64_t L = 2 * shape.lcm;
     const Rational top = d_before.num * d_after.den > d_after.num * d_before.den ? d_before : d_after;
-    const int64_t bound = (top.num * L + top.den - 1) / top.den;
-    const int64_t needed = 2 * bound + 1;
+    const int64_t needed = points_needed(L, top);
     // Each branch x = t^L and x = -t^L makes both sides Laurent polynomials in t with at most
     // 2 bound + 1 terms, so agreeing at that many points of a branch proves them equal on it.
     bool any = false;
@@ -484,13 +520,9 @@ PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, s
         int64_t agreed = 0;
         bool defined = false;
         for (int64_t j = 0; j < needed + 4 && agreed < needed; ++j) {
-            Q t, x;
+            Q x;
             RadicalSum left, right;
-            mpq_set_si(t.get(), j + 2, 2);
-            mpq_canonicalize(t.get());
-            raise(t.get(), L, x.get());
-            if (sign < 0)
-                mpq_neg(x.get(), x.get());
+            branch_point(L, sign, j, &x);
             if (shape.symbol.empty() && sign < 0)
                 break;
             const Eval old_value = evaluate(arena, before, x.get(), &left);
@@ -615,7 +647,10 @@ NodeId power_of_power(Arena &arena, NodeId id, void *state, std::string *what) {
         return kNoNode;
     NodeId base = inner_base;
     std::vector<Restriction> conditions;
-    if (b.den != 1) {
+    if (b.den == 1) {
+        if (a.den % 2 == 0 && product.den % 2 != 0)
+            conditions.push_back({inner_base, Condition::NonNegative});
+    } else {
         if (a.den == 1 && a.num % 2 == 0) {
             base = arena.call("abs", {inner_base});
         } else if (a.den == 1) {
@@ -941,6 +976,8 @@ PowerResult simplify_powers(Arena &arena, Derivation &derivation, NodeId express
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode, "power walkthroughs require Exact mode");
     if (has_no_real_value(arena, expression))
         return run.finish(PowerOutcome::NoRealValue, kNoNode, "an even root of a negative number has no real value");
+    if (real_somewhere(arena, expression, shape, degree) == Eval::NoRealValue)
+        return run.finish(PowerOutcome::NoRealValue, kNoNode, "the expression has no real value at zero or for either sign of its variable");
 
     if (!run.step())
         return run.stopped();
