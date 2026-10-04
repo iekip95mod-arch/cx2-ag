@@ -1115,7 +1115,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 200, "every palette entry survives the regrouping: " .. entries .. " of 200")
+    check(entries == 201, "every palette entry survives the regrouping: " .. entries .. " of 201")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -1262,6 +1262,7 @@ end
 check(calls.solve == solve_before_manifest and calls.giac == giac_before_manifest,
       "without invoking solve or caseval")
 check(runSteps("help", ""):find("!m manifest", 1, true) ~= nil, "the help names the manifest command")
+check(runSteps("help", ""):find("!u unit", 1, true) ~= nil, "the help names the unit definition command")
 check(runSteps("help", ""):find("v0 is the starting speed", 1, true) ~= nil,
       "and says what the kinematics symbols mean, for a student who does not know them")
 
@@ -4485,7 +4486,7 @@ local function writeEvidence()
     local emitted = after:sub(#before + 1)
     local expected = {
         "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-013",
-        "STEP-014", "STEP-016", "STEP-020", "VER-019", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
+        "STEP-014", "STEP-016", "STEP-020", "VER-019", "UI-003", "UI-009", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
         "UI-018", "PLAT-006", "PLAT-012", "UI-011", "VER-020",
     }
     local complete = after:sub(1, #before) == before
@@ -6535,6 +6536,163 @@ do
     check(calls == 0, "row presentation and hint navigation perform no symbolic computation")
     platform.window.width = saved_width
     env.resizeGC(gc)
+    end)()
+end
+
+-- UI-009 through the real bridge: definitions come from the focused step's registered rule.
+if os.getenv("NPS_COMMAND_MODULE") then
+    (function()
+    local module = copyModule()
+    local open_native = assert(package.loadlib(os.getenv("NPS_COMMAND_MODULE"), "luaopen_nps_split"))
+    local fixture, loaded = nps_split, package.loaded.nps_split
+    nps_split, package.loaded.nps_split = nil, nil
+    local native = open_native()
+    nps_split, package.loaded.nps_split = fixture, loaded
+    local looked_up = {}
+    module.walkthrough = function(...) return native.walkthrough(...) end
+    module.rule_definition = function(id)
+        looked_up[#looked_up + 1] = id
+        return native.rule_definition(id)
+    end
+    module.unit_definition = function(text) return native.unit_definition(text) end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+    end
+    local function joined(list) return table.concat(list, "\n") end
+
+    enter("solve(2*x+5=13,x)")
+    local r = env.steps.result
+    check(env.steps.active and r.solved and #r.steps == 4 and r.steps[4].rule == "eq.linear.check-by-substitution",
+          "control: a real linear walkthrough ends in its substitution check")
+    local check_step = joined(env.definitionParagraphs(r, 4))
+    evidence("UI-009", check_step:find("Rule: eq.linear.check-by-substitution", 1, true) ~= nil and
+             check_step:find("Obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation",
+                             1, true) ~= nil and
+             check_step:find("Checked by: substitution, candidate checked", 1, true) ~= nil and
+             check_step:find("If unmet: withhold the result", 1, true) ~= nil,
+             "the definitions for a step come from its rule's registration")
+    local plan = joined(env.definitionParagraphs(r, 1))
+    check(plan:find("Rule: eq.linear.inverse-operations", 1, true) ~= nil and
+          plan:find("Claim: no claim", 1, true) ~= nil and
+          plan:find("Variable: x, the symbol this walkthrough works in", 1, true) ~= nil,
+          "a plan step's definitions name its strategy and the variable")
+
+    env.steps.focus = 4
+    drawn = {}
+    env.on.charIn("d")
+    for _ = 1, 4 do env.on.paint(gc) end
+    drawn = {}
+    env.on.paint(gc)
+    local shown = table.concat(drawn, "\n")
+    evidence("UI-009", looked_up[#looked_up] == "eq.linear.check-by-substitution" and
+             shown:find("candidate checked", 1, true) ~= nil,
+             "D in the walkthrough opens the focused step's definitions")
+    env.on.escapeKey()
+
+    local reader
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Read Definitions" then reader = item[2] end
+        end
+    end
+    local before = #looked_up
+    env.steps.focus = 2
+    reader()
+    check(#looked_up == before + 1 and looked_up[#looked_up] == "eq.collect-like-terms",
+          "the Actions menu opens the same definitions reader")
+    env.on.escapeKey()
+    env.on.escapeKey()
+
+    env.stepsSetProgression("hint")
+    enter("solve(2*x+5=13,x)")
+    local hidden = joined(env.definitionParagraphs(env.steps.result, 4))
+    check(env.steps.revealed == 1 and hidden == "No revealed step is selected.",
+          "hint mode gives no definitions for a step it has not revealed")
+    check(joined(env.definitionParagraphs(env.steps.result, 1)):find("Rule: eq.linear.inverse-operations", 1, true) ~= nil,
+          "control: hint mode still defines the step it has revealed")
+    env.on.escapeKey()
+    env.stepsSetProgression("full")
+
+    local unregistered = joined(env.definitionParagraphs({ steps = { { name = "made up", rule = "eq.no-such-rule", depth = 0 } } }, 1))
+    check(unregistered:find("Rule: eq.no-such-rule, no registered definition (no rule is registered under that id)", 1, true) ~= nil,
+          "a step whose rule is not registered says so rather than inventing a definition")
+    local ruleless = joined(env.definitionParagraphs({ steps = { { name = "given", depth = 0 } } }, 1))
+    check(ruleless:find("This step names no rule.", 1, true) ~= nil and ruleless:find("Rule: ", 1, true) == nil,
+          "a step that names no rule gets no rule definition")
+    local cross = joined(env.definitionParagraphs({ steps = { { name = "cross check", rule = "calculus.differentiate.giac-cross-check", depth = 0 } } }, 1))
+    check(cross:find("Checked by: Giac Adapter Op::Differentiate compared after canonicalization, " ..
+                     "symbolically equivalent under assumptions, may only corroborate", 1, true) ~= nil,
+          "the definitions say when a check may only corroborate")
+    check(check_step:find("may only corroborate", 1, true) == nil,
+          "an independent check is not called corroborating")
+
+    do
+        enter("solve(2*x+5=13,x)")
+        local real = env.steps.result
+        local function opens()
+            local asked = #looked_up
+            env.readDefinitions()
+            drawn = {}
+            env.on.paint(gc)
+            local shown = table.concat(drawn, "\n")
+            return #looked_up > asked or shown:find("Definitions for step", 1, true) ~= nil or
+                   shown:find("No revealed step is selected.", 1, true) ~= nil
+        end
+        env.steps.focus = 4
+        check(opens(), "control: readDefinitions opens on an active stepped walkthrough")
+        local asked = #looked_up
+        env.steps.focus = 2
+        env.readDefinitions()
+        check(#looked_up == asked, "a second request while the definitions are open does not replace them")
+        env.on.escapeKey()
+
+        env.closeSteps()
+        check(not env.steps.active and env.steps.result == real and not opens(),
+              "definitions do not open over a closed walkthrough")
+        env.openSteps()
+
+        env.hasSteps = false
+        check(not opens(), "definitions do not open in a build without native steps")
+        env.hasSteps = true
+
+        local cas = {}
+        for key, value in pairs(real) do cas[key] = value end
+        cas.answer_only = true
+        env.steps.result = cas
+        env.steps.focus = 4
+        check(opens(), "control: an answer with native steps beside it still opens their definitions")
+        env.on.escapeKey()
+        cas.steps = {}
+        env.steps.focus = 1
+        check(not opens(), "definitions do not open over an answer that has no steps")
+        env.steps.result = real
+        env.closeSteps()
+    end
+
+    enter("solve(2*x+5=13,x)")
+    module.rule_definition = nil
+    local without = joined(env.definitionParagraphs(env.steps.result, 4))
+    check(without:find("Rule: eq.linear.check-by-substitution, no definitions in this build", 1, true) ~= nil,
+          "a build without rule_definition says so and still names the rule")
+    env.on.escapeKey()
+
+    enter("!u N")
+    evidence("UI-009", env.steps.status == "N: force, dimension L M T^-2, SI kg m/s^2, scale 1",
+             "!u names the quantity a unit measures from the unit table")
+    enter("!u parsec")
+    check(env.steps.status == "unit refused: unknown unit parsec", "!u refuses a unit it does not know")
+    enter("!u")
+    check(env.steps.status == "name a unit, as in !u m/s^2", "a bare !u asks for a unit")
+    enter("!u m*s")
+    check(env.steps.status == "m*s: no named quantity, dimension L T, SI m s, scale 1",
+          "!u still defines a unit no quantity is named for")
+    module.unit_definition = nil
+    enter("!u N")
+    check(env.steps.status == "no unit definitions in this build", "a build without unit_definition says so")
     end)()
 end
 

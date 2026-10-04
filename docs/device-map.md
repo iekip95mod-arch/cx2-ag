@@ -116,32 +116,36 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-04, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4716), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4719 to 4721), `modern` and `relativity` (lua_module.cc:4722 and 4723),
-`vector_addition` (lua_module.cc:4724), `vector_cross` (lua_module.cc:4725),
+`optics`, `unit_conversion` (lua_module.cc:4786), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4789 to 4791), `modern` and `relativity` (lua_module.cc:4792 and 4793),
+`vector_addition` (lua_module.cc:4794), `vector_cross` (lua_module.cc:4795),
 `components_to_magnitude_angle`, `magnitude_angle_to_components`, `math_display`, `giac`,
-`export_text` (lua_module.cc:4687), and a set of platform entry points for memory, tracing, integrity
+`export_text` (lua_module.cc:4757), and a set of platform entry points for memory, tracing, integrity
 and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4591, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4659, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3544, which
-reads the variable names against the model's own term names (lua_module.cc:3530). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3612, which
+reads the variable names against the model's own term names (lua_module.cc:3598). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`modern` (lua_module.cc:3662) and `relativity` (lua_module.cc:3754) read their relation and variable
+`modern` (lua_module.cc:3730) and `relativity` (lua_module.cc:3822) read their relation and variable
 names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
 exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
-nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3620 attaches the declared unit
+nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3688 attaches the declared unit
 to a bare number or to the number written with that unit, and leaves any other unit for the engine to
 refuse.
 
-`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:4685 and defined at
-lua_module.cc:1831. It takes the state, the attempt, the later route states and the variable, and
+`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:4753 and defined at
+lua_module.cc:1832. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
+
+`source`: read on 2026-10-04, `rule_definition` and `unit_definition` are registered at
+lua_module.cc:4755-4756 and defined at lua_module.cc:1931 and 1969. The first reads `rule_schema`
+and the second reads the unit table and `quantity_name`, so neither carries prose of its own.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
 
@@ -158,12 +162,12 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4688, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3097-3098 and a `linsolve` command to `system_into` at lua_module.cc:3094-3095. Its
+lua_module.cc:4758, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3165-3166 and a `linsolve` command to `system_into` at lua_module.cc:3162-3163. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:3007-3011, so the shell falls back to Giac at nps_v4.lua:4186. A linsolve never
-does: system_into answers every outcome with a table at lua_module.cc:2587-2635, and l_walkthrough
-answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3060-3073. Outside
+nil at lua_module.cc:3075-3079, so the shell falls back to Giac at nps_v4.lua:4192. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2655-2703, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3128-3141. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
 native refusal and Giac is not consulted.
 
@@ -181,8 +185,8 @@ and `relativity` bindings carry has a fixture, the Lorentz transformation includ
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-10-04. nps/lua/nps_v4.lua:2870 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2881-2888 carries no projectile key at all, which is how the
+`source`: read on 2026-10-04. nps/lua/nps_v4.lua:2871 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2882-2889 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -192,13 +196,18 @@ nps/lua/nps_v4.lua:77-78, so a build missing either one refuses to start rather 
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
-`source`, nps/lua/nps_v4.lua:3028 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4071 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:3030 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:4073 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
-`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2332 is that menu entry, nps/lua/nps_v4.lua:3035
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4123 composes the text with
+`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2332 is that menu entry, nps/lua/nps_v4.lua:3037
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4129 composes the text with
 derivationExportText and calls the binding under pcall.
+
+Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, D at
+nps/lua/nps_v4.lua:5410 and the Actions entry at nps/lua/nps_v4.lua:2344 both open
+definitionParagraphs (nps/lua/nps_v4.lua:4987) for the focused step, and `!u` at
+nps/lua/nps_v4.lua:3029 defines a unit.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -226,8 +235,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3411, measureMath
-sets the expression at :3445, and the history editor sets its expression at :1449.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3413, measureMath
+sets the expression at :3447, and the history editor sets its expression at :1449.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
