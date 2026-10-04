@@ -5436,9 +5436,12 @@ if os.getenv("NPS_COMMAND_MODULE") then
         local before_dispatch, before_evaluation = dispatched, evaluated
         env.on.enterKey()
         local record = env.steps.result
+        local split_rules = {}
+        for _, step in ipairs(record and record.steps or {}) do split_rules[step.rule] = true end
         check(dispatched == before_dispatch + 1 and evaluated == before_evaluation and env.steps.active and
               record and record.mode == "partial fractions" and record.solved and
-              record.status == "solved and verified",
+              record.result == "(((1 * (2^-1)) * ((x + -1)^-1)) + ((-1 * (2^-1)) * ((x + 1)^-1)))" and
+              record.status == "solved and verified" and split_rules["pf.cover-up"] and split_rules["pf.decompose"],
               "the partial fractions menu opens the verified cover-up walkthrough without a CAS fallback")
         if env.steps.active then env.on.escapeKey() end
     end
