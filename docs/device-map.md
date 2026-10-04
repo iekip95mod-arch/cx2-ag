@@ -161,7 +161,7 @@ A command family typed as text needs no `lib[]` entry of its own, because it arr
 lua_module.cc:4688, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
 lua_module.cc:3097-3098 and a `linsolve` command to `system_into` at lua_module.cc:3094-3095. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:3007-3011, so the shell falls back to Giac at nps_v4.lua:4175. A linsolve never
+nil at lua_module.cc:3007-3011, so the shell falls back to Giac at nps_v4.lua:4186. A linsolve never
 does: system_into answers every outcome with a table at lua_module.cc:2587-2635, and l_walkthrough
 answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3060-3073. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
@@ -174,8 +174,8 @@ native refusal and Giac is not consulted.
 `source`: read on 2026-10-04, nps/lua/nps_v4.lua's guided physics browser (`PHYSICS_FIXTURES`) names
 `catch_up`, `density`, `forces`, `gravitation`, `kinematics`, `magnitude_angle_to_components`,
 `modern`, `optics`, `oscillation`, `planar_kinematics`, `relative_motion`, `relativity`,
-`unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. The Lorentz transformation is
-the one relativity relation the bridge carries and no fixture runs.
+`unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. Every relation the `modern`
+and `relativity` bindings carry has a fixture, the Lorentz transformation included.
 
 `planar_kinematics` is now reachable from that menu, as two fixtures rather than one. The binding is a
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
@@ -192,12 +192,12 @@ nps/lua/nps_v4.lua:77-78, so a build missing either one refuses to start rather 
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
-`source`, nps/lua/nps_v4.lua:3017 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4060 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:3028 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:4071 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
-`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2332 is that menu entry, nps/lua/nps_v4.lua:3024
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4112 composes the text with
+`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2332 is that menu entry, nps/lua/nps_v4.lua:3035
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4123 composes the text with
 derivationExportText and calls the binding under pcall.
 
 `position_motion` and `ranking` still have working
@@ -226,8 +226,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3400, measureMath
-sets the expression at :3434, and the history editor sets its expression at :1449.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3411, measureMath
+sets the expression at :3445, and the history editor sets its expression at :1449.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)

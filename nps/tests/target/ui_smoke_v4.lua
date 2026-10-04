@@ -3174,6 +3174,9 @@ do
                                            { lorentz_factor = "1.25" }),
         ["Length contraction"] = relation_reply("contracted length = 80.0 m in station",
                                                 { lorentz_factor = "1.25" }),
+        ["Lorentz transformation"] = relation_reply(
+            "transformed event position = 150000000 m in ship, " ..
+            "transformed event time = 0.500 s in ship", { lorentz_factor = "1.25" }),
         ["Relativistic velocity addition"] =
             relation_reply("object velocity in the rest frame = 0.800 c in station"),
         ["Relativistic energy and momentum"] = relation_reply(
@@ -3192,6 +3195,9 @@ do
                                         "proper time", "4.00 s" } },
         { mode = "relativity", args = { "Length contraction", "station", "ship", "0.600 c",
                                         "proper length", "100 m" } },
+        { mode = "relativity", args = { "Lorentz transformation", "station", "ship", "0.600 c",
+                                        "event position", "299792458 m", "event time", "1.00 s" },
+          wrapped = { "position = 150000000 m", "time = 0.500 s" } },
         { mode = "relativity", args = { "Relativistic velocity addition", "station", "ship",
                                         "0.500 c", "object velocity in the moving frame",
                                         "0.500 c" } },

@@ -1162,7 +1162,7 @@ solution_soundness_status verified, the transformed coordinates are checked agai
 solution_completeness_status partial, one event and one boost along one shared axis with an exact rational Lorentz factor
 corpus_case_ids relativity_lorentz_transformation_event
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, no Ki V4 menu template yet
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.relativity.lorentz-transformation
 release_status unreleased

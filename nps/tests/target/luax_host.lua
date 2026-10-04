@@ -1786,6 +1786,14 @@ do
     check(r.outcome == "invalid input" and #r.steps == 0 and
           r.detail == "unknown modern relation Compton scattering",
           "the modern bridge names a relation it does not carry")
+    r = nps.modern("Planck photon relation", "color", "wavelength", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern variable color",
+          "the modern bridge names an unknown it does not carry")
+    r = nps.modern("Planck photon relation", "photon energy", "color", "620")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown modern variable color",
+          "the modern bridge names a known it does not carry")
 end
 
 -- Relativity names both frames and the boost, and reports every output in the frame it belongs to.
@@ -1818,6 +1826,14 @@ do
           r.outputs[2].variable == "transformed event time" and
           r.outputs[2].exact_value == "749480695/599584916" and r.outputs[2].frame == "ship",
           "the Lorentz transformation reports both coordinates of the event in the moving frame")
+    -- A flash one light-second out after one second is half a light-second out after half a second.
+    r = nps.relativity("Lorentz transformation", "station", "ship", "0.600 c", "event position",
+                       "299792458 m", "event time", "1.00 s")
+    check(r.solved == true and r.lorentz_factor == "1.25" and
+          r.result == "transformed event position = 150000000 m in ship, " ..
+                      "transformed event time = 0.500 s in ship" and
+          r.outputs[1].exact_value == "149896229" and r.outputs[2].exact_value == "0.5",
+          "a light flash keeps light speed in the ship's frame")
     r = nps.relativity("Relativistic velocity addition", "station", "ship", "0.500 c",
                        "object velocity in the moving frame", "0.500 c")
     check(r.solved == true and r.result == "object velocity in the rest frame = 0.800 c in station" and
@@ -1827,7 +1843,9 @@ do
                        "rest energy", "0.511 MeV")
     check(r.solved == true and #r.outputs == 3 and r.outputs[1].value == "0.639" and
           r.outputs[2].value == "0.383" and r.outputs[3].value == "0.128" and
-          r.outputs[3].variable == "relativistic kinetic energy",
+          r.outputs[3].variable == "relativistic kinetic energy" and
+          r.result == "total energy = 0.639 MeV in lab, momentum energy pc = 0.383 MeV in lab, " ..
+                      "relativistic kinetic energy = 0.128 MeV in lab",
           "an electron at 0.6 c reports its total, momentum and kinetic energies")
     r = nps.relativity("Time dilation", "station", "ship", "0.5 c", "proper time", "4 s")
     check(r.outcome == "inexact Lorentz factor" and r.solved == false and r.result == nil and
@@ -1853,6 +1871,10 @@ do
     check(r.outcome == "invalid input" and #r.steps == 0 and
           r.detail == "unknown relativity relation Time travel",
           "the relativity bridge names a relation it does not carry")
+    r = nps.relativity("Time dilation", "station", "ship", "0.6 c", "color", "4 s")
+    check(r.outcome == "invalid input" and #r.steps == 0 and
+          r.detail == "unknown relativity variable color",
+          "the relativity bridge names a known it does not carry")
 end
 
 local exact_precision = { kind = "exact", significant_digits = 0 }

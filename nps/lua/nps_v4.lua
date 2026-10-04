@@ -2966,6 +2966,17 @@ PHYSICS_FIXTURES = {
 		end,
 	},
 	{
+		label = "See light keep its speed for a passing ship",
+		problem = "The ship passes the station at 0.600 of light speed as the station flashes a " ..
+		          "light ahead. After 1.00 s the flash is 299792458 m out. Where and when is that " ..
+		          "for the ship?",
+		mode = "relativity",
+		run = function()
+			return nps_nspire.relativity("Lorentz transformation", "station", "ship", "0.600 c",
+			                             "event position", "299792458 m", "event time", "1.00 s")
+		end,
+	},
+	{
 		label = "See why speeds near light do not simply add",
 		problem = "A ship at half light speed fires a probe forward at half light speed. Seen from " ..
 		          "the station the probe does not reach light speed.",
