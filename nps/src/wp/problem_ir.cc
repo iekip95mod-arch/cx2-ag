@@ -100,7 +100,7 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
         return fail(IrFault::SourceMismatch, "the source content hash does not match the saved text");
 
     std::set<std::string> ids;
-    std::set<std::string> entities, occurrences, quantities, assumptions;
+    std::set<std::string> entities, occurrences, quantities, assumptions, frames;
     const auto claim = [&ids](const std::string &id) { return !id.empty() && ids.insert(id).second; };
     for (const Entity &e : ir.entities) {
         if (!claim(e.id))
@@ -115,6 +115,11 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
                 return fail(IrFault::MissingReference, o.id + " refers to the entity " + o.entity_id + ", which is not defined");
             occurrences.insert(o.id);
         }
+    }
+    for (const std::string &frame : ir.coordinate_frames) {
+        if (!claim(frame))
+            return fail(IrFault::DuplicateId, "the id " + frame + " is used twice or is empty");
+        frames.insert(frame);
     }
     for (const Quantity &q : ir.quantities) {
         if (!claim(q.id))
@@ -147,16 +152,37 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
         }
         return p.source_id == source.source_id;
     };
+    const auto validate_provenance = [&provenance_ok](const Provenance &p, const std::string &id) {
+        bool explicit_without_span = false;
+        if (!provenance_ok(p, &explicit_without_span))
+            return fail(IrFault::ProvenanceMismatch, id + " has provenance that does not match the source text");
+        if (explicit_without_span)
+            return fail(IrFault::MissingProvenance, id + " is stated as explicit but cites no span");
+        return IrValidation();
+    };
+    for (const Entity &e : ir.entities) {
+        const IrValidation provenance = validate_provenance(e.provenance, e.id);
+        if (!provenance.ok())
+            return provenance;
+    }
+    for (const std::vector<Occurrence> *list : {&ir.events, &ir.states}) {
+        for (const Occurrence &o : *list) {
+            const IrValidation provenance = validate_provenance(o.provenance, o.id);
+            if (!provenance.ok())
+                return provenance;
+        }
+    }
     for (const Quantity &q : ir.quantities) {
         if (!q.owner_entity_id.empty() && !entities.count(q.owner_entity_id))
             return fail(IrFault::MissingReference, q.id + " is owned by " + q.owner_entity_id + ", which is not defined");
         if (!q.state_or_event_id.empty() && !occurrences.count(q.state_or_event_id))
             return fail(IrFault::MissingReference, q.id + " belongs to " + q.state_or_event_id + ", which is not defined");
-        bool bare = false;
-        if (!provenance_ok(q.provenance, &bare))
-            return fail(IrFault::ProvenanceMismatch, q.id + " cites a span that does not match the source text");
-        if (bare)
-            return fail(IrFault::MissingProvenance, q.id + " is stated as explicit but cites no span");
+        if (!q.coordinate_frame_id.empty() && !frames.count(q.coordinate_frame_id))
+            return fail(IrFault::MissingReference,
+                        q.id + " uses the coordinate frame " + q.coordinate_frame_id + ", which is not defined");
+        const IrValidation provenance = validate_provenance(q.provenance, q.id);
+        if (!provenance.ok())
+            return provenance;
         const SemanticType *type = semantic_type(q.semantic_type);
         if (!type)
             return fail(IrFault::DimensionMismatch, q.id + " has the unknown semantic type " + q.semantic_type);
@@ -171,6 +197,24 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
                 return fail(IrFault::DimensionMismatch, q.id + " is a " + q.semantic_type + " but its unit " + q.unit +
                                                             " has dimension " + dimension_text(parsed.unit.dimension));
         }
+    }
+    for (const std::vector<Relation> *list : {&ir.relations, &ir.constraints}) {
+        for (const Relation &r : *list) {
+            const IrValidation provenance = validate_provenance(r.provenance, r.id);
+            if (!provenance.ok())
+                return provenance;
+        }
+    }
+    for (const std::vector<Assumption> *list : {&ir.explicit_assumptions, &ir.confirmed_inferred_assumptions}) {
+        for (const Assumption &a : *list) {
+            const IrValidation provenance = validate_provenance(a.provenance, a.id);
+            if (!provenance.ok())
+                return provenance;
+        }
+    }
+    for (const Span &span : ir.unused_information) {
+        if (!span_matches(span, source))
+            return fail(IrFault::ProvenanceMismatch, "unused information has a span that does not match the source text");
     }
 
     for (const std::string &k : ir.knowns) {
