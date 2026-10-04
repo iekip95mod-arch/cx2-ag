@@ -29,8 +29,10 @@ coverage run does not establish that the release meets section 27.
 A field whose answer is nothing opens with the word none and then says why. That is a different
 statement from a line left out, which is the question nobody answered, and the eight fields section
 5.5 calls the family envelope have to carry one or the other for every family. On
-proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so a
-family that raises no obligation says so and the join still fails the day a fixture raises one.
+proof_obligation_ids the reader treats a leading none as the empty list rather than as an id, so
+a family that raises no obligation says so and the join still fails the day a fixture raises one.
+A line whose first word is family is always read as a family header, so prose here never opens a
+line with that word, and a malformed header anywhere in the file refuses the whole read.
 
 The required_assumptions field is prose and an assumption is a sentence, so the join is over the
 engine strings the line puts in double quotes. Each quoted string has to be recorded by a fixture of that family,
@@ -651,16 +653,16 @@ topic_and_level Supported elementary indefinite integrals, PRD section 22.1
 accepted_expression_grammar sums, products, negations, integer powers including the reciprocal, and calls to a named function, over numbers and the one variable, with a typed decimal read as the fraction it names and refused in an exponent
 accepted_input_forms an expression in one variable, within the Milestone 3 envelope
 domains_and_parameter_assumptions the logarithm needs a positive argument, and a symbolic coefficient is assumed non-zero
-supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules
+supported_branches_and_degenerate_cases the reciprocal power, which integrates to a logarithm rather than by the power rule. Affine logarithms use integration by parts. Affine square roots use the half-power rule on their nonnegative real branch. Sums and constant multiples use existing rules. A product whose remaining factor is a constant multiple of the derivative of an inner function, as in 2x cos(x^2), 2x/(x^2+1), 2x/(x^2+1)^2 or sin(x) cos(x), integrates by substitution. A polynomial of degree at most four times exp, sin or cos of a linear argument integrates by parts, repeatedly where the degree needs it
 exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping
 parser_module_ids src/core/parser.cc, src/steps/integrate.cc
 required_assumptions whatever the integrand's own form needs, recorded as it is met rather than remembered, as in "x > 0" for the logarithm a reciprocal integrates to
 test_group_ids integrate
-proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold
-supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand
-unsupported_near_neighbors general integration by parts, nonlinear substitution, general rational exponents, tan, reciprocal square roots, powers of logarithms and logarithms with nonlinear arguments
+proof_obligation_ids obl.integrate.derivative-returns-integrand, obl.calculus.rule-preserves-value, obl.calculus.family-adds-a-constant, obl.plan.preconditions-hold, obl.integrate.substitution-differential
+supported_methods one rule per step, then VER-005's check that differentiating the answer returns the integrand. A substitution records the inner function it names, the integral rewritten in the new variable and the antiderivative written back in the original one. Integration by parts records the factor differentiated and the factor integrated, then integrates what remains
+unsupported_near_neighbors a substitution whose remaining factor is not a constant multiple of the inner derivative, integration by parts beyond a polynomial of degree at most four times exp, sin or cos of a linear argument, as in (x^2+1)^3 exp(x), including a power times a logarithm whose derivative check cannot close without Giac, a substitution into a square root or a logarithm, as in x sqrt(x^2+1) or 2x ln(x^2+1), whose derivative check cannot close without Giac and is withheld on a host without it, general rational exponents, tan, reciprocal square roots including x/sqrt(x^2+1), powers of logarithms and logarithms with nonlinear arguments outside a substitution
 solution_soundness_status the answer is differentiated by rule. Canonical agreement verifies simple identities. Inconclusive canonical comparisons require an exact zero difference from Giac under recorded domain restrictions, otherwise the answer is withheld
-solution_completeness_status partial, one substitution deep and linear arguments only
+solution_completeness_status partial, substitutions whose remaining factor is a constant multiple of the inner derivative and parts against a polynomial of degree at most four
 corpus_case_ids the golden fixtures naming this family
 device_performance_status measured on the physical calculator, see STATUS.md
 direct_keypad_entry_status entered from the calculator keypad, measured
@@ -677,6 +679,9 @@ rule i.constant-of-integration fixture
 rule i.logarithm-parts fixture
 rule i.constant fixture
 rule i.function fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
+rule i.parts fixture
 
 family id calculus.integral.definite.single-variable
 topic_and_level Elementary definite integrals in one real variable
@@ -689,9 +694,9 @@ exact_special_function_and_numerical_result_policy exact rational or symbolic en
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/integrate.cc
 required_assumptions none carried globally. Interval validity and primitive branch restrictions are checked locally
 test_group_ids calculus, command, adapter
-proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.plan.preconditions-hold, obl.calculus.giac-agreement, obl.integrate.substitution-differential
 supported_methods interval continuity checks, a native antiderivative verified by differentiation with Giac exact identity checks when needed, affine logarithm integration by parts, the fundamental theorem of calculus and exact endpoint subtraction
-unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, general integration by parts, logarithm powers and nonlinear substitution
+unsupported_near_neighbors improper integrals, symbolic bounds, unproved interval continuity, the substitutions and parts patterns the indefinite family refuses, and logarithm powers. A substitution is carried out in the indefinite antiderivative and written back in the original variable before the bounds are applied, so the bounds are never transformed
 solution_soundness_status native expected-answer, domain refusal, budget and rule-schema tests pass. Actual Giac bridge comparisons pass under host sanitizers. Physical qualification remains pending
 solution_completeness_status partial, limited by the stated grammar, checked arithmetic and resource budgets. No native result survives failed verification or terminal cancellation
 corpus_case_ids defint_polynomial, defint_zero_width, defint_reciprocal, defint_elementary, defint_logarithm_affine, defint_logarithm_reversed, defint_square_root_endpoint
@@ -715,6 +720,8 @@ rule i.power fixture
 rule i.reciprocal fixture
 rule i.constant-multiple fixture
 rule i.linear-substitution fixture
+rule i.substitution fixture
+rule i.substitution-rewrite fixture
 
 family id calculus.limit.single-variable
 topic_and_level Finite and infinite limits in one real variable
@@ -1003,8 +1010,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the four positions of the two-body law
 corpus_case_ids gravitation_two_point_masses
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.gravitation.point-masses
 release_status unreleased
 rule physics.gravitation.definition fixture
 rule physics.gravitation.check-dimensions fixture
@@ -1032,8 +1040,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the restoring-force relation only
 corpus_case_ids oscillation_restoring_force
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.oscillation.restoring-force
 release_status unreleased
 rule physics.oscillation.definition fixture
 rule physics.oscillation.check-dimensions fixture
@@ -1061,8 +1070,9 @@ solution_soundness_status verified, the dimensions are checked before substituti
 solution_completeness_status partial, the three positions of the traveling-wave relation only
 corpus_case_ids wave_speed_mixed_units
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
-isolated_runtime_status not yet measured on the calculator
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
+isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
+capability_manifest_ids physics.wave.speed-frequency-wavelength
 release_status unreleased
 rule physics.wave.definition fixture
 rule physics.wave.check-dimensions fixture
@@ -1474,6 +1484,82 @@ rule matrix.det-row-add-multiple fixture
 rule matrix.det-diagonal-product fixture
 rule matrix.det-correction fixture
 
+family id algebra.linear-system.elimination
+reference_curriculum_set_ids none, this family answers PRD ALG-013 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-013
+topic_and_level Systems of linear equations solved by Gauss-Jordan elimination on the augmented matrix
+family_envelope_version 1
+accepted_expression_grammar one top-level linsolve call with a list of equations and a list of distinct unknown identifiers. Each side uses integer literals, the listed unknowns, sums, products with at most one factor holding an unknown, negation and integer powers of constants, including reciprocal powers for division
+accepted_input_forms linsolve menu command in Exact mode, for example linsolve([x + y = 3, x - y = 1], [x, y]), with an optional third argument elimination
+domains_and_parameter_assumptions one through four equations in one through five unknowns, so the augmented matrix fits the 4 by 6 envelope the matrix row checker verifies. Every coefficient and every intermediate cell must fit the shared exact Rational representation
+supported_branches_and_degenerate_cases a unique solution, no solution shown by a reduced row reading zero equals one, and infinitely many solutions written with the free unknowns as their own parameters. Equations with no unknown in them are zero rows or contradictions rather than refusals. Dependent and duplicate equations and zero first pivots are handled by row swaps
+exact_special_function_and_numerical_result_policy exact rational solutions only. Decimal mode, decimal literals, symbolic coefficients and functions of the unknowns are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/system.cc
+required_assumptions none, linearity, exact coefficients and the matrix envelope are checked before a plan is recorded
+test_group_ids system, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.system.rows-represent, obl.matrix.row-equivalent, obl.matrix.trace-complete, obl.matrix.rref-form, obl.system.contradiction, obl.system.rows-read, obl.system.candidate-satisfies
+strategy_ids plan.system-elimination
+supported_methods the augmented matrix is checked against an exact evaluation of every equation as typed, then reduced natively by row swaps, nonzero row scaling and addition of a multiple of another row. Each operation is verified by the same exact row checker as the matrix families, and the final matrix is checked to be in reduced row echelon form before the solution is read from it
+unsupported_near_neighbors nonlinear systems, symbolic or decimal coefficients, more than four equations or five unknowns, a repeated unknown, items that are not equations and a method other than elimination or substitution. Solving by substitution is the separate family algebra.linear-system.substitution
+solution_soundness_status a unique solution is substituted into every original equation and must satisfy each exactly. A family is substituted at three choices of its free unknowns, which corroborates rather than proves it. No solution rests on the verified row trace ending in a contradiction row
+solution_completeness_status Gauss-Jordan elimination over every column reaches reduced row echelon form, so the solution set read from it is the whole solution set of the system. Cancellation and Meter limits retain the verified prefix without a final result. Arena failure discards unusable records
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch implemented, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.linear-system.elimination
+release_status in development, unreleased
+rule plan.system-elimination fixture
+rule system.augmented-matrix fixture
+rule matrix.row-swap fixture
+rule matrix.row-scale fixture
+rule matrix.row-add-multiple fixture
+rule matrix.rref-conclusion fixture
+rule system.inconsistent-row fixture
+rule system.read-solution fixture
+rule system.check-by-substitution fixture
+rule system.check-family-by-sampling fixture
+
+family id algebra.linear-system.substitution
+reference_curriculum_set_ids none, this family answers PRD ALG-013 beyond the MVP corpus minimums
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, section 9 ALG-013
+topic_and_level Systems of linear equations solved by isolating one unknown at a time and substituting it into the others
+family_envelope_version 1
+accepted_expression_grammar the same linsolve grammar as algebra.linear-system.elimination, with substitution as a third argument
+accepted_input_forms linsolve menu command in Exact mode, for example linsolve([x + y = 3, x - y = 1], [x, y], substitution)
+domains_and_parameter_assumptions one through four equations in one through five unknowns with exact rational coefficients. Every coefficient and every intermediate value must fit the shared exact Rational representation
+supported_branches_and_degenerate_cases a unique solution, no solution shown by an equation with no unknown left and two different numbers for its sides, and infinitely many solutions written with the free unknowns as their own parameters. An equation that cancels to equal numbers is dropped with a recorded check. An equation missing the first unknown is solved for the first unknown it has
+exact_special_function_and_numerical_result_policy exact rational solutions only. Decimal mode, decimal literals, symbolic coefficients and functions of the unknowns are refused
+word_language_profile_ids none, mathematical command entry only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/system.cc
+required_assumptions none, linearity, exact coefficients and the envelope are checked before a plan is recorded
+test_group_ids system, command
+proof_obligation_ids obl.plan.preconditions-hold, obl.system.isolated-equivalent, obl.system.substituted-equivalent, obl.system.back-substituted, obl.system.false-equation, obl.system.identity, obl.system.candidate-satisfies
+strategy_ids plan.system-substitution
+supported_methods the first remaining equation is solved for its first unknown, which is put into every other remaining equation. Rounds repeat until no equation is left, then the values are put back from the last unknown solved. Each isolation, substitution and back substitution is checked by evaluating the equations before and after at the origin, each unit point and a point off every axis, which fixes two affine functions exactly
+unsupported_near_neighbors nonlinear systems, symbolic or decimal coefficients, more than four equations or five unknowns, a repeated unknown and items that are not equations. Solving by elimination is the separate family algebra.linear-system.elimination
+solution_soundness_status a unique solution is substituted into every original equation and must satisfy each exactly. A family is substituted at three choices of its free unknowns, which corroborates rather than proves it. No solution rests on a checked equation that is false for every value
+solution_completeness_status every equation is either used to isolate an unknown, reduced to one that always holds or reduced to a false one, so the solution set read at the end is the whole solution set of the system. Cancellation and Meter limits retain the verified prefix without a final result. Arena failure discards unusable records
+corpus_case_ids the golden fixtures naming this family
+explanation_review_status semantic fixtures and bridge checks pass. Learner testing remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status native command dispatch implemented, physical keypad qualification pending
+isolated_runtime_status native Lua bridge execution checked on the host. Emulator and handheld qualification remain pending
+capability_manifest_ids algebra.linear-system.substitution
+release_status in development, unreleased
+rule plan.system-substitution fixture
+rule system.isolate-unknown fixture
+rule system.substitute fixture
+rule system.back-substitute fixture
+rule system.contradiction fixture
+rule system.identity-equation fixture
+rule system.check-by-substitution fixture
+rule system.check-family-by-sampling fixture
+
 family id calculus.tangent-line.single-variable
 topic_and_level Tangent lines to a supported expression at a rational point, PRD section 9 CALC-010
 family_envelope_version 1
@@ -1536,6 +1622,188 @@ rule tangent.slope fixture
 rule tangent.linearization fixture
 rule tangent.check-line fixture
 
+family id calculus.parametric-slope.single-parameter
+topic_and_level The slope dy/dx of a parametric curve at a rational parameter value, PRD section 9 CALC-013, the first slice of #146 tracked as #509
+family_envelope_version 1
+accepted_expression_grammar two expressions the native differentiation engine supports in one parameter, over numbers and that parameter, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms paramslope(x,y,parameter,value), with the parameter a single identifier and the value an exact rational
+domains_and_parameter_assumptions both coordinates have an exact rational value at the parameter value, so the curve has a point there, both coordinates' derivatives have an exact rational value at the parameter value and dx/dt is not zero there, which the ratio step records as its domain restriction. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases a parameter value where both rates are exact and dx/dt is nonzero, including a horizontal tangent where dy/dt is zero
+exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping or approximating either rate or the slope
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family, the nonzero dx/dt condition is recorded as a domain restriction on the ratio step
+test_group_ids calculus, context
+supported_methods evaluate both coordinates exactly at the parameter value, differentiate each coordinate by the registered rules, evaluate dx/dt and dy/dt at the parameter value, and divide dy/dt by dx/dt
+unsupported_near_neighbors a vertical tangent where dx/dt is zero, a singular point where both rates are zero, a symbolic or irrational parameter value, polar curves, the tangent line through the curve point, second derivatives, and parametric area and arc length, the last four tracked as #510, #511 and #512
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.parametric-slope, obl.plan.preconditions-hold
+solution_soundness_status the slope is multiplied back by dx/dt and compared exactly with dy/dt, which withholds the result when they disagree
+solution_completeness_status partial, the slope at a rational parameter value for coordinates the differentiation engine covers, and none of CALC-013's polar, area or arc-length forms
+corpus_case_ids paramslope_polynomial, paramslope_vertical
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu template implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.parametric-slope.single-parameter
+release_status in development, unreleased
+rule calculus.differentiate.rules fixture
+rule d.power fixture
+rule d.variable fixture
+rule param.x-value fixture
+rule param.y-value fixture
+rule param.dx-dt fixture
+rule param.dy-dt fixture
+rule param.slope fixture
+rule param.check-slope fixture
+
+family id calculus.ode.separable.first-order
+reference_curriculum_set_ids StepCAS product requirements CALC-012
+curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 CALC-012
+topic_and_level Separable first-order differential equations with an optional initial condition, PRD section 9 CALC-012
+family_envelope_version 1
+accepted_expression_grammar a right side over numbers, the two named variables, pi and e, built from sums, products, integer powers and calls, where every factor of the right side mentions at most one of the variables
+accepted_input_forms desolve(y'=f,x,y) or desolve(diff(y,x)=f,x,y), with the derivative on either side, and desolve([y'=f,y(x0)=y0],x,y) with x0 and y0 exact rationals. Any other desolve shape is left to Giac
+domains_and_parameter_assumptions the dependent factor is not zero where the equation is divided by it, and each side keeps the domain restrictions its antiderivative records, such as a positive argument for a logarithm
+supported_branches_and_degenerate_cases a right side free of the dependent variable, which integrates straight to an explicit solution. A dependent factor of y or y^2, whose relation is solved for y through the exponential or the reciprocal. Any other dependent factor, whose relation is kept implicit. An initial point, which fixes the constant as its own checked step
+exact_special_function_and_numerical_result_policy exact symbolic antiderivatives from the rule engine and an exact constant read from the initial point, including a logarithm such as ln(2) where the point needs one. Exact mode only
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/separable.cc, src/steps/integrate.cc, src/steps/differentiate.cc
+required_assumptions the dependent factor is non-zero where the equation is divided by it, as in "y != 0", and the branch the dependent side integrates on, as in "y > 0" for a logarithm
+test_group_ids separable
+word_language_profile_ids none, typed entry only
+strategy_ids ode.separable.plan
+supported_methods check the equation is first order with a separable right side, divide by the dependent factor, integrate each side with the registered antiderivative rules, add one constant, solve for the dependent variable when its side is y, a logarithm or a reciprocal, fix the constant from an initial point, then differentiate the solution and compare it with the equation
+unsupported_near_neighbors a right side whose factors mix both variables such as x + y or exp(x + y), a parameter other than the two variables, second and higher order equations, linear first-order equations that need an integrating factor, the constant solutions at zeros of the dependent factor that separation divides away, an initial point where the dependent factor vanishes or that lies off the recorded branch, logarithms of absolute values, and antiderivatives the integral engine has no rule for
+proof_obligation_ids obl.plan.preconditions-hold, obl.ode.separation-divides-nonzero, obl.calculus.rule-preserves-value, obl.integrate.derivative-returns-integrand, obl.ode.integrals-differ-by-constant, obl.ode.explicit-inverts-relation, obl.ode.initial-condition-holds, obl.ode.solution-satisfies-equation
+solution_soundness_status the explicit solution is differentiated by rule and compared in canonical form with the right side evaluated on it, and an implicit relation is differentiated side by side and compared with the separated factors. A mismatch withholds the solution as unconfirmed rather than calling it wrong, because canonical forms can miss an equality. The constant an initial point gives is substituted back into the relation before it is used
+solution_completeness_status partial, separable right sides whose two factors the integral engine can integrate, with the explicit form limited to the three inverses named above
+corpus_case_ids separable_explicit, separable_implicit, separable_initial_condition
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status the existing desolve menu entry reaches the native walkthrough. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.ode.separable.first-order
+release_status in development, unreleased
+rule ode.separable.plan fixture
+rule ode.separable.separate fixture
+rule calculus.integrate.rules fixture
+rule i.power fixture
+rule i.reciprocal fixture
+rule calculus.integrate.check-by-differentiation fixture
+rule ode.separable.integrate-both-sides fixture
+rule ode.separable.solve-explicit fixture
+rule ode.separable.initial-condition fixture
+rule ode.separable.check-solution fixture
+
+family id calculus.derivative.implicit
+topic_and_level Implicit differentiation of a relation between two variables, PRD section 9 CALC-007
+family_envelope_version 1
+accepted_expression_grammar an equation whose two sides are expressions the native differentiation engine supports in the independent and the dependent variable, with a typed decimal read as the fraction it names
+accepted_input_forms implicit(equation,x,y), where x is the independent variable and y the dependent one, and the derivative is written dydx
+domains_and_parameter_assumptions the dependent variable is a differentiable function of the independent one near the point of interest, recorded as a restriction on the step that differentiates both sides. The coefficient the derivative is divided by is recorded as nonzero by the rearrangement family and carried as an assumption of the answer
+supported_branches_and_degenerate_cases an explicit relation y equal to an expression in x, which gives the ordinary derivative, and a relation whose derivative does not depend on x
+exact_special_function_and_numerical_result_policy exact symbolic derivative with no approximation. The final check evaluates exactly at sample points and is reported as sample agreement rather than proof
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/implicit.cc, src/steps/differentiate.cc, src/steps/rearrange.cc
+required_assumptions the answer holds where the coefficient of dydx is nonzero, carried as an active assumption naming that coefficient, as in "(2 * y) is not zero" for the circle and "x is not zero" for the hyperbola. Differentiability of the dependent variable is recorded as a domain restriction on the step that differentiates both sides
+test_group_ids implicit
+supported_methods differentiate both sides with respect to the independent variable, applying the chain rule to the dependent variable through its partial derivative times dydx, collect the dydx terms on one side, and isolate dydx with the rearrangement family
+unsupported_near_neighbors second implicit derivatives, the slope at a named point, systems of implicit relations, relations with a third free variable treated as dependent, relations whose dydx terms cancel, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.implicit.rule-preserves-relation, obl.implicit.chain-identity, obl.calculus.rule-preserves-value, obl.plan.preconditions-hold, obl.rearrange.same-solutions, obl.rearrange.substitution-identity
+solution_soundness_status the relation left minus right is differentiated afresh and its x part plus its y part times the answer is evaluated exactly at up to twelve sample points, withholding the result when any is nonzero. That is sample agreement, and a relation where no sample point or no isolation check point can be evaluated is reported as solved but unchecked rather than as failed
+solution_completeness_status partial, first derivatives of relations the differentiation engine covers
+corpus_case_ids implicit_circle, implicit_product, implicit_mixed, implicit_trig
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.derivative.implicit
+release_status in development, unreleased
+rule implicit.differentiate-both-sides fixture
+rule implicit.chain-rule fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.sum fixture
+rule d.variable fixture
+rule implicit.collect fixture
+rule implicit.isolate fixture
+rule alg.rearrange.inverse-operations fixture
+rule alg.rearrange.divide-both-sides fixture
+rule alg.rearrange.check-by-substitution fixture
+rule implicit.check fixture
+
+family id calculus.taylor-polynomial.single-variable
+topic_and_level Finite Taylor and Maclaurin polynomials with the Lagrange remainder, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar the expressions the native differentiation engine supports in one variable, over numbers and that variable, with a typed decimal read as the fraction it names and refused in an exponent
+accepted_input_forms taylor(expression,variable,center,order) and maclaurin(expression,variable,order), with the center an exact rational and the order a nonnegative integer no greater than 19
+domains_and_parameter_assumptions the expression and each of its derivatives up to the order have an exact rational value at the center. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+supported_branches_and_degenerate_cases order zero, which is the constant value at the center, and a polynomial of degree at most the order, whose next derivative is identically zero so the remainder is zero and the polynomial equals the function
+exact_special_function_and_numerical_result_policy exact rationals over int64 with the factorial computed exactly, refusing rather than approximating a center or a derivative value that is not exact. The answer is an approximation near the center unless the remainder is zero
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
+required_assumptions none carried for the family. The remainder's hypotheses, the intermediate point lying between the center and the variable and the next derivative existing on that interval, are recorded as domain restrictions on the remainder step
+test_group_ids calculus, context
+supported_methods differentiate repeatedly by the registered rules, evaluate each derivative at the center, divide by the factorial of its order, assemble the powers of the distance from the center, and state the Lagrange remainder from the next derivative
+unsupported_near_neighbors infinite Taylor and power series, radius and interval of convergence, a symbolic or irrational center, a center where a derivative is undefined or not exact, orders above 19, error bounds that maximize the remainder, multivariable expansions, and forms the differentiation engine has no rule for
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.taylor-agreement, obl.plan.preconditions-hold
+solution_soundness_status the assembled polynomial is differentiated again by the native engine and every derivative up to the order is read back exactly at the center against the values the coefficients came from, withholding the result on any disagreement. The remainder is stated with its hypotheses rather than bounded
+solution_completeness_status partial, the expressions the differentiation engine covers with exact derivative values at a rational center and no others
+corpus_case_ids taylor_maclaurin_exponential, taylor_maclaurin_sine, taylor_reciprocal_shifted, taylor_polynomial_exact
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.taylor-polynomial.single-variable
+release_status in development, unreleased
+rule taylor.derivative-value fixture
+rule calculus.differentiate.rules fixture
+rule d.constant fixture
+rule d.constant-multiple fixture
+rule d.function fixture
+rule d.power fixture
+rule d.variable fixture
+rule taylor.polynomial fixture
+rule taylor.remainder fixture
+rule taylor.check-polynomial fixture
+
+family id calculus.series.convergence
+topic_and_level Convergence of an infinite series by the standard tests, PRD section 9 CALC-011
+family_envelope_version 1
+accepted_expression_grammar a term in one index variable written as a product of numbers, fixed rational numbers raised to the index plus an integer shift, and a quotient of polynomials in the index
+accepted_input_forms convergence(term,index,first), with the first index an integer and the series running from it to infinity
+domains_and_parameter_assumptions every denominator is nonzero at every integer index from the first one on, which is proved by a Cauchy root bound and an exact check of each integer up to it before any test is applied
+supported_branches_and_degenerate_cases the zero series, geometric series with their exact sum, a geometric factor above or below one in absolute value by the ratio test, rational terms by the divergence test and by limit comparison with a p-series, and alternating rational terms by the alternating series test with conditional convergence named
+exact_special_function_and_numerical_result_policy exact rationals over int64, polynomial degrees up to 20 and at most 4096 indices checked for undefined terms, refusing rather than approximating beyond those limits
+parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc
+required_assumptions none carried for the family. Each test's hypotheses, eventually nonzero terms, one eventual sign or eventually decreasing absolute values, are recorded as domain restrictions on the step that uses them
+test_group_ids calculus, context
+supported_methods rewrite the term as a constant times a power of a fixed ratio times a rational function, prove every term exists, then decide by the ratio test, the divergence test, limit comparison with a p-series or the alternating series test, and sum a convergent geometric series
+unsupported_near_neighbors factorials and binomial coefficients, logarithms, roots and trigonometric factors in the term, the root, integral and direct comparison tests, power series and their radius or interval of convergence, sums of non-geometric convergent series, and products of more than one kind of growth such as n to the power n
+proof_obligation_ids obl.calculus.rule-preserves-value, obl.series.test-hypotheses, obl.series.form-agreement
+solution_soundness_status the rewritten term is compared exactly with the original at four consecutive indices from the first one, which is sample agreement rather than proof, and a geometric sum times one minus the ratio is compared with the first term, withholding the verdict on any disagreement
+solution_completeness_status complete within the envelope, since every term of the accepted form is decided by one of the tests, and partial for series in general
+corpus_case_ids series_geometric_sum, series_ratio_test, series_ratio_diverges, series_p_comparison, series_harmonic_diverges, series_alternating_conditional, series_divergence_test, series_zero_terms
+explanation_review_status semantic fixtures recorded. Independent final review remains pending
+learner_transfer_status not measured
+device_performance_status not measured
+direct_keypad_entry_status command and menu templates implemented. Handheld qualification pending
+isolated_runtime_status unqualified, emulator and physical-device qualification pending
+capability_manifest_ids calculus.series.convergence
+release_status in development, unreleased
+rule series.term-form fixture
+rule series.terms-defined fixture
+rule series.zero-terms fixture
+rule series.ratio-test fixture
+rule series.divergence-test fixture
+rule series.p-comparison fixture
+rule series.alternating-test fixture
+rule series.geometric-sum fixture
+rule series.check-form fixture
+
 family id physics.optics.refraction.snell
 reference_curriculum_set_ids none, PHYS-022 names these five relations directly rather than through a curriculum set
 curriculum_source_locations docs/StepCAS_Product_Requirements_Document.md, PRD section 9 PHYS-022
@@ -1560,7 +1828,7 @@ corpus_case_ids not yet filed, the two golden fixtures optics_refraction_transmi
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.refraction.snell
 release_status in development, unreleased
@@ -1632,7 +1900,7 @@ corpus_case_ids not yet filed, the golden fixture optics_spherical_mirror_image 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.spherical-mirror.image
 release_status in development, unreleased
@@ -1668,7 +1936,7 @@ corpus_case_ids not yet filed, the golden fixture optics_double_slit_wavelength 
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.double-slit.maxima
 release_status in development, unreleased
@@ -1705,7 +1973,7 @@ corpus_case_ids not yet filed, the golden fixture optics_single_slit_minimum rec
 explanation_review_status semantic golden fixtures recorded for this relation. Independent learner review remains pending
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 menu template implemented. Physical keypad qualification pending
 isolated_runtime_status host and native Lua bridge execution checked. Emulator and handheld qualification remain pending
 capability_manifest_ids physics.optics.single-slit.minima
 release_status in development, unreleased

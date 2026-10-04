@@ -36,6 +36,8 @@ enum class Kind : uint8_t {
     // Invalid retains its original value when new kinds are appended.
     Invalid,
     List,
+    // Two endpoint children, with each end's openness in the node text, so [1..3] and [1..3) differ.
+    Interval,
 };
 
 using NodeId = uint32_t;
@@ -92,6 +94,10 @@ std::string integer_text(int64_t v);
 // Whether the variable occurs anywhere in the expression. Every rule engine sorts its constants
 // from its varying parts with this, so there is one answer to what counts as constant.
 bool depends_on(const Arena &arena, NodeId id, NodeId variable);
+// Whether a trigonometric function or its inverse takes or gives an angle that varies with the
+// variable, which is what makes a calculus rule depend on the angle unit. With no variable it asks
+// whether any such function appears at all.
+bool angle_dependent(const Arena &arena, NodeId id, NodeId variable = kNoNode);
 // Includes lists nested in calls, arithmetic and relations.
 bool contains_list(const Arena &arena, NodeId id);
 
@@ -169,6 +175,7 @@ class Arena {
     NodeId nary(Kind kind, const std::vector<NodeId> &args);
     NodeId call(const std::string &name, const std::vector<NodeId> &args);
     NodeId list(const std::vector<NodeId> &items);
+    NodeId interval(NodeId lower, NodeId upper, bool lower_closed, bool upper_closed);
 
     // A failed arena answers every request with kNoNode, and kNoNode read as an index reached past
     // the end of the chunk table and dereferenced whatever was there. Refused once here rather than
