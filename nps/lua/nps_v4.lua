@@ -2315,6 +2315,7 @@ menu = {
          { "Taylor polynomial at a point", function() template("taylor(,x,0,3)", 7) end },
          { "Maclaurin polynomial", function() template("maclaurin(,x,3)", 5) end },
          { "Series convergence test", function() template("convergence(,n,1)", 5) end },
+         { "Parametric slope at a parameter value", function() template("paramslope(,,t,0)", 6) end },
        },
        { "Steps",
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
@@ -2429,6 +2430,7 @@ menu = {
        	 { "Taylor Polynomial  taylor(expr,var,a,n)",	function() menustring( "taylor(" ) end },
        	 { "Maclaurin Polynomial  maclaurin(expr,var,n)",	function() menustring( "maclaurin(" ) end },
        	 { "Convergence  convergence(term,var,start)",	function() menustring( "convergence(" ) end },
+       	 { "Parametric slope  paramslope(x,y,t,t0)",	function() menustring( "paramslope(" ) end },
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
@@ -3543,6 +3545,7 @@ local TEMPLATE_DESCRIPTIONS = {
     ["Taylor polynomial at a point"] = "Fill the expression. Change 0 to the center and 3 to the order. Shows the remainder.",
     ["Maclaurin polynomial"] = "A Taylor polynomial centered at 0. Change 3 to the order. An approximation, not an equality.",
     ["Series convergence test"] = "Fill the term in n. Change 1 to the first index. Names the test that decides it.",
+    ["Parametric slope at a parameter value"] = "Fill x(t) and y(t). Change 0 to the parameter value where dy/dx is wanted.",
 }
 
 function openTemplatePicker()

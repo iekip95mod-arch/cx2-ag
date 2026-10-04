@@ -219,7 +219,7 @@ void read_fixture(const std::string &path, std::string *family, std::set<std::st
 }
 
 // Rule and kind pairs with no case, pinned so a change that moves the count updates it.
-constexpr size_t kRuleCaseGaps = 1030;
+constexpr size_t kRuleCaseGaps = 1048;
 
 struct RuleCaseJoin {
     size_t rows = 0;

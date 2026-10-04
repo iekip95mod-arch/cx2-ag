@@ -306,6 +306,7 @@ local expected_modules = {
     "calculus.limit.single-variable",
     "calculus.tangent-line.single-variable",
     "calculus.linearization.single-variable",
+    "calculus.parametric-slope.single-parameter",
     "calculus.derivative.implicit",
     "calculus.ode.separable.first-order",
     "calculus.taylor-polynomial.single-variable",
@@ -472,6 +473,27 @@ do
               case[1] .. " states whether its answer is an equality or an approximation")
         check(record.mode == (case[3] and "linearize" or "tangent") and record.outcome == "evaluated",
               case[1] .. " names the family it answered")
+    end
+    -- CALC-013, #509. The record carries its own final check and names its slope apart from tangent's.
+    do
+        script("0", "0", "0", "0")
+        local record = nps.walkthrough("paramslope(t^2,t^3,t,2)", "x", "exact")
+        check(record.solved and record.has_result and not record.answer_only and
+              record.result == "3" and record.parametric_slope == "3" and record.tangent_slope == nil and
+              command_has_rule(record, "param.slope") and command_has_rule(record, "param.check-slope"),
+              "paramslope exposes the native parametric slope with its final check")
+        check(record.mode == "paramslope" and record.outcome == "evaluated",
+              "paramslope names the family it answered")
+        local vertical = nps.walkthrough("paramslope(t^2,t,t,0)", "x", "exact")
+        check(not vertical.solved and not vertical.has_result and
+              vertical.outcome == "unsupported form" and
+              tostring(vertical.detail):find("vertical", 1, true) ~= nil and
+              vertical.parametric_slope == nil,
+              "paramslope at a vertical tangent refuses and says why, with no slope")
+        local short = nps.walkthrough("paramslope(t,t^2,t)", "x", "exact")
+        check(not short.solved and not short.has_result and type(short.detail) == "string" and
+              short.detail:find("parametric slopes require", 1, true) ~= nil,
+              "paramslope with three arguments refuses and names what it needs")
     end
     -- CALC-012. A separable desolve runs natively and one the family refuses returns nil for Giac.
     for _, case in ipairs({

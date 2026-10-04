@@ -116,22 +116,22 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-03, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4461), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4464 to 4466), `vector_addition` (lua_module.cc:4467), `vector_cross`
-(lua_module.cc:4468), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, `export_text` (lua_module.cc:4432), and a set of platform entry points for
+`optics`, `unit_conversion` (lua_module.cc:4464), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4467 to 4469), `vector_addition` (lua_module.cc:4470), `vector_cross`
+(lua_module.cc:4471), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4435), and a set of platform entry points for
 memory, tracing, integrity and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-03, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4336, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4339, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3526, which
-reads the variable names against the model's own term names (lua_module.cc:3512). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3529, which
+reads the variable names against the model's own term names (lua_module.cc:3515). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4430 and defined at
+`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4433 and defined at
 lua_module.cc:1829. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
@@ -150,12 +150,12 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4433, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3079-3080 and a `linsolve` command to `system_into` at lua_module.cc:3076-3077. Its
+lua_module.cc:4436, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3082-3083 and a `linsolve` command to `system_into` at lua_module.cc:3079-3080. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:2990-2994, so the shell falls back to Giac at nps_v4.lua:4096. A linsolve never
+nil at lua_module.cc:2992-2996, so the shell falls back to Giac at nps_v4.lua:4099. A linsolve never
 does: system_into answers every outcome with a table at lua_module.cc:2572-2620, and l_walkthrough
-answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3043-3056. Outside
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3045-3058. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
 native refusal and Giac is not consulted.
 
@@ -172,23 +172,23 @@ native refusal and Giac is not consulted.
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2860 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2871-2878 carries no projectile key at all, which is how the
+`source`: read on 2026-10-03. nps/lua/nps_v4.lua:2862 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2873-2880 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:44-45 and required of the loaded module at
+nps/src/core/capability_manifest.cc:47-48 and required of the loaded module at
 nps/lua/nps_v4.lua:69-70, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
-`source`, nps/lua/nps_v4.lua:2939 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:3981 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:2941 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:3984 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
-`!x`: `source`, read on 2026-10-03, nps/lua/nps_v4.lua:2323 is that menu entry, nps/lua/nps_v4.lua:2946
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4033 composes the text with
+`!x`: `source`, read on 2026-10-03, nps/lua/nps_v4.lua:2324 is that menu entry, nps/lua/nps_v4.lua:2948
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4036 composes the text with
 derivationExportText and calls the binding under pcall.
 
 `position_motion` and `ranking` still have working
@@ -199,7 +199,7 @@ paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
 manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:109 and every StepCAS surface stays
-off. The build fails first, at nps/src/core/capability_manifest.cc:71, if the compiled manifest outgrows
+off. The build fails first, at nps/src/core/capability_manifest.cc:74, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
@@ -217,8 +217,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3322, measureMath
-sets the expression at :3356, and the history editor sets its expression at :1441.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3324, measureMath
+sets the expression at :3358, and the history editor sets its expression at :1441.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
