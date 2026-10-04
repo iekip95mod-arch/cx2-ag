@@ -2,6 +2,7 @@
 #define NPS_UNITS_H
 
 #include <cstdint>
+#include <span>
 #include <string>
 
 #include "nps/core/rational.h"
@@ -62,10 +63,23 @@ enum class NumberKind : uint8_t {
     Measured,
 };
 
+// PHYS-020: an uncertainty is kept as its exact square, and every state but Known says why there is none.
+enum class UncertaintyState : uint8_t {
+    None,
+    Known,
+    Unstated,
+    NotPropagated,
+    TooLarge,
+};
+
+const char *uncertainty_state_name(UncertaintyState state);
+
 struct Precision {
     NumberKind kind = NumberKind::Exact;
     uint16_t significant_digits = 0;
     int32_t last_significant_decimal_place = 0;
+    UncertaintyState uncertainty = UncertaintyState::None;
+    Rational variance;
 };
 
 struct Quantity {
@@ -78,6 +92,9 @@ struct Quantity {
 // decimal point is measured, and its significant digits are counted from the first non-zero one, so
 // 0.0450 is three and 20.0 is three.
 bool parse_quantity(const std::string &text, Quantity *out, std::string *error);
+
+// Also reads "2.50 +/- 0.02 m" or the plus-minus sign, which parse_quantity refuses rather than drops.
+bool parse_quantity_with_uncertainty(const std::string &text, Quantity *out, std::string *error);
 
 // The value in the SI unit of its dimension. False when the conversion overflows.
 bool to_si(const Quantity &q, Rational *value);
@@ -95,6 +112,18 @@ Precision precision_at_digits(const Rational &value, Precision precision);
 Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
                             const Rational &b_value, const Precision &b);
 Precision precision_sum(const Rational &value, const Precision &a, const Precision &b);
+
+struct UncertaintyTerm {
+    Rational sensitivity;
+    const Precision *precision;
+};
+
+// First order over distinct inputs: each sensitivity squared times that input's variance, summed.
+void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *out);
+
+// The root rounded up to two significant figures, and the decimal place of its last one.
+bool uncertainty_text(const Precision &precision, std::string *out, int32_t *place);
+
 bool precision_rounded_text(const Rational &value, const Precision &precision, std::string *out);
 HalfPlace precision_rounding_valid(const Rational &exact, const std::string &reported,
                                    const Precision &precision);

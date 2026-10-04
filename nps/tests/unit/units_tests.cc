@@ -220,6 +220,39 @@ Precision measured(uint16_t digits) {
     return p;
 }
 
+std::string stated_uncertainty(const Precision &p) {
+    if (p.uncertainty != UncertaintyState::Known)
+        return uncertainty_state_name(p.uncertainty);
+    std::string text;
+    int32_t place = 0;
+    if (!uncertainty_text(p, &text, &place))
+        return "unprintable";
+    return text;
+}
+
+Quantity uncertain(const std::string &text) {
+    Quantity q;
+    std::string why;
+    if (!parse_quantity_with_uncertainty(text, &q, &why))
+        q.unit.text = "refused: " + why;
+    return q;
+}
+
+std::string uncertainty_of(const std::string &text) {
+    Quantity q;
+    std::string why;
+    if (!parse_quantity_with_uncertainty(text, &q, &why))
+        return "refused: " + why;
+    return stated_uncertainty(q.precision);
+}
+
+Precision with_variance(Rational variance) {
+    Precision p = at_place(-3);
+    p.uncertainty = UncertaintyState::Known;
+    p.variance = variance;
+    return p;
+}
+
 }  // namespace
 
 void run_units_tests(TestSink &t) {
@@ -1479,6 +1512,121 @@ void run_units_tests(TestSink &t) {
             "a bracketed denominator under a one round-trips too");
     t.equal(unit_dimension("12"), "refused: unexpected character in a unit: 2",
             "and a number that is not one is still not a unit");
+
+    // PHYS-020: an uncertainty is kept as its exact square and only its reported root is rounded.
+    {
+        t.equal(uncertainty_of("2.50 +/- 0.02 m"), "0.020",
+                "a stated uncertainty is read with its value and reported to two figures");
+        t.equal(uncertainty_of("2.50 \xC2\xB1 0.02 m"), "0.020",
+                "and the plus-minus sign the keypad and the word problems use reads the same");
+        t.equal(uncertainty_of("2.50+/-0.02 m"), "0.020", "with or without the spaces");
+        const Quantity read = uncertain("2.50 +/- 0.02 m");
+        t.check(rational_equal(read.value, Rational{5, 2}) && read.unit.text == "m" &&
+                    rational_equal(read.precision.variance, Rational{1, 2500}),
+                "the value and unit are the ones before and after it, and the square is exact");
+        t.equal(uncertainty_of("2.50 m"), "none", "a measurement with no stated uncertainty has none");
+        t.equal(uncertainty_of("5 kg"), "none", "and an exact count never carries one");
+        const Quantity whole = uncertain("5 +/- 0.1 kg");
+        t.check(whole.precision.kind == NumberKind::Measured &&
+                    whole.precision.significant_digits == 1 &&
+                    whole.precision.last_significant_decimal_place == 0,
+                "a whole number with an uncertainty is a measurement to its units place");
+        t.equal(uncertainty_of("5.0 +/- 0 kg"), "0", "a stated zero is a known zero");
+        t.equal(uncertainty_of("2.50 +/- -0.02 m"),
+                "refused: an uncertainty is a number of zero or more after +/-",
+                "a negative uncertainty is refused");
+        t.equal(uncertainty_of("2.50 +/- m"),
+                "refused: an uncertainty is a number of zero or more after +/-",
+                "and so is a sign with no number after it");
+        t.equal(uncertainty_of("2.50 +/- 0.0.2 m"), "refused: not a number this reads exactly: 0.0.2",
+                "and an uncertainty that is not a number");
+        t.equal(uncertainty_of("1 +/- 10000000000 m"),
+                "refused: the uncertainty is too large to square exactly",
+                "and one whose square does not fit");
+
+        Quantity plain;
+        std::string why;
+        t.check(!parse_quantity("2.50 +/- 0.02 m", &plain, &why) &&
+                    why == "an uncertainty such as 2.50 +/- 0.02 m is not propagated here yet",
+                "a solver that does not propagate uncertainty refuses one rather than dropping it");
+        t.check(parse_quantity("2.50 m", &plain, &why), "while the same reader still takes a plain value");
+
+        const Quantity a = uncertain("2.50 +/- 0.02 m");
+        const Quantity b = uncertain("1.20 +/- 0.03 m");
+        Rational sum;
+        t.check(rational_add(a.value, b.value, &sum), "a measured sum stays exact");
+        t.equal(stated_uncertainty(precision_sum(sum, a.precision, b.precision)), "not propagated",
+                "an operation cannot tell two inputs from one input read twice, so it does not guess");
+        const UncertaintyTerm summed[] = {{Rational{1, 1}, &a.precision}, {Rational{1, 1}, &b.precision}};
+        Precision sum_precision = precision_sum(sum, a.precision, b.precision);
+        propagate_uncertainty(summed, &sum_precision);
+        t.equal(stated_uncertainty(sum_precision), "0.037",
+                "two inputs add in quadrature, and the root of 0.0013 rounds up to 0.037, not 0.036");
+
+        const Quantity two = uncertain("2.0 +/- 0.1 m");
+        const Quantity three = uncertain("3.0 +/- 0.2 m");
+        const UncertaintyTerm multiplied[] = {{three.value, &two.precision}, {two.value, &three.precision}};
+        Precision product_precision = at_place(-1);
+        propagate_uncertainty(multiplied, &product_precision);
+        t.equal(stated_uncertainty(product_precision), "0.50",
+                "relative uncertainties add in quadrature, and an exact root is not moved up");
+        const UncertaintyTerm reused[] = {{two.value, &two.precision}, {two.value, &two.precision}};
+        Precision squared_precision = at_place(-1);
+        propagate_uncertainty(reused, &squared_precision);
+        t.check(rational_equal(squared_precision.variance, Rational{8, 100}),
+                "terms are summed as given, which is why a route passes each input once");
+        t.equal(stated_uncertainty(precision_product(Rational{6, 1}, two.value, two.precision,
+                                                     Rational{3, 1}, Precision())),
+                "0.30", "an exact factor scales the uncertainty and adds none of its own");
+        t.equal(stated_uncertainty(precision_sum(Rational{11, 2}, a.precision, Precision())),
+                "0.020", "and an exact term adds none either");
+
+        const Quantity centimeters = uncertain("250 +/- 5 cm");
+        Rational meters;
+        t.check(rational_mul(centimeters.value, centimeters.unit.scale, &meters),
+                "a converted value stays exact");
+        t.equal(stated_uncertainty(precision_product(meters, centimeters.value, centimeters.precision,
+                                                     centimeters.unit.scale, Precision())),
+                "0.050", "converting the unit converts the uncertainty by the same exact scale");
+
+        const Quantity unstated = uncertain("1.20 m");
+        t.equal(stated_uncertainty(precision_sum(sum, a.precision, unstated.precision)), "unstated",
+                "a measured input with no stated uncertainty leaves the combination unknown");
+        const UncertaintyTerm partly[] = {{Rational{1, 1}, &a.precision},
+                                          {Rational{1, 1}, &unstated.precision}};
+        Precision partly_precision = at_place(-2);
+        propagate_uncertainty(partly, &partly_precision);
+        t.equal(stated_uncertainty(partly_precision), "unstated", "and so it does in a propagation");
+        t.equal(stated_uncertainty(precision_sum(sum, unstated.precision, unstated.precision)), "none",
+                "while two inputs that state none still give none");
+        t.equal(stated_uncertainty(precision_combine(a.precision, Precision())), "not propagated",
+                "the route-level fold has no values, so it says the uncertainty was not propagated");
+        t.equal(stated_uncertainty(precision_combine(unstated.precision, unstated.precision)), "none",
+                "and says nothing when nothing was stated");
+
+        const Quantity unit_spread = uncertain("1.0 +/- 1 m");
+        const Precision too_large =
+            precision_product(Rational{10000000000, 1}, unit_spread.value, unit_spread.precision,
+                              Rational{10000000000, 1}, Precision());
+        t.equal(stated_uncertainty(too_large), "too large",
+                "a square that outgrows an exact fraction is reported as too large, not as zero");
+        t.equal(stated_uncertainty(precision_sum(sum, too_large, a.precision)), "too large",
+                "and it stays too large through later steps");
+
+        t.equal(stated_uncertainty(with_variance(Rational{99, 10000})), "0.10",
+                "a root just under 0.1 rounds up into a new leading figure and keeps two figures");
+        t.equal(stated_uncertainty(with_variance(Rational{2, 1})), "1.5", "the root of 2 rounds up to 1.5");
+        t.equal(stated_uncertainty(with_variance(Rational{2250000, 1})), "1500",
+                "and a large uncertainty is written to its places");
+
+        const UncertaintyTerm terms[] = {{Rational{-2, 1}, &two.precision},
+                                         {Rational{1, 2}, &three.precision}};
+        Precision propagated = at_place(-1);
+        propagate_uncertainty(terms, &propagated);
+        t.check(propagated.uncertainty == UncertaintyState::Known &&
+                    rational_equal(propagated.variance, Rational{1, 20}),
+                "a first-order propagation weighs each variance by its sensitivity squared");
+    }
 }
 
 }  // namespace nps
