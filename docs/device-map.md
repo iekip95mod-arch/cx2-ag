@@ -147,8 +147,12 @@ A command family typed as text needs no `lib[]` entry of its own, because it arr
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
 lua_module.cc:4393, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
 lua_module.cc:3079-3080 and a `linsolve` command to `system_into` at lua_module.cc:3076-3077. Its
-menu entry is still needed, and a shape the family does not read still returns nil so the shell falls
-back to Giac.
+menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
+nil at lua_module.cc:2990-2994, so the shell falls back to Giac at nps_v4.lua:4082. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2572-2620, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3043-3056. Outside
+exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
+native refusal and Giac is not consulted.
 
 ## What the shell can reach
 
