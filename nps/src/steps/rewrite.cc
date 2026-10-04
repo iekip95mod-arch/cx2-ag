@@ -1162,7 +1162,7 @@ void record_context(Derivation &derivation, const Budget &budget, NodeId model, 
     inputs.requested_method = rewrite_goal_name(goal);
     inputs.normalized_problem_model = model;
     inputs.original_expression = derivation.request.original_expression;
-    inputs.angle_convention = "radians";
+    inputs.angle_convention = angle_mode_name(derivation.request.angle_mode);
     inputs.branch_convention = "real domain";
     inputs.detail_projection = "standard";
     inputs.resource_policy = budget_policy(budget);
@@ -1246,6 +1246,29 @@ bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent
 
     *out = current;
     return true;
+}
+
+namespace {
+
+struct SubtermAdapter {
+    SubtermRule rule;
+    void *state;
+};
+
+Local adapt_subterm_rule(Arena &arena, NodeId id, void *state) {
+    const SubtermAdapter *adapter = static_cast<const SubtermAdapter *>(state);
+    Local out;
+    out.after = adapter->rule(arena, id, adapter->state, &out.what);
+    return out;
+}
+
+}  // namespace
+
+NodeId rewrite_first_subterm(Arena &arena, NodeId expression, SubtermRule rule, void *state,
+                             std::string *what) {
+    SubtermAdapter adapter{rule, state};
+    std::vector<uint32_t> path;
+    return rewrite_once(arena, expression, adapt_subterm_rule, &adapter, Descend::OutermostFirst, &path, what);
 }
 
 const char *rewrite_goal_name(RewriteGoal g) {

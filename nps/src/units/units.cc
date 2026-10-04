@@ -97,6 +97,32 @@ Dimension capacitance_dimension() {
     return d;
 }
 
+Dimension pressure_dimension() {
+    Dimension d;
+    d.length = -1;
+    d.mass = 1;
+    d.time = -2;
+    return d;
+}
+
+Dimension temperature_dimension() {
+    Dimension d;
+    d.temperature = 1;
+    return d;
+}
+
+Dimension amount_dimension() {
+    Dimension d;
+    d.amount = 1;
+    return d;
+}
+
+Dimension volume_dimension() {
+    Dimension d;
+    d.length = 3;
+    return d;
+}
+
 const BaseUnit *base_units(size_t *count) {
     static const BaseUnit table[] = {
         {"m", length_dimension(), 1, 1},        {"km", length_dimension(), 1000, 1},
@@ -116,6 +142,56 @@ const BaseUnit *base_units(size_t *count) {
         {"mW", power_dimension(), 1, 1000},     {"F", capacitance_dimension(), 1, 1},
         {"uF", capacitance_dimension(), 1, 1000000},
         {"nF", capacitance_dimension(), 1, 1000000000},
+        {"Pa", pressure_dimension(), 1, 1},     {"kPa", pressure_dimension(), 1000, 1},
+        {"L", volume_dimension(), 1, 1000},     {"mL", volume_dimension(), 1, 1000000},
+        {"mol", amount_dimension(), 1, 1},
+        // A kelvin is an interval as well as a point, so Celsius and Fahrenheit stay out of a scale table.
+        {"K", temperature_dimension(), 1, 1},
+    };
+    *count = sizeof(table) / sizeof(table[0]);
+    return table;
+}
+
+Dimension velocity_dimension() {
+    Dimension d;
+    d.length = 1;
+    d.time = -1;
+    return d;
+}
+
+Dimension acceleration_dimension() {
+    Dimension d;
+    d.length = 1;
+    d.time = -2;
+    return d;
+}
+
+struct NamedQuantity {
+    const char *name;
+    Dimension dimension;
+};
+
+// Beside the unit table so a new unit and the name of what it measures arrive together.
+const NamedQuantity *named_quantities(size_t *count) {
+    static const NamedQuantity table[] = {
+        {"pure number", Dimension()},
+        {"length", length_dimension()},
+        {"mass", mass_dimension()},
+        {"time", time_dimension()},
+        {"electric current", current_dimension()},
+        {"velocity", velocity_dimension()},
+        {"acceleration", acceleration_dimension()},
+        {"force", force_dimension()},
+        {"energy", energy_dimension()},
+        {"power", power_dimension()},
+        {"electric charge", charge_dimension()},
+        {"electric potential", potential_dimension()},
+        {"resistance", resistance_dimension()},
+        {"capacitance", capacitance_dimension()},
+        {"pressure", pressure_dimension()},
+        {"volume", volume_dimension()},
+        {"temperature", temperature_dimension()},
+        {"amount of substance", amount_dimension()},
     };
     *count = sizeof(table) / sizeof(table[0]);
     return table;
@@ -400,7 +476,7 @@ Precision combined_component_precision(const ComponentPrecision &across) {
 
 bool operator==(const Dimension &a, const Dimension &b) {
     return a.length == b.length && a.mass == b.mass && a.time == b.time &&
-           a.current == b.current;
+           a.current == b.current && a.temperature == b.temperature && a.amount == b.amount;
 }
 
 bool operator!=(const Dimension &a, const Dimension &b) { return !(a == b); }
@@ -410,6 +486,8 @@ void dimension_powers(const Dimension &d, int (&out)[kDimensionCount]) {
     out[1] = d.mass;
     out[2] = d.time;
     out[3] = d.current;
+    out[4] = d.temperature;
+    out[5] = d.amount;
 }
 
 namespace {
@@ -419,6 +497,8 @@ void dimension_from_powers(const int (&powers)[kDimensionCount], Dimension *out)
     out->mass = powers[1];
     out->time = powers[2];
     out->current = powers[3];
+    out->temperature = powers[4];
+    out->amount = powers[5];
 }
 
 bool fits_int(int64_t value) {
@@ -465,7 +545,7 @@ bool dimension_power(const Dimension &a, int exponent, Dimension *out) {
 
 std::string dimension_text(const Dimension &d) {
     std::string out;
-    const char *names[kDimensionCount] = {"L", "M", "T", "I"};
+    const char *names[kDimensionCount] = {"L", "M", "T", "I", "Theta", "N"};
     int powers[kDimensionCount];
     dimension_powers(d, powers);
     for (int i = 0; i < kDimensionCount; ++i) {
@@ -478,9 +558,19 @@ std::string dimension_text(const Dimension &d) {
     return out.empty() ? "1" : out;
 }
 
+const char *quantity_name(const Dimension &d) {
+    size_t count;
+    const NamedQuantity *table = named_quantities(&count);
+    for (size_t i = 0; i < count; ++i) {
+        if (table[i].dimension == d)
+            return table[i].name;
+    }
+    return nullptr;
+}
+
 std::string si_unit_text(const Dimension &d) {
-    const char *names[kDimensionCount] = {"kg", "m", "s", "A"};
-    const int powers[kDimensionCount] = {d.mass, d.length, d.time, d.current};
+    const char *names[kDimensionCount] = {"kg", "m", "s", "A", "K", "mol"};
+    const int powers[kDimensionCount] = {d.mass, d.length, d.time, d.current, d.temperature, d.amount};
     std::string top;
     std::string bottom;
     int bottom_factors = 0;

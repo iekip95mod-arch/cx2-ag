@@ -829,9 +829,45 @@ void run_units_tests(TestSink &t) {
     Dimension none;
     t.equal(si_unit_text(none), "1", "a pure number spells as one");
     t.equal(dimension_text(none), "1", "in dimension form too");
+    const auto named = [](const Dimension &d) {
+        const char *name = quantity_name(d);
+        return std::string(name == nullptr ? "unnamed" : name);
+    };
+    t.evidence("UI-009", named(force), "force", "a force dimension is named from the unit table");
+    t.equal(named(none), "pure number", "a dimensionless quantity is named as a pure number");
+    Unit acceleration;
+    std::string unit_error;
+    t.check(parse_unit("m/s^2", &acceleration, &unit_error), "control: m/s^2 parses");
+    t.evidence("UI-009", named(acceleration.dimension), "acceleration",
+               "an acceleration unit is named through its dimension");
+    Unit capacitance;
+    t.check(parse_unit("uF", &capacitance, &unit_error) && named(capacitance.dimension) == "capacitance",
+            "a prefixed unit is named by the quantity its dimension measures");
+    Unit compound;
+    t.check(parse_unit("m*s", &compound, &unit_error), "control: m*s parses");
+    t.equal(named(compound.dimension), "unnamed", "a dimension no quantity is named for stays unnamed");
     Dimension per_second;
     per_second.time = -1;
     t.equal(si_unit_text(per_second), "1/s", "a pure reciprocal gets a one on top");
+    t.equal(si_value("3 kPa"), "3000 kg/(m s^2)", "a kilopascal is a thousand pascals");
+    t.equal(unit_dimension("Pa"), "L^-1 M T^-2", "a pascal is a newton per square metre");
+    t.equal(si_value("250 mL"), "0.00025 m^3", "a millilitre is a millionth of a cubic metre");
+    t.equal(si_value("2 L"), "0.002 m^3", "and a litre a thousandth");
+    t.equal(unit_dimension("K"), "Theta", "a kelvin carries the temperature dimension");
+    t.equal(unit_dimension("mol"), "N", "a mole carries the amount dimension");
+    t.equal(si_value("4186 J/(kg*K)"), "4186 m^2/(s^2 K)", "a specific heat keeps its kelvin under the line");
+    t.equal(unit_dimension("J/(mol*K)"), "L^2 M T^-2 Theta^-1 N^-1", "the gas constant's unit reads in all six");
+    t.check(parse_dimension("J/(mol*K)") != parse_dimension("J/K") &&
+                parse_dimension("J/(mol*K)") == parse_dimension(si_unit_text(parse_dimension("J/(mol*K)"))),
+            "the amount power is compared, and the SI spelling parses back to the same dimension");
+    t.equal(si_value("20 degC"), "refused: unknown unit degC", "Celsius is not a scale, so it is not in the table");
+    for (const auto &[symbol, quantity] :
+         {std::pair{"kPa", "pressure"}, std::pair{"mL", "volume"}, std::pair{"K", "temperature"},
+          std::pair{"mol", "amount of substance"}}) {
+        Unit unit;
+        t.check(parse_unit(symbol, &unit, &unit_error) && named(unit.dimension) == quantity,
+                std::string("a ") + symbol + " unit is named as " + quantity + " like every other unit in the table");
+    }
     Dimension minimum_power;
     minimum_power.length = std::numeric_limits<int>::min();
     t.equal(dimension_text(minimum_power),
