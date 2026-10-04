@@ -1262,6 +1262,7 @@ end
 check(calls.solve == solve_before_manifest and calls.giac == giac_before_manifest,
       "without invoking solve or caseval")
 check(runSteps("help", ""):find("!m manifest", 1, true) ~= nil, "the help names the manifest command")
+check(runSteps("help", ""):find("!u unit", 1, true) ~= nil, "the help names the unit definition command")
 check(runSteps("help", ""):find("v0 is the starting speed", 1, true) ~= nil,
       "and says what the kinematics symbols mean, for a student who does not know them")
 
@@ -6611,14 +6612,37 @@ if os.getenv("NPS_COMMAND_MODULE") then
     local hidden = joined(env.definitionParagraphs(env.steps.result, 4))
     check(env.steps.revealed == 1 and hidden == "No revealed step is selected.",
           "hint mode gives no definitions for a step it has not revealed")
+    check(joined(env.definitionParagraphs(env.steps.result, 1)):find("Rule: eq.linear.inverse-operations", 1, true) ~= nil,
+          "control: hint mode still defines the step it has revealed")
     env.on.escapeKey()
     env.stepsSetProgression("full")
+
+    local unregistered = joined(env.definitionParagraphs({ steps = { { name = "made up", rule = "eq.no-such-rule", depth = 0 } } }, 1))
+    check(unregistered:find("Rule: eq.no-such-rule, no registered definition (no rule is registered under that id)", 1, true) ~= nil,
+          "a step whose rule is not registered says so rather than inventing a definition")
+    local ruleless = joined(env.definitionParagraphs({ steps = { { name = "given", depth = 0 } } }, 1))
+    check(ruleless:find("This step names no rule.", 1, true) ~= nil and ruleless:find("Rule: ", 1, true) == nil,
+          "a step that names no rule gets no rule definition")
+    enter("solve(2*x+5=13,x)")
+    module.rule_definition = nil
+    local without = joined(env.definitionParagraphs(env.steps.result, 4))
+    check(without:find("Rule: eq.linear.check-by-substitution, no definitions in this build", 1, true) ~= nil,
+          "a build without rule_definition says so and still names the rule")
+    env.on.escapeKey()
 
     enter("!u N")
     evidence("UI-009", env.steps.status == "N: force, dimension L M T^-2, SI kg m/s^2, scale 1",
              "!u names the quantity a unit measures from the unit table")
     enter("!u parsec")
     check(env.steps.status == "unit refused: unknown unit parsec", "!u refuses a unit it does not know")
+    enter("!u")
+    check(env.steps.status == "name a unit, as in !u m/s^2", "a bare !u asks for a unit")
+    enter("!u m*s")
+    check(env.steps.status == "m*s: no named quantity, dimension L T, SI m s, scale 1",
+          "!u still defines a unit no quantity is named for")
+    module.unit_definition = nil
+    enter("!u N")
+    check(env.steps.status == "no unit definitions in this build", "a build without unit_definition says so")
     end)()
 end
 
