@@ -370,7 +370,6 @@ set_source_files_properties("${NPS_GIAC_SRC}/sha256.c" PROPERTIES LANGUAGE CXX)
 add_library(nps_gmp INTERFACE)
 if(CMAKE_CROSSCOMPILING)
     set(NPS_GMP_INCLUDE_DIR "${NPS_NDL_SDK}/toolchain/install/include")
-    set(NPS_GMP_INCLUDE_DIRS "${NPS_GMP_INCLUDE_DIR}")
     set(NPS_GMP_LIBRARY "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a")
     if(NOT EXISTS "${NPS_GMP_INCLUDE_DIR}/gmp.h" OR NOT EXISTS "${NPS_GMP_LIBRARY}")
         message(FATAL_ERROR "the ndl GMP 6.3.0 installation is incomplete")
@@ -1162,11 +1161,11 @@ else()
     nps_hash_inputs(NPS_HOST_STEP_HASH ${NPS_COMMON_MANIFEST_INPUTS})
     nps_add_manifest(nps_manifest_host host 0 0 none not-installed none absent
                      "${NPS_HOST_STEP_HASH}" "" "" "" "")
-    target_link_libraries(nps_manifest_host PRIVATE nps_flags nps_gmp)
+    target_link_libraries(nps_manifest_host PRIVATE nps_flags)
 
     nps_add_manifest(nps_manifest_probe_host probe 1 1 none not-installed none absent
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_PROBE_SIDECAR}" "")
-    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags nps_gmp)
+    target_link_libraries(nps_manifest_probe_host PRIVATE nps_flags)
     add_executable(nps_manifest_probe_test tests/unit/manifest_scheme_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_probe_host>)
     target_compile_definitions(nps_manifest_probe_test PRIVATE
@@ -1184,7 +1183,7 @@ else()
     nps_add_manifest(nps_manifest_split_host split 1 0 Giac runtime-unverified
                      lua5.1.luagiac.caseval-v1 external-required-unvalidated
                      "${NPS_SPLIT_HOST_STEP_HASH}" "" "" "${NPS_SPLIT_SIDECAR}" "${NPS_V3_SIDECAR}")
-    target_link_libraries(nps_manifest_split_host PRIVATE nps_flags nps_gmp)
+    target_link_libraries(nps_manifest_split_host PRIVATE nps_flags)
     if(NPS_RETAINED_FAULT_INJECTION)
         target_compile_definitions(nps_manifest_split_host PRIVATE NPS_RETAINED_FAULT_INJECTION=1)
     endif()
@@ -1203,7 +1202,7 @@ else()
     nps_add_manifest(nps_manifest_unified_host unified 1 0 Giac bundled-static
                      nps.giac.typed-v1 bundled-static
                      "${NPS_HOST_STEP_HASH}" "" "" "${NPS_UNIFIED_SIDECAR}" "${NPS_V4_SIDECAR}")
-    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags nps_gmp)
+    target_link_libraries(nps_manifest_unified_host PRIVATE nps_flags)
     add_executable(nps_manifest_unified_test tests/unit/manifest_scheme_tests.cc
                    $<TARGET_OBJECTS:nps_manifest_unified_host>)
     target_compile_definitions(nps_manifest_unified_test PRIVATE
@@ -1253,7 +1252,7 @@ else()
     # catalog is the only inventory that names the rules a host run cannot reach.
     add_executable(nps_coverage tools/coverage.cc src/steps/schema.cc)
     target_include_directories(nps_coverage PRIVATE include)
-    target_link_libraries(nps_coverage PRIVATE nps_flags nps_gmp)
+    target_link_libraries(nps_coverage PRIVATE nps_flags)
 
     # A device run has no TestSink, so what it found reaches the evidence file through here. The
     # record names the packaged artifact and the digest it was read from, and this refuses to turn
@@ -1483,9 +1482,7 @@ include(CTest)
 # The lint cannot judge the module without the SDK headers, and a custom target has no ENVIRONMENT
 # property, so the path the configure already knows is handed over through env the way the packaging
 # steps hand over theirs.
-string(JOIN ":" NPS_UI_LINT_GMP_CPATH ${NPS_GMP_INCLUDE_DIRS})
-set(NPS_UI_LINT_CPATH
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/etl/include:${NPS_UI_LINT_GMP_CPATH}")
+set(NPS_UI_LINT_CPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/etl/include")
 add_custom_target(resident_exit_lint
     COMMAND ${CMAKE_COMMAND} -E env "NDL_SDK=${NPS_NDL_SDK}" "CPATH=${NPS_UI_LINT_CPATH}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lint-resident-exit.sh"
