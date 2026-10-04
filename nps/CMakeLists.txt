@@ -64,15 +64,22 @@ set(CORE_SOURCES
     src/steps/quadratic.cc
     src/steps/rearrange.cc
     src/steps/rewrite.cc
+    src/steps/attempt.cc
     src/steps/command.cc
     src/steps/integer.cc
     src/steps/numeric.cc
+    src/steps/power.cc
     src/steps/matrix_row.cc
     src/steps/matrix_form.cc
+    src/steps/trig.cc
+    src/steps/rational_expression.cc
+    src/steps/system.cc
     src/steps/matrix.cc
     src/steps/differentiate.cc
     src/steps/integrate.cc
     src/steps/calculus.cc
+    src/steps/implicit.cc
+    src/steps/separable.cc
     src/physics/catch_up.cc
     src/physics/density.cc
     src/physics/modern.cc
@@ -92,6 +99,8 @@ set(CORE_SOURCES
     src/physics/relation.cc
     src/physics/ranking.cc
     src/physics/gravitation.cc
+    src/physics/fluids.cc
+    src/physics/thermal.cc
     src/physics/oscillation.cc
     src/physics/circular_motion.cc
     src/physics/work.cc
@@ -100,6 +109,8 @@ set(CORE_SOURCES
     src/cas/giac/giac_adapter.cc)
 
 set(TEST_SOURCES
+    src/wp/problem_ir.cc
+    tests/unit/problem_ir_tests.cc
     src/platform/nspire/integrity.cc
     src/platform/nspire/native_menu_policy.cc
     tests/unit/run_tests.cc
@@ -113,15 +124,22 @@ set(TEST_SOURCES
     tests/unit/quadratic_tests.cc
     tests/unit/rearrange_tests.cc
     tests/unit/rewrite_tests.cc
+    tests/unit/attempt_tests.cc
     tests/unit/command_tests.cc
     tests/unit/integer_tests.cc
     tests/unit/numeric_tests.cc
+    tests/unit/power_tests.cc
     tests/unit/matrix_row_tests.cc
     tests/unit/matrix_form_tests.cc
+    tests/unit/trig_tests.cc
+    tests/unit/rational_expression_tests.cc
+    tests/unit/system_tests.cc
     tests/unit/matrix_tests.cc
     tests/unit/differentiate_tests.cc
     tests/unit/integrate_tests.cc
     tests/unit/calculus_tests.cc
+    tests/unit/implicit_tests.cc
+    tests/unit/separable_tests.cc
     tests/unit/ui_canvas_tests.cc
     tests/unit/integrity_tests.cc
     tests/unit/units_tests.cc
@@ -130,6 +148,7 @@ set(TEST_SOURCES
     tests/unit/modern_tests.cc
     tests/unit/relativity_tests.cc
     tests/unit/gravitation_tests.cc
+    tests/unit/fluids_thermal_tests.cc
     tests/unit/oscillation_tests.cc
     tests/unit/circular_motion_tests.cc
     tests/unit/kinematics_tests.cc
@@ -376,8 +395,8 @@ else()
     target_link_libraries(nps_gmp INTERFACE PkgConfig::NPS_GMP)
 endif()
 
-# Inputs that #222 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
-# bytes depend on them. The check below cannot hold those to the tracked-source rule until #222 moves
+# Inputs that #490 owns: built SDK and toolchain artifacts a manifest hashes because the packaged
+# bytes depend on them. The check below cannot hold those to the tracked-source rule until #490 moves
 # those hashes onto sources, so the call that hashed one says so here. Naming the call rather than a
 # path pattern keeps the exemption from covering a tracked source that happens to sit beside one.
 function(nps_defer_manifest_inputs)
@@ -458,7 +477,7 @@ function(nps_hash_ndl_inputs output)
         "${sdk}/toolchain/install/bin/arm-none-eabi-ld"
         "${sdk}/toolchain/install/include/gmp.h"
         "${sdk}/toolchain/install/lib/libgmp.a")
-    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #222.
+    # Every one of these is produced by bootstrapping the SDK and the cross toolchain, which is #490.
     nps_defer_manifest_inputs(${inputs})
     nps_hash_inputs(hash ${inputs})
     set(${output} "${hash}" PARENT_SCOPE)
@@ -482,7 +501,7 @@ function(nps_hash_giac_inputs output)
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfr.a")
-    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #222.
+    # The Giac sources are tracked. The three toolchain archives are bootstrap output, also #490.
     nps_defer_manifest_inputs(
         "${NPS_NDL_SDK}/toolchain/install/lib/libgmp.a"
         "${NPS_NDL_SDK}/toolchain/install/lib/libmpfi.a"
@@ -1240,6 +1259,11 @@ else()
     add_executable(nps_traceability tools/traceability.cc)
     target_link_libraries(nps_traceability PRIVATE nps_flags)
 
+    # WP Milestone 0. Host only, so no calculator build carries the word-problem schema yet.
+    add_executable(nps_wp_validate tools/wp_validate.cc src/wp/problem_ir.cc "${NPS_GIAC_SRC}/sha256.c")
+    target_link_libraries(nps_wp_validate PRIVATE nps_core nps_manifest_host nps_flags)
+    target_include_directories(nps_wp_validate PRIVATE "${NPS_GIAC_SRC}")
+
     # PRD section 27. Checks the coverage catalog against what the golden fixtures record, so a
     # family cannot claim a rule the corpus never runs.
     # It takes the schema table as well, because VER-016 asks every rule to declare one and the
@@ -1661,6 +1685,8 @@ if(NOT CMAKE_CROSSCOMPILING)
     endif()
 
     # Unit replaces the evidence, V4 appends to it, then traceability reads it.
+    add_test(NAME wp_corpus COMMAND nps_wp_validate "${CMAKE_CURRENT_SOURCE_DIR}/tests/wp_corpus")
+
     add_test(NAME traceability COMMAND nps_traceability
              "${CMAKE_CURRENT_SOURCE_DIR}/../docs/StepCAS_Product_Requirements_Document.md"
              "${CMAKE_BINARY_DIR}/evidence.txt" "${CMAKE_CURRENT_SOURCE_DIR}/catalog/families.md"
@@ -1695,6 +1721,18 @@ if(NOT CMAKE_CROSSCOMPILING)
     # it reads, the two shapes it refuses as malformed, the row it declines as not module-scoped and
     # the domain no catalog family matches.
     add_test(NAME traceability_selftest COMMAND nps_traceability --selftest)
+
+    # Their staging directories go in the build tree rather than /tmp, which parallel lanes share,
+    # and each selftest removes its own. The audit runs all four against an empty root of its own and
+    # fails on anything they leave there.
+    set_tests_properties(device_evidence_selftest device_run_selftest coverage_selftest
+                         traceability_selftest PROPERTIES
+                         ENVIRONMENT "NPS_SCRATCH_DIR=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch")
+    add_test(NAME selftest_scratch_cleanup
+             COMMAND "${CMAKE_COMMAND}"
+                     "-DSCRATCH=${CMAKE_CURRENT_BINARY_DIR}/selftest-scratch-audit"
+                     "-DSELFTESTS=$<TARGET_FILE:nps_device_evidence>;$<TARGET_FILE:nps_device_run>;$<TARGET_FILE:nps_coverage>;$<TARGET_FILE:nps_traceability>"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/tools/selftest_scratch_cleanup.cmake")
 
     # Section 19.9 again: evidence that nothing compares is not evidence. Each fixture loses its
     # claim line in turn and the suite has to fail while it is gone.
@@ -1739,7 +1777,7 @@ if(NOT CMAKE_CROSSCOMPILING)
         COMMAND ${CMAKE_CTEST_COMMAND} -V --test-dir "${CMAKE_BINARY_DIR}"
         DEPENDS nps_host nps_canvas_performance nps_container_workload_test nps_nspire_measurement_test nps_nspire_allocation_probe_test
                 nps_manifest_probe_test nps_manifest_split_test nps_manifest_unified_test nps_traceability nps_coverage nps_corpus_audit nps_device_evidence
-                nps_acceptance_corpus nps_device_run
+                nps_acceptance_corpus nps_device_run nps_wp_validate
         USES_TERMINAL)
     if(TARGET nps_retained_ui_test)
         add_dependencies(check nps_retained_ui_test nps_retained_menu_test)

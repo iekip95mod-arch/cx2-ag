@@ -78,6 +78,10 @@ QuadraticResult solve_by_square_root(Arena &arena, Derivation &derivation, NodeI
 QuadraticResult solve_quadratic(Arena &arena, Derivation &derivation, NodeId equation, NodeId unknown,
                                 const Budget &budget = Budget());
 
+// ALG-004 by factoring, refusing before any step when no integer pair has product a*c and sum b.
+QuadraticResult solve_by_factoring(Arena &arena, Derivation &derivation, NodeId equation,
+                                   NodeId unknown, const Budget &budget = Budget());
+
 }  // namespace nps
 
 #endif

@@ -124,6 +124,61 @@ void run_command_tests(TestSink &t) {
         t.check(command.status == CommandStatus::Unsupported && command.detail == "bisect takes 5 arguments",
                 "a numerical method with the wrong number of arguments says how many it takes: " + command.detail);
     }
+    for (const char *text : {"texpand(sin(x+y))", "tcollect(sin(x)^2)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command.expression != kNoNode &&
+                    (command_kind_name(command.kind) == std::string("texpand") ||
+                     command_kind_name(command.kind) == std::string("tcollect")),
+                std::string("a trigonometric rewrite dispatches its one expression: ") + text);
+    }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "powsimp(sqrt(x^2))", "x");
+        t.check(command.status == CommandStatus::Ready && command.expression != kNoNode &&
+                    command_kind_name(command.kind) == std::string("powsimp") && command.operand_text == "sqrt(x^2)",
+                "a power simplification dispatches its one expression");
+        Arena extra;
+        const Command two = parse_command(extra, "powsimp(sqrt(x^2), x)", "x");
+        t.check(two.status == CommandStatus::Unsupported, "and refuses a second argument");
+    }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "partfrac(1/(x^2-1))", "x");
+        t.check(command.status == CommandStatus::Ready &&
+                    command_kind_name(command.kind) == std::string("partial fractions"),
+                "partfrac dispatches as partial fractions");
+    }
+    for (const char *text : {"normal(x/x)", "normal(1/t+1/(t+1),t)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command_kind_name(command.kind) == std::string("normal") &&
+                    command.expression != kNoNode && command.variable != kNoNode,
+                std::string("normal dispatches its expression and its variable: ") + text);
+    }
+    {
+        Arena arena;
+        const Command command = parse_command(arena, "linsolve([x + y = 3, x - y = 1], [x, y])", "z");
+        t.check(command.status == CommandStatus::Ready &&
+                    command_kind_name(command.kind) == std::string("linear system") &&
+                    command.expression != kNoNode && arena.at(command.expression).kind == Kind::List &&
+                    command.variable != kNoNode && arena.at(command.variable).kind == Kind::List,
+                "linsolve dispatches its list of equations and its list of unknowns");
+    }
+    for (const char *method : {"elimination", "substitution"}) {
+        Arena arena;
+        const Command command =
+            parse_command(arena, std::string("linsolve([x = 1], [x], ") + method + ")", "x");
+        t.check(command.status == CommandStatus::Ready && command.method == method,
+                std::string("linsolve carries the named method: ") + method);
+    }
+    for (const char *text : {"linsolve([x = 1])", "linsolve([x = 1], [x], 2)", "linsolve([x = 1], [x], graphing)",
+                             "linsolve([x = 1], [x], substitution, 1)", "linsolve()"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Unsupported && !command.detail.empty(),
+                std::string("a linsolve without exactly two arguments is refused rather than sent to CAS: ") + text);
+    }
     const char *commands[] = {"solve(2*x+5=13,x)", "diff(sin(x^2),x)", "int(x^2,x)",
                               "diff(x^3,x,1)", "int(x^2,x,0,1)", "limit((x^2-1)/(x-1),x,1)",
                               "limit(1/x,x,0,1)", "limit(1/x,x,0,-1)",
@@ -164,7 +219,7 @@ void run_command_tests(TestSink &t) {
                     command.variable_name == "x",
                 std::string("list commas preserve the complete command operand: ") + operand);
     }
-    for (const char *text : {"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
+    for (const char *text : {"unclaimedop(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
                              "solve(x=1,x)+2", "factorial(5)+1", "solve"}) {
         Arena arena;
         t.check(parse_command(arena, text, "x").status == CommandStatus::Unhandled,
