@@ -843,6 +843,27 @@ void run_calculus_tests(TestSink &t) {
                 "the parametric slope refuses outside its envelope: " + std::string(text) + ": " +
                     result.detail);
     }
+    {
+        // MATH-007. Degree mode refuses trigonometry in either coordinate, and answers a curve without it.
+        bool refused = true;
+        for (const char *text : {"paramslope(sin(t),t,t,0)", "paramslope(t,sin(t),t,0)"}) {
+            Arena arena;
+            Derivation derivation;
+            derivation.request.angle_mode = AngleMode::Degrees;
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"));
+            refused = refused && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                      result.detail.find("degree mode") != std::string::npos;
+        }
+        t.check(refused, "a parametric slope with trigonometry in either coordinate is refused in degree mode");
+        Arena arena;
+        Derivation derivation;
+        derivation.request.angle_mode = AngleMode::Degrees;
+        const CalculusResult plain = calculus_walkthrough(arena, derivation,
+                                                          parse_command(arena, "paramslope(t^2,t^3,t,2)", "x"));
+        t.check(plain.outcome == CalculusOutcome::Evaluated && print(arena, plain.value) == "3",
+                "and a parametric slope without trigonometry still answers in degree mode");
+    }
     for (const char *text : {"paramslope(t,t^2,t)", "paramslope(t,t^2,2,1)"}) {
         Arena arena;
         const Command command = parse_command(arena, text, "x");
