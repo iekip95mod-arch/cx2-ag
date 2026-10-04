@@ -1096,7 +1096,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 197, "every palette entry survives the regrouping: " .. entries .. " of 197")
+    check(entries == 198, "every palette entry survives the regrouping: " .. entries .. " of 198")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -4359,7 +4359,7 @@ local function writeEvidence()
     local expected = {
         "MATH-007", "MATH-011", "MATH-012", "MATH-015", "STEP-008", "STEP-009", "STEP-010", "STEP-013",
         "STEP-014", "STEP-016", "STEP-020", "VER-019", "UI-003", "UI-004", "UI-005", "UI-012", "UI-013", "UI-014", "UI-015",
-        "UI-018", "PLAT-006", "PLAT-012", "VER-020",
+        "UI-018", "PLAT-006", "PLAT-012", "UI-011", "VER-020",
     }
     local complete = after:sub(1, #before) == before
     for _, requirement in ipairs(expected) do
@@ -8698,6 +8698,119 @@ do
     check(cas_in_source, "resultLines displays CAS answer for answer-only record in hint mode")
 
     env.closeSteps()
+    end)()
+end
+
+-- UI-011. The shell composes the export from the record it already holds and hands it to the writer.
+do
+    (function()
+    local exported = {}
+    local module = copyModule()
+    module.export_text = function(name, text)
+        exported[#exported + 1] = { name = name, text = text }
+        return "/documents/ndl/" .. name .. ".txt.tns"
+    end
+    local env = loadIsolated(module)
+    env.on.paint(gc)
+    local function enter(line)
+        env.fctEditor.editor:setExpression("\\0el {" .. line .. "}")
+        env.on.enterKey()
+        if env.steps.active then env.closeSteps() end
+    end
+    local function has(text, fragment) return text:find(fragment, 1, true) ~= nil end
+
+    enter("!x")
+    check(#exported == 0 and env.steps.histText[1][2] == " no steps to export yet",
+          "an export before any steps says there is nothing to export and writes nothing")
+
+    env.stepsSetProgression("full")
+    next_step_result = fake_result
+    enter("!i 1/x")
+    enter("!x")
+    local full = exported[1] and exported[1].text or ""
+    local complete = exported[1] and exported[1].name == "stepcas-export" and
+                     has(full, "StepCAS derivation export, format 1\n") and
+                     has(full, "Build: " .. fake_manifest.id) and
+                     has(full, "Input: 1/x") and has(full, "Normalized input: (x^(-1))") and
+                     has(full, "Outcome: EXACT + CONDITIONAL  |  solved and verified") and
+                     has(full, "Answer: " .. (env.steps.result.display_result or
+                                              env.steps.result.canonical) .. "\n") and
+                     has(full, "Assumes: x > 0") and
+                     has(full, "Steps: 4 of 4 shown") and
+                     has(full, "Step 2 of 4: Logarithmic integral") and
+                     has(full, "Requires: x > 0") and
+                     has(full, "Checked by: rule-local invariant: passed, the exponent is minus one") and
+                     has(full, "Rule i.reciprocal, claim: equivalent expression")
+    check(complete, "the export carries the build, the input, the outcome, the answer, the conditions " ..
+                    "and each step with the check that verified it")
+    local _, normalized_lines = full:gsub("Normalized input: ", "")
+    check(normalized_lines == 1, "and names the normalized input once rather than under every step")
+    check(env.steps.status == "exported to /documents/ndl/stepcas-export.txt.tns",
+          "and the status line says where the file went")
+
+    enter("!x lab-3")
+    check(exported[2] and exported[2].name == "lab-3", "a name after !x chooses the file")
+
+    env.stepsSetProgression("hint")
+    next_step_result = fake_result
+    enter("!i 1/x")
+    enter("!x")
+    local hinted = exported[3] and exported[3].text or ""
+    local withheld = has(hinted, "Answer: withheld in hint mode until every step is revealed") and
+                     has(hinted, "Steps: 1 of 4 shown") and not has(hinted, "ln(x)") and
+                     not has(hinted, "Step 2 of 4") and
+                     has(hinted, "Outcome: EXACT + CONDITIONAL  |  solved and verified")
+    check(withheld, "in hint mode the export withholds the answer and every unrevealed step")
+    env.stepsSetProgression("full")
+
+    local unsupported = {}
+    for key, value in pairs(fake_result) do unsupported[key] = value end
+    unsupported.solved, unsupported.status = false, "unsupported"
+    unsupported.result_form = "unsupported symbolic form"
+    unsupported.result, unsupported.canonical, unsupported.agrees = nil, nil, nil
+    unsupported.detail = "no rule for this form"
+    next_step_result = unsupported
+    enter("!i 1/x")
+    enter("!x")
+    local partial = exported[4] and exported[4].text or ""
+    local distinct = has(partial, "Outcome: UNSUPPORTED  |  unsupported") and
+                     not has(partial, "EXACT") and not has(partial, "Answer: ")
+    check(distinct, "an unsupported outcome exports as unsupported, with no answer line to read as complete")
+
+    module.export_text = function() return nil, "export name must be 1 to 32 lower case letters" end
+    enter("!x Bad")
+    check(env.steps.status == "export refused: export name must be 1 to 32 lower case letters",
+          "a writer refusal reaches the status line")
+    module.export_text = function() error("disk full", 0) end
+    enter("!x")
+    check(env.steps.status == "export refused: disk full", "and so does a writer that raises")
+    module.export_text = nil
+    enter("!x")
+    check(env.steps.histText[#env.steps.histText][2] == " no export in this build",
+          "a module without the writer says export is unavailable")
+
+    check(has(full, "Outcome: EXACT + CONDITIONAL  |  solved and verified  |  ") and
+              has(hinted, "Outcome: EXACT + CONDITIONAL  |  solved and verified\n"),
+          "the full export carries the cross-check verdict and the hint export leaves it out")
+    check(env.runSteps("help", ""):find("!x name exports them", 1, true) ~= nil,
+          "the typed help names the export command")
+    local export_item
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Export steps  !x" then export_item = item[2] end
+        end
+    end
+    if export_item then export_item() end
+    local menu_types = export_item ~= nil and env.fctEditor.editor:getExpression():find("!x ", 1, true) ~= nil
+    check(menu_types, "the Steps menu types the export command into the entry line")
+
+    evidence("UI-011", complete and withheld and distinct and menu_types,
+             "!x, typed or from the Steps menu, writes the open derivation as plain text through the " ..
+             "module's export_text, with the " ..
+             "build, input, outcome class and status, answer, conditions and each step's check, " ..
+             "withholding what hint mode withholds and keeping a partial outcome distinct. The writer " ..
+             "is stubbed here and its file output is checked by luax_host")
     end)()
 end
 
