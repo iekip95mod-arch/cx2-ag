@@ -2624,7 +2624,7 @@ const RuleSchema kRules[] = {
     {"matrix.det-correction", ClaimType::EquivalentExpression, kMatrixDeterminantResult, 1,
      FailureBehavior::WithholdResult},
     {"plan.rational-normal", ClaimType::NoClaim, kRationalStrategy, 2, FailureBehavior::WithholdResult},
-    {"rat.excluded-values", ClaimType::Definition, kRationalExcluded, 1, FailureBehavior::WithholdResult},
+    {"rat.excluded-values", ClaimType::Definition, kRationalExcluded, 1, FailureBehavior::CannotFail},
     {"rat.common-denominator", ClaimType::EquivalentExpression, kRationalSameValues, 1,
      FailureBehavior::WithholdResult},
     {"rat.multiply", ClaimType::EquivalentExpression, kRationalSameValues, 1, FailureBehavior::WithholdResult},

@@ -5,6 +5,7 @@
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
 #include "nps/steps/rational_expression.h"
+#include "nps/steps/schema.h"
 #include "unit/adapter_tests.h"
 #include "../step_invariants.h"
 
@@ -152,6 +153,25 @@ void test_normal(TestSink &t) {
         t.check(!r.assumptions.empty(), "only where x is not zero, which is published: " + r.assumptions);
     }
     {
+        const RuleSchema *excluded = rule_schema("rat.excluded-values");
+        t.check(excluded && excluded->on_failure == FailureBehavior::CannotFail,
+                "the excluded values are zeros by construction, so their rule declares it cannot fail");
+    }
+    {
+        const Run r = run("1/(x-1000001)");
+        t.equal(r.answer, "(1 * ((x + -1000001)^-1))", "a denominator too large to search still reduces");
+        t.check(r.assumptions.find("(x + -1000001) is not zero") != std::string::npos && r.broken.empty(),
+                "and its factor is excluded whole: " + r.assumptions + broken(r));
+    }
+    for (const char *zero : {"0/x", "1/x - 1/x"}) {
+        const Run r = run(zero);
+        t.equal(r.answer, "0", std::string("a zero numerator reduces to 0: ") + zero);
+        t.check(has_rule(r, "rat.cancel-common-factor") && r.assumptions.find("x is not zero") != std::string::npos &&
+                    r.broken.empty(),
+                std::string("by cancelling the whole denominator, which stays excluded: ") + zero + ", " +
+                    r.assumptions + broken(r));
+    }
+    {
         const Run r = run("1/x + 1/(x+1)");
         t.equal(r.answer, "(((2 * x) + 1) * (((x^2) + x)^-1))", "a sum of fractions goes over a common denominator");
         t.check(has_rule(r, "rat.common-denominator"), "recorded as a common denominator");
@@ -181,6 +201,11 @@ void test_normal(TestSink &t) {
     {
         const Run r = run("(2^400*x^2)*(2^400*x)/(x-1)");
         t.equal(outcome(r), "resource exceeded", "coefficients beyond the bit bound are a resource limit");
+    }
+    {
+        const Run r = run("(2^600*x)/(2^600*(x-1))");
+        t.check(outcome(r) == "resource exceeded" && r.result.detail == "a coefficient is beyond the exact arithmetic bound",
+                "the reader stops at the bit bound even when the oversized factor would cancel: " + r.result.detail);
     }
 }
 
@@ -224,6 +249,12 @@ void test_partial_fractions(TestSink &t) {
         const Run r = run("1/(x-1)^2", pf);
         t.equal(outcome(r), "outside envelope", "a repeated factor is refused");
         t.check(r.result.detail.find("repeated") != std::string::npos, "and the refusal names it");
+    }
+    {
+        const Run r = run("1/(x^2-1000001)", pf);
+        t.equal(outcome(r), "outside envelope", "a denominator too large to search for roots is refused");
+        t.check(r.result.detail.find("too large to search") != std::string::npos && r.rules.empty(),
+                "naming the search, before anything is recorded: " + r.result.detail);
     }
 }
 

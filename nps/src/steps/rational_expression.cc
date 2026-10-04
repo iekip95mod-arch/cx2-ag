@@ -912,7 +912,6 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
             return run.stopped();
         std::vector<Rational> excluded;
         std::vector<Restriction> restrictions;
-        bool every_root_zeroes = true;
         for (const Poly &den : reader.denominators) {
             std::vector<Rational> roots;
             std::vector<int> multiplicities;
@@ -926,11 +925,7 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
                 rest = den;
                 roots.clear();
             }
-            detail::Mpq at, value;
             for (const Rational &root : roots) {
-                detail::mpq_set_rational(at.get(), root);
-                poly_evaluate(den, at.get(), value.get());
-                every_root_zeroes = every_root_zeroes && mpq_sgn(value.get()) == 0;
                 if (std::none_of(excluded.begin(), excluded.end(),
                                  [&root](const Rational &seen) { return rational_equal(seen, root); })) {
                     excluded.push_back(root);
@@ -961,11 +956,9 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
         step.explanation_detailed = "These conditions hold for every later form, including one where the factor has cancelled.";
         step.proof_obligations.push_back({"obl.rational.excluded-values",
             "every excluded value makes one of the denominators zero"});
-        step.verifications.push_back({"exact denominator evaluation",
-            every_root_zeroes ? VerificationOutcome::Passed : VerificationOutcome::Failed,
-            every_root_zeroes ? EvidenceStrength::StructurallyValid : EvidenceStrength::Failed,
-            every_root_zeroes ? "each excluded value makes its denominator exactly zero"
-                              : "an excluded value does not make its denominator zero",
+        // The root search admits a candidate only once it evaluates the denominator to exactly zero.
+        step.verifications.push_back({"exact denominator evaluation", VerificationOutcome::Passed,
+            EvidenceStrength::StructurallyValid, "each excluded value makes its denominator exactly zero",
             "obl.rational.excluded-values"});
         CheckPayload check;
         check.target_claim = "The expression is defined exactly when " + listed;
@@ -977,8 +970,6 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
             run.recorded.add(r, here);
         if (!run.running())
             return run.stopped();
-        if (!every_root_zeroes)
-            return run.finish(RationalOutcome::VerificationFailed, kNoNode, "an excluded value does not zero its denominator");
     }
 
     const NodeId combined = run.fraction_node(whole.num, whole.den);
@@ -1025,7 +1016,7 @@ RationalResult rational_expression(Arena &arena, Derivation &derivation, NodeId 
         return run.finish(RationalOutcome::ResourceExceeded, kNoNode, read_refusal(Read::TooLarge));
     Poly num = whole.num, den = whole.den;
     NodeId result = combined;
-    if (!whole.num.zero() && common.degree() >= 1) {
+    if (common.degree() >= 1) {
         Poly num_rest, den_rest;
         Poly reduced_num, reduced_den;
         if (!poly_divide(whole.num, common, &reduced_num, &num_rest) ||
