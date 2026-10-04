@@ -627,7 +627,7 @@ local fake_catch_up = {
 local calls = {
     differentiate = 0, integrate = 0, solve = 0, kinematics = 0, giac = 0, manifest = 0, integrity = 0,
     device_identity = 0,
-    unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, work = 0, components = 0,
+    unit_conversion = 0, density = 0, vector_addition = 0, vector_cross = 0, scalar_product = 0, work = 0, components = 0,
     forces = 0, optics = 0, gravitation = 0, oscillation = 0, wave = 0,
     pressure = 0, hydrostatic = 0, buoyancy = 0, continuity = 0, sensible_heat = 0, latent_heat = 0, ideal_gas = 0,
     modern = 0, relativity = 0,
@@ -684,6 +684,7 @@ local fake_manifest = {
         { kind = "solver", id = "physics.density.mass-volume" },
         { kind = "solver", id = "physics.vectors.cartesian-addition.two-dimension" },
         { kind = "solver", id = "physics.vectors.cartesian-cross-product.three-dimension" },
+        { kind = "solver", id = "physics.vectors.cartesian-scalar-product" },
         { kind = "solver", id = "physics.kinematics.relative-motion.components.two-dimension" },
         { kind = "solver", id = "physics.vectors.magnitude-components.two-dimension" },
         { kind = "solver", id = "physics.forces.newton-second-law" },
@@ -979,6 +980,28 @@ nps_split = {
                 { kind = "plan", name = "Vector cross product", goal = "Cross two Cartesian vectors",
                   short = "Expand the determinant", claim = "no claim", verified = true,
                   failed = false, depth = 0 },
+            },
+        }
+    end,
+    -- The record luax_host.lua asserts for the same operands with a scripted backend.
+    scalar_product = function(...)
+        calls.scalar_product = calls.scalar_product + 1
+        last_args = { ... }
+        return {
+            outcome = "solved", detail = "", solved = true, answer_only = false,
+            status = "solved and verified",
+            result = "15 m^2", value = "15 m^2",
+            precision = { kind = "exact", significant_digits = 0 },
+            angle = "acute", angle_unit = "degrees", has_numeric_angle = true,
+            numeric_angle = "53.13010235415598 degrees",
+            interpretation = "the angle between them is less than a right angle, measured at " ..
+                             "53.13010235415598 degrees",
+            nodes = 40, step_count = 9, rewrites = 3, giac_calls = 3,
+            steps = {
+                { kind = "plan", name = "Cartesian scalar product",
+                  goal = "Dot the two vectors and place the angle between them",
+                  short = "Check compatibility, convert to SI, then sum the matching component products",
+                  claim = "no claim", verified = true, failed = false, depth = 0 },
             },
         }
     end,
@@ -1349,7 +1372,7 @@ local build_fingerprint = fake_manifest.id:match("([^.]+)$")
 build_fingerprint = build_fingerprint:sub(1, 12) .. "..." .. build_fingerprint:sub(-12)
 check(manifest_before_command == 1 and calls.manifest == manifest_before_command,
       "startup reads the compiled capability manifest once and !m reuses it")
-check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 43 modules",
+check(manifest_text == " unified " .. build_fingerprint .. ", Giac 1.9.0, 44 modules",
       "and displays the unified manifest identity")
 -- The mock is the unified manifest as the shell sees it, so its sidecar rows are the names the build
 -- gives them. A name not ending in .tns cannot reach the calculator at all, which is what add_tns
@@ -1405,7 +1428,7 @@ check(fctEditor.editor.visible == false and fctEditor.editor.x == -10000,
 text = painted()
 check(text:find("Guided physics", 1, true) ~= nil and
       text:find("Change units when the unit is cubed", 1, true) ~= nil and
-      text:find("Split a speed into sideways and up parts", 1, true) ~= nil,
+      text:find("Find the work done by a push at an angle", 1, true) ~= nil,
       "the 320 by 240 browser exposes its first seven fixtures")
 check(paintedRun():find("How many cubic metres is 2.50 cubic centimetres?", 1, true) ~= nil,
       "the selected fixture explains its structured problem")
@@ -1485,10 +1508,24 @@ on.escapeKey()
 openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
+check(calls.scalar_product == 1 and steps.result.mode == "scalar_product",
+      "the sixth fixture runs the scalar product through its native bridge")
+check(last_args[1] == "3 i + 4 j m" and last_args[2] == "5 i + 0 j m" and last_args[3] == "degrees",
+      "and asks for the angle in degrees as well as the product")
+text = painted()
+check(mathBoxShowing("15 m^2") ~= nil, "the scalar product renders as one number with its unit")
+check(text:find("MEANING", 1, true) ~= nil and
+      paintedRun():find("MEANING the angle between them is less than a right angle, measured at 53.13", 1, true) ~= nil,
+      "the angle's placement and the start of its measured size render under the meaning label")
+on.escapeKey()
+
+openPhysicsFixtures()
+on.arrowDown()
+on.enterKey()
 check(calls.work == 1 and steps.result.mode == "work" and
       type(last_args[1]) == "table" and last_args[1].force.frame == "lab" and
       last_args[1].force.precision.kind == "exact",
-      "the sixth fixture sends typed work vectors to the native bridge")
+      "the seventh fixture sends typed work vectors to the native bridge")
 text = painted()
 check(mathBoxShowing("-14 kg m^2/s^2") ~= nil and
       text:find("opposite", 1, true) ~= nil and text:find("displacement", 1, true) ~= nil,
@@ -1500,7 +1537,7 @@ on.arrowDown()
 on.enterKey()
 check(calls.components == 1 and steps.result.mode == "magnitude_angle_to_components" and
       type(last_args[1]) == "table" and last_args[1].angle_unit == "degrees",
-      "the seventh fixture sends typed magnitude and angle metadata to the native bridge")
+      "the eighth fixture sends typed magnitude and angle metadata to the native bridge")
 text = painted()
 answer_box = mathBoxShowing("5*√(3)")
 check(answer_box ~= nil and answer_box.expr:find(") m/s", 1, true) ~= nil,
@@ -1517,7 +1554,7 @@ openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
 check(calls.unit_conversion == 2 and steps.result.outcome == "dimension mismatch",
-      "the eighth fixture exercises a typed dimensional refusal")
+      "the ninth fixture exercises a typed dimensional refusal")
 text = painted()
 -- The verdict wraps when it is long, so the refusal's reason is read across the rows it took
 -- rather than on one of them.
@@ -1531,14 +1568,14 @@ on.arrowDown()
 text = painted()
 check(text:find("Find when a fast runner catches a slow one", 1, true) ~= nil and
       text:find("Change units when the unit is cubed", 1, true) == nil,
-      "the ninth fixture scrolls into the 320 by 240 browser")
+      "the tenth fixture scrolls into the 320 by 240 browser")
 check(paintedRun():find("Boreal starts 5 seconds later at 4 metres per second", 1, true) ~= nil,
       "the catch-up fixture explains its delayed-start event")
 local catch_up_history_before = #steps.histText
 on.enterKey()
 check(calls.catch_up == 1 and steps.result.mode == "catch_up" and
       type(last_args[1]) == "table",
-      "the ninth fixture calls the native catch-up bridge exactly once")
+      "the tenth fixture calls the native catch-up bridge exactly once")
 local catch_up_input = last_args[1]
 check(catch_up_input.first.name == "Atlas" and catch_up_input.second.name == "Boreal" and
       catch_up_input.first.frame == "track" and catch_up_input.second.frame == "track" and
@@ -1602,7 +1639,7 @@ local relative_history_before = #steps.histText
 on.enterKey()
 check(calls.relative_motion == 1 and steps.result.mode == "relative_motion" and
       type(last_args[1]) == "table",
-      "the tenth fixture calls the native relative-motion bridge exactly once")
+      "the eleventh fixture calls the native relative-motion bridge exactly once")
 local relative_input = last_args[1]
 check(relative_input.subject_name == "drone" and relative_input.reference_name == "wind" and
       relative_input.subject_velocity.x == "36" and relative_input.subject_velocity.y == "-18" and
@@ -1641,7 +1678,7 @@ openPhysicsFixtures()
 on.arrowDown()
 on.enterKey()
 check(calls.forces == 1 and steps.result.mode == "forces" and type(last_args[1]) == "table",
-      "the eleventh fixture calls the native force bridge exactly once")
+      "the twelfth fixture calls the native force bridge exactly once")
 forces_input = last_args[1]
 check(forces_input.body == "block" and forces_input.support == "table" and
       forces_input.mass == "2 kg" and forces_input.gravity == "10 m/s^2" and
@@ -4119,6 +4156,7 @@ do
         { "wave", "physics.wave.speed-frequency-wavelength" },
         { "planar_kinematics", "physics.kinematics.constant-acceleration.two-dimension" },
         { "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
+        { "scalar_product", "physics.vectors.cartesian-scalar-product" },
         { "modern", "physics.modern.photon-wavelength" },
         { "modern", "physics.modern.photoelectric" },
         { "modern", "physics.modern.mass-energy" },

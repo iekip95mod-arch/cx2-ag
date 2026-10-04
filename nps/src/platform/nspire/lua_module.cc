@@ -60,6 +60,7 @@
 #include "nps/physics/relative_motion.h"
 #include "nps/physics/thermal.h"
 #include "nps/physics/relativity.h"
+#include "nps/physics/scalar_product.h"
 #include "nps/physics/unit_conversion.h"
 #include "nps/physics/vector_addition.h"
 #include "nps/physics/vector_components.h"
@@ -4224,6 +4225,64 @@ int l_vector_cross(lua_State *L) {
     return 1;
 }
 
+int l_scalar_product(lua_State *L) {
+    const char *first_text = scalar_string_argument(L, 1);
+    const char *second_text = scalar_string_argument(L, 2);
+    const bool angle = !lua_isnoneornil(L, 3);
+    const std::string_view unit_text = angle ? scalar_string_argument(L, 3) : "";
+    GcPause paused(L);
+
+    ScalarProductProblem problem;
+    problem.angle = angle;
+    if (unit_text == "radians")
+        problem.angle_unit = AngleUnit::Radians;
+    else if (angle && unit_text != "degrees")
+        return typed_failure(L, "invalid input", "invalid input",
+                             "angle unit must be degrees or radians");
+    std::string why;
+    if (!parse_vector(first_text, &problem.first, &why) ||
+        !parse_vector(second_text, &problem.second, &why))
+        return typed_failure(L, "invalid input", "invalid input", why);
+
+    Arena arena;
+    Derivation d;
+    ScalarProductResult r;
+    if (GiacBackend::available(L)) {
+        GiacBackend backend(L);
+        r = solve_scalar_product(arena, d, problem, interactive_budget(), &backend);
+    } else {
+        r = solve_scalar_product(arena, d, problem, interactive_budget(), nullptr);
+    }
+
+    lua_newtable(L);
+    set_field(L, "outcome", scalar_product_outcome_name(r.outcome));
+    set_field(L, "detail", r.detail);
+    set_field(L, "solved", r.outcome == ScalarProductOutcome::Solved);
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(r.status));
+    if (r.has_value) {
+        set_field(L, "result", r.value_text);
+        set_field(L, "value", r.value_text);
+        set_precision(L, r.value.precision);
+    }
+    set_field(L, "angle", scalar_angle_name(r.angle));
+    if (angle)
+        set_field(L, "angle_unit", angle_unit_name(problem.angle_unit));
+    set_field(L, "has_numeric_angle", r.has_numeric_angle);
+    if (r.has_numeric_angle)
+        set_field(L, "numeric_angle", r.numeric_angle_text);
+    if (r.has_value && !r.angle_text.empty())
+        set_field(L, "interpretation",
+                  r.has_numeric_angle ? r.angle_text + ", measured at " + r.numeric_angle_text
+                                      : r.angle_text);
+    const std::string assumptions = joined(d.context.active_assumptions);
+    if (!assumptions.empty())
+        set_field(L, "assumptions", assumptions);
+    set_cost(L, arena, d, r.cost, r.cost.backend_calls);
+    push_steps(L, arena, d);
+    return 1;
+}
+
 constexpr char kRelativeMotionGiacMethod[] = "Giac Simplify and local canonical comparison";
 
 int relative_motion_into(lua_State *L, bool cross) {
@@ -5035,6 +5094,7 @@ const luaL_Reg lib[] = {
     {"relativity", l_relativity},
     {"vector_addition", l_vector_addition},
     {"vector_cross", l_vector_cross},
+    {"scalar_product", l_scalar_product},
     {"relative_motion", l_relative_motion},
     {"relative_motion_local", l_relative_motion_local},
     {"forces", l_forces},

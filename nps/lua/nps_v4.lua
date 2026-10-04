@@ -57,6 +57,7 @@ local requiredSolvers = {
 	{ "density", "physics.density.mass-volume" },
 	{ "vector_addition", "physics.vectors.cartesian-addition.two-dimension" },
 	{ "vector_cross", "physics.vectors.cartesian-cross-product.three-dimension" },
+	{ "scalar_product", "physics.vectors.cartesian-scalar-product" },
 	{ "relative_motion", "physics.kinematics.relative-motion.components.two-dimension" },
 	{ "work", "physics.work.constant-force-dot-product" },
 	{ "magnitude_angle_to_components", "physics.vectors.magnitude-components.two-dimension" },
@@ -2715,6 +2716,15 @@ PHYSICS_FIXTURES = {
 		mode = "vector_cross",
 		run = function()
 			return nps_nspire.vector_cross("20.0 i + 0.0 j + 0.0 k cm", "0.0 i + 15.0 j + 0.0 k N")
+		end,
+	},
+	{
+		label = "Find the angle between two directions",
+		problem = "One arrow goes 3 across and 4 up, the other 5 across. Multiplying them part by " ..
+		          "part gives one number, and its sign says whether the angle is wider than a corner.",
+		mode = "scalar_product",
+		run = function()
+			return nps_nspire.scalar_product("3 i + 4 j m", "5 i + 0 j m", "degrees")
 		end,
 	},
 	{
