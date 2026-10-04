@@ -116,35 +116,35 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-04, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4786), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4789 to 4791), `modern` and `relativity` (lua_module.cc:4792 and 4793),
-`vector_addition` (lua_module.cc:4794), `vector_cross` (lua_module.cc:4795),
+`optics`, `unit_conversion` (lua_module.cc:4841), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4844 to 4846), `modern` and `relativity` (lua_module.cc:4847 and 4848),
+`vector_addition` (lua_module.cc:4849), `vector_cross` (lua_module.cc:4850),
 `components_to_magnitude_angle`, `magnitude_angle_to_components`, `math_display`, `giac`,
-`export_text` (lua_module.cc:4757), and a set of platform entry points for memory, tracing, integrity
+`export_text` (lua_module.cc:4812), and a set of platform entry points for memory, tracing, integrity
 and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4659, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4714, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3612, which
-reads the variable names against the model's own term names (lua_module.cc:3598). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3667, which
+reads the variable names against the model's own term names (lua_module.cc:3653). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`modern` (lua_module.cc:3730) and `relativity` (lua_module.cc:3822) read their relation and variable
+`modern` (lua_module.cc:3785) and `relativity` (lua_module.cc:3877) read their relation and variable
 names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
 exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
-nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3688 attaches the declared unit
+nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3743 attaches the declared unit
 to a bare number or to the number written with that unit, and leaves any other unit for the engine to
 refuse.
 
-`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:4753 and defined at
-lua_module.cc:1832. It takes the state, the attempt, the later route states and the variable, and
+`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:4808 and defined at
+lua_module.cc:1833. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
 `source`: read on 2026-10-04, `rule_definition` and `unit_definition` are registered at
-lua_module.cc:4755-4756 and defined at lua_module.cc:1931 and 1969. The first reads `rule_schema`
+lua_module.cc:4810-4811 and defined at lua_module.cc:1932 and 1970. The first reads `rule_schema`
 and the second reads the unit table and `quantity_name`, so neither carries prose of its own.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -162,14 +162,19 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4758, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3165-3166 and a `linsolve` command to `system_into` at lua_module.cc:3162-3163. Its
+lua_module.cc:4813, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3216-3217 and a `linsolve` command to `system_into` at lua_module.cc:3213-3214. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:3075-3079, so the shell falls back to Giac at nps_v4.lua:4192. A linsolve never
-does: system_into answers every outcome with a table at lua_module.cc:2655-2703, and l_walkthrough
-answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3128-3141. Outside
+nil at lua_module.cc:3126-3130, so the shell falls back to Giac at nps_v4.lua:4192. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2706-2754, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3179-3192. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
 native refusal and Giac is not consulted.
+
+`normal` and `partfrac` behave like linsolve. `source`: `l_walkthrough` sends both to `rational_into`
+at lua_module.cc:3229-3232, which answers every outcome with a table at lua_module.cc:2656-2704. A
+second symbol, a degree above 12, or a partfrac denominator with a repeated or irreducible factor shows
+a native refusal and Giac is not consulted.
 
 ## What the shell can reach
 
@@ -303,8 +308,8 @@ place is not evidence for the other.
 `nps_luax` is the only host target that compiles the bridge, and it configures only when luajit and its
 headers are both present.
 
-`source`: nps/CMakeLists.txt:1340 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
-targets that compile lua_module.cc, `nps_split_module` at line 731 and `nps_nspire_module` at line 937,
+`source`: nps/CMakeLists.txt:1342 guards it with `if(LUAJIT_EXECUTABLE AND LUAJIT_FOUND)`. The other two
+targets that compile lua_module.cc, `nps_split_module` at line 733 and `nps_nspire_module` at line 939,
 are in the device branch behind the ARM toolchain.
 
 Search for the quoted text rather than trusting the number. These three drift by a couple of lines
