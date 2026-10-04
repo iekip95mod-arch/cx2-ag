@@ -218,11 +218,17 @@ const EvidenceAlternative kInnerFormAnalysis[] = {
     {"registered inner-form analysis", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
 };
 
+const ObligationSchema kSubstitutionDifferential[] = {
+    {"obl.integrate.substitution-differential",
+     "the rest of the integrand is a constant multiple of the derivative of the inner function", kRuleInvariant, 1},
+};
+
 const ObligationSchema kIntegrateStrategy[] = {
     {"pre.integrate.registered-rules", "every form in the integrand has an antiderivative rule",
      kAntiderivativeDispatch, 1},
     {"pre.integrate.linear-inner-forms",
-     "every function argument and every power base is the variable or linear in it",
+     "every function argument and every power base is the variable, linear in it, the inner function of a "
+     "recorded substitution, or inside a polynomial that integration by parts differentiates",
      kInnerFormAnalysis, 1},
     {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
      kRegisteredPreconditions, 1},
@@ -343,6 +349,32 @@ const EvidenceAlternative kSolutionDifferentiated[] = {
 const ObligationSchema kSolutionSatisfiesEquation[] = {
     {"obl.ode.solution-satisfies-equation", "the solution satisfies the differential equation",
      kSolutionDifferentiated, 2},
+};
+
+const EvidenceAlternative kTaylorAgreementEvidence[] = {
+    {"derivatives of the polynomial at the center",
+     EvidenceStrength::SymbolicallyEquivalentUnderAssumptions, CheckKind::CalculusInverse},
+};
+const ObligationSchema kTaylorAgreement[] = {
+    {"obl.calculus.taylor-agreement",
+     "the polynomial and the function have the same derivatives at the center up to the order",
+     kTaylorAgreementEvidence, 1},
+};
+
+const EvidenceAlternative kSeriesTestEvidence[] = {
+    {"exact degree and ratio analysis", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
+};
+const ObligationSchema kSeriesTest[] = {
+    {"obl.series.test-hypotheses", "the test's hypotheses hold before its conclusion is used",
+     kSeriesTestEvidence, 1},
+};
+const EvidenceAlternative kSeriesFormEvidence[] = {
+    {"exact evaluation at consecutive indices", EvidenceStrength::NumericallyCorroborated,
+     CheckKind::NumericalCorroboration},
+};
+const ObligationSchema kSeriesForm[] = {
+    {"obl.series.form-agreement", "the tested form is the original term at every index checked",
+     kSeriesFormEvidence, 1},
 };
 
 const ObligationSchema kCalculusGiac[] = {
@@ -1710,6 +1742,72 @@ const ObligationSchema kMatrixDeterminantResult[] = {
     {"obl.matrix.det-correction", "the original determinant equals the diagonal product divided by the nonzero accumulated factor", kMatrixDeterminantCorrection, 1},
 };
 
+// algebra.linear-system.elimination
+const EvidenceAlternative kSystemAnalysis[] = {
+    {"exact linear system analysis", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
+};
+const ObligationSchema kSystemStrategy[] = {
+    {"pre.system.linear-rational",
+     "every equation is linear in the unknowns with exact rational coefficients, in at most 4 equations and 5 unknowns",
+     kSystemAnalysis, 1},
+    {"obl.plan.preconditions-hold", "every registered strategy precondition has passing evidence",
+     kRegisteredPreconditions, 1},
+};
+const EvidenceAlternative kSystemRowEvaluation[] = {
+    {"exact evaluation at affinely independent points", EvidenceStrength::StructurallyValid,
+     CheckKind::RuleLocal},
+};
+const ObligationSchema kSystemRowsRepresent[] = {
+    {"obl.system.rows-represent", "each matrix row has the coefficients and right-hand side of its equation",
+     kSystemRowEvaluation, 1},
+};
+const EvidenceAlternative kSystemRowReading[] = {
+    {"exact reduced row reading", EvidenceStrength::StructurallyValid, CheckKind::RuleLocal},
+};
+const ObligationSchema kSystemContradiction[] = {
+    {"obl.system.contradiction",
+     "a row of the reduced matrix has every coefficient zero and a nonzero right-hand side",
+     kSystemRowReading, 1},
+};
+const ObligationSchema kSystemRowsRead[] = {
+    {"obl.system.rows-read", "each solution equation is the reduced row of its leading unknown",
+     kSystemRowReading, 1},
+};
+const ObligationSchema kSystemIsolated[] = {
+    {"obl.system.isolated-equivalent", "the isolated equation has the solutions of the equation it came from",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemSubstituted[] = {
+    {"obl.system.substituted-equivalent", "the new equation is the old one with the isolated unknown replaced",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemBackSubstituted[] = {
+    {"obl.system.back-substituted", "the value is the isolated equation with the later values put in",
+     kSystemRowEvaluation, 1},
+};
+const ObligationSchema kSystemFalseEquation[] = {
+    {"obl.system.false-equation", "an equation with no unknown left has two different numbers for its sides",
+     kSystemRowReading, 1},
+};
+const ObligationSchema kSystemIdentity[] = {
+    {"obl.system.identity", "an equation with no unknown left has equal sides", kSystemRowReading, 1},
+};
+const EvidenceAlternative kSystemSubstitution[] = {
+    {"substitution", EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
+};
+const ObligationSchema kSystemCandidateSatisfies[] = {
+    {"obl.system.candidate-satisfies", "the solution satisfies every equation of the system as typed",
+     kSystemSubstitution, 1},
+};
+const EvidenceAlternative kSystemSampledSubstitution[] = {
+    {"substitution at sampled free values", EvidenceStrength::NumericallyCorroborated,
+     CheckKind::NumericalCorroboration},
+};
+const ObligationSchema kSystemFamilySatisfies[] = {
+    {"obl.system.candidate-satisfies", "the solution satisfies every equation of the system as typed",
+     kSystemSampledSubstitution, 1},
+};
+
 // One entry per rule and strategy. Ordered by family so a reader can find the block a rule belongs
 // to, and looked up linearly, which costs nothing beside the work a step already did.
 const RuleSchema kRules[] = {
@@ -1817,6 +1915,23 @@ const RuleSchema kRules[] = {
     {"implicit.isolate", ClaimType::SolutionSetPreserved, kImplicitPreservesRelation, 1, FailureBehavior::CannotFail},
     {"implicit.check", ClaimType::EquivalentExpression, kImplicitIdentity, 1, FailureBehavior::WithholdResult},
 
+    // calculus.taylor-polynomial, CALC-011
+    {"taylor.derivative-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.polynomial", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.remainder", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"taylor.check-polynomial", ClaimType::EquivalentExpression, kTaylorAgreement, 1, FailureBehavior::WithholdResult},
+
+    // calculus.series.convergence, CALC-011
+    {"series.term-form", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.terms-defined", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.zero-terms", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.ratio-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.divergence-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.p-comparison", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.alternating-test", ClaimType::NoClaim, kSeriesTest, 1, FailureBehavior::CannotFail},
+    {"series.geometric-sum", ClaimType::EquivalentExpression, kRulePreservesValue, 1, FailureBehavior::CannotFail},
+    {"series.check-form", ClaimType::EquivalentExpression, kSeriesForm, 1, FailureBehavior::WithholdResult},
+
     // calculus.integrate
     {"calculus.integrate.rules", ClaimType::NoClaim, kIntegrateStrategy, 3,
      FailureBehavior::WithholdResult},
@@ -1835,6 +1950,12 @@ const RuleSchema kRules[] = {
     {"i.logarithm-parts", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
     {"i.power", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
+     FailureBehavior::CannotFail},
+    {"i.substitution", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
+     FailureBehavior::CannotFail},
+    {"i.substitution-rewrite", ClaimType::Definition, kSubstitutionDifferential, 1,
+     FailureBehavior::CannotFail},
+    {"i.parts", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
     {"i.reciprocal", ClaimType::EquivalentExpression, kRulePreservesValue, 1,
      FailureBehavior::CannotFail},
@@ -2394,6 +2515,30 @@ const RuleSchema kRules[] = {
     {"matrix.det-diagonal-product", ClaimType::EquivalentExpression, kMatrixDeterminantProduct, 3,
      FailureBehavior::WithholdResult},
     {"matrix.det-correction", ClaimType::EquivalentExpression, kMatrixDeterminantResult, 1,
+     FailureBehavior::WithholdResult},
+    {"plan.system-elimination", ClaimType::NoClaim, kSystemStrategy, 2,
+     FailureBehavior::WithholdResult},
+    {"system.augmented-matrix", ClaimType::SolutionSetPreserved, kSystemRowsRepresent, 1,
+     FailureBehavior::WithholdResult},
+    {"system.inconsistent-row", ClaimType::SolutionSetPreserved, kSystemContradiction, 1,
+     FailureBehavior::WithholdResult},
+    {"system.read-solution", ClaimType::SolutionSetPreserved, kSystemRowsRead, 1,
+     FailureBehavior::CannotFail},
+    {"system.check-by-substitution", ClaimType::SolutionSetPreserved, kSystemCandidateSatisfies, 1,
+     FailureBehavior::WithholdResult},
+    {"system.check-family-by-sampling", ClaimType::SolutionSetPreserved, kSystemFamilySatisfies, 1,
+     FailureBehavior::WithholdResult},
+    {"plan.system-substitution", ClaimType::NoClaim, kSystemStrategy, 2,
+     FailureBehavior::WithholdResult},
+    {"system.isolate-unknown", ClaimType::SolutionSetPreserved, kSystemIsolated, 1,
+     FailureBehavior::WithholdResult},
+    {"system.substitute", ClaimType::SolutionSetPreserved, kSystemSubstituted, 1,
+     FailureBehavior::WithholdResult},
+    {"system.back-substitute", ClaimType::SolutionSetPreserved, kSystemBackSubstituted, 1,
+     FailureBehavior::WithholdResult},
+    {"system.contradiction", ClaimType::SolutionSetPreserved, kSystemFalseEquation, 1,
+     FailureBehavior::WithholdResult},
+    {"system.identity-equation", ClaimType::SolutionSetPreserved, kSystemIdentity, 1,
      FailureBehavior::WithholdResult},
 };
 

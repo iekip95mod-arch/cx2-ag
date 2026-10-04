@@ -105,6 +105,9 @@ CommandKind named_command(const std::string &name) {
     if (name == "tangent") return CommandKind::Tangent;
     if (name == "linearize") return CommandKind::Linearize;
     if (name == "implicit") return CommandKind::Implicit;
+    if (name == "taylor") return CommandKind::Taylor;
+    if (name == "maclaurin") return CommandKind::Maclaurin;
+    if (name == "convergence") return CommandKind::Convergence;
     if (name == "simplify") return CommandKind::Simplify;
     if (name == "expand") return CommandKind::Expand;
     if (name == "factor") return CommandKind::Factor;
@@ -112,6 +115,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "ref") return CommandKind::Ref;
     if (name == "rref") return CommandKind::Rref;
     if (name == "det") return CommandKind::Determinant;
+    if (name == "linsolve") return CommandKind::LinearSystem;
     if (name == "desolve") return CommandKind::Desolve;
     if (integer_command_arity(name)) return CommandKind::Integer;
     return CommandKind::Unhandled;
@@ -129,6 +133,9 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Tangent: return "tangent";
         case CommandKind::Linearize: return "linearize";
         case CommandKind::Implicit: return "implicit";
+        case CommandKind::Taylor: return "taylor";
+        case CommandKind::Maclaurin: return "maclaurin";
+        case CommandKind::Convergence: return "convergence";
         case CommandKind::Simplify: return "simplify";
         case CommandKind::Expand: return "expand";
         case CommandKind::Factor: return "factor";
@@ -137,6 +144,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::LinearSystem: return "linear system";
         case CommandKind::Desolve: return "differential equation";
         case CommandKind::Unhandled: return "command";
     }
@@ -222,6 +230,27 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         command.status = CommandStatus::Ready;
         return command;
     }
+    if (command.kind == CommandKind::LinearSystem) {
+        if (arguments.size() != 2 && arguments.size() != 3) {
+            command.status = CommandStatus::Unsupported;
+            command.detail = "linear systems require a list of equations, a list of unknowns and an optional method";
+            return command;
+        }
+        if (arguments.size() == 3) {
+            const NodeId method = arguments[2];
+            if (arena.at(method).kind != Kind::Symbol ||
+                (arena.text(method) != "elimination" && arena.text(method) != "substitution")) {
+                command.status = CommandStatus::Unsupported;
+                command.detail = "the method has to be elimination or substitution";
+                return command;
+            }
+            command.method = arena.text(method);
+        }
+        command.expression = arguments[0];
+        command.variable = arguments[1];
+        command.status = CommandStatus::Ready;
+        return command;
+    }
     if (command.kind == CommandKind::Implicit) {
         if (arguments.size() != 3) {
             command.status = CommandStatus::Unsupported;
@@ -243,13 +272,23 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
                          command.kind == CommandKind::Factor;
     const bool limit = command.kind == CommandKind::Limit;
     const bool tangent = command.kind == CommandKind::Tangent || command.kind == CommandKind::Linearize;
-    const size_t minimum = limit || tangent ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
-    const size_t maximum = tangent ? 3 : limit || command.kind == CommandKind::Integrate ? 4
+    const bool taylor = command.kind == CommandKind::Taylor || command.kind == CommandKind::Maclaurin;
+    const bool series = command.kind == CommandKind::Convergence;
+    const size_t minimum = command.kind == CommandKind::Taylor ? 4
+                         : limit || tangent || taylor || series ? 3 : command.kind == CommandKind::Rearrange ? 2 : 1;
+    const size_t maximum = tangent || series || command.kind == CommandKind::Maclaurin ? 3
+                         : limit || taylor || command.kind == CommandKind::Integrate ? 4
                          : command.kind == CommandKind::Differentiate ? 3 : rewrite ? 1 : 2;
     if (arguments.size() < minimum || arguments.size() > maximum) {
         command.status = CommandStatus::Unsupported;
         command.detail = tangent
                              ? "tangent lines and linearizations require an expression, a variable and the point"
+                         : command.kind == CommandKind::Taylor
+                             ? "Taylor polynomials require an expression, a variable, the center and the order"
+                         : command.kind == CommandKind::Maclaurin
+                             ? "Maclaurin polynomials require an expression, a variable and the order"
+                         : series
+                             ? "convergence tests require the term, the index variable and the first index"
                          : command.kind == CommandKind::Integrate
                              ? "integrals require an expression, a variable and optional lower and upper bounds"
                          : command.kind == CommandKind::Differentiate
@@ -276,6 +315,25 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
         command.upper = arguments[3];
     }
     if (tangent) command.point = arguments[2];
+    if (series) {
+        command.lower = arguments[2];
+        if (!folded_integer(arena, command.lower, &command.index_start)) {
+            command.status = arena.failed() ? CommandStatus::ResourceExceeded : CommandStatus::Invalid;
+            command.detail = arena.failed() ? "the command exceeded the expression limits"
+                                            : "the first index of a series must be an integer";
+            return command;
+        }
+    }
+    if (taylor) {
+        command.point = command.kind == CommandKind::Taylor ? arguments[2] : arena.integer("0");
+        command.order = arguments[arguments.size() - 1];
+        if (!folded_integer(arena, command.order, &command.degree) || command.degree < 0) {
+            command.status = arena.failed() ? CommandStatus::ResourceExceeded : CommandStatus::Invalid;
+            command.detail = arena.failed() ? "the command exceeded the expression limits"
+                                            : "the order of a Taylor polynomial must be a nonnegative integer";
+            return command;
+        }
+    }
     if (limit) {
         command.point = arguments[2];
         if (arguments.size() == 4) {
