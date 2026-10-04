@@ -173,6 +173,12 @@ void test_expand(TestSink &t) {
         t.equal(outcome(r), "outside envelope", std::string("a multiple above six is outside the envelope: ") + text);
         t.check(r.rules.empty(), std::string("and is refused before anything is recorded: ") + text);
     }
+    for (const char *text : {"sin(x + 6x)", "sin(x+x+x+x+x+x+x)"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", std::string("terms of six or less expand even when they add past six: ") + text);
+        t.check(r.equivalent && every_angle_a_variable(r.answer) && status(r) == "solved and verified",
+                std::string("and reach no multiple above six: ") + text + " = " + r.answer.substr(0, 80));
+    }
     for (const char *text : {"sin(2*3*x)", "cos(6*x/2)", "sin(5*(2x/5))", "cos(-(2*3*x))", "sin((14x + 7y)/7)"}) {
         const Run r = run(text, TrigGoal::Expand);
         t.equal(outcome(r), "rewritten", std::string("a whole multiple is read by its value: ") + text);

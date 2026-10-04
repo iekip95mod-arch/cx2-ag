@@ -1364,7 +1364,7 @@ test_group_ids trig, command
 proof_obligation_ids obl.plan.preconditions-hold, obl.trig.identity-holds
 strategy_ids plan.trig-expand, plan.trig-collect
 supported_methods every step applies one named identity to one subterm. Each step and the result are checked by writing both sides as Laurent polynomials in e to the i times each variable's base angle, with exact complex rational coefficients, and comparing every coefficient, which decides the identity exactly
-unsupported_near_neighbors a constant inside an angle, pi included, a variable outside sin or cos, tan, sec, csc and cot, a multiple above 6 by value, and in tcollect powers above 2, powers of anything but a single sine or cosine, and products of different angles, which need the product-to-sum identity
+unsupported_near_neighbors a constant inside an angle, pi included, a variable outside sin or cos, tan, sec, csc and cot, a term of an angle that is a whole multiple above 6 once its enclosing scale is distributed, which is what expansion would reach (so cos(x + 7y - 7y) is refused while sin(x + 6x) expands), and in tcollect powers above 2, powers of anything but a single sine or cosine, and products of different angles, which need the product-to-sum identity
 solution_soundness_status every step and the result are checked by exact exponential normal form, which is a proof rather than a sample
 solution_completeness_status texpand stops when no sine or cosine of a sum or a whole multiple is left, so a fractional multiple such as 3x/2 stays as written. tcollect ends with every like term collected from the exact form. Cancellation and Meter limits retain the verified prefix without a final result
 corpus_case_ids the golden fixtures naming this family
