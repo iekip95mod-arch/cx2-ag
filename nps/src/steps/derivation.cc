@@ -233,6 +233,10 @@ bool status_carries_answer(DerivationStatus s) {
     return false;
 }
 
+const char *angle_mode_name(AngleMode m) {
+    return m == AngleMode::Degrees ? "degrees" : "radians";
+}
+
 const char *numeric_mode_name(NumericMode m) {
     switch (m) {
         case NumericMode::Exact: return "exact";

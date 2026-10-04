@@ -29,7 +29,9 @@
 #include "nps/steps/linear.h"
 #include "nps/steps/power.h"
 #include "nps/steps/quadratic.h"
+#include "nps/steps/rational_expression.h"
 #include "nps/steps/rearrange.h"
+#include "nps/steps/system.h"
 #include "nps/steps/rewrite.h"
 #include "nps/core/parser.h"
 #include "nps/core/print.h"
@@ -123,7 +125,7 @@ std::string integer_record(const char *expression, const Budget &budget) {
 }
 
 std::string quadratic_record(const std::string &equation, const char *name, const Budget &budget,
-                             bool by_formula = false) {
+                             bool by_formula = false, bool by_factoring = false) {
     Arena arena;
     ParseResult parsed = parse(arena, equation);
     if (!parsed.ok())
@@ -132,8 +134,9 @@ std::string quadratic_record(const std::string &equation, const char *name, cons
     Derivation derivation;
     NodeId unknown = arena.symbol(name);
     QuadraticResult result =
-        by_formula ? solve_quadratic(arena, derivation, parsed.root, unknown, budget)
-                   : solve_by_square_root(arena, derivation, parsed.root, unknown, budget);
+        by_factoring ? solve_by_factoring(arena, derivation, parsed.root, unknown, budget)
+        : by_formula ? solve_quadratic(arena, derivation, parsed.root, unknown, budget)
+                     : solve_by_square_root(arena, derivation, parsed.root, unknown, budget);
 
     // Every root rather than the first. A fixture showing one of two would agree with the engine
     // that dropped the other, which is the failure these fixtures exist to catch.
@@ -156,6 +159,33 @@ std::string power_record(const char *expression, const Budget &budget) {
     const PowerResult result = simplify_powers(arena, derivation, parsed.root, budget);
     const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
     return header(expression, "", power_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string rational_record(const char *expression, RationalGoal goal, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const RationalResult result = rational_expression(arena, derivation, parsed.root, arena.symbol("x"), goal, budget);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(expression, "x", rational_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string system_record(const char *equations, const char *unknowns, const Budget &budget,
+                          SystemMethod method = SystemMethod::Elimination) {
+    Arena arena;
+    ParseResult parsed = parse(arena, equations);
+    ParseResult names = parse(arena, unknowns);
+    if (!parsed.ok() || !names.ok())
+        return std::string("the fixture's own input did not parse");
+
+    Derivation derivation;
+    SystemResult result = solve_linear_system(arena, derivation, parsed.root, names.root, budget, method);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(equations, unknowns, system_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -1003,6 +1033,15 @@ void run_golden_tests(TestSink &t) {
                  quadratic_record("x^2 + x + 1 = 0", "x", Budget(), true));
     check_golden(t, "quadratic_formula_outside_envelope",
                  quadratic_record("x^2 + x - 1 = 0", "x", Budget(), true));
+    // Factoring: two roots, a repeated one, cleared fractions and a quadratic with no integer pair.
+    check_golden(t, "quadratic_factoring_two_roots",
+                 quadratic_record("x^2 - 5x + 6 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_repeated_root",
+                 quadratic_record("x^2 - 6x + 9 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_fractions",
+                 quadratic_record("x^2/2 - x/2 - 1 = 0", "x", Budget(), false, true));
+    check_golden(t, "quadratic_factoring_no_integer_pair",
+                 quadratic_record("x^2 + x - 1 = 0", "x", Budget(), false, true));
 
     check_golden(t, "rearrange_kinematics_formula", rearrange_record("v = u + a*t", "t", Budget()));
     check_golden(t, "rearrange_reciprocal", rearrange_record("R = 1/x", "x", Budget()));
@@ -1020,6 +1059,37 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "power_first_power", power_record("x^(3/3)", Budget()));
     check_golden(t, "power_no_real_value", power_record("sqrt(-4)", Budget()));
     check_golden(t, "power_outside_envelope", power_record("x*y", Budget()));
+    check_golden(t, "rational_cancel_one", rational_record("x/x", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_cancel_factor", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_common_denominator",
+                 rational_record("x/(x^2-4) - 1/(x-2)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_multiply", rational_record("(x+1)/(x-2) * (x-2)/(x+3)", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_not_rational", rational_record("sqrt(x)/x", RationalGoal::Normal, Budget()));
+    check_golden(t, "rational_cancelled", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, cancelling()));
+    check_golden(t, "partial_fractions_linear", rational_record("(3x+5)/(x^2+4x+3)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_improper", rational_record("(x^3+x)/(x^2-1)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_after_cancelling",
+                 rational_record("(x-1)/((x-1)*(x+2)*(x+3))", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "partial_fractions_irreducible", rational_record("1/(x^2+1)", RationalGoal::PartialFractions, Budget()));
+    check_golden(t, "system_unique", system_record("[x + y = 3, x - y = 1]", "[x, y]", Budget()));
+    check_golden(t, "system_swap_and_fractions",
+                 system_record("[2y = 1, 3x + y = 2]", "[x, y]", Budget()));
+    check_golden(t, "system_no_solution",
+                 system_record("[x + y = 1, 2x + 2y = 3]", "[x, y]", Budget()));
+    check_golden(t, "system_family", system_record("[x + y + z = 2, x - y = 0]", "[x, y, z]", Budget()));
+    check_golden(t, "system_not_linear", system_record("[x*y = 1, x + y = 2]", "[x, y]", Budget()));
+    check_golden(t, "system_step_budget_halt",
+                 system_record("[x + y = 3, x - y = 1]", "[x, y]", one_step()));
+    check_golden(t, "system_cancelled", system_record("[x + y = 3, x - y = 1]", "[x, y]", cancelling()));
+    check_golden(t, "system_substitution_unique",
+                 system_record("[x + y + z = 6, 2y + 5z = -4, 2x + 5y - z = 27]", "[x, y, z]", Budget(),
+                               SystemMethod::Substitution));
+    check_golden(t, "system_substitution_no_solution",
+                 system_record("[x + y = 1, 2x + 2y = 3]", "[x, y]", Budget(), SystemMethod::Substitution));
+    check_golden(t, "system_substitution_family",
+                 system_record("[x + y + z = 2, x - y = 0]", "[x, y, z]", Budget(), SystemMethod::Substitution));
+    check_golden(t, "system_substitution_dependent",
+                 system_record("[x + y = 2, 2x + 2y = 4, x - y = 0]", "[x, y]", Budget(), SystemMethod::Substitution));
 
     check_golden(t, "rewrite_simplify_arithmetic",
                  rewrite_record("2 + 3*4", RewriteGoal::Simplify, Budget()));
@@ -1095,7 +1165,11 @@ void run_golden_tests(TestSink &t) {
         t.check(backend.complete(),
                 "the square-root golden checks the exact Giac request and reply");
     }
-    check_golden(t, "integrate_unsupported", integrate_record("x*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_unsupported", integrate_record("exp(x)*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_u_substitution", integrate_record("2x*cos(x^2)", "x", Budget()));
+    check_golden(t, "integrate_substitution_logarithm", integrate_record("2x/(x^2-1)", "x", Budget()));
+    check_golden(t, "integrate_parts", integrate_record("x*sin(x)", "x", Budget()));
+    check_golden(t, "integrate_parts_repeated", integrate_record("x^2*exp(x)", "x", Budget()));
     check_golden(t, "integrate_unsupported_partway",
                  integrate_record("x^2 + tan(x)", "x", Budget()));
     check_golden(t, "integrate_step_budget_halt", integrate_record("x^2", "x", one_step()));

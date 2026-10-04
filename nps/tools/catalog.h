@@ -142,13 +142,11 @@ inline bool read_catalog(const std::string &path, std::vector<Family> *out,
             std::string field, value;
             if (!first_word(rest, &field, &value) || field != "id" ||
                 value.find_first_of(" \t") != std::string::npos) {
-                if (!out->empty()) {
-                    if (fault != nullptr)
-                        *fault = "family header is malformed: " + text;
-                    out->clear();
-                    return false;
-                }
-                continue;
+                // Refused wherever it falls, so prose above the first header never opens with family.
+                if (fault != nullptr)
+                    *fault = "family header is malformed: " + text;
+                out->clear();
+                return false;
             }
             Family f;
             f.id = value;

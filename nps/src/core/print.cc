@@ -65,6 +65,28 @@ bool emit(const Arena &arena, NodeId id, std::string &out, bool giac, bool math 
             case Kind::Symbol:
                 out += arena.text(part.id);
                 break;
+            case Kind::Interval: {
+                const std::string &ends = arena.text(part.id);
+                if (children.size() != 2 || ends.size() != 2)
+                    return false;
+                if (giac) {
+                    // Giac only spells a closed interval, so an open end has no faithful form to send.
+                    if (ends != "[]")
+                        return false;
+                    out += "(";
+                    pending.push_back({kNoNode, ")"});
+                    pending.push_back({children[1]});
+                    pending.push_back({kNoNode, ")..("});
+                    pending.push_back({children[0]});
+                    break;
+                }
+                out += ends[0];
+                pending.push_back({kNoNode, ends[1] == ']' ? "]" : ")"});
+                pending.push_back({children[1]});
+                pending.push_back({kNoNode, ".."});
+                pending.push_back({children[0]});
+                break;
+            }
             case Kind::Neg:
                 if (children.size() != 1)
                     return false;
