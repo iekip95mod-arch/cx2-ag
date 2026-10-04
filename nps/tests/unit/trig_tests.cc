@@ -168,12 +168,12 @@ void test_expand(TestSink &t) {
     t.equal(outcome(run("tan(x+y)", TrigGoal::Expand)), "outside envelope", "tan is refused");
     t.equal(outcome(run("x^2+1", TrigGoal::Expand)), "not trigonometric", "an expression with no sine or cosine is not trigonometric");
     for (const char *text : {"sin(7x)", "cos(-7x)", "sin(7x + y)", "sin(2*(x + 7y))", "sin(2*7*x)", "sin(14*x/2)",
-                             "sin(3*(2*(3x)))", "cos(x + 7y - 7y)", "sin((14x + 2y)/2)"}) {
+                             "sin(3*(2*(3x)))", "cos(x + 7y - 7y)", "sin((14x + 2y)/2)", "sin(2*(x + 4y))"}) {
         const Run r = run(text, TrigGoal::Expand);
         t.equal(outcome(r), "outside envelope", std::string("a multiple above six is outside the envelope: ") + text);
         t.check(r.rules.empty(), std::string("and is refused before anything is recorded: ") + text);
     }
-    for (const char *text : {"sin(2*3*x)", "cos(6*x/2)", "sin(5*(2x/5))", "cos(-(2*3*x))"}) {
+    for (const char *text : {"sin(2*3*x)", "cos(6*x/2)", "sin(5*(2x/5))", "cos(-(2*3*x))", "sin((14x + 7y)/7)"}) {
         const Run r = run(text, TrigGoal::Expand);
         t.equal(outcome(r), "rewritten", std::string("a whole multiple is read by its value: ") + text);
         t.check(r.equivalent && every_angle_a_variable(r.answer) && status(r) == "solved and verified",
@@ -184,6 +184,8 @@ void test_expand(TestSink &t) {
         t.check(outcome(r) == "rewritten" && has_rule(r, "trig.angle-sum") && r.equivalent && no_angle_a_sum(r.answer),
                 std::string("a fraction of a sum is still a sum: ") + text + " = " + r.answer.substr(0, 80));
     }
+    t.check(has_rule(run("sin((x+y)*(-1/2))", TrigGoal::Expand), "trig.odd"),
+            "and a negative fraction of one is turned by the odd identity");
     {
         const Run r = run("sin(x + y/2)", TrigGoal::Expand);
         t.equal(r.result.detail, "no sine or cosine of a sum or a whole multiple is left",
@@ -268,8 +270,8 @@ void test_collect(TestSink &t) {
                     status(r) == "solved and verified",
                 std::string("a negative angle is turned by the named odd or even identity: ") + text);
     }
-    {
-        const Run r = run("cos(y) + sin(x-y)", TrigGoal::Collect);
+    for (const char *text : {"cos(y) + sin(x-y)", "sin(x-y) + cos(y)"}) {
+        const Run r = run(text, TrigGoal::Collect);
         t.check(!has_rule(r, "trig.odd") && r.equivalent && r.answer.find("sin((x + (-1 * y)))") != std::string::npos,
                 "collecting keeps an angle that already leads with a positive variable the way it was: " + r.answer);
     }

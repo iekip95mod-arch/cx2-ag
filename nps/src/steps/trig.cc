@@ -393,6 +393,18 @@ NodeId linear_angle(Arena &arena, const std::vector<std::pair<std::string, Ratio
     return parts.size() == 1 ? parts[0] : arena.nary(Kind::Add, parts);
 }
 
+NodeId scaled(Arena &arena, const Rational &scale, NodeId carrier) {
+    if (scale.num == scale.den)
+        return carrier;
+    if (scale.num < 0)
+        return arena.unary(Kind::Neg, scaled(arena, Rational{-scale.num, scale.den}, carrier));
+    const NodeId factor = scale.den == 1   ? arena.integer(std::to_string(scale.num))
+                          : scale.num == 1 ? arena.binary(Kind::Pow, arena.integer(std::to_string(scale.den)),
+                                                          arena.integer("-1"))
+                                           : canonical_rational(arena, scale);
+    return arena.binary(Kind::Mul, factor, carrier);
+}
+
 NodeId odd_even(Arena &arena, bool sine, NodeId positive, Applied *applied, std::string *what) {
     *applied = sine ? Applied{"trig.odd", "Sine is odd", "sin(-a) = -sin(a)"}
                     : Applied{"trig.even", "Cosine is even", "cos(-a) = cos(a)"};
@@ -461,12 +473,14 @@ NodeId expand_here(Arena &arena, NodeId id, void *state, std::string *what) {
         }
         if (arena.at(rest).kind != Kind::Add || scale.num == 0)
             return kNoNode;
-        const NodeId factor = scale.num == 1 ? arena.binary(Kind::Pow, arena.integer(std::to_string(scale.den)),
-                                                            arena.integer("-1"))
-                                             : canonical_rational(arena, scale);
         std::vector<NodeId> terms;
-        for (NodeId term : arena.children(rest))
-            terms.push_back(k == 1 ? term : arena.binary(Kind::Mul, factor, term));
+        for (NodeId term : arena.children(rest)) {
+            Rational own;
+            NodeId inner = kNoNode;
+            if (!scaled_angle(arena, term, &own, &inner) || !rational_mul(scale, own, &own))
+                return kNoNode;
+            terms.push_back(scaled(arena, own, inner));
+        }
         return angle_sum(arena, sine, terms, applied, what);
     }
     if (a.kind == Kind::Add && arena.children(arg).size() >= 2) {
