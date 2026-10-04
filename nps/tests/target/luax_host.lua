@@ -1055,14 +1055,17 @@ do
     check(type(newton) == "table" and newton.solved and newton.bound_certified == false and
           newton.status == "solved but unchecked",
           "an uncertified Newton answer reaches the bridge marked unchecked rather than verified")
+    check(root.result_form == "numerical approximation" and newton.result_form == "numerical approximation",
+          "a numerical method's answer is a numerical approximation, certified or not: " ..
+          tostring(root.result_form) .. ", " .. tostring(newton.result_form))
     local quad = nps.walkthrough("trapsum(x^2, x, 0, 1, 4)", "x", "exact")
     check(type(quad) == "table" and quad.solved and quad.result == "(11 * (32^-1))" and
           quad.error_bound == "(1 * (96^-1))" and quad.bound_certified,
           "the trapezoid rule reaches the bridge with its value and certified bound")
     local refused = nps.walkthrough("bisect(x^2+1, x, -1, 1, 1/10)", "x", "exact")
     check(type(refused) == "table" and refused.outcome == "no sign change" and not refused.solved and
-          refused.result == nil and #refused.steps == 0,
-          "a bisection with no sign change is a native refusal with no steps")
+          refused.result == nil and #refused.steps == 0 and refused.result_form == "no result",
+          "a bisection with no sign change is a native refusal with no steps or result form")
     local outside = nps.walkthrough("bisect(sin(x), x, 1, 4, 1/10)", "x", "exact")
     check(type(outside) == "table" and outside.outcome == "outside envelope" and not outside.solved,
           "a function outside the polynomial envelope is refused rather than sent to Giac")

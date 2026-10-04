@@ -5537,10 +5537,27 @@ if os.getenv("NPS_COMMAND_MODULE") then
               record and record.mode == "numeric" and record.solved and record.result == case[4] and
               record.status == "numerically approximated" and record.bound_certified and found_rule,
               "the numerical menu entry opens a certified approximation without a CAS fallback: " .. case[2])
+        drawn = {}
+        env.on.paint(gc)
+        local frame = table.concat(drawn, "\n")
+        check(frame:find("APPROXIMATE", 1, true) ~= nil and frame:find("UNCHECKED", 1, true) == nil and
+              frame:find("EXACT", 1, true) == nil,
+              "a certified approximation is badged approximate and not unchecked: " .. case[2])
         if env.steps.active then
             env.on.paint(gc)
             env.on.escapeKey()
         end
+    end
+    do
+        env.fctEditor.editor:setExpression("\\0el {newtonroot(x^2,x,1,1/1000)}")
+        env.on.enterKey()
+        drawn = {}
+        env.on.paint(gc)
+        local frame = table.concat(drawn, "\n")
+        check(env.steps.active and env.steps.result and env.steps.result.bound_certified == false and
+              frame:find("APPROXIMATE + UNCHECKED", 1, true) ~= nil,
+              "an uncertified Newton answer is badged approximate and unchecked")
+        if env.steps.active then env.on.escapeKey() end
     end
 
     -- CALC-012. The desolve menu entry runs natively and still reaches Giac outside the family.

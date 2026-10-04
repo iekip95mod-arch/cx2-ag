@@ -2635,7 +2635,8 @@ int numeric_into(lua_State *L) {
     set_field(L, "answer_only", false);
     set_field(L, "status", derivation_status_name(result.status));
     set_field(L, "result_form",
-              result_form_name(primary_result_form(has_result, false, result.status, ResultForm::NoResult)));
+              result_form_name(has_result ? ResultForm::NumericalApproximation
+                                          : primary_result_form(false, false, result.status, ResultForm::NoResult)));
     set_field(L, "numeric_mode", numeric_mode_name(d.context.numeric_mode));
     set_expression_context(L, d.context);
     if (has_result) {

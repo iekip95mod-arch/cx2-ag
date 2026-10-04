@@ -3217,6 +3217,8 @@ local function resultClass(r)
 	-- would badge a corroborated answer as verified. A check that ran is not UNCHECKED either.
 	elseif r.status == "solved and corroborated" then
 		classification = classification .. " + CORROBORATED"
+	elseif r.status == "numerically approximated" and r.bound_certified == true then
+		-- The method's own bound was proved, which is the check an approximation can have.
 	elseif r.status ~= "solved and verified" and r.agrees ~= true then
 		classification = classification .. " + UNCHECKED"
 	end
