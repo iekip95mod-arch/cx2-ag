@@ -141,6 +141,17 @@ void test_refusals(TestSink &t) {
     t.equal(refusal("Light goes 3 x 10^8 m/s."), "scientific notation 3 x 10^8 unsupported",
             "scientific notation is refused rather than read as 3");
     t.equal(refusal("Light goes 3e8 m/s."), "scientific notation 3e8 unsupported", "in either spelling");
+    t.equal(refusal("Light goes 3 x 10^-8 m/s."), "scientific notation 3 x 10^-8 unsupported",
+            "a signed written exponent is refused as one construction");
+    t.equal(refusal("Light goes 3e-8 m/s."), "scientific notation 3e-8 unsupported",
+            "and so is a signed compact exponent");
+    t.check(read("Light goes 3 x 10^-8 m/s.").quantities.empty() && read("Light goes 3e-8 m/s.").quantities.empty(),
+            "leaving no stray quantity behind for the exponent");
+    t.equal(refusal("The rod is 3/0 m long."), "unreadable number 3/0 m unsupported",
+            "a fraction over zero is refused as a number, not as a unit");
+    t.equal(refusal("The rod is 99999999999999999999999999999999 m long."),
+            "unreadable number 99999999999999999999999999999999 m unsupported",
+            "and so is a number too long to read exactly");
     const wp::LexicalReading r = read("It moves 5 m/s and 3-5 m.");
     t.check(r.quantities.size() == 1 && r.failures.size() == 1 && r.status == wp::LexStatus::Unsupported,
             "a refusal leaves the grounded quantities beside it and marks the reading unsupported");

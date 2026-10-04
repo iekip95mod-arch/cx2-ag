@@ -326,11 +326,20 @@ class Reader {
         if (!from_word) {
             const bool times_ten = (symbol(at, '*') || word(at, "x")) && numeral(at + 1) && text(at + 1) == "10" &&
                                    symbol(at + 2, '^');
-            const bool exponent = adjacent(k) && (word(at, "e") || word(at, "E")) && adjacent(at) && numeral(at + 1);
-            if (times_ten || exponent) {
-                const size_t last = times_ten ? std::min(at + 4, tokens_.size()) : at + 2;
-                refuse(LexFault::ScientificNotation, "scientific notation is not read yet", k, last);
-                *next = last;
+            const bool compact = adjacent(k) && (word(at, "e") || word(at, "E")) && adjacent(at);
+            size_t scientific_end = 0;
+            if (times_ten || compact) {
+                size_t power = times_ten ? at + 3 : at + 1;
+                if ((symbol(power, '+') || symbol(power, '-')) && adjacent(power))
+                    ++power;
+                if (numeral(power))
+                    scientific_end = power + 1;
+                else if (times_ten)
+                    scientific_end = std::min(power, tokens_.size());
+            }
+            if (scientific_end != 0) {
+                refuse(LexFault::ScientificNotation, "scientific notation is not read yet", k, scientific_end);
+                *next = scientific_end;
                 return true;
             }
             if (symbol(at, '%')) {
@@ -376,7 +385,7 @@ class Reader {
         GroundedQuantity q;
         std::string error;
         if (!parse_quantity(value + (spelling.empty() ? "" : " " + spelling), &q.quantity, &error)) {
-            refuse(LexFault::UnknownUnit, error, k, at);
+            refuse(LexFault::UnreadableNumber, error, k, at);
             *next = at;
             return true;
         }
@@ -384,7 +393,7 @@ class Reader {
             Rational below;
             if (!rational_from_text(denominator, &below) || below.num == 0 ||
                 !rational_div(q.quantity.value, below, &q.quantity.value)) {
-                refuse(LexFault::UnknownUnit, "a fraction this cannot read exactly", k, at);
+                refuse(LexFault::UnreadableNumber, "a fraction this cannot read exactly", k, at);
                 *next = at;
                 return true;
             }
@@ -505,6 +514,7 @@ const char *lex_fault_name(LexFault fault) {
     switch (fault) {
         case LexFault::UnsupportedCharacter: return "unsupported character";
         case LexFault::UnknownUnit: return "unknown unit";
+        case LexFault::UnreadableNumber: return "unreadable number";
         case LexFault::Range: return "range";
         case LexFault::Tolerance: return "tolerance";
         case LexFault::Percentage: return "percentage";
