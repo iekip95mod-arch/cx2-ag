@@ -67,6 +67,7 @@ const char *ir_fault_name(IrFault fault) {
         case IrFault::ProvenanceMismatch: return "provenance mismatch";
         case IrFault::MissingProvenance: return "missing provenance";
         case IrFault::NotConfirmed: return "not confirmed";
+        case IrFault::ConfirmationMismatch: return "confirmation mismatch";
     }
     return "unknown";
 }
@@ -86,11 +87,33 @@ std::string source_hash(const std::string &original_utf8) {
     return text;
 }
 
+std::string confirmation_parser_versions(const ProblemIR &ir) {
+    std::string versions = ir.parser_build_id;
+    for (const std::string &version : ir.grammar_module_versions) {
+        if (!versions.empty())
+            versions += "+";
+        versions += version;
+    }
+    return versions;
+}
+
 bool span_matches(const Span &span, const SourceDocument &source) {
     return span.original_begin <= span.original_end && span.original_end <= source.original_utf8.size() &&
            source.original_utf8.compare(span.original_begin, span.original_end - span.original_begin,
                                         span.surface) == 0 &&
            span.original_end - span.original_begin == span.surface.size();
+}
+
+bool semantic_type_info(const std::string &type, Dimension *dimension, std::string *kinematics_symbol) {
+    const SemanticType *known = semantic_type(type);
+    if (!known)
+        return false;
+    *dimension = Dimension();
+    dimension->length = known->length;
+    dimension->mass = known->mass;
+    dimension->time = known->time;
+    *kinematics_symbol = known->kinematics_symbol ? known->kinematics_symbol : "";
+    return true;
 }
 
 IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
@@ -245,6 +268,29 @@ IrValidation validate(const ProblemIR &ir, const SourceDocument &source) {
         if (a.confirmation_record_id.empty() || a.confirmation_record_id != ir.confirmation_record.id)
             return fail(IrFault::UnconfirmedInference, "the inferred assumption " + a.id + " has no confirmation record");
     }
+    for (const Quantity &q : ir.quantities) {
+        if (!q.provenance.explicit_fact && (q.provenance.confirmation_record_id.empty() ||
+                                            q.provenance.confirmation_record_id != ir.confirmation_record.id))
+            return fail(IrFault::UnconfirmedInference, "the inferred quantity " + q.id + " has no confirmation record");
+    }
+    const ConfirmationRecord &record = ir.confirmation_record;
+    std::set<std::string> material;
+    for (const Quantity &q : ir.quantities) {
+        if (!q.provenance.explicit_fact)
+            material.insert(q.id);
+    }
+    for (const Assumption &a : ir.confirmed_inferred_assumptions)
+        material.insert(a.id);
+    const std::set<std::string> confirmed_material(record.material_assumption_ids.begin(),
+                                                   record.material_assumption_ids.end());
+    const std::string parser_versions = confirmation_parser_versions(ir);
+    if (record.confirmed &&
+        (record.source_content_hash != ir.source_content_hash ||
+         record.selected_candidate_id != ir.selected_candidate_id || record.problem_revision == 0 ||
+         record.problem_revision != ir.revision || record.material_assumption_ids.size() != confirmed_material.size() ||
+         confirmed_material != material || record.parser_versions.empty() || record.parser_versions != parser_versions))
+        return fail(IrFault::ConfirmationMismatch,
+                    "the confirmation " + record.id + " does not match the source, candidate, revision, material assumptions or parser versions");
     const std::string family = ir.curriculum_family_ids.empty() ? std::string() : ir.curriculum_family_ids.front();
     if (!method_allowed(family, ir.requested_method))
         return fail(IrFault::IncompatibleMethod, "the method " + ir.requested_method + " is not one " + family + " offers");
@@ -370,6 +416,18 @@ std::string field(const Fields &f, std::string_view key) {
     return v ? *v : std::string();
 }
 
+std::vector<std::string> comma_list(const std::string &text) {
+    std::vector<std::string> items;
+    for (size_t begin = 0; begin < text.size();) {
+        size_t end = text.find(',', begin);
+        if (end == std::string::npos)
+            end = text.size();
+        items.push_back(text.substr(begin, end - begin));
+        begin = end + 1;
+    }
+    return items;
+}
+
 }  // namespace
 
 IrReadResult read_problem_ir(const std::string &text) {
@@ -463,6 +521,7 @@ IrReadResult read_problem_ir(const std::string &text) {
             q.owner_entity_id = field(f, "owner");
             q.state_or_event_id = field(f, "state");
             q.exactness = q.value_expression.find('.') == std::string::npos ? "exact" : "measured";
+            q.provenance.confirmation_record_id = field(f, "confirmation");
             if (!read_span(f, source, &q.provenance))
                 return refuse(IrReadStatus::Malformed, "the span is not begin,end");
             ir.quantities.push_back(q);
@@ -470,14 +529,7 @@ IrReadResult read_problem_ir(const std::string &text) {
             Relation r;
             r.id = field(f, "id");
             r.kind = field(f, "kind");
-            const std::string operands = field(f, "operands");
-            for (size_t begin = 0; begin < operands.size();) {
-                size_t end = operands.find(',', begin);
-                if (end == std::string::npos)
-                    end = operands.size();
-                r.operands.push_back(operands.substr(begin, end - begin));
-                begin = end + 1;
-            }
+            r.operands = comma_list(field(f, "operands"));
             if (!read_span(f, source, &r.provenance))
                 return refuse(IrReadStatus::Malformed, "the span is not begin,end");
             ir.relations.push_back(r);
@@ -503,6 +555,16 @@ IrReadResult read_problem_ir(const std::string &text) {
             ir.confirmation_record.id = field(f, "id");
             ir.confirmation_record.confirmed_by = field(f, "by");
             ir.confirmation_record.confirmed = field(f, "confirmed") == "yes";
+            ir.confirmation_record.source_content_hash = field(f, "hash");
+            ir.confirmation_record.selected_candidate_id = field(f, "candidate");
+            ir.confirmation_record.parser_versions = field(f, "versions");
+            if (f.get("revision")) {
+                size_t revision = 0;
+                if (!read_size(field(f, "revision"), &revision) || revision == 0)
+                    return refuse(IrReadStatus::Malformed, "the confirmed revision has to be a positive whole number");
+                ir.confirmation_record.problem_revision = static_cast<uint32_t>(revision);
+            }
+            ir.confirmation_record.material_assumption_ids = comma_list(field(f, "assumptions"));
         } else {
             return refuse(IrReadStatus::UnknownRecord, "the record " + record + " is not part of schema 1");
         }

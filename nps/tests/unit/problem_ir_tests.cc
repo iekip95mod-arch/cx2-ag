@@ -152,6 +152,57 @@ void test_invariants(TestSink &t) {
     }
     {
         wp::ProblemIR ir = cart.ir;
+        wp::Quantity zero = ir.quantities[1];
+        zero.id = "q-a-inferred";
+        zero.provenance.explicit_fact = false;
+        zero.provenance.supporting_source_spans.clear();
+        ir.quantities.push_back(zero);
+        t.equal(fault(ir, source), "unconfirmed inference", "an inferred quantity with no confirmation is refused");
+        ir.quantities.back().provenance.confirmation_record_id = ir.confirmation_record.id;
+        ir.confirmation_record.material_assumption_ids.push_back(ir.quantities.back().id);
+        t.equal(fault(ir, source), "valid", "and is accepted once the confirmation names it");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.selected_candidate_id = "grammar-1";
+        ir.confirmation_record.source_content_hash = ir.source_content_hash;
+        ir.confirmation_record.selected_candidate_id = "grammar-1";
+        ir.confirmation_record.problem_revision = ir.revision;
+        ir.confirmation_record.material_assumption_ids = {"a-constant"};
+        ir.confirmation_record.parser_versions = "authored";
+        t.equal(fault(ir, source), "valid", "a confirmation bound to this source, candidate and revision is accepted");
+        wp::ProblemIR missing_hash = ir;
+        missing_hash.confirmation_record.source_content_hash.clear();
+        t.equal(fault(missing_hash, source), "confirmation mismatch", "an empty confirmed source hash is refused");
+        wp::ProblemIR missing_candidate = ir;
+        missing_candidate.confirmation_record.selected_candidate_id.clear();
+        t.equal(fault(missing_candidate, source), "confirmation mismatch", "an empty confirmed candidate is refused");
+        wp::ProblemIR missing_revision = ir;
+        missing_revision.confirmation_record.problem_revision = 0;
+        t.equal(fault(missing_revision, source), "confirmation mismatch", "an empty confirmed revision is refused");
+        wp::ProblemIR missing_assumptions = ir;
+        missing_assumptions.confirmation_record.material_assumption_ids.clear();
+        t.equal(fault(missing_assumptions, source), "confirmation mismatch",
+                "an empty confirmed material assumption list is refused when the problem has one");
+        wp::ProblemIR repeated_assumptions = ir;
+        repeated_assumptions.confirmation_record.material_assumption_ids.push_back("a-constant");
+        t.equal(fault(repeated_assumptions, source), "confirmation mismatch",
+                "a confirmed material assumption listed twice is refused");
+        wp::ProblemIR missing_versions = ir;
+        missing_versions.confirmation_record.parser_versions.clear();
+        t.equal(fault(missing_versions, source), "confirmation mismatch", "empty confirmed parser versions are refused");
+        wp::ProblemIR other_hash = ir;
+        other_hash.confirmation_record.source_content_hash = wp::source_hash("a different text");
+        t.equal(fault(other_hash, source), "confirmation mismatch", "one that approved a different source text is refused");
+        wp::ProblemIR other_candidate = ir;
+        other_candidate.confirmation_record.selected_candidate_id = "grammar-2";
+        t.equal(fault(other_candidate, source), "confirmation mismatch", "and so is one that approved another candidate");
+        wp::ProblemIR other_revision = ir;
+        other_revision.confirmation_record.problem_revision = ir.revision + 1;
+        t.equal(fault(other_revision, source), "confirmation mismatch", "or another revision");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
         ir.quantities.front().provenance.source_id = "other-text";
         t.equal(fault(ir, source), "provenance mismatch", "provenance citing another source is refused");
     }
@@ -217,6 +268,20 @@ void test_reading(TestSink &t) {
     const size_t at = bad_revision.find("revision=1");
     bad_revision.replace(at, 10, "revision=x");
     t.equal(status(bad_revision), "malformed", "a revision that is not a number is malformed");
+    std::string bound = good;
+    const std::string line = "confirmation id=c-block by=author confirmed=yes";
+    const size_t confirmation = bound.find(line) + line.size();
+    bound.insert(confirmation, " hash=abc candidate=grammar-1 revision=1 assumptions=a-one,q-two versions=wp1-lexicon");
+    const wp::IrReadResult read_bound = wp::read_problem_ir(bound);
+    const wp::ConfirmationRecord &record = read_bound.ir.confirmation_record;
+    t.check(read_bound.status == wp::IrReadStatus::Ok && record.source_content_hash == "abc" &&
+                record.selected_candidate_id == "grammar-1" && record.problem_revision == 1 &&
+                record.material_assumption_ids.size() == 2 && record.material_assumption_ids[1] == "q-two" &&
+                record.parser_versions == "wp1-lexicon",
+            "a confirmation line reads what it bound: " + read_bound.detail);
+    std::string bad_bound = good;
+    bad_bound.insert(confirmation, " revision=0");
+    t.equal(status(bad_bound), "malformed", "a confirmed revision of zero is malformed");
     std::string bad_span = good;
     const size_t span_at = bad_span.find("span=");
     bad_span.insert(span_at + 5, "x");
@@ -241,6 +306,11 @@ void test_correction(TestSink &t) {
     next.confirmation_record = {"c-fix", "author", false};
     t.check(!wp::commit(next, cart.source, &why) && why.fault == wp::IrFault::NotConfirmed,
             "and the corrected problem cannot be solved until it is confirmed again");
+    next.confirmation_record.source_content_hash = next.source_content_hash;
+    next.confirmation_record.selected_candidate_id = next.selected_candidate_id;
+    next.confirmation_record.problem_revision = next.revision;
+    next.confirmation_record.material_assumption_ids = {"a-constant"};
+    next.confirmation_record.parser_versions = "authored";
     next.confirmation_record.confirmed = true;
     t.check(wp::commit(next, cart.source, &why).has_value(), "and commits once it is: " + why.detail);
     t.check(first->ir().revision == 1 && first->ir().confirmation_record.confirmed,

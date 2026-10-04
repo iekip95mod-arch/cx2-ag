@@ -17,4 +17,4 @@ known q-v0
 known q-a
 known q-t
 unknown q-v
-confirmation id=c-cart by=author confirmed=yes
+confirmation id=c-cart by=author confirmed=yes hash=19c2bb82554b5555a4e358ac3ec8cdd34c68a864d06d0b36077b1052315e978a revision=1 assumptions=a-constant versions=authored
