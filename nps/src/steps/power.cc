@@ -714,9 +714,12 @@ NodeId power_of_power(Arena &arena, NodeId id, void *state, std::string *what) {
             return kNoNode;
         }
     }
+    if (a.num < 0 && product.num >= 0)
+        conditions.push_back({inner_base, Condition::NonZero});
     *pass = Pass{"pow.power-of-power", "Multiply the exponents of a power of a power",
                  base != inner_base ? "(u^a)^b = |u|^(ab) when a is even and b is not whole"
-                                    : "(u^a)^b = u^(ab), which needs u not negative when an even root is taken",
+                                    : "(u^a)^b = u^(ab), which needs u not negative when an even root is taken "
+                                      "and not zero when a negative exponent goes away",
                  conditions};
     *what = "Multiply the exponents in " + print(arena, id);
     if (product.num == product.den)

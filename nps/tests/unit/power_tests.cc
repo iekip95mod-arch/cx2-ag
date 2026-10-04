@@ -165,6 +165,20 @@ void test_laws(TestSink &t) {
                 std::string("an even root raised back keeps the condition that x is not negative: ") + root +
                     " gave " + r.answer + " with " + r.assumptions);
     }
+    for (const char *inverse : {"(x^-1)^-1", "(x^-3)^(-1/3)", "(x^-2)^(-1/2)", "(x^(-1/2))^(-2)"}) {
+        const Run r = run(inverse);
+        t.check(status(r) == "solved and verified" && r.assumptions.find("not zero") != std::string::npos,
+                std::string("a negative power raised to a power that is not negative keeps x not zero: ") + inverse +
+                    " gave " + r.answer + " with " + r.assumptions);
+    }
+    {
+        const Run r = run("(x^(-1/2))^(-2)");
+        t.check(r.answer == "x" && r.assumptions.find(">= 0") != std::string::npos,
+                "and keeps x not negative beside it when an even root was taken: " + r.assumptions);
+        t.equal(run("(x^-2)^(-1/2)").answer, "abs(x)", "an even power under an even root still gives the absolute value");
+        t.check(run("(x^2)^-1").assumptions.empty() && run("(x^-1)^3").assumptions.empty(),
+                "while a result that still has a negative exponent needs no condition");
+    }
     // A result defined on a sign of x, or at zero, where the input is not has widened the domain, so it must say so.
     {
         std::string why;
@@ -174,7 +188,8 @@ void test_laws(TestSink &t) {
     }
     for (const char *input : {"sqrt(x)^2", "(x^(1/2))^2", "(x^(1/4))^4", "sqrt(x)*sqrt(x)", "x^(1/2)*x^(1/3)",
                               "sqrt(x^2)", "(x^3)^(1/3)", "(x^2)^(1/2)", "sqrt(x^3)", "(x^(1/2))^3",
-                              "sqrt(2*x)*sqrt(2*x)", "x^(1/2)*x^(-1/2)", "(sqrt(x))^4", "sqrt(4*x^2)", "x^2*x^-1"}) {
+                              "sqrt(2*x)*sqrt(2*x)", "x^(1/2)*x^(-1/2)", "(sqrt(x))^4", "sqrt(4*x^2)", "x^2*x^-1", "(x^-1)^-1",
+                              "(x^-3)^(-1/3)", "(x^-2)^(-1/2)", "(x^(-1/2))^(-2)"}) {
         Arena arena;
         Derivation d;
         const ParseResult parsed = parse(arena, input);

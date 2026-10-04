@@ -1474,7 +1474,7 @@ supported_branches_and_degenerate_cases a square root is written as a power of o
 exact_special_function_and_numerical_result_policy exact integers and rationals only. Irrational roots of numbers stay as roots and are compared exactly, never evaluated in floating point
 word_language_profile_ids none, mathematical command entry only
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/power.cc
-required_assumptions a law that needs a condition publishes it, as "x is not zero" for a negative exponent and "x >= 0" for an even root of an odd power of the variable or an even root raised back to a whole power, such as sqrt(x)^2
+required_assumptions a law that needs a condition publishes it, as "x is not zero" for a negative exponent that a product or a power of a power takes away, such as x^2*x^-1 or (x^-1)^-1, and "x >= 0" for an even root of an odd power of the variable or an even root raised back to a whole power, such as sqrt(x)^2
 test_group_ids power, command
 proof_obligation_ids obl.plan.preconditions-hold, obl.power.same-values
 strategy_ids plan.power-laws

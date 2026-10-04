@@ -36,7 +36,7 @@ steps
       goal: Apply one power law
       rule: pow.power-of-power, Multiply the exponents of a power of a power
       claim: equivalent expression
-      explanation: The law used is (u^a)^b = u^(ab), which needs u not negative when an even root is taken.
+      explanation: The law used is (u^a)^b = u^(ab), which needs u not negative when an even root is taken and not zero when a negative exponent goes away.
       detail: It holds wherever the expression has a real value, so no condition is needed.
       proof obligation: obl.power.same-values, the new form has the value of the old one wherever the old one is real
       action: Multiply the exponents in ((x^3)^(1 * (3^(-1)))).
