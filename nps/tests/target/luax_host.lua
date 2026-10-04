@@ -52,8 +52,16 @@ do
              #rule.obligations[1].evidence == 1 and
              rule.obligations[1].evidence[1].method == "substitution" and
              rule.obligations[1].evidence[1].strength == "candidate checked" and
-             rule.obligations[1].evidence[1].may_corroborate == false,
+             rule.obligations[1].evidence[1].may_corroborate == false and rule.survives_refusal == false,
              "rule_definition reads a rule's claim, obligations and evidence from its registration")
+    local cross = nps.rule_definition("calculus.differentiate.giac-cross-check")
+    check(type(cross) == "table" and #cross.obligations == 1 and #cross.obligations[1].evidence == 1 and
+          cross.obligations[1].evidence[1].method == "Giac Adapter Op::Differentiate compared after canonicalization" and
+          cross.obligations[1].evidence[1].may_corroborate == true,
+          "rule_definition marks evidence that may only corroborate")
+    local point = nps.rule_definition("tangent.point-value")
+    check(type(point) == "table" and point.claim == "definition" and point.survives_refusal == true,
+          "rule_definition carries a rule whose step outlives a refusal")
     local strategy = nps.rule_definition("eq.linear.inverse-operations")
     check(type(strategy) == "table" and strategy.claim == "no claim" and #strategy.obligations == 3,
           "rule_definition answers for a strategy's plan as well as for a rule")

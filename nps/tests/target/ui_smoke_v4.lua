@@ -6623,6 +6623,56 @@ if os.getenv("NPS_COMMAND_MODULE") then
     local ruleless = joined(env.definitionParagraphs({ steps = { { name = "given", depth = 0 } } }, 1))
     check(ruleless:find("This step names no rule.", 1, true) ~= nil and ruleless:find("Rule: ", 1, true) == nil,
           "a step that names no rule gets no rule definition")
+    local cross = joined(env.definitionParagraphs({ steps = { { name = "cross check", rule = "calculus.differentiate.giac-cross-check", depth = 0 } } }, 1))
+    check(cross:find("Checked by: Giac Adapter Op::Differentiate compared after canonicalization, " ..
+                     "symbolically equivalent under assumptions, may only corroborate", 1, true) ~= nil,
+          "the definitions say when a check may only corroborate")
+    check(check_step:find("may only corroborate", 1, true) == nil,
+          "an independent check is not called corroborating")
+
+    do
+        enter("solve(2*x+5=13,x)")
+        local real = env.steps.result
+        local function opens()
+            local asked = #looked_up
+            env.readDefinitions()
+            drawn = {}
+            env.on.paint(gc)
+            local shown = table.concat(drawn, "\n")
+            return #looked_up > asked or shown:find("Definitions for step", 1, true) ~= nil or
+                   shown:find("No revealed step is selected.", 1, true) ~= nil
+        end
+        env.steps.focus = 4
+        check(opens(), "control: readDefinitions opens on an active stepped walkthrough")
+        local asked = #looked_up
+        env.steps.focus = 2
+        env.readDefinitions()
+        check(#looked_up == asked, "a second request while the definitions are open does not replace them")
+        env.on.escapeKey()
+
+        env.closeSteps()
+        check(not env.steps.active and env.steps.result == real and not opens(),
+              "definitions do not open over a closed walkthrough")
+        env.openSteps()
+
+        env.hasSteps = false
+        check(not opens(), "definitions do not open in a build without native steps")
+        env.hasSteps = true
+
+        local cas = {}
+        for key, value in pairs(real) do cas[key] = value end
+        cas.answer_only = true
+        env.steps.result = cas
+        env.steps.focus = 4
+        check(opens(), "control: an answer with native steps beside it still opens their definitions")
+        env.on.escapeKey()
+        cas.steps = {}
+        env.steps.focus = 1
+        check(not opens(), "definitions do not open over an answer that has no steps")
+        env.steps.result = real
+        env.closeSteps()
+    end
+
     enter("solve(2*x+5=13,x)")
     module.rule_definition = nil
     local without = joined(env.definitionParagraphs(env.steps.result, 4))
