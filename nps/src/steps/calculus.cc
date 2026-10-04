@@ -1007,10 +1007,7 @@ struct Calculation {
         payload.observed_result = read ? print(arena, number(arena, product)) : "not exactly evaluable";
         derivation.add_check(kNoStep, std::move(check), std::move(payload));
         if (matched) return true;
-        result.outcome = CalculusOutcome::VerificationFailed;
-        result.status = DerivationStatus::VerificationFailed;
-        result.detail = "the slope failed its check against the two rates, so the answer is withheld";
-        return false;
+        return withhold(read, "the slope failed its check against the two rates, so the answer is withheld");
     }
 
     // The final check the family is required to have. The assembled line is evaluated exactly at the
