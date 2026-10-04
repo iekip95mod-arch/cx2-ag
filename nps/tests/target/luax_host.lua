@@ -996,6 +996,16 @@ do
     check(type(refused) == "table" and refused.outcome == "no real value" and not refused.solved and
           refused.result == nil and #refused.steps == 0,
           "an even root of a negative number is a native refusal with no steps")
+    local quotient = nps.walkthrough("powsimp(x^3/x)", "x", "exact")
+    check(type(quotient) == "table" and quotient.solved and quotient.result == "(x^2)" and
+          quotient.assumptions == "x is not zero",
+          "a quotient of powers publishes the condition it needs through the bridge: " ..
+          tostring(type(quotient) == "table" and quotient.assumptions))
+    local squared = nps.walkthrough("powsimp(sqrt(x)^2)", "x", "exact")
+    check(type(squared) == "table" and squared.solved and squared.result == "x" and squared.assumptions == "x >= 0",
+          "and a square root squared publishes that x is not negative: " ..
+          tostring(type(squared) == "table" and squared.assumptions))
+    check(simplified.assumptions == nil, "while the absolute value of a root of a square needs none")
     local decimal = nps.walkthrough("powsimp(sqrt(x^2))", "x", "decimal")
     check(type(decimal) == "table" and not decimal.solved and decimal.mode == "powsimp",
           "powsimp refuses decimal mode")

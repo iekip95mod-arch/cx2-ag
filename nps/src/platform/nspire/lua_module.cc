@@ -2637,6 +2637,8 @@ int power_into(lua_State *L) {
     set_expression_context(L, d.context);
     if (!printed.empty())
         set_field(L, "result", printed);
+    if (!d.context.active_assumptions.empty())
+        set_field(L, "assumptions", joined(d.context.active_assumptions));
     set_cost(L, arena, d, result.cost, 0);
     if (d.size() == 0)
         push_no_steps(L);
