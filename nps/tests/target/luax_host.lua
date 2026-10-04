@@ -1907,6 +1907,10 @@ check(r.outcome == "zero vector" and r.solved == false and r.result == nil and
 r = nps.scalar_product("0 i + 0 j m", "3 i + 4 j m")
 check(r.outcome == "solved" and r.solved == true and r.result == "0 m^2",
       "the same zero operand still has a product, so the refusal is the angle's alone")
+r = nps.scalar_product("(1, 2, 3) m", "4 i + 5 j + 6 k m")
+check(r.outcome == "solved" and r.solved == true and r.result == "32 m^2" and
+      command_has_rule(r, "vec.dot.component-sum"),
+      "the scalar product bridge dots two rank-three vectors, one written in unit-vector form")
 r = nps.scalar_product("(1, 2) m", "(3, 4, 5) m")
 check(r.outcome == "rank mismatch" and r.solved == false and r.result == nil,
       "the scalar product bridge refuses operands whose ranks disagree")
