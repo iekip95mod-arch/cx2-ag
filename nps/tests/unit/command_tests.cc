@@ -120,6 +120,16 @@ void run_command_tests(TestSink &t) {
     }
     {
         Arena arena;
+        const Command command = parse_command(arena, "powsimp(sqrt(x^2))", "x");
+        t.check(command.status == CommandStatus::Ready && command.expression != kNoNode &&
+                    command_kind_name(command.kind) == std::string("powsimp") && command.operand_text == "sqrt(x^2)",
+                "a power simplification dispatches its one expression");
+        Arena extra;
+        const Command two = parse_command(extra, "powsimp(sqrt(x^2), x)", "x");
+        t.check(two.status == CommandStatus::Unsupported, "and refuses a second argument");
+    }
+    {
+        Arena arena;
         const Command command = parse_command(arena, "partfrac(1/(x^2-1))", "x");
         t.check(command.status == CommandStatus::Ready &&
                     command_kind_name(command.kind) == std::string("partial fractions"),

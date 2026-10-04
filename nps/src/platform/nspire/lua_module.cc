@@ -37,6 +37,7 @@
 #include "nps/steps/integer.h"
 #include "nps/steps/matrix.h"
 #include "nps/steps/trig.h"
+#include "nps/steps/power.h"
 #include "nps/steps/rational_expression.h"
 #include "nps/steps/system.h"
 #include "nps/steps/rewrite.h"
@@ -2600,6 +2601,53 @@ int integer_into(lua_State *L) {
     return 1;
 }
 
+int power_into(lua_State *L) {
+    size_t text_size = 0;
+    const char *text_data = luaL_checklstring(L, 1, &text_size);
+    const NumericMode mode = mode_argument(L, 3);
+    const std::string text(text_data, text_size);
+    GcPause paused(L);
+    Arena arena;
+    const ParseResult parsed = parse(arena, text);
+    if (!parsed.ok()) {
+        if (resource_status(parsed.status))
+            return expression_resource_failure(L, parsed.message);
+        return typed_failure(L, "invalid input", "invalid input", parsed.message);
+    }
+    Derivation d;
+    d.request.original_expression = text;
+    d.request.numeric_mode = mode;
+    const PowerResult result = simplify_powers(arena, d, parsed.root, interactive_budget());
+    std::string normalized;
+    std::string normalization_detail;
+    if (!prepare_normalized_expression(arena, d.context, &normalized, &normalization_detail))
+        return expression_resource_failure(L, normalization_detail);
+    d.context.normalized_expression = normalized;
+    const bool solved = result.outcome == PowerOutcome::Rewritten || result.outcome == PowerOutcome::AlreadyInForm;
+    const std::string printed = solved && result.expression != kNoNode ? print(arena, result.expression) : std::string();
+    lua_newtable(L);
+    set_field(L, "outcome", power_outcome_name(result.outcome));
+    set_field(L, "detail", result.detail);
+    set_field(L, "solved", solved);
+    set_field(L, "has_result", !printed.empty());
+    set_field(L, "answer_only", false);
+    set_field(L, "status", derivation_status_name(result.status));
+    set_field(L, "result_form",
+              result_form_name(primary_result_form(!printed.empty(), false, result.status, ResultForm::NoResult)));
+    set_field(L, "numeric_mode", numeric_mode_name(mode));
+    set_expression_context(L, d.context);
+    if (!printed.empty())
+        set_field(L, "result", printed);
+    if (!d.context.active_assumptions.empty())
+        set_field(L, "assumptions", joined(d.context.active_assumptions));
+    set_cost(L, arena, d, result.cost, 0);
+    if (d.size() == 0)
+        push_no_steps(L);
+    else
+        push_steps(L, arena, d);
+    return 1;
+}
+
 int matrix_into(lua_State *L, CommandKind kind) {
     size_t text_size = 0;
     const char *text_data = luaL_checklstring(L, 1, &text_size);
@@ -3274,6 +3322,8 @@ int l_walkthrough(lua_State *L) {
         count = matrix_into(L, kind);
     else if (kind == CommandKind::TrigExpand || kind == CommandKind::TrigCollect)
         count = trig_into(L, kind == CommandKind::TrigExpand ? TrigGoal::Expand : TrigGoal::Collect);
+    else if (kind == CommandKind::PowerSimplify)
+        count = power_into(L);
     else if (kind == CommandKind::Normal)
         count = rational_into(L, RationalGoal::Normal);
     else if (kind == CommandKind::PartialFractions)

@@ -27,6 +27,7 @@
 #include "nps/physics/vector_cross.h"
 #include "nps/physics/work.h"
 #include "nps/steps/linear.h"
+#include "nps/steps/power.h"
 #include "nps/steps/quadratic.h"
 #include "nps/steps/rational_expression.h"
 #include "nps/steps/rearrange.h"
@@ -159,6 +160,18 @@ std::string trig_record(const char *expression, TrigGoal goal, const Budget &bud
     const TrigResult result = trig_rewrite(arena, derivation, parsed.root, goal, budget);
     const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
     return header(expression, "", trig_outcome_name(result.outcome), answer, result.detail) +
+           render_derivation(arena, derivation);
+}
+
+std::string power_record(const char *expression, const Budget &budget) {
+    Arena arena;
+    ParseResult parsed = parse(arena, expression);
+    if (!parsed.ok())
+        return std::string("the fixture's own input did not parse: ") + status_name(parsed.status);
+    Derivation derivation;
+    const PowerResult result = simplify_powers(arena, derivation, parsed.root, budget);
+    const std::string answer = result.expression == kNoNode ? "" : print(arena, result.expression);
+    return header(expression, "", power_outcome_name(result.outcome), answer, result.detail) +
            render_derivation(arena, derivation);
 }
 
@@ -1057,6 +1070,15 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "trig_half_angle_collect", trig_record("2*sin(x)^2 + cos(2x)", TrigGoal::Collect, Budget()));
     check_golden(t, "trig_double_angle_product", trig_record("sin(x)*cos(x)", TrigGoal::Collect, Budget()));
     check_golden(t, "trig_outside_envelope", trig_record("sin(x+1)", TrigGoal::Expand, Budget()));
+    check_golden(t, "power_root_of_square", power_record("sqrt(x^2)", Budget()));
+    check_golden(t, "power_root_times_root", power_record("sqrt(x)*sqrt(x)", Budget()));
+    check_golden(t, "power_numeric_root", power_record("sqrt(12)", Budget()));
+    check_golden(t, "power_irrational_coefficient", power_record("sqrt(18*x^2)", Budget()));
+    check_golden(t, "power_quotient", power_record("x^3/x", Budget()));
+    check_golden(t, "power_odd_root", power_record("(x^3)^(1/3)", Budget()));
+    check_golden(t, "power_first_power", power_record("x^(3/3)", Budget()));
+    check_golden(t, "power_no_real_value", power_record("sqrt(-4)", Budget()));
+    check_golden(t, "power_outside_envelope", power_record("x*y", Budget()));
     check_golden(t, "rational_cancel_one", rational_record("x/x", RationalGoal::Normal, Budget()));
     check_golden(t, "rational_cancel_factor", rational_record("(x^2-1)/(x-1)", RationalGoal::Normal, Budget()));
     check_golden(t, "rational_common_denominator",

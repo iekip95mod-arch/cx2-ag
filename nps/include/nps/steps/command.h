@@ -5,7 +5,7 @@
 
 namespace nps {
 
-enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Normal, PartialFractions, LinearSystem, ParamSlope, Implicit, Desolve, Taylor, Maclaurin, Convergence, TrigExpand, TrigCollect };
+enum class CommandKind { Unhandled, Solve, Differentiate, Integrate, DefiniteIntegral, Limit, Tangent, Linearize, Simplify, Expand, Factor, Rearrange, Integer, Ref, Rref, Determinant, Normal, PartialFractions, LinearSystem, ParamSlope, Implicit, Desolve, Taylor, Maclaurin, Convergence, PowerSimplify, TrigExpand, TrigCollect };
 enum class CommandStatus { Unhandled, Ready, Invalid, Unsupported, ResourceExceeded };
 
 struct Command {
