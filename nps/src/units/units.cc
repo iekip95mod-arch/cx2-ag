@@ -188,6 +188,10 @@ const NamedQuantity *named_quantities(size_t *count) {
         {"electric potential", potential_dimension()},
         {"resistance", resistance_dimension()},
         {"capacitance", capacitance_dimension()},
+        {"pressure", pressure_dimension()},
+        {"volume", volume_dimension()},
+        {"temperature", temperature_dimension()},
+        {"amount of substance", amount_dimension()},
     };
     *count = sizeof(table) / sizeof(table[0]);
     return table;

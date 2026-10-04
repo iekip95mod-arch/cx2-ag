@@ -861,6 +861,13 @@ void run_units_tests(TestSink &t) {
                 parse_dimension("J/(mol*K)") == parse_dimension(si_unit_text(parse_dimension("J/(mol*K)"))),
             "the amount power is compared, and the SI spelling parses back to the same dimension");
     t.equal(si_value("20 degC"), "refused: unknown unit degC", "Celsius is not a scale, so it is not in the table");
+    for (const auto &[symbol, quantity] :
+         {std::pair{"kPa", "pressure"}, std::pair{"mL", "volume"}, std::pair{"K", "temperature"},
+          std::pair{"mol", "amount of substance"}}) {
+        Unit unit;
+        t.check(parse_unit(symbol, &unit, &unit_error) && named(unit.dimension) == quantity,
+                std::string("a ") + symbol + " unit is named as " + quantity + " like every other unit in the table");
+    }
     Dimension minimum_power;
     minimum_power.length = std::numeric_limits<int>::min();
     t.equal(dimension_text(minimum_power),
