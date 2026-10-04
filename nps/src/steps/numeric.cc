@@ -92,8 +92,10 @@ bool read_poly(const Arena &arena, NodeId id, const std::string &variable, Poly 
             Poly inner;
             if (!read_poly(arena, kids[0], variable, &inner, depth + 1))
                 return false;
-            for (Rational &c : inner)
-                c.num = -c.num;
+            for (Rational &c : inner) {
+                if (!rational_mul(c, Rational{-1, 1}, &c))
+                    return false;
+            }
             *out = std::move(inner);
             return true;
         }
@@ -156,16 +158,18 @@ int sign_at(const Poly &c, mpq_srcptr x) {
     return mpq_sgn(value.get());
 }
 
-Poly derivative(const Poly &c) {
+bool derivative(const Poly &c, Poly *out) {
     Poly d;
     for (size_t i = 1; i < c.size(); ++i) {
         Rational term;
-        rational_mul(c[i], Rational{static_cast<int64_t>(i), 1}, &term);
+        if (!rational_mul(c[i], Rational{static_cast<int64_t>(i), 1}, &term))
+            return false;
         d.push_back(term);
     }
     if (d.empty())
         d.push_back(Rational{0, 1});
-    return d;
+    *out = std::move(d);
+    return true;
 }
 
 // An upper bound on the k-th derivative over |x| <= reach, from the absolute coefficients.
@@ -514,9 +518,12 @@ NumericResult newton(Run &run, const Rational &x0, const Rational &tolerance) {
     if (!newton_grid(tolerance, grid.get()))
         return run.finish(NumericOutcome::OutsideEnvelope, kNoNode, kNoNode, false,
                           "a tolerance below one part in a trillion is outside the envelope");
+    Poly df;
+    if (!derivative(run.f, &df))
+        return run.finish(NumericOutcome::ResourceExceeded, kNoNode, kNoNode, false,
+                          "a derivative coefficient outgrew exact int64 storage");
     if (!run.open_plan(nullptr, nullptr, nullptr))
         return run.stopped();
-    const Poly df = derivative(run.f);
     {
         Step s = run.envelope("num.newton-derivative", "Differentiate the polynomial", ClaimType::Definition,
                               "Each term c x^k becomes k c x^(k-1).",

@@ -19,10 +19,11 @@ struct Run {
     std::string assumptions;
 };
 
-Run run(const char *text, const Budget &budget = Budget()) {
+Run run(const char *text, const Budget &budget = Budget(), NumericMode mode = NumericMode::Exact) {
     Run out;
     Arena arena;
     Derivation d;
+    d.request.numeric_mode = mode;
     const ParseResult parsed = parse(arena, text);
     if (!parsed.ok()) {
         out.value = "the test's own input did not parse";
@@ -92,6 +93,27 @@ void test_bisection(TestSink &t) {
     t.equal(outcome(run("bisect(sin(x), x, 1, 4, 1/10)")), "outside envelope", "a function other than a polynomial is refused");
     t.equal(outcome(run("bisect(x*y, x, 1, 4, 1/10)")), "outside envelope", "and so is a second variable");
     {
+        const Run r = run("bisect(-((-9223372036854775807-1)*x) - 1, x, 0, 1, 1/10)");
+        t.check(outcome(r) == "outside envelope" && r.rules.empty(),
+                "a coefficient whose negation outgrows int64 is refused rather than wrapped: " + outcome(r));
+        const Run control = run("bisect(-((-9223372036854775807)*x) - 1, x, 0, 1, 1/10)");
+        t.equal(outcome(control), "approximated", "while the largest negatable coefficient is still read");
+    }
+    {
+        const Run r = run("bisect(x^2-2, x, 1, 2, 1/100)", Budget(), NumericMode::Decimal);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find("Exact mode") != std::string::npos &&
+                    r.rules.empty(),
+                "a numerical method refuses decimal mode before recording anything: " + r.result.detail);
+    }
+    {
+        const Run r = run("bisect(x^2-2, 3, 1, 2, 1/100)");
+        t.check(outcome(r) == "invalid input" && r.result.detail.find("names the variable") != std::string::npos,
+                "a second argument that is not a name is invalid: " + r.result.detail);
+        const Run symbolic = run("bisect(x^2-2, x, a, 2, 1/100)");
+        t.check(outcome(symbolic) == "invalid input" && symbolic.result.detail.find("exact number") != std::string::npos,
+                "an end that is not an exact number is invalid: " + symbolic.result.detail);
+    }
+    {
         const Run r = run("bisect(x^2-2, x, 1, 2, 1/2^60)");
         t.equal(outcome(r), "did not converge", "a tolerance past the halving cap does not converge");
         t.evidence("VER-018", r.result.value == kNoNode && count(r, "num.bisect-halve") > 0 && r.broken.empty(),
@@ -116,7 +138,25 @@ void test_newton(TestSink &t) {
         t.equal(outcome(r), "approximated", "a double root still returns the iterate");
         t.check(!r.result.bound_certified && status(r) == "solved but unchecked",
                 "but no sign change proves it, so the answer is not called verified: " + status(r));
+        t.check(r.assumptions.find("the stated bound is not proved") != std::string::npos,
+                "and the unproved bound is published as an active assumption: " + r.assumptions);
+        const Run certified = run("newtonroot(x^2-2, x, 1, 1/1000)");
+        t.check(certified.assumptions.find("not proved") == std::string::npos &&
+                    certified.assumptions.find("continuous") != std::string::npos,
+                "while a certified answer carries only continuity: " + certified.assumptions);
     }
+    {
+        const Run r = run("newtonroot(4611686018427387904*x^2 - 1, x, 1, 1/10)");
+        t.check(outcome(r) == "resource exceeded" && count(r, "num.newton-derivative") == 0 &&
+                    r.result.value == kNoNode,
+                "a derivative coefficient past int64 is refused rather than recorded as a wrong derivative: " +
+                    outcome(r));
+        const Run control = run("newtonroot(2305843009213693952*x^2 - 1, x, 1, 1/10)");
+        t.check(count(control, "num.newton-derivative") == 1 && outcome(control) != "resource exceeded",
+                "while a derivative that fits is still recorded: " + outcome(control));
+    }
+    t.equal(outcome(run("newtonroot(x^2-2, x, 1, 1/10^13)")), "outside envelope",
+            "a Newton tolerance finer than one part in a trillion is outside the envelope");
     {
         const Run r = run("newtonroot(x^2-2, x, 0, 1/1000)");
         t.equal(outcome(r), "did not converge", "a zero derivative at the start stops the method");
