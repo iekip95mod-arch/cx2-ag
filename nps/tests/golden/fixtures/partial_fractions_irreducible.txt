@@ -1,0 +1,19 @@
+problem: 1/(x^2+1)
+variable: x
+outcome: outside envelope
+detail: the denominator has a factor with no rational root, such as an irreducible quadratic, which partial fractions over linear factors cannot split
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.partial-fractions.linear-factors
+  envelope version: 1
+  normalized problem: (1 * (((x^2) + 1)^(-1)))
+  requested method: partial fractions
+  angle convention: not applicable
+  branch convention: real domain, excluded values kept
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: unsupported
+steps
+  none

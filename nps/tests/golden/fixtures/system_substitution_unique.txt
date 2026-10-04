@@ -1,0 +1,146 @@
+problem: [x + y + z = 6, 2y + 5z = -4, 2x + 5y - z = 27]
+variable: [x, y, z]
+outcome: solved
+result: [(x = 5), (y = 3), (z = -2)]
+detail: every equation holds at the solution
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: algebra.linear-system.substitution
+  envelope version: 1
+  normalized problem: [(((x + y) + z) = 6), (((2 * y) + (5 * z)) = (-4)), ((((2 * x) + (5 * y)) + (-z)) = 27)]
+  requested method: substitution
+  angle convention: not applicable
+  branch convention: exact rational row operations
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: Plan
+    goal: Solve [(((x + y) + z) = 6), (((2 * y) + (5 * z)) = (-4)), ((((2 * x) + (5 * y)) + (-z)) = 27)] for [x, y, z]
+    rule: plan.system-substitution, Solve for one unknown and substitute
+    claim: no claim
+    explanation: Solve one equation for one unknown, put that into the others, and repeat.
+    detail: Each round leaves one fewer unknown in the remaining equations. Then the values are put back in reverse order.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Solve for one unknown and substitute
+    applicability: every equation is linear in the unknowns with exact rational coefficients, in at most 4 equations and 5 unknowns
+    fact: [(((x + y) + z) = 6), (((2 * y) + (5 * z)) = (-4)), ((((2 * x) + (5 * y)) + (-z)) = 27)]
+    rationale: Every equation is linear in the unknowns with exact rational coefficients.
+    verification: exact linear system analysis, passed, Solve [(((x + y) + z) = 6), (((2 * y) + (5 * z)) = (-4)), ((((2 * x) + (5 * y)) + (-z)) = 27)] for [x, y, z]
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Substitute
+      goal: Solve one equation for x
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of x.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve (((x + y) + z) = 6) for x: (x = (6 + (-1 * y) + (-1 * z))).
+      before: (((x + y) + z) = 6)
+      after: (x = (6 + (-1 * y) + (-1 * z)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.2 transformation
+      phase: Substitute
+      goal: Replace x in another equation
+      rule: system.substitute, Substitute into another equation
+      claim: solution set preserved
+      explanation: Put (6 + (-1 * y) + (-1 * z)) in place of x and collect the terms.
+      detail: Every solution of the system satisfies the isolated equation, so replacing the unknown keeps the solutions.
+      proof obligation: obl.system.substituted-equivalent, the new equation is the old one with the isolated unknown replaced
+      action: Replace x in ((((2 * x) + (5 * y)) + (-z)) = 27) to get (((3 * y) + (-3 * z)) = 15).
+      before: ((((2 * x) + (5 * y)) + (-z)) = 27)
+      after: (((3 * y) + (-3 * z)) = 15)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the new equation agrees with the old one after the substitution at every checked point
+      verified: yes
+    1.3 transformation
+      phase: Substitute
+      goal: Solve one equation for y
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of y.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve (((2 * y) + (5 * z)) = (-4)) for y: (y = (-2 + ((-5 * (2^-1)) * z))).
+      before: (((2 * y) + (5 * z)) = (-4))
+      after: (y = (-2 + ((-5 * (2^-1)) * z)))
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.4 transformation
+      phase: Substitute
+      goal: Replace y in another equation
+      rule: system.substitute, Substitute into another equation
+      claim: solution set preserved
+      explanation: Put (-2 + ((-5 * (2^-1)) * z)) in place of y and collect the terms.
+      detail: Every solution of the system satisfies the isolated equation, so replacing the unknown keeps the solutions.
+      proof obligation: obl.system.substituted-equivalent, the new equation is the old one with the isolated unknown replaced
+      action: Replace y in (((3 * y) + (-3 * z)) = 15) to get (((-21 * (2^-1)) * z) = 21).
+      before: (((3 * y) + (-3 * z)) = 15)
+      after: (((-21 * (2^-1)) * z) = 21)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the new equation agrees with the old one after the substitution at every checked point
+      verified: yes
+    1.5 transformation
+      phase: Substitute
+      goal: Solve one equation for z
+      rule: system.isolate-unknown, Solve one equation for one unknown
+      claim: solution set preserved
+      explanation: Move every other term to the right and divide by the coefficient of z.
+      detail: Dividing by a nonzero coefficient keeps the equation's solutions.
+      proof obligation: obl.system.isolated-equivalent, the isolated equation has the solutions of the equation it came from
+      action: Solve (((-21 * (2^-1)) * z) = 21) for z: (z = -2).
+      before: (((-21 * (2^-1)) * z) = 21)
+      after: (z = -2)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the equation equals the isolated form multiplied by the coefficient at every checked point
+      verified: yes
+    1.6 transformation
+      phase: Back substitute
+      goal: Write y without the unknowns already found
+      rule: system.back-substitute, Substitute the values already found
+      claim: solution set preserved
+      explanation: Put the values found later into the equation for y.
+      detail: Work back from the last unknown solved, so each value uses only numbers and free unknowns.
+      proof obligation: obl.system.back-substituted, the value is the isolated equation with the later values put in
+      action: Put the later values into (y = (-2 + ((-5 * (2^-1)) * z))) to get (y = 3).
+      before: (y = (-2 + ((-5 * (2^-1)) * z)))
+      after: (y = 3)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the value agrees with the isolated equation once the later values are put in, at every checked point
+      verified: yes
+    1.7 transformation
+      phase: Back substitute
+      goal: Write x without the unknowns already found
+      rule: system.back-substitute, Substitute the values already found
+      claim: solution set preserved
+      explanation: Put the values found later into the equation for x.
+      detail: Work back from the last unknown solved, so each value uses only numbers and free unknowns.
+      proof obligation: obl.system.back-substituted, the value is the isolated equation with the later values put in
+      action: Put the later values into (x = (6 + (-1 * y) + (-1 * z))) to get (x = 5).
+      before: (x = (6 + (-1 * y) + (-1 * z)))
+      after: (x = 5)
+      reversible: yes
+      verification: exact evaluation at affinely independent points, passed, the value agrees with the isolated equation once the later values are put in, at every checked point
+      verified: yes
+    1.8 check
+      phase: Check
+      goal: Check the answer in every original equation
+      rule: system.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the values back into every equation as it was typed.
+      detail: Both sides of each original equation have to come out equal.
+      proof obligation: obl.system.candidate-satisfies, the solution satisfies every equation of the system as typed
+      target claim: [(x = 5), (y = 3), (z = -2)] satisfies every equation
+      check method: substitute the solution into every equation as typed
+      expected: both sides of every equation equal
+      observed: every equation holds
+      verification: substitution, passed, every equation holds
+      verified: yes

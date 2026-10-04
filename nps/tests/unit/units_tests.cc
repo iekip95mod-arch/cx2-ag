@@ -829,6 +829,23 @@ void run_units_tests(TestSink &t) {
     Dimension none;
     t.equal(si_unit_text(none), "1", "a pure number spells as one");
     t.equal(dimension_text(none), "1", "in dimension form too");
+    const auto named = [](const Dimension &d) {
+        const char *name = quantity_name(d);
+        return std::string(name == nullptr ? "unnamed" : name);
+    };
+    t.evidence("UI-009", named(force), "force", "a force dimension is named from the unit table");
+    t.equal(named(none), "pure number", "a dimensionless quantity is named as a pure number");
+    Unit acceleration;
+    std::string unit_error;
+    t.check(parse_unit("m/s^2", &acceleration, &unit_error), "control: m/s^2 parses");
+    t.evidence("UI-009", named(acceleration.dimension), "acceleration",
+               "an acceleration unit is named through its dimension");
+    Unit capacitance;
+    t.check(parse_unit("uF", &capacitance, &unit_error) && named(capacitance.dimension) == "capacitance",
+            "a prefixed unit is named by the quantity its dimension measures");
+    Unit compound;
+    t.check(parse_unit("m*s", &compound, &unit_error), "control: m*s parses");
+    t.equal(named(compound.dimension), "unnamed", "a dimension no quantity is named for stays unnamed");
     Dimension per_second;
     per_second.time = -1;
     t.equal(si_unit_text(per_second), "1/s", "a pure reciprocal gets a one on top");

@@ -68,6 +68,14 @@ RewriteResult rewrite(Arena &arena, Derivation &derivation, NodeId expression, R
 bool gather_repeated_factors(Arena &arena, Derivation &derivation, StepId parent, const char *phase,
                              Meter &meter, NodeId expression, NodeId *out);
 
+// A rule's rewrite of one node, or kNoNode when it has nothing to do there, with what it did.
+using SubtermRule = NodeId (*)(Arena &arena, NodeId id, void *state, std::string *what);
+
+// The first node, outermost first, where the rule applies, rewritten inside the whole expression.
+// kNoNode when the rule applies nowhere. The same walk the rewrite rules use, shared rather than copied.
+NodeId rewrite_first_subterm(Arena &arena, NodeId expression, SubtermRule rule, void *state,
+                             std::string *what);
+
 }  // namespace nps
 
 #endif
