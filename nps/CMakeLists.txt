@@ -70,6 +70,7 @@ set(CORE_SOURCES
     src/steps/power.cc
     src/steps/matrix_row.cc
     src/steps/matrix_form.cc
+    src/steps/trig.cc
     src/steps/rational_expression.cc
     src/steps/system.cc
     src/steps/matrix.cc
@@ -124,6 +125,7 @@ set(TEST_SOURCES
     tests/unit/power_tests.cc
     tests/unit/matrix_row_tests.cc
     tests/unit/matrix_form_tests.cc
+    tests/unit/trig_tests.cc
     tests/unit/rational_expression_tests.cc
     tests/unit/system_tests.cc
     tests/unit/matrix_tests.cc
