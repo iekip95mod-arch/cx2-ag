@@ -211,8 +211,21 @@ void test_gates(TestSink &t) {
             "and so is one whose object alone was not introduced: " + new_object.detail);
     const wp::PursuitResult described =
         wp::interpret_pursuit("src", stated + "When does the faster truck catch up with the car?");
-    t.check(described.outcome == wp::GrammarOutcome::Interpreted,
+    t.check(described.outcome == wp::GrammarOutcome::Interpreted && described.unused.size() == 1 &&
+                described.unused[0].surface == "faster",
             "an adjective before the question's subject is read as it is in a statement: " + described.detail);
+    const wp::PursuitResult described_object =
+        wp::interpret_pursuit("src", stated + "When does the truck catch up with the slow car?");
+    t.check(described_object.outcome == wp::GrammarOutcome::Interpreted && described_object.unused.size() == 1 &&
+                described_object.unused[0].surface == "slow",
+            "and so is one before its object: " + described_object.detail);
+    t.equal(wp::interpret_pursuit("src", stated + "When does the truck catch up with it?").detail,
+            "the question names a body that was not introduced", "a pronoun object is not taken for a body");
+    const wp::PursuitResult placed_new_object =
+        wp::interpret_pursuit("src", stated + "When does the truck meet the bus at the car?");
+    t.check(placed_new_object.outcome == wp::GrammarOutcome::Unsupported &&
+                placed_new_object.detail == "the question names a body that was not introduced",
+            "a body named after the object's phrase does not stand in for it: " + placed_new_object.detail);
     const char *location_question =
         "A car leaves a town at 20 m/s. A truck leaves the same town 10 s later at 30 m/s. "
         "When does the truck meet the car at the same point?";

@@ -783,22 +783,36 @@ PursuitResult interpret_pursuit(const std::string &source_id, const std::string 
             if (meet == words.size())
                 return settle(r, GrammarOutcome::Unsupported, "the question does not ask when or where the bodies meet");
             const size_t meet_end = is_word(norm, words, meet + 1, "up") ? meet + 2 : meet + 1;
-            // As in a statement, the subject is the noun before the verb and any words between are adjectives.
-            size_t subject = meet;
+            // As in a statement, a body is the noun that ends its phrase and the words before it are adjectives.
+            size_t subject_begin = meet;
             for (size_t i = 0; i + 1 < meet; ++i) {
                 if (in_list(view(norm, words[i]), kDeterminers, std::size(kDeterminers)))
-                    subject = meet - 1;
+                    subject_begin = i + 1;
             }
-            size_t object = meet_end;
-            if (is_word(norm, words, object, "with"))
-                ++object;
-            if (is_word(norm, words, object, "the"))
-                ++object;
-            if ((subject < meet && body_of(words[subject]) < 0) ||
-                (object < words.size() && body_of(words[object]) < 0 &&
-                 (is_word(norm, words, meet_end, "with") || is_word(norm, words, meet_end, "the"))))
+            const bool has_object = is_word(norm, words, meet_end, "with") || is_word(norm, words, meet_end, "the");
+            size_t object_begin = meet_end;
+            size_t object = words.size();
+            if (has_object) {
+                if (is_word(norm, words, object_begin, "with"))
+                    ++object_begin;
+                if (is_word(norm, words, object_begin, "the"))
+                    ++object_begin;
+                for (size_t i = object_begin; i < words.size() && object == words.size(); ++i) {
+                    if (in_list(view(norm, words[i]), kDeterminers, std::size(kDeterminers)))
+                        break;
+                    if (body_of(words[i]) >= 0)
+                        object = i;
+                }
+            }
+            if ((subject_begin < meet && body_of(words[meet - 1]) < 0) || (has_object && object == words.size()))
                 return settle(r, GrammarOutcome::Unsupported,
                               "the question names a body that was not introduced");
+            for (size_t i = subject_begin; i + 1 < meet; ++i) {
+                if (body_of(words[i]) < 0)
+                    r.unused.push_back(span_from_normalized(source, words[i].begin, words[i].end));
+            }
+            for (size_t i = object_begin; has_object && i < object; ++i)
+                r.unused.push_back(span_from_normalized(source, words[i].begin, words[i].end));
             r.events.push_back({"meeting", "", "the bodies are at the same place",
                                 span_from_normalized(source, words[meet].begin, words[meet_end - 1].end)});
             if (is_word(norm, words, 0, "when")) {
