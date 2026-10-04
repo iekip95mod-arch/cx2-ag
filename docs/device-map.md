@@ -114,24 +114,24 @@ module appears to be stale after a deploy, look for a second copy before looking
 The bridge is one long anonymous namespace ending in a `lib[]` table of name to function pairs. Only what
 that table lists is callable from Lua.
 
-`source`: read on 2026-10-03, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
+`source`: read on 2026-10-04, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:4464), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:4467 to 4469), `vector_addition` (lua_module.cc:4470), `vector_cross`
-(lua_module.cc:4471), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
-`math_display`, `giac`, `export_text` (lua_module.cc:4435), and a set of platform entry points for
+`optics`, `unit_conversion` (lua_module.cc:4477), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:4480 to 4482), `vector_addition` (lua_module.cc:4483), `vector_cross`
+(lua_module.cc:4484), `components_to_magnitude_angle`, `magnitude_angle_to_components`,
+`math_display`, `giac`, `export_text` (lua_module.cc:4448), and a set of platform entry points for
 memory, tracing, integrity and the OS dialogs.
 
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
-library. `source`: read on 2026-10-03, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4339, and
+library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4352, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
-`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3529, which
-reads the variable names against the model's own term names (lua_module.cc:3515). Any engine built on
+`gravitation`, `oscillation` and `wave` share one binding, `relation_into` at lua_module.cc:3542, which
+reads the variable names against the model's own term names (lua_module.cc:3528). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`source`: read on 2026-10-03, `judge_attempt` is registered at lua_module.cc:4433 and defined at
+`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:4446 and defined at
 lua_module.cc:1829. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
@@ -150,12 +150,12 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:4436, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3082-3083 and a `linsolve` command to `system_into` at lua_module.cc:3079-3080. Its
+lua_module.cc:4449, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3095-3096 and a `linsolve` command to `system_into` at lua_module.cc:3092-3093. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:2992-2996, so the shell falls back to Giac at nps_v4.lua:4099. A linsolve never
-does: system_into answers every outcome with a table at lua_module.cc:2572-2620, and l_walkthrough
-answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3045-3058. Outside
+nil at lua_module.cc:3005-3009, so the shell falls back to Giac at nps_v4.lua:4099. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2585-2633, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3058-3071. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
 native refusal and Giac is not consulted.
 
@@ -178,7 +178,7 @@ ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
 physics.kinematics.constant-acceleration.two-dimension. Both ids are declared at
-nps/src/core/capability_manifest.cc:47-48 and required of the loaded module at
+nps/src/core/capability_manifest.cc:49-50 and required of the loaded module at
 nps/lua/nps_v4.lua:69-70, so a build missing either one refuses to start rather than offering a
 menu entry that cannot run.
 
@@ -199,7 +199,7 @@ paragraph is wrong and has to change with it.
 
 Nothing in that menu is reachable when the loaded module's manifest lists more than 128 modules: `source`,
 manifestCompatibility refuses it as malformed at nps/lua/nps_v4.lua:109 and every StepCAS surface stays
-off. The build fails first, at nps/src/core/capability_manifest.cc:74, if the compiled manifest outgrows
+off. The build fails first, at nps/src/core/capability_manifest.cc:76, if the compiled manifest outgrows
 that ceiling, so a new family raises both numbers together.
 
 ## What renders on screen
