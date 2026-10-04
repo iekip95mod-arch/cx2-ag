@@ -44,6 +44,8 @@ const InstalledModule kInstalledModules[] = {
     {"solver", "calculus.limit.single-variable"},
     {"solver", "calculus.tangent-line.single-variable"},
     {"solver", "calculus.linearization.single-variable"},
+    {"solver", "calculus.numerical-root.polynomial"},
+    {"solver", "calculus.numerical-integral.polynomial"},
     {"solver", "calculus.parametric-slope.single-parameter"},
     {"solver", "calculus.derivative.implicit"},
     {"solver", "calculus.ode.separable.first-order"},

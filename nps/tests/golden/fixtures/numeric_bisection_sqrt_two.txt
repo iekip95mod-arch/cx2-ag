@@ -1,0 +1,133 @@
+problem: bisect(x^2-2, x, 1, 2, 1/100)
+outcome: approximated
+result: (181 * (128^-1)) within (1 * (128^-1))
+detail: the last bracket proves the bound
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.numerical-root.polynomial
+  envelope version: 1
+  normalized problem: bisect(((x^2) + (-2)), x, 1, 2, (1 * (100^(-1))))
+  requested method: bisect
+  active assumption: the function is a polynomial, so it is continuous and differentiable everywhere
+  angle convention: not applicable
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: numerically approximated
+steps
+  1 plan
+    phase: Plan
+    goal: Approximate with Bisection on a sign change
+    rule: plan.numeric-bisection, Bisection on a sign change
+    claim: no claim
+    explanation: The learner asked for this method by name, so the answer is an approximation with a stated bound.
+    detail: Every value is computed exactly as a fraction, so the only error is the method's own.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Bisection on a sign change
+    applicability: the function is a polynomial in one variable, so it is continuous
+    applicability: the function has opposite signs at the two ends, or a zero at one
+    fact: bisect(((x^2) + (-2)), x, 1, 2, (1 * (100^(-1))))
+    rationale: The method was requested explicitly, as CALC-019 requires.
+    verification: polynomial shape reading, passed, Approximate with Bisection on a sign change
+    verification: exact sign evaluation, passed, Approximate with Bisection on a sign change
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (3 * (2^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (3 * (2^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      before: bracket(1, 2)
+      after: bracket(1, (3 * (2^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (3 * (2^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      verified: yes
+    1.2 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (5 * (4^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (5 * (4^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      before: bracket(1, (3 * (2^-1)))
+      after: bracket((5 * (4^-1)), (3 * (2^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (5 * (4^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      verified: yes
+    1.3 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (11 * (8^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (11 * (8^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      before: bracket((5 * (4^-1)), (3 * (2^-1)))
+      after: bracket((11 * (8^-1)), (3 * (2^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (11 * (8^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      verified: yes
+    1.4 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (23 * (16^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (23 * (16^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      before: bracket((11 * (8^-1)), (3 * (2^-1)))
+      after: bracket((11 * (8^-1)), (23 * (16^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (23 * (16^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      verified: yes
+    1.5 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (45 * (32^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (45 * (32^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      before: bracket((11 * (8^-1)), (23 * (16^-1)))
+      after: bracket((45 * (32^-1)), (23 * (16^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (45 * (32^-1)) is negative, the same sign as at the left end, so the root is in the right half
+      verified: yes
+    1.6 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.bisect-halve, Halve the bracket
+      claim: implication
+      explanation: f at the midpoint (91 * (64^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      detail: Reach for bisection when the function has opposite signs at two points, since a root lies between them.
+      proof obligation: obl.numeric.root-in-bracket, a root lies in the new bracket
+      action: f at the midpoint (91 * (64^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      before: bracket((45 * (32^-1)), (23 * (16^-1)))
+      after: bracket((45 * (32^-1)), (91 * (64^-1)))
+      reversible: no
+      verification: exact sign evaluation, passed, f at the midpoint (91 * (64^-1)) is positive, the opposite sign to the left end, so the root is in the left half
+      verified: yes
+    1.7 check
+      phase: Check
+      goal: Check the stated bound
+      rule: num.bisect-check, Check the last bracket
+      claim: implication
+      explanation: A continuous function that changes sign has a root between, so the midpoint is within half the width.
+      proof obligation: obl.numeric.bound-holds, a root lies within the stated bound of the answer
+      target claim: a root lies within the bound of the midpoint
+      check method: sign change by the intermediate value theorem
+      expected: within the bound
+      observed: f is negative and positive at the ends of the last bracket, which is at most twice the tolerance wide
+      verification: sign change by the intermediate value theorem, passed, f is negative and positive at the ends of the last bracket, which is at most twice the tolerance wide
+      verified: yes

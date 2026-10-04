@@ -1,5 +1,6 @@
 #include "nps/steps/command.h"
 #include "nps/steps/integer.h"
+#include "nps/steps/numeric.h"
 #include "nps/core/canonical.h"
 
 namespace nps {
@@ -124,6 +125,7 @@ CommandKind named_command(const std::string &name) {
     if (name == "linsolve") return CommandKind::LinearSystem;
     if (name == "desolve") return CommandKind::Desolve;
     if (integer_command_arity(name)) return CommandKind::Integer;
+    if (numeric_command_arity(name)) return CommandKind::Numeric;
     return CommandKind::Unhandled;
 }
 
@@ -151,6 +153,7 @@ const char *command_kind_name(CommandKind kind) {
         case CommandKind::Ref: return "ref";
         case CommandKind::Rref: return "rref";
         case CommandKind::Determinant: return "determinant";
+        case CommandKind::Numeric: return "numeric";
         case CommandKind::TrigExpand: return "texpand";
         case CommandKind::TrigCollect: return "tcollect";
         case CommandKind::PowerSimplify: return "powsimp";
@@ -208,11 +211,14 @@ Command parse_command(Arena &arena, const std::string &text, const std::string &
     if (command.kind == CommandKind::Desolve)
         return desolve_command(arena, parsed.root, source, end + 1);
 
-    if (command.kind == CommandKind::Integer) {
-        const size_t arity = *integer_command_arity(name);
+    if (command.kind == CommandKind::Integer || command.kind == CommandKind::Numeric) {
+        const size_t arity = command.kind == CommandKind::Integer ? *integer_command_arity(name)
+                                                                   : *numeric_command_arity(name);
         if (arena.children(parsed.root).size() != arity) {
             command.status = CommandStatus::Unsupported;
-            command.detail = "the integer command has an unsupported number of arguments";
+            command.detail = command.kind == CommandKind::Integer
+                                 ? "the integer command has an unsupported number of arguments"
+                                 : name + " takes " + std::to_string(arity) + " arguments";
             return command;
         }
         command.expression = parsed.root;

@@ -1,0 +1,117 @@
+problem: newtonroot(x^2-2, x, 1, 1/1000)
+outcome: approximated
+result: (707107 * (500000^-1)) within (1 * (1000^-1))
+detail: f is negative a tolerance below the answer and positive a tolerance above it, so a root lies between
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: calculus.numerical-root.polynomial
+  envelope version: 1
+  normalized problem: newtonroot(((x^2) + (-2)), x, 1, (1 * (1000^(-1))))
+  requested method: newtonroot
+  active assumption: the function is a polynomial, so it is continuous and differentiable everywhere
+  angle convention: not applicable
+  branch convention: real domain
+  unit policy: exact integers, decimals as written, no unit conversion
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: numerically approximated
+steps
+  1 plan
+    phase: Plan
+    goal: Approximate with Newton's method
+    rule: plan.numeric-newton, Newton's method
+    claim: no claim
+    explanation: The learner asked for this method by name, so the answer is an approximation with a stated bound.
+    detail: Every value is computed exactly as a fraction, so the only error is the method's own.
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Newton's method
+    applicability: the function is a polynomial in one variable, so it is continuous
+    fact: newtonroot(((x^2) + (-2)), x, 1, (1 * (1000^(-1))))
+    rationale: The method was requested explicitly, as CALC-019 requires.
+    verification: polynomial shape reading, passed, Approximate with Newton's method
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.newton-derivative, Differentiate the polynomial
+      claim: definition
+      explanation: Each term c x^k becomes k c x^(k-1).
+      detail: Newton's step divides by the derivative, so the derivative comes first.
+      proof obligation: obl.numeric.derivative, the derivative is read from the coefficients by the power rule
+      action: Differentiate each term
+      before: ((x^2) + -2)
+      after: (2 * x)
+      reversible: no
+      verification: power rule on each coefficient, passed, the power rule applied term by term
+      verified: yes
+    1.2 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.newton-iterate, Take one Newton step
+      claim: definition
+      explanation: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      detail: Follow the tangent line to where it crosses zero, which closes in fast near a simple root.
+      proof obligation: obl.numeric.newton-update, the next iterate is x - f(x)/f'(x) rounded to the working grid
+      action: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      before: 1
+      after: (3 * (2^-1))
+      reversible: no
+      verification: exact Newton update rounded to the working grid, passed, x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      verified: yes
+    1.3 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.newton-iterate, Take one Newton step
+      claim: definition
+      explanation: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      detail: Follow the tangent line to where it crosses zero, which closes in fast near a simple root.
+      proof obligation: obl.numeric.newton-update, the next iterate is x - f(x)/f'(x) rounded to the working grid
+      action: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      before: (3 * (2^-1))
+      after: (1416667 * (1000000^-1))
+      reversible: no
+      verification: exact Newton update rounded to the working grid, passed, x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      verified: yes
+    1.4 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.newton-iterate, Take one Newton step
+      claim: definition
+      explanation: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      detail: Follow the tangent line to where it crosses zero, which closes in fast near a simple root.
+      proof obligation: obl.numeric.newton-update, the next iterate is x - f(x)/f'(x) rounded to the working grid
+      action: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      before: (1416667 * (1000000^-1))
+      after: (176777 * (125000^-1))
+      reversible: no
+      verification: exact Newton update rounded to the working grid, passed, x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      verified: yes
+    1.5 transformation
+      phase: Iterate
+      goal: Carry the method one step further
+      rule: num.newton-iterate, Take one Newton step
+      claim: definition
+      explanation: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      detail: Follow the tangent line to where it crosses zero, which closes in fast near a simple root.
+      proof obligation: obl.numeric.newton-update, the next iterate is x - f(x)/f'(x) rounded to the working grid
+      action: x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      before: (176777 * (125000^-1))
+      after: (707107 * (500000^-1))
+      reversible: no
+      verification: exact Newton update rounded to the working grid, passed, x - f(x)/f'(x), rounded to the nearest multiple of 1/1000000
+      verified: yes
+    1.6 check
+      phase: Check
+      goal: Check the stated bound
+      rule: num.newton-check, Check for a sign change around the answer
+      claim: implication
+      explanation: A continuous function that changes sign across the tolerance has a root within it.
+      proof obligation: obl.numeric.bound-holds, a root lies within the stated bound of the answer
+      target claim: a root lies within the tolerance of the last iterate
+      check method: sign change by the intermediate value theorem
+      expected: within the bound
+      observed: f is negative a tolerance below the answer and positive a tolerance above it, so a root lies between
+      verification: sign change by the intermediate value theorem, passed, f is negative a tolerance below the answer and positive a tolerance above it, so a root lies between
+      verified: yes

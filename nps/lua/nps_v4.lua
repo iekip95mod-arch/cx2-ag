@@ -2451,6 +2451,11 @@ menu = {
        	 { "Sum  sum(expr,var,min,max)",	function() menustring( "sum(" ) end },
        	 { "Series  series(expr,var=value,order)",	function() menustring( "series(" ) end },
        	 { "Differential Equation  desolve(eq,x,y)",	function() menustring( "desolve(" ) end },
+       	 "-",
+       	 { "Bisection Root  bisect(f,x,a,b,tol)",	function() menustring( "bisect(" ) end },
+       	 { "Newton Root  newtonroot(f,x,x0,tol)",	function() menustring( "newtonroot(" ) end },
+       	 { "Trapezoid Rule  trapsum(f,x,a,b,n)",	function() menustring( "trapsum(" ) end },
+       	 { "Simpson Rule  simpsum(f,x,a,b,n)",	function() menustring( "simpsum(" ) end },
        },
        { "Probability",
        	 { "Factorial  factorial(n)",	function() menustring( "factorial(" ) end },
@@ -3212,6 +3217,8 @@ local function resultClass(r)
 	-- would badge a corroborated answer as verified. A check that ran is not UNCHECKED either.
 	elseif r.status == "solved and corroborated" then
 		classification = classification .. " + CORROBORATED"
+	elseif r.status == "numerically approximated" and r.bound_certified == true then
+		-- The method's own bound was proved, which is the check an approximation can have.
 	elseif r.status ~= "solved and verified" and r.agrees ~= true then
 		classification = classification .. " + UNCHECKED"
 	end

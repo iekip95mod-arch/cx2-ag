@@ -32,6 +32,7 @@ void run_implicit_tests(TestSink &sink);
 void run_separable_tests(TestSink &sink);
 void run_ui_canvas_tests(TestSink &sink);
 void run_integer_tests(TestSink &sink);
+void run_numeric_tests(TestSink &sink);
 void run_problem_ir_tests(TestSink &sink);
 void run_lexical_tests(TestSink &sink);
 void run_grammar_tests(TestSink &sink);
@@ -960,6 +961,8 @@ int main_body() {
     run_ui_canvas_tests(sink);
     sink.begin_group("integer");
     run_integer_tests(sink);
+    sink.begin_group("numeric");
+    run_numeric_tests(sink);
     sink.begin_group("problem ir");
     run_problem_ir_tests(sink);
     sink.begin_group("wp lexical");
