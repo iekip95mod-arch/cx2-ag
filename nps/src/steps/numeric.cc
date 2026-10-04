@@ -332,6 +332,9 @@ struct Run {
         if (arena.failed()) {
             result.outcome = NumericOutcome::ResourceExceeded;
             result.detail = status_name(arena.status());
+        } else if (result.outcome == NumericOutcome::Approximated && (value == kNoNode || bound == kNoNode)) {
+            result.outcome = NumericOutcome::ResourceExceeded;
+            result.detail = "a value outgrew exact int64 storage";
         }
         switch (result.outcome) {
             case NumericOutcome::Approximated:
@@ -698,8 +701,6 @@ NumericResult quadrature(Run &run, const Rational &a0, const Rational &b0, int64
         return run.stopped();
     if (!proved)
         return run.finish(NumericOutcome::VerificationFailed, kNoNode, kNoNode, false, observed);
-    if (value_node == kNoNode || bound_node == kNoNode)
-        return run.finish(NumericOutcome::ResourceExceeded, kNoNode, kNoNode, false, "the sum outgrew exact int64 storage");
     return run.finish(NumericOutcome::Approximated, value_node, bound_node, true, observed);
 }
 

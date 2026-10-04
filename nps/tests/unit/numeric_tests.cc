@@ -114,6 +114,23 @@ void test_bisection(TestSink &t) {
                 "an end that is not an exact number is invalid: " + symbolic.result.detail);
     }
     {
+        const char *const outgrown[] = {
+            "bisect(4611686018427387904*x - 1, x, 1/6917529027641081856, 2/6917529027641081856, 1)",
+            "bisect(4611686018427387904*x - 1/2, x, 0, 1/4611686018427387904, 1)",
+        };
+        for (const char *text : outgrown) {
+            const Run r = run(text);
+            t.check(outcome(r) == "resource exceeded" && r.result.value == kNoNode && r.result.bound == kNoNode &&
+                        !r.result.bound_certified && r.broken.empty(),
+                    std::string("an answer or bound past int64 is refused rather than certified empty: ") + text + " " +
+                        outcome(r) + broken(r));
+        }
+        const Run control = run("bisect(4611686018427387904*x - 1, x, 0, 2/4611686018427387904, 1)");
+        t.check(outcome(control) == "approximated" && control.result.bound_certified &&
+                    control.value == "(1 * (4611686018427387904^-1))" && control.bound == control.value,
+                "while an answer and bound just inside int64 are still certified: " + control.value + " " + control.bound);
+    }
+    {
         const Run r = run("bisect(x^2-2, x, 1, 2, 1/2^60)");
         t.equal(outcome(r), "did not converge", "a tolerance past the halving cap does not converge");
         t.evidence("VER-018", r.result.value == kNoNode && count(r, "num.bisect-halve") > 0 && r.broken.empty(),
