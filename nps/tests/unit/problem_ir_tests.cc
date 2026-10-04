@@ -184,6 +184,10 @@ void test_invariants(TestSink &t) {
         missing_assumptions.confirmation_record.material_assumption_ids.clear();
         t.equal(fault(missing_assumptions, source), "confirmation mismatch",
                 "an empty confirmed material assumption list is refused when the problem has one");
+        wp::ProblemIR repeated_assumptions = ir;
+        repeated_assumptions.confirmation_record.material_assumption_ids.push_back("a-constant");
+        t.equal(fault(repeated_assumptions, source), "confirmation mismatch",
+                "a confirmed material assumption listed twice is refused");
         wp::ProblemIR missing_versions = ir;
         missing_versions.confirmation_record.parser_versions.clear();
         t.equal(fault(missing_versions, source), "confirmation mismatch", "empty confirmed parser versions are refused");
