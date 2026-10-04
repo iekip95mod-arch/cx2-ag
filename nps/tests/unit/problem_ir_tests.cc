@@ -159,6 +159,7 @@ void test_invariants(TestSink &t) {
         ir.quantities.push_back(zero);
         t.equal(fault(ir, source), "unconfirmed inference", "an inferred quantity with no confirmation is refused");
         ir.quantities.back().provenance.confirmation_record_id = ir.confirmation_record.id;
+        ir.confirmation_record.material_assumption_ids.push_back(ir.quantities.back().id);
         t.equal(fault(ir, source), "valid", "and is accepted once the confirmation names it");
     }
     {
@@ -167,7 +168,29 @@ void test_invariants(TestSink &t) {
         ir.confirmation_record.source_content_hash = ir.source_content_hash;
         ir.confirmation_record.selected_candidate_id = "grammar-1";
         ir.confirmation_record.problem_revision = ir.revision;
+        ir.confirmation_record.material_assumption_ids = {"a-constant"};
+        ir.confirmation_record.parser_versions = "authored";
         t.equal(fault(ir, source), "valid", "a confirmation bound to this source, candidate and revision is accepted");
+        wp::ProblemIR missing_hash = ir;
+        missing_hash.confirmation_record.source_content_hash.clear();
+        t.equal(fault(missing_hash, source), "confirmation mismatch", "an empty confirmed source hash is refused");
+        wp::ProblemIR missing_candidate = ir;
+        missing_candidate.confirmation_record.selected_candidate_id.clear();
+        t.equal(fault(missing_candidate, source), "confirmation mismatch", "an empty confirmed candidate is refused");
+        wp::ProblemIR missing_revision = ir;
+        missing_revision.confirmation_record.problem_revision = 0;
+        t.equal(fault(missing_revision, source), "confirmation mismatch", "an empty confirmed revision is refused");
+        wp::ProblemIR missing_assumptions = ir;
+        missing_assumptions.confirmation_record.material_assumption_ids.clear();
+        t.equal(fault(missing_assumptions, source), "confirmation mismatch",
+                "an empty confirmed material assumption list is refused when the problem has one");
+        wp::ProblemIR repeated_assumptions = ir;
+        repeated_assumptions.confirmation_record.material_assumption_ids.push_back("a-constant");
+        t.equal(fault(repeated_assumptions, source), "confirmation mismatch",
+                "a confirmed material assumption listed twice is refused");
+        wp::ProblemIR missing_versions = ir;
+        missing_versions.confirmation_record.parser_versions.clear();
+        t.equal(fault(missing_versions, source), "confirmation mismatch", "empty confirmed parser versions are refused");
         wp::ProblemIR other_hash = ir;
         other_hash.confirmation_record.source_content_hash = wp::source_hash("a different text");
         t.equal(fault(other_hash, source), "confirmation mismatch", "one that approved a different source text is refused");
@@ -177,6 +200,49 @@ void test_invariants(TestSink &t) {
         wp::ProblemIR other_revision = ir;
         other_revision.confirmation_record.problem_revision = ir.revision + 1;
         t.equal(fault(other_revision, source), "confirmation mismatch", "or another revision");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.quantities.front().provenance.source_id = "other-text";
+        t.equal(fault(ir, source), "provenance mismatch", "provenance citing another source is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.entities.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit entity with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.states.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit state with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.relations.front().provenance.supporting_source_spans.clear();
+        t.equal(fault(ir, source), "missing provenance", "an explicit relation with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.confirmed_inferred_assumptions.front().provenance.explicit_fact = true;
+        t.equal(fault(ir, source), "missing provenance", "an explicit assumption with no span is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.unused_information.front().original_begin += 1;
+        t.equal(fault(ir, source), "provenance mismatch", "an unused-information span has to match the source");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.quantities.front().coordinate_frame_id = "world";
+        t.equal(fault(ir, source), "missing reference", "an undeclared coordinate frame is refused");
+    }
+    {
+        wp::ProblemIR ir = cart.ir;
+        ir.coordinate_frames.push_back("world");
+        ir.quantities.front().coordinate_frame_id = "world";
+        t.equal(fault(ir, source), "valid", "a quantity may reference a declared coordinate frame");
+        ir.coordinate_frames.push_back("world");
+        t.equal(fault(ir, source), "duplicate id", "coordinate frame ids are unique within the revision");
     }
     {
         wp::ProblemIR ir = cart.ir;
@@ -216,6 +282,10 @@ void test_reading(TestSink &t) {
     std::string bad_bound = good;
     bad_bound.insert(confirmation, " revision=0");
     t.equal(status(bad_bound), "malformed", "a confirmed revision of zero is malformed");
+    std::string bad_span = good;
+    const size_t span_at = bad_span.find("span=");
+    bad_span.insert(span_at + 5, "x");
+    t.equal(status(bad_span), "malformed", "a span that is not begin,end is malformed");
 }
 
 void test_correction(TestSink &t) {
@@ -236,6 +306,11 @@ void test_correction(TestSink &t) {
     next.confirmation_record = {"c-fix", "author", false};
     t.check(!wp::commit(next, cart.source, &why) && why.fault == wp::IrFault::NotConfirmed,
             "and the corrected problem cannot be solved until it is confirmed again");
+    next.confirmation_record.source_content_hash = next.source_content_hash;
+    next.confirmation_record.selected_candidate_id = next.selected_candidate_id;
+    next.confirmation_record.problem_revision = next.revision;
+    next.confirmation_record.material_assumption_ids = {"a-constant"};
+    next.confirmation_record.parser_versions = "authored";
     next.confirmation_record.confirmed = true;
     t.check(wp::commit(next, cart.source, &why).has_value(), "and commits once it is: " + why.detail);
     t.check(first->ir().revision == 1 && first->ir().confirmation_record.confirmed,

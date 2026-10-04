@@ -191,6 +191,8 @@ struct IrValidation {
 // The hex SHA-256 of the original text, which the IR's source hash has to match.
 std::string source_hash(const std::string &original_utf8);
 
+std::string confirmation_parser_versions(const ProblemIR &ir);
+
 // The dimension a semantic type requires and the symbol the kinematics engine gives it, if any.
 bool semantic_type_info(const std::string &type, Dimension *dimension, std::string *kinematics_symbol);
 

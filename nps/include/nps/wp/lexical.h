@@ -40,6 +40,7 @@ struct LexiconConcept {
 enum class LexFault : uint8_t {
     UnsupportedCharacter,
     UnknownUnit,
+    UnreadableNumber,
     Range,
     Tolerance,
     Percentage,

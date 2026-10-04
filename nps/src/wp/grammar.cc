@@ -482,7 +482,15 @@ ConfirmResult confirm_motion(const GrammarResult &interpreted, const std::string
         return out;
     }
     std::vector<RoleAssignment> roles = interpreted.roles;
-    for (const ClarificationAnswer &a : answers) {
+    for (size_t i = 0; i < answers.size(); ++i) {
+        const ClarificationAnswer &a = answers[i];
+        for (size_t j = 0; j < i; ++j) {
+            if (answers[j].clarification_id == a.clarification_id) {
+                out.status = ConfirmStatus::InvalidAnswer;
+                out.detail = a.clarification_id + " was answered more than once";
+                return out;
+            }
+        }
         const Clarification *asked = nullptr;
         for (const Clarification &c : interpreted.clarifications) {
             if (c.id == a.clarification_id)
@@ -529,8 +537,7 @@ ConfirmResult commit_confirmed(ProblemIR ir, const SourceDocument &source, const
     record.source_content_hash = ir.source_content_hash;
     record.selected_candidate_id = ir.selected_candidate_id;
     record.problem_revision = ir.revision;
-    for (const std::string &version : ir.grammar_module_versions)
-        record.parser_versions += (record.parser_versions.empty() ? "" : "+") + version;
+    record.parser_versions = confirmation_parser_versions(ir);
     for (Quantity &q : ir.quantities) {
         if (!q.provenance.explicit_fact) {
             q.provenance.confirmation_record_id = record.id;

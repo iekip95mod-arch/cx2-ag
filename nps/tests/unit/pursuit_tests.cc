@@ -145,7 +145,8 @@ void test_structure(TestSink &t) {
                 confirmed.committed->ir().confirmation_record.material_assumption_ids ==
                     std::vector<std::string>{"q-start_time-car", "a-same-way"} &&
                 confirmed.committed->ir().confirmation_record.parser_versions ==
-                    std::string(wp::kPursuitGrammarVersion) + "+" + wp::kLexiconVersion,
+                    confirmed.committed->ir().parser_build_id + "+" + wp::kPursuitGrammarVersion + "+" +
+                        wp::kLexiconVersion,
             "confirmation approves the clock origin and the direction under the pursuit grammar's version");
     t.check(r.set.candidates.size() == 1 && r.set.candidates[0].proposed_problem_model == wp::kPursuitFamily &&
                 r.set.grammar_module_versions.size() == 1 &&

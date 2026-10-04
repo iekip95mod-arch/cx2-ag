@@ -1,0 +1,170 @@
+problem: a gauge pressure of 49 kPa in water with g = 9.8 m/s^2; find the depth
+variable: depth
+outcome: solved
+result: 5.0 m
+context
+  application version: nps 0.2
+  capability manifest: <current>
+  problem family: physics.fluids.hydrostatic-pressure
+  envelope version: <not recorded>
+  normalized problem: (P = ((rho * g) * h))
+  requested method: hydrostatic equilibrium, exact SI substitution, linear isolation of the requested quantity
+  active assumption: the fluid is at rest and incompressible, with one uniform density
+  active assumption: the gravitational acceleration is uniform over the depth
+  active assumption: the pressure is gauge pressure, measured relative to the pressure at the free surface
+  angle convention: <not recorded>
+  branch convention: real domain
+  unit policy: validate dimensions before substitution, convert exactly to SI, and round only the reported answer
+  detail projection: standard
+  resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
+  derivation status: solved and verified
+steps
+  1 plan
+    phase: plan
+    goal: Find depth
+    rule: physics.fluids.hydrostatic.definition, Hydrostatic gauge pressure
+    claim: no claim
+    explanation: Use P = rho*g*h and solve for the requested quantity
+    assumption before: the fluid is at rest and incompressible, with one uniform density
+    assumption before: the gravitational acceleration is uniform over the depth
+    assumption before: the pressure is gauge pressure, measured relative to the pressure at the free surface
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Apply the hydrostatic gauge pressure P = rho*g*h
+    applicability: every quantity in P = rho*g*h uses compatible dimensions
+    applicability: the relation is linear in depth
+    fact: gauge pressure = 49 kPa
+    fact: fluid density = 1000 kg/m^3
+    fact: gravitational acceleration = 9.8 m/s^2
+    fact: find depth
+    alternative: general symbolic backend isolation
+    rationale: P = rho*g*h is linear in the requested unknown after exact SI substitution, so the local exact linear solver is sufficient and deterministic
+    verification: dimensional analysis, passed, L^-1 M T^-2 against L^-1 M T^-2
+    verification: registered relation-position model, passed, h occurs at power one in P = rho*g*h
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    1.1 check
+      phase: check
+      goal: Check the dimensions of P = rho*g*h
+      rule: physics.fluids.hydrostatic.check-dimensions, Dimensional analysis
+      claim: definition
+      explanation: Both sides of P = rho*g*h must have the same dimension
+      proof obligation: physics.fluids.hydrostatic.dimensions-agree, both sides of P = rho*g*h have the same dimension
+      target claim: P = rho*g*h is dimensionally consistent
+      check method: raise each factor dimension to its power and multiply
+      expected: equal dimensions
+      observed: L^-1 M T^-2 against L^-1 M T^-2
+      verification: dimensional analysis, passed, L^-1 M T^-2 against L^-1 M T^-2
+      verified: yes
+    1.2 transformation
+      phase: solve
+      goal: Convert the known quantities to SI
+      rule: physics.fluids.hydrostatic.convert-units, Unit conversion
+      claim: solution set preserved
+      explanation: Apply each unit's exact scale to SI
+      detail: Convert every known quantity with its exact unit scale before substituting into P = rho*g*h, so the relation uses consistent SI units throughout.
+      proof obligation: obl.physics.scale-preserves-solutions, each quantity's stored SI value is its given value times the table factor
+      action: gauge pressure = 49 kPa becomes gauge pressure = 49000 kg/(m s^2)
+      before: (P = ((rho * g) * h))
+      after: (P = ((rho * g) * h))
+      reversible: yes
+      verification: divide each stored value by its table scale and compare with the given, passed, 3 stored values divide back to the given by their table scale
+      verified: yes
+    1.3 transformation
+      phase: solve
+      goal: Substitute the known SI values
+      rule: physics.fluids.hydrostatic.substitute, Substitution
+      claim: solution set preserved
+      explanation: Replace each known symbol by its exact SI value
+      detail: After converting the known quantities to SI, put their values into P = rho*g*h. Leave the requested quantity as a symbol, then solve the resulting equation for it.
+      proof obligation: obl.physics.lookup-preserves-solutions, the value put in place of a symbol is the one the problem declared for it
+      action: Substitute the known quantities into P = rho*g*h after exact SI conversion
+      before: (P = ((rho * g) * h))
+      after: (49000 = ((1000 * (49 * (5^-1))) * h))
+      reversible: yes
+      verification: typed known-quantity lookup, passed, 3 known quantities were substituted
+      verified: yes
+    1.4 check
+      phase: check
+      goal: Check the candidate in P = rho*g*h
+      rule: physics.fluids.hydrostatic.check-candidate, Substitution check
+      claim: implication
+      explanation: Put the candidate back into P = rho*g*h
+      proof obligation: physics.fluids.hydrostatic.candidate-satisfies, the candidate satisfies P = rho*g*h
+      target claim: h = 5 satisfies P = rho*g*h
+      check method: substitute every exact SI value into the relation
+      expected: both sides of P = rho*g*h agree
+      observed: both sides are exactly equal
+      verification: exact substitution into the original relation, passed, both sides are exactly equal
+      verified: yes
+  2 plan
+    phase: plan
+    goal: Isolate h
+    rule: eq.linear.inverse-operations, Inverse operations on a linear equation
+    claim: no claim
+    explanation: Solve by undoing what was done to h
+    proof obligation: obl.plan.preconditions-hold, every registered strategy precondition has passing evidence
+    strategy: Inverse operations on a linear equation
+    applicability: the equation is degree one in h
+    applicability: every other quantity is a rational constant
+    fact: one unknown, h
+    rationale: collect the terms, remove the constant and isolate h using its non-zero coefficient, or inspect the remaining constant if the coefficient is zero
+    verification: exact linear analysis, passed, both sides reduced to a coefficient and constant term
+    verification: exact linear analysis, passed, all coefficients and constants are exact rationals
+    verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
+    verified: nothing claimed
+    2.1 transformation
+      phase: solve
+      goal: Collect the terms in h
+      rule: eq.collect-like-terms, Collect like terms
+      claim: solution set preserved
+      explanation: Moving every term to one side keeps both sides equal
+      detail: Reach for this whenever the unknown appears more than once, on either side or both. Adding or subtracting the same quantity from both sides leaves the equation with the same solutions, so the terms in the unknown can all be gathered on one side and the plain numbers on the other without changing the answer.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Move every term to the left side
+      before: (49000 = ((1000 * (49 * (5^-1))) * h))
+      after: (((-9800 * h) + 49000) = 0)
+      reversible: yes
+      verification: rule-local equality invariant, passed, the same quantity was added to both sides, which cannot change the solution set
+      verified: yes
+    2.2 transformation
+      phase: solve
+      goal: Isolate h
+      rule: eq.divide-both-sides, Isolate the unknown
+      claim: solution set preserved
+      explanation: Applying the same operation to both sides preserves the solutions
+      detail: Remove the constant term by applying its opposite to both sides. The coefficient of h is -9800, which is non-zero, so dividing by it is reversible.
+      proof obligation: obl.eq.same-solutions, the rewritten equation has the solutions the original had
+      action: Subtract 49000 from both sides, then divide both sides by -9800
+      before: (((-9800 * h) + 49000) = 0)
+      after: (h = 5)
+      reversible: yes
+      verification: rule-local equality invariant, passed, removing the constant preserves equality, and the coefficient -9800 was checked to be non-zero
+      verified: yes
+    2.3 check
+      phase: check
+      goal: Check the answer
+      rule: eq.linear.check-by-substitution, Check by substitution
+      claim: solution set preserved
+      explanation: Put the answer back into the original equation
+      detail: Put the candidate back where the unknown was in the equation as it was typed and work both sides out. A solution makes them equal, so anything else means the candidate is not one and the answer is withheld rather than reported.
+      proof obligation: obl.linear.candidate-satisfies, the candidate satisfies the original equation
+      target claim: h = 5 satisfies the equation
+      check method: substitute the solution into the equation as it was typed
+      expected: both sides equal
+      observed: both sides are equal
+      verification: substitution, passed, both sides came out equal
+      verified: yes
+  3 transformation
+    phase: report
+    goal: Report the answer to the measured precision
+    rule: physics.fluids.hydrostatic.significant-figures, Significant figures
+    claim: no claim
+    explanation: Use the fewest significant figures among the measured givens
+    detail: A measured value is only as good as the figures it was written with, so the answer is reported to the fewest significant figures among the measurements it came from. Every step above this one keeps the exact value, because rounding partway through throws away figures the final rounding cannot get back.
+    proof obligation: obl.physics.reported-within-half-place, the reported value is within half a unit in the last place of the exact one
+    action: Report 5 as 5.0
+    before: 5
+    after: 5.0
+    reversible: no
+    verification: exact comparison against the unrounded value, passed, 5.0 is within half a unit in the last place of 5
+    verified: nothing claimed

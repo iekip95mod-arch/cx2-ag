@@ -164,6 +164,12 @@ void test_clarification(TestSink &t) {
             "invalid answer", "an answer the question did not offer is refused");
     t.equal(wp::confirm_status_name(wp::confirm_motion(r, kAmbiguous, {{"c9", "unused"}}, "tester").status),
             "invalid answer", "and so is an answer to a question that was not asked");
+    t.equal(wp::confirm_status_name(wp::confirm_motion(
+                                        r, kAmbiguous,
+                                        {{"c1", "initial_velocity"}, {"c1", "final_velocity"}, {"c2", "unused"}},
+                                        "tester")
+                                        .status),
+            "invalid answer", "and so are two answers to the same question");
     const wp::ConfirmResult both =
         wp::confirm_motion(r, kAmbiguous, {{"c1", "initial_velocity"}, {"c2", "initial_velocity"}}, "tester");
     t.check(both.status == wp::ConfirmStatus::Rejected && both.detail.find("two values") != std::string::npos,
@@ -201,9 +207,14 @@ void test_confirmation_gates(TestSink &t) {
         t.check(record.confirmed && record.confirmed_by == "tester" &&
                     record.source_content_hash == wp::source_hash(kCart) && record.selected_candidate_id == "grammar-1" &&
                     record.problem_revision == 1 &&
-                    record.parser_versions == std::string(wp::kGrammarVersion) + "+" + wp::kLexiconVersion &&
+                    record.parser_versions == good.committed->ir().parser_build_id + "+" + wp::kGrammarVersion + "+" +
+                                                  wp::kLexiconVersion &&
                     record.material_assumption_ids == std::vector<std::string>{"a-constant"},
                 "the confirmation binds the source hash, candidate, revision, versions and inferred assumption");
+        wp::ProblemIR changed_parser = good.committed->ir();
+        changed_parser.parser_build_id += "-changed";
+        t.check(wp::validate(changed_parser, good.committed->source()).fault == wp::IrFault::ConfirmationMismatch,
+                "changing the confirmed parser build invalidates the binding");
     }
     const wp::GrammarResult refused = wp::interpret_motion("src-no", "A car moving at 5 s speeds up. How fast is it?");
     t.check(wp::confirm_motion(refused, "A car moving at 5 s speeds up. How fast is it?", {}, "tester").status ==
