@@ -97,6 +97,22 @@ std::string broken(const Run &r) {
     return r.broken.empty() ? std::string() : ", got " + r.broken.front();
 }
 
+bool every_angle_a_variable(const std::string &answer) {
+    Arena arena;
+    const ParseResult parsed = parse(arena, answer);
+    if (!parsed.ok())
+        return false;
+    bool any = false;
+    const bool compound = arena.any_node(parsed.root, [&](NodeId n) {
+        const Node &node = arena.at(n);
+        if (node.kind != Kind::Call || (arena.text(n) != "sin" && arena.text(n) != "cos"))
+            return false;
+        any = true;
+        return arena.at(arena.children(n)[0]).kind != Kind::Symbol;
+    });
+    return any && !compound;
+}
+
 void test_expand(TestSink &t) {
     {
         const Run r = run("sin(x+y)", TrigGoal::Expand);
@@ -138,6 +154,18 @@ void test_expand(TestSink &t) {
     t.equal(outcome(run("x*sin(x)", TrigGoal::Expand)), "outside envelope", "a variable outside sine is refused");
     t.equal(outcome(run("tan(x+y)", TrigGoal::Expand)), "outside envelope", "tan is refused");
     t.equal(outcome(run("x^2+1", TrigGoal::Expand)), "not trigonometric", "an expression with no sine or cosine is not trigonometric");
+    for (const char *text : {"sin(7x)", "cos(-7x)", "sin(7x + y)", "sin(2*(x + 7y))"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.equal(outcome(r), "outside envelope", std::string("a multiple above six is outside the envelope: ") + text);
+        t.check(r.rules.empty(), std::string("and is refused before anything is recorded: ") + text);
+    }
+    {
+        const Run r = run("sin(6x) + cos(6x)", TrigGoal::Expand);
+        t.equal(outcome(r), "rewritten", "a multiple of six in two calls expands past sixty-four steps");
+        t.check(r.equivalent && every_angle_a_variable(r.answer),
+                "and is finished only when every angle is a single variable: " + r.answer.substr(0, 80));
+        t.check(r.broken.empty(), "the long expansion passes the invariant pass" + broken(r));
+    }
 }
 
 void test_collect(TestSink &t) {

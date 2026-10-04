@@ -430,6 +430,31 @@ NodeId expand_here(Arena &arena, NodeId id, void *state, std::string *what) {
     return kNoNode;
 }
 
+// A whole multiple above six anywhere expand_here would reach it, which split-multiple cannot take apart.
+bool multiple_too_large(const Arena &arena, NodeId angle) {
+    if (arena.at(angle).kind == Kind::Neg)
+        return multiple_too_large(arena, arena.children(angle)[0]);
+    if (arena.at(angle).kind == Kind::Add) {
+        for (NodeId term : arena.children(angle)) {
+            if (multiple_too_large(arena, term))
+                return true;
+        }
+        return false;
+    }
+    int64_t k = 0;
+    NodeId rest = kNoNode;
+    if (!integer_multiple(arena, angle, &k, &rest))
+        return false;
+    return k > 6 || k < -6 || multiple_too_large(arena, rest);
+}
+
+const char *expand_refusal(const Arena &arena, NodeId id) {
+    const bool found = arena.any_node(id, [&arena](NodeId n) {
+        return is_trig_call(arena, n) && multiple_too_large(arena, arena.children(n)[0]);
+    });
+    return found ? "a sine or cosine of a whole multiple above six is outside the envelope" : nullptr;
+}
+
 // A term c sin(a)^2 or c cos(a)^2, read as its coefficient node, its function and its angle.
 bool squared_trig(const Arena &arena, NodeId term, NodeId *coefficient, std::string *name, NodeId *angle) {
     NodeId power = term;
@@ -792,10 +817,9 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
         return run.finish(TrigOutcome::OutsideEnvelope, kNoNode,
                           "every part has to be a sum or product of sines and cosines of rational multiples of the "
                           "variables, with no constant inside an angle, no variable outside sin or cos and no tan");
-    if (goal == TrigGoal::Collect) {
-        if (const char *why = collect_refusal(arena, expression))
-            return run.finish(TrigOutcome::OutsideEnvelope, kNoNode, why);
-    }
+    if (const char *why = goal == TrigGoal::Collect ? collect_refusal(arena, expression)
+                                                    : expand_refusal(arena, expression))
+        return run.finish(TrigOutcome::OutsideEnvelope, kNoNode, why);
 
     const bool expand = goal == TrigGoal::Expand;
     if (!run.step())
@@ -822,7 +846,7 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
 
     NodeId current = expression;
     bool changed = false;
-    for (int round = 0; round < 64; ++round) {
+    for (;;) {
         Applied applied;
         std::string what;
         NodeId next = kNoNode;
