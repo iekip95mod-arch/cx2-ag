@@ -120,6 +120,8 @@ void test_reader(TestSink &t) {
             "a decimal coefficient is outside the exact envelope");
     t.check(read("x + y", "[x, y]", &row) == LinearRowRead::NotLinear,
             "an expression that is not an equation is not a row");
+    t.check(read("99999999999999999999x + y = 1", "[x, y]", &row) == LinearRowRead::Overflowed,
+            "a coefficient wider than exact arithmetic holds is an overflow rather than a misread");
 }
 
 void test_unique(TestSink &t) {
@@ -198,6 +200,13 @@ void test_refusals(TestSink &t) {
             "a symbolic coefficient is outside the rational envelope");
     t.equal(outcome(run("[0.5x + y = 1, x - y = 0]", "[x, y]")), "outside envelope",
             "a decimal coefficient is outside the exact envelope");
+    {
+        const Solved s = run("[99999999999999999999x + y = 1, x - y = 0]", "[x, y]");
+        t.equal(outcome(s), "resource exceeded", "a coefficient beyond exact arithmetic is a resource limit");
+        t.equal(s.result.detail, "equation 1 has a coefficient beyond exact arithmetic",
+                "and the refusal names the equation and the reason");
+        t.check(s.result.solutions.empty() && s.rules.empty(), "with nothing offered or recorded");
+    }
     t.equal(outcome(run("[x = 1, y = 1, z = 1, w = 1, x + y = 2]", "[x, y, z, w]")),
             "outside envelope", "five equations exceed the four row matrix envelope");
     t.equal(outcome(run("[a + b + c + d + e + f = 1]", "[a, b, c, d, e, f]")), "outside envelope",
