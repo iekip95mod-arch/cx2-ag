@@ -911,15 +911,15 @@ struct Calculation {
         return false;
     }
 
-    // One coordinate's value at the parameter value, so a rate is never read where the curve has no point.
+    // One coordinate's exact value at the parameter value, so a rate is never read before the point is placed.
     bool parametric_point(NodeId component, const char *rule, const char *name) {
         const NodeId value = folded(substitute(component, command.point));
         Rational exact;
         if (value == kNoNode || !evaluate_rational(arena, value, {}, &exact)) {
             if (!work()) return false;
             refuse(Form::Unsupported, degree_ceiling,
-                   std::string(name) + " has no exact value at that parameter value, so the curve has no "
-                                       "point there and no slope");
+                   std::string(name) + " does not reduce to an exact rational number this family can hold at "
+                                       "that parameter value, so it cannot place the curve point or read a slope");
             return false;
         }
         return step(rule, std::string("Evaluate ") + name + " at the parameter value", component, value,

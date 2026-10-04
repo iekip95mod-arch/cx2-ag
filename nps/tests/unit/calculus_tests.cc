@@ -834,21 +834,25 @@ void run_calculus_tests(TestSink &t) {
                     result.detail);
     }
     {
-        // A coordinate undefined at the parameter value has no curve point, though its derivative reads exactly.
+        // Undefined, irrational and overflowing coordinates fail the same exact read, so the refusal claims none of them.
         bool refused = true;
         std::string details;
-        for (const char *text : {"paramslope(ln(t),t,t,-1)", "paramslope(t,ln(t),t,-1)"}) {
+        for (const char *text : {"paramslope(ln(t),t,t,-1)", "paramslope(t,ln(t),t,-1)",
+                                 "paramslope(cos(t),sin(t),t,1)", "paramslope(t,exp(t),t,1)",
+                                 "paramslope(t,sqrt(t),t,2)", "paramslope(t^30,t,t,10)"}) {
             Arena arena;
             Derivation derivation;
             const CalculusResult result = calculus_walkthrough(arena, derivation,
                                                                parse_command(arena, text, "x"));
             refused = refused && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
                       result.status == DerivationStatus::Unsupported &&
-                      result.detail.find("no point") != std::string::npos &&
+                      result.detail.find("cannot place the curve point") != std::string::npos &&
+                      result.detail.find("no point") == std::string::npos &&
                       !records_verified_rule(derivation, "param.slope");
             details += std::string(" ") + text + ": " + result.detail;
         }
-        t.check(refused, "a parameter value where a coordinate is undefined is refused as no curve point:" + details);
+        t.check(refused, "a coordinate with no exact rational value is refused without claiming the curve has no point:" +
+                             details);
         Arena arena;
         Derivation derivation;
         const CalculusResult defined = calculus_walkthrough(arena, derivation,
