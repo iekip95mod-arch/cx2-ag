@@ -109,6 +109,10 @@ void test_concepts(TestSink &t) {
     t.check(r.concepts.size() == 3 && r.concepts[1].concept_id == "constant_acceleration" &&
                 r.concepts[2].concept_id == "less_than_or_equal",
             "and each phrase maps to its concept");
+    const wp::LexicalReading steady = read("It moves at a steady speed of 4 m/s.");
+    t.check(steady.concepts.size() == 1 && steady.concepts[0].concept_id == "zero_acceleration" &&
+                steady.concepts[0].span.surface == "steady speed",
+            "a steady speed is read as zero acceleration");
     const wp::LexicalReading partial = read("It is at rest.");
     t.check(partial.concepts.empty(), "a phrase that is only partly present maps to nothing");
     const wp::LexicalReading longest = read("It moves no more than 3 m.");
