@@ -1910,6 +1910,8 @@ const RuleSchema kRules[] = {
     {"tangent.linearization", ClaimType::NoClaim, kRulePreservesValue, 1, FailureBehavior::CannotFail},
     {"tangent.check-line", ClaimType::EquivalentExpression, kTangentAgreement, 1, FailureBehavior::WithholdResult},
     // calculus.parametric-slope, CALC-013
+    {"param.x-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
+    {"param.y-value", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
     {"param.dx-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
     {"param.dy-dt", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail, true},
     {"param.slope", ClaimType::Definition, kRulePreservesValue, 1, FailureBehavior::CannotFail},

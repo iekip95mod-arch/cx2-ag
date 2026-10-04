@@ -337,6 +337,8 @@ struct Calculation {
             entry.explanation_detailed = "The point-slope form passes through the point with the derivative as its slope. That is an exact description of the line itself and says nothing yet about how far it stays near the curve.";
         else if (id == "tangent.linearization")
             entry.explanation_detailed = "The linearization is the tangent line read as an approximation of the function near the point. It is not an equality. The two agree at the point and drift apart as the variable moves away from it.";
+        else if (id == "param.x-value" || id == "param.y-value")
+            entry.explanation_detailed = "A slope belongs to a point on the curve, so both coordinates have to be defined at the parameter value. Evaluate each one exactly before any rate is read, because a derivative can have a value where the coordinate itself has none.";
         else if (id == "param.dx-dt" || id == "param.dy-dt")
             entry.explanation_detailed = "Each coordinate of a parametric curve is a function of the parameter. Its derivative says how fast that coordinate changes as the parameter moves, and substituting the parameter value reads that rate at the one point asked about.";
         else if (id == "param.slope")
@@ -909,6 +911,23 @@ struct Calculation {
         return false;
     }
 
+    // One coordinate's value at the parameter value, so a rate is never read where the curve has no point.
+    bool parametric_point(NodeId component, const char *rule, const char *name) {
+        const NodeId value = folded(substitute(component, command.point));
+        Rational exact;
+        if (value == kNoNode || !evaluate_rational(arena, value, {}, &exact)) {
+            if (!work()) return false;
+            refuse(Form::Unsupported, degree_ceiling,
+                   std::string(name) + " has no exact value at that parameter value, so the curve has no "
+                                       "point there and no slope");
+            return false;
+        }
+        return step(rule, std::string("Evaluate ") + name + " at the parameter value", component, value,
+                    std::string("Substitute the parameter value into ") + name,
+                    "The coordinate is defined at the parameter value, so the curve has a point there",
+                    false, ClaimType::Definition) != kNoStep;
+    }
+
     // One coordinate's rate at the parameter value, recorded as a definition, or a refusal naming it.
     NodeId parametric_rate(NodeId component, const char *rule, const char *name, Rational *rate) {
         const DiffResult differentiated =
@@ -939,6 +958,9 @@ struct Calculation {
             refuse(Form::Unsupported, degree_ceiling, "the parameter value must be an exact number");
             return;
         }
+        if (!parametric_point(command.expression, "param.x-value", "x") ||
+            !parametric_point(command.companion, "param.y-value", "y"))
+            return;
         Rational dx_rate;
         Rational dy_rate;
         const NodeId dx = parametric_rate(command.expression, "param.dx-dt", "dx/dt", &dx_rate);

@@ -1592,13 +1592,13 @@ topic_and_level The slope dy/dx of a parametric curve at a rational parameter va
 family_envelope_version 1
 accepted_expression_grammar two expressions the native differentiation engine supports in one parameter, over numbers and that parameter, with a typed decimal read as the fraction it names and refused in an exponent
 accepted_input_forms paramslope(x,y,parameter,value), with the parameter a single identifier and the value an exact rational
-domains_and_parameter_assumptions both coordinates' derivatives have an exact rational value at the parameter value and dx/dt is not zero there, which the ratio step records as its domain restriction. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
+domains_and_parameter_assumptions both coordinates have an exact rational value at the parameter value, so the curve has a point there, both coordinates' derivatives have an exact rational value at the parameter value and dx/dt is not zero there, which the ratio step records as its domain restriction. Domain restrictions the differentiation rules raise are recorded on the steps that introduce them
 supported_branches_and_degenerate_cases a parameter value where both rates are exact and dx/dt is nonzero, including a horizontal tangent where dy/dt is zero
 exact_special_function_and_numerical_result_policy exact rationals over int64, refusing rather than wrapping or approximating either rate or the slope
 parser_module_ids src/core/parser.cc, src/steps/command.cc, src/steps/calculus.cc, src/steps/differentiate.cc
 required_assumptions none carried for the family, the nonzero dx/dt condition is recorded as a domain restriction on the ratio step
 test_group_ids calculus, context
-supported_methods differentiate each coordinate by the registered rules, evaluate dx/dt and dy/dt at the parameter value, and divide dy/dt by dx/dt
+supported_methods evaluate both coordinates exactly at the parameter value, differentiate each coordinate by the registered rules, evaluate dx/dt and dy/dt at the parameter value, and divide dy/dt by dx/dt
 unsupported_near_neighbors a vertical tangent where dx/dt is zero, a singular point where both rates are zero, a symbolic or irrational parameter value, polar curves, the tangent line through the curve point, second derivatives, and parametric area and arc length, the last four tracked as #510, #511 and #512
 proof_obligation_ids obl.calculus.rule-preserves-value, obl.calculus.parametric-slope, obl.plan.preconditions-hold
 solution_soundness_status the slope is multiplied back by dx/dt and compared exactly with dy/dt, which withholds the result when they disagree
@@ -1614,6 +1614,8 @@ release_status in development, unreleased
 rule calculus.differentiate.rules fixture
 rule d.power fixture
 rule d.variable fixture
+rule param.x-value fixture
+rule param.y-value fixture
 rule param.dx-dt fixture
 rule param.dy-dt fixture
 rule param.slope fixture

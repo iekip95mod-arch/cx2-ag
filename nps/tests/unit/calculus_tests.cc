@@ -768,7 +768,8 @@ void run_calculus_tests(TestSink &t) {
         bool restricted = false;
         for (size_t i = 0; i < derivation.size(); ++i) {
             const Step &recorded = derivation.at(static_cast<StepId>(i));
-            if ((recorded.rule_id == "param.dx-dt" || recorded.rule_id == "param.dy-dt" ||
+            if ((recorded.rule_id == "param.x-value" || recorded.rule_id == "param.y-value" ||
+                 recorded.rule_id == "param.dx-dt" || recorded.rule_id == "param.dy-dt" ||
                  recorded.rule_id == "param.slope") && recorded.claim == ClaimType::Definition &&
                 recorded.verified())
                 ++definitions;
@@ -776,7 +777,8 @@ void run_calculus_tests(TestSink &t) {
                 for (const std::string &condition : recorded.domain_restrictions)
                     restricted = restricted || condition == "dx/dt != 0 at t = 2";
         }
-        t.check(definitions == 3, "both rates and their ratio are recorded as verified definitions");
+        t.check(definitions == 5,
+                "the curve point, both rates and their ratio are recorded as verified definitions");
         t.check(restricted, "and the ratio records that dx/dt is not zero at the parameter value");
         t.check(records_verified_rule(derivation, "param.check-slope"),
                 "and the final check multiplies the slope back by dx/dt");
@@ -830,6 +832,31 @@ void run_calculus_tests(TestSink &t) {
                     result.detail.find("vertical") == std::string::npos,
                 "a parameter value where both rates vanish is refused as 0/0, not as vertical: " +
                     result.detail);
+    }
+    {
+        // A coordinate undefined at the parameter value has no curve point, though its derivative reads exactly.
+        bool refused = true;
+        std::string details;
+        for (const char *text : {"paramslope(ln(t),t,t,-1)", "paramslope(t,ln(t),t,-1)"}) {
+            Arena arena;
+            Derivation derivation;
+            const CalculusResult result = calculus_walkthrough(arena, derivation,
+                                                               parse_command(arena, text, "x"));
+            refused = refused && result.value == kNoNode && result.outcome == CalculusOutcome::UnsupportedForm &&
+                      result.status == DerivationStatus::Unsupported &&
+                      result.detail.find("no point") != std::string::npos &&
+                      !records_verified_rule(derivation, "param.slope");
+            details += std::string(" ") + text + ": " + result.detail;
+        }
+        t.check(refused, "a parameter value where a coordinate is undefined is refused as no curve point:" + details);
+        Arena arena;
+        Derivation derivation;
+        const CalculusResult defined = calculus_walkthrough(arena, derivation,
+                                                            parse_command(arena, "paramslope(ln(t),t,t,1)", "x"));
+        t.check(defined.outcome == CalculusOutcome::Evaluated && print(arena, defined.value) == "1" &&
+                    records_verified_rule(derivation, "param.x-value") &&
+                    records_verified_rule(derivation, "param.y-value"),
+                "and the same coordinate where it is defined reads its point and answers: " + defined.detail);
     }
     for (const char *text : {"paramslope(t,t^2,t,sqrt(2))", "paramslope(1/t,t,t,0)",
                              "paramslope(t,t*tan(t),t,1)"}) {

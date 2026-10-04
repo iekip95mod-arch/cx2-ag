@@ -14,7 +14,35 @@ context
   resource policy: rewrites<=4096 steps<=512 branches<=64 backend<=32
   derivation status: unsupported
 steps
-  1 plan
+  1 transformation
+    phase: calculus
+    goal: Evaluate x at the parameter value
+    rule: param.x-value, Evaluate x at the parameter value
+    claim: definition
+    explanation: The coordinate is defined at the parameter value, so the curve has a point there
+    detail: A slope belongs to a point on the curve, so both coordinates have to be defined at the parameter value. Evaluate each one exactly before any rate is read, because a derivative can have a value where the coordinate itself has none.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute the parameter value into x
+    before: (t^2)
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, The coordinate is defined at the parameter value, so the curve has a point there
+    verified: yes
+  2 transformation
+    phase: calculus
+    goal: Evaluate y at the parameter value
+    rule: param.y-value, Evaluate y at the parameter value
+    claim: definition
+    explanation: The coordinate is defined at the parameter value, so the curve has a point there
+    detail: A slope belongs to a point on the curve, so both coordinates have to be defined at the parameter value. Evaluate each one exactly before any rate is read, because a derivative can have a value where the coordinate itself has none.
+    proof obligation: obl.calculus.rule-preserves-value, the calculus rule preserves the requested value
+    action: Substitute the parameter value into y
+    before: t
+    after: 0
+    reversible: no
+    verification: rule-local invariant, passed, The coordinate is defined at the parameter value, so the curve has a point there
+    verified: yes
+  3 plan
     phase: plan
     goal: Differentiate (t^2) with respect to t
     rule: calculus.differentiate.rules, Differentiate by rule
@@ -28,7 +56,7 @@ steps
     verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
     verified: nothing claimed
-    1.1 transformation
+    3.1 transformation
       phase: differentiate
       goal: Differentiate (t^2)
       rule: d.power, Power rule
@@ -42,7 +70,7 @@ steps
       reversible: no
       verification: rule-local invariant, passed, the base is the variable and the exponent is a constant integer
       verified: yes
-  2 transformation
+  4 transformation
     phase: calculus
     goal: Evaluate dx/dt at the parameter value
     rule: param.dx-dt, Evaluate dx/dt at the parameter value
@@ -56,7 +84,7 @@ steps
     reversible: no
     verification: rule-local invariant, passed, The rate dx/dt at this parameter value
     verified: yes
-  3 plan
+  5 plan
     phase: plan
     goal: Differentiate t with respect to t
     rule: calculus.differentiate.rules, Differentiate by rule
@@ -70,7 +98,7 @@ steps
     verification: registered derivative rule dispatch, passed, every visited form matched a registered derivative rule
     verification: registered strategy preconditions, passed, every registered strategy precondition has passed evidence
     verified: nothing claimed
-    3.1 transformation
+    5.1 transformation
       phase: differentiate
       goal: Differentiate t
       rule: d.variable, Derivative of the variable
@@ -84,7 +112,7 @@ steps
       reversible: no
       verification: rule-local invariant, passed, the expression is the variable itself
       verified: yes
-  4 transformation
+  6 transformation
     phase: calculus
     goal: Evaluate dy/dt at the parameter value
     rule: param.dy-dt, Evaluate dy/dt at the parameter value
