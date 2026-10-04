@@ -57,7 +57,7 @@ struct Run {
     bool equivalent = false;
 };
 
-Run run(const char *expression, TrigGoal goal, const Budget &budget = Budget()) {
+Run run(const char *expression, TrigGoal goal, const Budget &budget = Budget(), TrigCheck check = trig_equivalent) {
     Run out;
     Arena arena;
     Derivation d;
@@ -66,7 +66,7 @@ Run run(const char *expression, TrigGoal goal, const Budget &budget = Budget()) 
         out.answer = "the test's own input did not parse";
         return out;
     }
-    out.result = trig_rewrite(arena, d, parsed.root, goal, budget);
+    out.result = trig_rewrite(arena, d, parsed.root, goal, budget, check);
     if (out.result.expression != kNoNode) {
         out.answer = print(arena, out.result.expression);
         std::string why;
@@ -302,6 +302,109 @@ void test_budgets(TestSink &t) {
             "with no expression and a verified prefix" + broken(halted));
 }
 
+int check_calls = 0;
+int scripted_call = 0;
+TrigReading scripted_reading = TrigReading::Equal;
+
+TrigReading scripted_check(const Arena &arena, NodeId left, NodeId right, std::string *why) {
+    if (++check_calls != scripted_call)
+        return trig_equivalent(arena, left, right, why);
+    *why = "the scripted check answered this call";
+    return scripted_reading;
+}
+
+Run scripted(const char *expression, TrigGoal goal, int call, TrigReading reading) {
+    check_calls = 0;
+    scripted_call = call;
+    scripted_reading = reading;
+    return run(expression, goal, Budget(), scripted_check);
+}
+
+void test_checks(TestSink &t) {
+    for (TrigGoal goal : {TrigGoal::Expand, TrigGoal::Collect}) {
+        const char *text = goal == TrigGoal::Expand ? "sin(x+y)" : "sin(x)^2 + cos(x)^2";
+        const std::string label = std::string(" (") + text + ")";
+        const Run control = scripted(text, goal, 0, TrigReading::Equal);
+        const int calls = check_calls;
+        t.check(outcome(control) == "rewritten" && calls >= 2,
+                "a check that answers nothing itself leaves a rewrite of one step and a final check" + label);
+
+        const Run step_failed = scripted(text, goal, 1, TrigReading::Different);
+        t.equal(outcome(step_failed), "verification failed", "a step whose check disagrees fails verification" + label);
+        t.check(step_failed.result.status == DerivationStatus::VerificationFailed &&
+                    step_failed.result.expression == kNoNode && check_calls == 1,
+                "and stops there with no result" + label);
+        t.equal(step_failed.result.detail, "the scripted check answered this call", "saying what the check said" + label);
+
+        const Run step_unread = scripted(text, goal, 1, TrigReading::Unreadable);
+        t.equal(outcome(step_unread), "outside envelope",
+                "a step the check cannot read is outside the envelope, not failed verification" + label);
+        t.check(step_unread.result.status == DerivationStatus::Unsupported && step_unread.result.expression == kNoNode,
+                "and is unsupported with no result" + label);
+
+        const Run final_failed = scripted(text, goal, calls, TrigReading::Different);
+        t.equal(outcome(final_failed), "verification failed",
+                "a final check that disagrees fails verification after every step passed" + label);
+        t.check(final_failed.result.status == DerivationStatus::VerificationFailed &&
+                    final_failed.result.expression == kNoNode && final_failed.rules.size() >= 2,
+                "and offers no result while keeping the steps that passed" + label);
+
+        const Run final_unread = scripted(text, goal, calls, TrigReading::Unreadable);
+        t.equal(outcome(final_unread), "outside envelope",
+                "a final check that cannot read the result is outside the envelope, not a resource limit" + label);
+        t.check(final_unread.result.status == DerivationStatus::Unsupported && final_unread.result.expression == kNoNode,
+                "and is unsupported with no result" + label);
+    }
+}
+
+void test_ceilings(TestSink &t) {
+    const std::string frequency = "every angle, and every sum of angles a product reaches, has to be at most 64";
+    for (const char *text : {"sin(x/63 + 6x)", "sin(6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x+6x)", "sin(x/65)"}) {
+        const Run r = run(text, TrigGoal::Expand);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find(frequency) == 0,
+                std::string("an angle past 64 base angles is refused for its frequency: ") + text + ", got " +
+                    r.result.detail.substr(0, 60));
+    }
+    for (const char *text : {"sin(x/40)^2 + cos(x/41)^2", "sin(40x)*cos(40x)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find(frequency) == 0,
+                std::string("so is one whose common base angle or product passes it: ") + text + ", got " +
+                    r.result.detail.substr(0, 60));
+    }
+    for (const char *text : {"sin(64x)", "sin(x/64)", "sin(32x)*cos(32x)"}) {
+        const Run r = run(text, TrigGoal::Collect);
+        t.check(outcome(r) != "outside envelope",
+                std::string("while 64 base angles is still read: ") + text + ", got " + r.result.detail.substr(0, 60));
+    }
+    {
+        const Run r = run("sin(x)^9", TrigGoal::Expand);
+        t.equal(r.result.detail, "a whole power above 8 is past what the exact check reads",
+                "a power above eight is refused for its power");
+        t.equal(outcome(run("sin(x)^8", TrigGoal::Expand)), "already in form", "while a power of eight is read");
+    }
+    {
+        const Run r = run("sin(a)*sin(b)*sin(c)*sin(d)*sin(e)*sin(f)*sin(g)*sin(h)*sin(i)*sin(j)*sin(k)*sin(l)*sin(m)",
+                          TrigGoal::Expand);
+        t.equal(r.result.detail, "the product has more exponential terms than the exact check reads",
+                "a product past the term limit is refused for its size");
+    }
+    {
+        const Run r = run("sin(x+1)", TrigGoal::Expand);
+        t.check(r.result.detail.find("no constant inside an angle") != std::string::npos,
+                "a constant inside an angle still says so: " + r.result.detail.substr(0, 60));
+    }
+    t.check(compare("sin(x/63 + 6x)", "sin(x/63 + 6x)") == TrigReading::Unreadable,
+            "the equivalence check refuses the same angle");
+    {
+        Arena arena;
+        const ParseResult a = parse(arena, "sin(x/63 + 6x)");
+        std::string why;
+        t.check(a.ok() && trig_equivalent(arena, a.root, a.root, &why) == TrigReading::Unreadable &&
+                    why.find(frequency) == 0,
+                "and names the frequency as its reason: " + why.substr(0, 60));
+    }
+}
+
 }  // namespace
 
 void run_trig_tests(TestSink &sink) {
@@ -309,6 +412,8 @@ void run_trig_tests(TestSink &sink) {
     test_expand(sink);
     test_collect(sink);
     test_budgets(sink);
+    test_checks(sink);
+    test_ceilings(sink);
 }
 
 }  // namespace nps

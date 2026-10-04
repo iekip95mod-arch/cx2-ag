@@ -16,6 +16,12 @@ namespace {
 constexpr int kMaxFrequency = 64;
 constexpr int64_t kMaxPower = 8;
 
+constexpr const char *kPastFrequency =
+    "every angle, and every sum of angles a product reaches, has to be at most 64 times its variable's base angle, "
+    "which is the variable over the least common denominator of its coefficients, itself at most 64";
+constexpr const char *kPastPower = "a whole power above 8 is past what the exact check reads";
+constexpr const char *kPastTerms = "the product has more exponential terms than the exact check reads";
+
 struct Complex {
     Rational re{0, 1};
     Rational im{0, 1};
@@ -58,17 +64,21 @@ bool laurent_add(const Laurent &a, const Laurent &b, Laurent *out) {
     return true;
 }
 
-bool laurent_mul(const Laurent &a, const Laurent &b, size_t max_terms, Laurent *out) {
-    if (!a.empty() && !b.empty() && a.size() > max_terms / b.size())
+bool laurent_mul(const Laurent &a, const Laurent &b, size_t max_terms, Laurent *out, const char **past) {
+    if (!a.empty() && !b.empty() && a.size() > max_terms / b.size()) {
+        *past = kPastTerms;
         return false;
+    }
     Laurent product;
     for (const auto &[left_key, left] : a) {
         for (const auto &[right_key, right] : b) {
             std::vector<int> key(left_key.size());
             for (size_t i = 0; i < key.size(); ++i) {
                 key[i] = left_key[i] + right_key[i];
-                if (key[i] > kMaxFrequency || key[i] < -kMaxFrequency)
+                if (key[i] > kMaxFrequency || key[i] < -kMaxFrequency) {
+                    *past = kPastFrequency;
                     return false;
+                }
             }
             Complex term, next;
             if (!complex_mul(left, right, &term) || !complex_add(product[key], term, &next))
@@ -157,6 +167,7 @@ bool read_angle(const Arena &arena, NodeId id, std::map<std::string, Rational> *
 struct Basis {
     std::vector<std::string> names;
     std::vector<int64_t> denominators;
+    const char *past = nullptr;
 
     size_t index(const std::string &name) {
         for (size_t i = 0; i < names.size(); ++i) {
@@ -185,6 +196,7 @@ bool gather_basis(const Arena &arena, NodeId id, Basis *basis) {
             const size_t at = basis->index(name);
             const int64_t common = std::gcd(basis->denominators[at], value.den);
             if (value.den > kMaxFrequency || basis->denominators[at] / common > kMaxFrequency / value.den) {
+                basis->past = kPastFrequency;
                 ok = false;
                 break;
             }
@@ -195,7 +207,7 @@ bool gather_basis(const Arena &arena, NodeId id, Basis *basis) {
     return ok;
 }
 
-bool to_laurent(const Arena &arena, NodeId id, const Basis &basis, Laurent *out, int depth = 0) {
+bool to_laurent(const Arena &arena, NodeId id, Basis &basis, Laurent *out, int depth = 0) {
     if (depth > 64 || arena.is_approximate(id))
         return false;
     const std::vector<int> zero(basis.names.size(), 0);
@@ -224,28 +236,32 @@ bool to_laurent(const Arena &arena, NodeId id, const Basis &basis, Laurent *out,
             if (!to_laurent(arena, kids[0], basis, &inner, depth + 1))
                 return false;
             Laurent minus{{zero, Complex{{-1, 1}, {0, 1}}}};
-            return laurent_mul(inner, minus, arena.limits().max_nodes, out);
+            return laurent_mul(inner, minus, arena.limits().max_nodes, out, &basis.past);
         }
         case Kind::Mul: {
             (*out)[zero] = Complex{{1, 1}, {0, 1}};
             for (NodeId child : kids) {
                 Laurent part;
                 if (!to_laurent(arena, child, basis, &part, depth + 1) ||
-                    !laurent_mul(*out, part, arena.limits().max_nodes, out))
+                    !laurent_mul(*out, part, arena.limits().max_nodes, out, &basis.past))
                     return false;
             }
             return true;
         }
         case Kind::Pow: {
             int64_t exponent = 0;
-            if (!small_integer(arena, kids[1], &exponent) || exponent < 0 || exponent > kMaxPower)
+            if (!small_integer(arena, kids[1], &exponent) || exponent < 0)
                 return false;
+            if (exponent > kMaxPower) {
+                basis.past = kPastPower;
+                return false;
+            }
             Laurent base;
             if (!to_laurent(arena, kids[0], basis, &base, depth + 1))
                 return false;
             (*out)[zero] = Complex{{1, 1}, {0, 1}};
             for (int64_t i = 0; i < exponent; ++i) {
-                if (!laurent_mul(*out, base, arena.limits().max_nodes, out))
+                if (!laurent_mul(*out, base, arena.limits().max_nodes, out, &basis.past))
                     return false;
             }
             return true;
@@ -264,9 +280,12 @@ bool to_laurent(const Arena &arena, NodeId id, const Basis &basis, Laurent *out,
                 if (at == basis.names.size())
                     return false;
                 Rational scaled;
-                if (!rational_mul(value, Rational{basis.denominators[at], 1}, &scaled) || scaled.den != 1 ||
-                    scaled.num > kMaxFrequency || scaled.num < -kMaxFrequency)
+                if (!rational_mul(value, Rational{basis.denominators[at], 1}, &scaled) || scaled.den != 1)
                     return false;
+                if (scaled.num > kMaxFrequency || scaled.num < -kMaxFrequency) {
+                    basis.past = kPastFrequency;
+                    return false;
+                }
                 up[at] = static_cast<int>(scaled.num);
                 down[at] = -static_cast<int>(scaled.num);
             }
@@ -307,7 +326,8 @@ TrigReading trig_equivalent(const Arena &arena, NodeId left, NodeId right, std::
     Laurent a, b;
     if (!gather_basis(arena, left, &basis) || !gather_basis(arena, right, &basis) ||
         !to_laurent(arena, left, basis, &a) || !to_laurent(arena, right, basis, &b)) {
-        *why = "a form is outside sums and products of sines and cosines of rational multiples of the variables";
+        *why = basis.past ? basis.past
+                          : "a form is outside sums and products of sines and cosines of rational multiples of the variables";
         return TrigReading::Unreadable;
     }
     if (a.size() != b.size()) {
@@ -718,11 +738,17 @@ const char *collect_refusal(const Arena &arena, NodeId id) {
     return why;
 }
 
+// A check that did not pass: a form the check cannot read is outside the envelope, as in power.cc.
+TrigOutcome unverified(VerificationOutcome outcome) {
+    return outcome == VerificationOutcome::Failed ? TrigOutcome::VerificationFailed : TrigOutcome::OutsideEnvelope;
+}
+
 struct Run {
     Arena &arena;
     Derivation &derivation;
     NodeId input;
     TrigGoal goal;
+    TrigCheck check;
     Meter meter;
     size_t mark;
     StepId plan = kNoStep;
@@ -730,8 +756,8 @@ struct Run {
     TrigOutcome failure = TrigOutcome::OutsideEnvelope;
     std::string detail;
 
-    Run(Arena &a, Derivation &d, NodeId e, TrigGoal g, const Budget &budget)
-        : arena(a), derivation(d), input(e), goal(g), meter(budget), mark(d.mark()) {}
+    Run(Arena &a, Derivation &d, NodeId e, TrigGoal g, const Budget &budget, TrigCheck c)
+        : arena(a), derivation(d), input(e), goal(g), check(c), meter(budget), mark(d.mark()) {}
 
     bool refuse(TrigOutcome outcome, std::string why) {
         if (failed)
@@ -763,7 +789,7 @@ struct Run {
 
     VerificationRecord exact(NodeId before, NodeId after, const char *obligation) {
         std::string why;
-        const TrigReading reading = trig_equivalent(arena, before, after, &why);
+        const TrigReading reading = check(arena, before, after, &why);
         const VerificationOutcome outcome = reading == TrigReading::Equal ? VerificationOutcome::Passed
                                             : reading == TrigReading::Different ? VerificationOutcome::Failed
                                                                                 : VerificationOutcome::Inconclusive;
@@ -784,7 +810,7 @@ struct Run {
         s.explanation_detailed = "It holds for every angle, so the expression keeps its value.";
         s.proof_obligations.push_back({"obl.trig.identity-holds", "the rewritten expression equals the one before it"});
         s.verifications.push_back(exact(before, after, "obl.trig.identity-holds"));
-        const bool passed = s.verifications.back().outcome == VerificationOutcome::Passed;
+        const VerificationOutcome outcome = s.verifications.back().outcome;
         const std::string why = s.verifications.back().detail;
         TransformationPayload change;
         change.before = before;
@@ -794,8 +820,8 @@ struct Run {
         derivation.add_transformation(plan, std::move(s), std::move(change));
         if (!running())
             return false;
-        if (!passed)
-            return refuse(TrigOutcome::VerificationFailed, why);
+        if (outcome != VerificationOutcome::Passed)
+            return refuse(unverified(outcome), why);
         return true;
     }
 
@@ -918,8 +944,8 @@ const char *trig_outcome_name(TrigOutcome outcome) {
 }
 
 TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression, TrigGoal goal,
-                        const Budget &budget) {
-    Run run(arena, derivation, expression, goal, budget);
+                        const Budget &budget, TrigCheck equivalent) {
+    Run run(arena, derivation, expression, goal, budget, equivalent);
     if (!run.running())
         return run.stopped();
     if (expression >= arena.node_count())
@@ -936,8 +962,10 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
     Laurent form;
     if (!readable(arena, expression, &basis, &form))
         return run.finish(TrigOutcome::OutsideEnvelope, kNoNode,
-                          "every part has to be a sum or product of sines and cosines of rational multiples of the "
-                          "variables, with no constant inside an angle, no variable outside sin or cos and no tan");
+                          basis.past ? basis.past
+                                     : "every part has to be a sum or product of sines and cosines of rational multiples "
+                                       "of the variables, with no constant inside an angle, no variable outside sin or "
+                                       "cos and no tan");
     if (const char *why = goal == TrigGoal::Collect ? collect_refusal(arena, expression)
                                                     : expand_refusal(arena, expression))
         return run.finish(TrigOutcome::OutsideEnvelope, kNoNode, why);
@@ -1048,9 +1076,7 @@ TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression,
     if (!run.running())
         return run.stopped();
     if (outcome != VerificationOutcome::Passed)
-        return run.finish(outcome == VerificationOutcome::Failed ? TrigOutcome::VerificationFailed
-                                                                 : TrigOutcome::ResourceExceeded,
-                          kNoNode, why);
+        return run.finish(unverified(outcome), kNoNode, why);
     return run.finish(TrigOutcome::Rewritten, current,
                       expand ? "no sine or cosine of a sum or a whole multiple is left"
                              : "squares and products reduced and like terms collected");

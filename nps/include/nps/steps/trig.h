@@ -16,6 +16,8 @@ enum class TrigReading : uint8_t { Equal, Different, Unreadable };
 // form outside that envelope, such as a constant inside an angle, a variable outside sin or cos, or tan.
 TrigReading trig_equivalent(const Arena &arena, NodeId left, NodeId right, std::string *why);
 
+using TrigCheck = TrigReading (*)(const Arena &arena, NodeId left, NodeId right, std::string *why);
+
 enum class TrigGoal : uint8_t { Expand, Collect };
 
 enum class TrigOutcome : uint8_t {
@@ -41,9 +43,9 @@ struct TrigResult {
 // ALG-010. Expand applies the angle-sum, double-angle and odd and even identities until no sine or
 // cosine of a sum or a whole multiple is left. Collect applies the Pythagorean identity, the
 // half-angle identities that reduce a square, and the double-angle identity read backwards, then
-// collects like terms. Every step names its identity and the result is checked exactly.
+// collects like terms. Every step names its identity and the result is checked exactly, by equivalent.
 TrigResult trig_rewrite(Arena &arena, Derivation &derivation, NodeId expression, TrigGoal goal,
-                        const Budget &budget = Budget());
+                        const Budget &budget = Budget(), TrigCheck equivalent = trig_equivalent);
 
 }  // namespace nps
 
