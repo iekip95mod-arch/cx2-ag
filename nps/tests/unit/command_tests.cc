@@ -112,6 +112,20 @@ void run_command_tests(TestSink &t) {
     }
     {
         Arena arena;
+        const Command command = parse_command(arena, "partfrac(1/(x^2-1))", "x");
+        t.check(command.status == CommandStatus::Ready &&
+                    command_kind_name(command.kind) == std::string("partial fractions"),
+                "partfrac dispatches as partial fractions");
+    }
+    for (const char *text : {"normal(x/x)", "normal(1/t+1/(t+1),t)"}) {
+        Arena arena;
+        const Command command = parse_command(arena, text, "x");
+        t.check(command.status == CommandStatus::Ready && command_kind_name(command.kind) == std::string("normal") &&
+                    command.expression != kNoNode && command.variable != kNoNode,
+                std::string("normal dispatches its expression and its variable: ") + text);
+    }
+    {
+        Arena arena;
         const Command command = parse_command(arena, "linsolve([x + y = 3, x - y = 1], [x, y])", "z");
         t.check(command.status == CommandStatus::Ready &&
                     command_kind_name(command.kind) == std::string("linear system") &&
@@ -173,7 +187,7 @@ void run_command_tests(TestSink &t) {
                     command.variable_name == "x",
                 std::string("list commas preserve the complete command operand: ") + operand);
     }
-    for (const char *text : {"normal(x/x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
+    for (const char *text : {"unclaimedop(x)", "determinant(A)", "det(A)+1", "sin(x)", "1+diff(x,x)",
                              "solve(x=1,x)+2", "factorial(5)+1", "solve"}) {
         Arena arena;
         t.check(parse_command(arena, text, "x").status == CommandStatus::Unhandled,
