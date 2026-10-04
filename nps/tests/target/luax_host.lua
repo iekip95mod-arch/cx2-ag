@@ -1754,7 +1754,7 @@ do
           r.precision.significant_digits == 5,
           "the photon energy of red light carries the tabulated constant's precision")
     local bare = nps.modern("Planck photon relation", "photon energy", "wavelength", "620")
-    check(bare.result == r.result,
+    check(bare.solved == true and bare.result == "photon energy = 1.9997 eV",
           "a bare wavelength is read in the family's declared nanometres")
     local modern_rules = {}
     for _, s in ipairs(r.steps) do if s.rule then modern_rules[s.rule] = true end end
