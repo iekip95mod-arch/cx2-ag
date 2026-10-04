@@ -1671,7 +1671,7 @@ QuadraticResult solve_factoring_body(Arena &arena, Derivation &derivation, NodeI
     factor_payload.concrete_action = "Split b into " + pair + " and factor";
     factor_payload.reversible = true;
     const StepId factor_id =
-        derivation.add_transformation(plan_id, std::move(factor), std::move(factor_payload));
+        derivation.add_transformation(collect_id, std::move(factor), std::move(factor_payload));
     if (!multiplies_back) {
         result.outcome = QuadraticOutcome::Refused;
         result.detail = "the factored form did not multiply back out, so no answer is offered";

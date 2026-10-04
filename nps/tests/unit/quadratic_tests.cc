@@ -566,6 +566,15 @@ std::string rule_ids(const Derivation &d) {
     return out;
 }
 
+StepId step_with_rule(const Derivation &d, const char *rule) {
+    for (size_t i = 0; i < d.size(); ++i) {
+        const StepId id = static_cast<StepId>(i);
+        if (d.at(id).rule_id == rule)
+            return id;
+    }
+    return kNoStep;
+}
+
 bool says(const std::string &text, const char *piece) {
     return text.find(piece) != std::string::npos;
 }
@@ -727,6 +736,31 @@ void test_quadratic_factoring(TestSink &t) {
                     !says(rules, "eq.quadratic.discriminant"),
                 "the plan, standard form, factor, zero cases, substitutions and completeness are "
                 "recorded, and no formula step is");
+        const StepId plan = step_with_rule(d, "eq.quadratic.factoring");
+        const StepId standard = step_with_rule(d, "eq.quadratic.standard-form");
+        const StepId factor = step_with_rule(d, "eq.quadratic.factor");
+        const StepId completeness =
+            step_with_rule(d, "eq.quadratic.cases-reconstruct-the-original");
+        bool connected = plan != kNoStep && standard != kNoStep && factor != kNoStep &&
+                         completeness != kNoStep && d.at(plan).parent == kNoStep &&
+                         d.at(standard).parent == plan && d.at(factor).parent == standard &&
+                         d.at(completeness).parent == factor;
+        size_t cases = 0;
+        size_t checks = 0;
+        for (size_t i = 0; i < d.size(); ++i) {
+            const Step &step = d.at(static_cast<StepId>(i));
+            if (step.rule_id == "eq.quadratic.zero-product-case") {
+                ++cases;
+                connected = connected && step.parent == factor;
+            } else if (step.rule_id == "eq.quadratic.check-by-substitution") {
+                ++checks;
+                connected = connected && step.parent != kNoStep &&
+                            d.at(step.parent).rule_id == "eq.quadratic.zero-product-case";
+            }
+        }
+        t.check(connected && cases == 2 && checks == 2,
+                "the factoring derivation keeps standard form, factoring, both cases and their "
+                "checks in one connected proof tree");
         t.equal(d.context.problem_family_id, "algebra.quadratic.factoring.one-unknown",
                 "the context names the factoring family");
         invariants::Pass audit;
