@@ -2320,6 +2320,7 @@ menu = {
         { "Full walkthrough (all steps)", function() stepsSetProgression("full") end },
         { "Hint walkthrough (Tab next)", function() stepsSetProgression("hint") end },
         { "Check my next step  !a", function() menustring("!a ") end },
+        { "Export steps  !x", function() menustring("!x ") end },
         { "Angles in radians (RAD)", function() stepsSetAngle("radians") end },
         { "Angles in degrees (DEG)", function() stepsSetAngle("degrees") end },
        },

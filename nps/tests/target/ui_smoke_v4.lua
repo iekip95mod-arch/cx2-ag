@@ -1096,7 +1096,7 @@ do
     -- An exact count rather than a floor, because the failure worth catching is an entry going
     -- missing, and a floor cannot see that. The cost is that an intentional palette change edits
     -- this number, which is the trade and not an oversight.
-    check(entries == 197, "every palette entry survives the regrouping: " .. entries .. " of 197")
+    check(entries == 198, "every palette entry survives the regrouping: " .. entries .. " of 198")
     check(longest <= 44, "the longest label is " .. longest .. " characters")
 end
 local step_menu_count = 0
@@ -8789,8 +8789,25 @@ do
     check(env.steps.histText[#env.steps.histText][2] == " no export in this build",
           "a module without the writer says export is unavailable")
 
-    evidence("UI-011", complete and withheld and distinct,
-             "!x writes the open derivation as plain text through the module's export_text, with the " ..
+    check(has(full, "Outcome: EXACT + CONDITIONAL  |  solved and verified  |  ") and
+              has(hinted, "Outcome: EXACT + CONDITIONAL  |  solved and verified\n"),
+          "the full export carries the cross-check verdict and the hint export leaves it out")
+    check(env.runSteps("help", ""):find("!x name exports them", 1, true) ~= nil,
+          "the typed help names the export command")
+    local export_item
+    for _, category in ipairs(env.menu) do
+        for index = 2, #category do
+            local item = category[index]
+            if type(item) == "table" and item[1] == "Export steps  !x" then export_item = item[2] end
+        end
+    end
+    if export_item then export_item() end
+    local menu_types = export_item ~= nil and env.fctEditor.editor:getExpression():find("!x ", 1, true) ~= nil
+    check(menu_types, "the Steps menu types the export command into the entry line")
+
+    evidence("UI-011", complete and withheld and distinct and menu_types,
+             "!x, typed or from the Steps menu, writes the open derivation as plain text through the " ..
+             "module's export_text, with the " ..
              "build, input, outcome class and status, answer, conditions and each step's check, " ..
              "withholding what hint mode withholds and keeping a partial outcome distinct. The writer " ..
              "is stubbed here and its file output is checked by luax_host")
