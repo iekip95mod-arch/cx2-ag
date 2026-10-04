@@ -452,6 +452,9 @@ bool read_shape(const Arena &arena, NodeId id, Shape *shape, Rational *degree, i
                 return false;
             if (exponent.den != 1 && !monomial(arena, kids[0]))
                 return false;
+            // A negative power of a sum has poles that no count of points on a branch can see.
+            if (exponent.num < 0 && !monomial(arena, kids[0]) && !symbol_free(arena, kids[0]))
+                return false;
             if (exponent.num > kMaxExponent || exponent.num < -kMaxExponent)
                 return false;
             shape->lcm = std::lcm(shape->lcm, exponent.den);
@@ -470,6 +473,9 @@ bool read_shape(const Arena &arena, NodeId id, Shape *shape, Rational *degree, i
                 shape->lcm = std::lcm(shape->lcm, int64_t{2});
                 return rational_mul(inner, Rational{1, 2}, degree);
             }
+            // The absolute value of a sum turns at its roots, so it is not one power of t on a branch.
+            if (!monomial(arena, kids[0]) && !symbol_free(arena, kids[0]))
+                return false;
             *degree = inner;
             return true;
         }
@@ -541,37 +547,57 @@ PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, s
     }
     // Each branch x = t^L and x = -t^L makes both sides Laurent polynomials in t with at most
     // 2 bound + 1 terms, so agreeing at that many points of a branch proves them equal on it.
+    PowerReading verdict = PowerReading::Equal;
+    // False once this point decides the reading, otherwise whether the old form has a value here.
+    auto probe = [&](mpq_srcptr x, bool *defined) {
+        RadicalSum left, right;
+        *defined = false;
+        const Eval old_value = evaluate(arena, before, x, &left);
+        if (old_value == Eval::NoRealValue)
+            return true;
+        if (old_value == Eval::CannotCompute) {
+            *why = "the old form has a value this check cannot compute exactly";
+            verdict = PowerReading::Unreadable;
+            return false;
+        }
+        const Eval new_value = evaluate(arena, after, x, &right);
+        if (new_value == Eval::NoRealValue) {
+            *why = "the new form has no value where the old one does";
+            verdict = PowerReading::Different;
+            return false;
+        }
+        if (new_value == Eval::CannotCompute) {
+            *why = "the new form has a value this check cannot compute exactly";
+            verdict = PowerReading::Unreadable;
+            return false;
+        }
+        if (!same_value(left, right)) {
+            *why = "the two forms differ at a point where both have a value";
+            verdict = PowerReading::Different;
+            return false;
+        }
+        *defined = true;
+        return true;
+    };
+    // Zero lies on neither branch, and it is the one point where a negative power of a single term has no value.
+    Q zero;
     bool any = false;
+    if (!probe(zero.get(), &any))
+        return verdict;
     for (int sign : {1, -1}) {
         int64_t agreed = 0;
         bool defined = false;
         for (int64_t j = 0; j < needed + 4 && agreed < needed; ++j) {
             Q x;
-            RadicalSum left, right;
             branch_point(L, sign, j, &x);
             if (shape.symbol.empty() && sign < 0)
                 break;
-            const Eval old_value = evaluate(arena, before, x.get(), &left);
-            if (old_value == Eval::NoRealValue)
+            bool here = false;
+            if (!probe(x.get(), &here))
+                return verdict;
+            if (!here)
                 continue;
-            if (old_value == Eval::CannotCompute) {
-                *why = "the old form has a value this check cannot compute exactly";
-                return PowerReading::Unreadable;
-            }
             defined = true;
-            const Eval new_value = evaluate(arena, after, x.get(), &right);
-            if (new_value == Eval::NoRealValue) {
-                *why = "the new form has no value where the old one does";
-                return PowerReading::Different;
-            }
-            if (new_value == Eval::CannotCompute) {
-                *why = "the new form has a value this check cannot compute exactly";
-                return PowerReading::Unreadable;
-            }
-            if (!same_value(left, right)) {
-                *why = "the two forms differ at a point where both have a value";
-                return PowerReading::Different;
-            }
             ++agreed;
         }
         if (defined && agreed < needed) {
@@ -997,7 +1023,8 @@ PowerResult simplify_powers(Arena &arena, Derivation &derivation, NodeId express
     if (!read_shape(arena, expression, &shape, &degree))
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode,
                           "every part has to be built from numbers and one variable with sums, products, whole or "
-                          "rational powers, square roots and absolute values, with every root taken of a single term");
+                          "rational powers, square roots and absolute values, with every root, negative power and "
+                          "absolute value taken of a single term");
     int64_t points = 0;
     if (!points_needed(2 * shape.lcm, degree, &points))
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode,

@@ -13,7 +13,8 @@ enum class PowerReading : uint8_t { Equal, Different, Unreadable };
 // Whether two expressions in at most one variable take the same value wherever the first one has a
 // real value. The variable is replaced by s^L, with L twice the least common denominator of every
 // exponent, so both sides become Laurent polynomials in s on each sign of s, and they are compared
-// exactly at more points of each sign than such a difference can have roots.
+// exactly at zero and at more points of each sign than such a difference can have roots. A negative
+// power or an absolute value of a sum is unreadable, because it breaks that form.
 PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, std::string *why);
 
 enum class PowerOutcome : uint8_t {

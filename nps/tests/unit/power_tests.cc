@@ -55,6 +55,28 @@ void test_equivalence(TestSink &t) {
         t.check(new_side == PowerReading::Unreadable && why.find("new form") != std::string::npos,
                 "nor is a new form that cannot be computed read as different: " + why);
     }
+    {
+        std::string why;
+        t.check(compare("x", "x^2*x^-1", &why) == PowerReading::Different &&
+                    why.find("new form has no value") != std::string::npos,
+                "a new form that loses the value at zero is caught: " + why);
+        t.check(compare("x^2*x^-1", "x") == PowerReading::Equal, "while one that keeps every value of the old one is equal");
+    }
+    t.check(compare("(x+1)^2", "x^2+2*x+1") == PowerReading::Equal && compare("abs(-2*x)", "2*abs(x)") == PowerReading::Equal &&
+                compare("(2*x)^-1", "(1/2)*x^-1") == PowerReading::Equal,
+            "whole powers of sums, and absolute values and negative powers of single terms, are read");
+    for (const char *pair : {"abs(2*x-1)|2*abs(x)-abs(x)*x^-1", "abs(x^2-x)|x^2-x", "(x-2)^-1|(x-2)^-1", "((x-2)^-1)^-1|x-2",
+                             "(-5000567)*(x-(2))^-1+(-51999948)*(x-(3))^-1+(-985327200)*(x-(5))^-1+(1379503125)*(x-(6))^-1+"
+                             "(7501876096)*(x-(7))^-1+(-8596719936)*(x-(8))^-1+(-10214629425)*(x-(10))^-1+"
+                             "(11146231250)*(x-(11))^-1+(384659)*(x-(-2))^-1+(969696)*(x-(-3))^-1+(430650)*(x-(-5))^-1|0"}) {
+        const std::string text(pair);
+        const size_t bar = text.find('|');
+        std::string why;
+        const PowerReading reading = compare(text.substr(0, bar).c_str(), text.substr(bar + 1).c_str(), &why);
+        t.check(reading == PowerReading::Unreadable && why.find("outside") != std::string::npos,
+                "an absolute value or a negative power of a sum is not read, since no point count fixes it: " + text +
+                    " gave " + why);
+    }
     t.check(compare("sqrt(-4)", "0") == PowerReading::Unreadable, "a form with no real value anywhere is not read as equal");
     t.check(compare("x*y", "x*y") == PowerReading::Unreadable, "two variables are not read");
     t.check(compare("sin(x)", "sin(x)") == PowerReading::Unreadable, "a function other than sqrt or abs is not read");
@@ -143,7 +165,7 @@ void test_laws(TestSink &t) {
                 std::string("an even root raised back keeps the condition that x is not negative: ") + root +
                     " gave " + r.answer + " with " + r.assumptions);
     }
-    // A result defined on a sign of x where the input is not has widened the domain, so it must say so.
+    // A result defined on a sign of x, or at zero, where the input is not has widened the domain, so it must say so.
     {
         std::string why;
         t.check(compare("x", "sqrt(x)*sqrt(x)", &why) == PowerReading::Different &&
@@ -152,7 +174,7 @@ void test_laws(TestSink &t) {
     }
     for (const char *input : {"sqrt(x)^2", "(x^(1/2))^2", "(x^(1/4))^4", "sqrt(x)*sqrt(x)", "x^(1/2)*x^(1/3)",
                               "sqrt(x^2)", "(x^3)^(1/3)", "(x^2)^(1/2)", "sqrt(x^3)", "(x^(1/2))^3",
-                              "sqrt(2*x)*sqrt(2*x)", "x^(1/2)*x^(-1/2)", "(sqrt(x))^4", "sqrt(4*x^2)"}) {
+                              "sqrt(2*x)*sqrt(2*x)", "x^(1/2)*x^(-1/2)", "(sqrt(x))^4", "sqrt(4*x^2)", "x^2*x^-1"}) {
         Arena arena;
         Derivation d;
         const ParseResult parsed = parse(arena, input);
@@ -218,18 +240,30 @@ void test_laws(TestSink &t) {
         t.check(r.rules.empty(), "and nothing is recorded");
     }
     t.equal(outcome(run("(-4)^(1/2)")), "no real value", "nor does the same written as an exponent");
-    for (const char *nowhere : {"0^-1", "1/0", "(1-1)^-1", "0^(-1/2)", "x*0^-1", "(x-x)^-1",
-                                "x^1000*(x-x)^-1", "x^1000+(x-x)^-1"}) {
+    for (const char *nowhere : {"0^-1", "1/0", "(1-1)^-1", "0^(-1/2)", "x*0^-1", "x*sqrt(1000000007*1000000009)*0^-1",
+                                "x*sqrt(1000000007*1000000009)+0^-1"}) {
         const Run r = run(nowhere);
         t.check(outcome(r) == "no real value" && r.result.expression == kNoNode && r.rules.empty(),
                 std::string("a form with no real value anywhere is refused rather than called already in form: ") +
                     nowhere + " gave " + outcome(r));
     }
-    for (const char *somewhere : {"x^-1", "0^2", "(x-1)^-1"}) {
+    for (const char *somewhere : {"x^-1", "0^2", "3*x^-1", "sqrt(-x^2)"}) {
         const Run r = run(somewhere);
         t.check(outcome(r) == "already in form" && status(r) == "solved and verified",
                 std::string("and one with a real value somewhere is still in form: ") + somewhere + " gave " +
-                    outcome(r));
+                    outcome(r) + ", " + r.result.detail);
+    }
+    for (const char *sum : {"(x-1)^-1", "(x-x)^-1", "abs(x+1)", "(x+1)^2*(x+1)^-1"}) {
+        const Run r = run(sum);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find("single term") != std::string::npos &&
+                    r.rules.empty(),
+                std::string("a negative power or an absolute value of a sum is outside the envelope: ") + sum + " gave " +
+                    outcome(r) + ", " + r.result.detail);
+    }
+    {
+        const Run r = run("(x+1)^2*(x+1)^3");
+        t.check(r.answer == "((x + 1)^5)" && status(r) == "solved and verified",
+                "while whole powers of a sum still combine: " + r.answer + ", " + status(r));
     }
     {
         const Run r = run("x*sqrt(1000000007*1000000009)");
@@ -249,7 +283,7 @@ void test_laws(TestSink &t) {
     }
     t.equal(outcome(run("x^851*x")), "rewritten", "the measured degree boundary still rewrites x^851*x");
     t.equal(outcome(run("x^852*x")), "outside envelope", "and refuses x^852*x once the check values outgrow their bound");
-    for (const char *steep : {"x^1024*x^(1/12)*(x-x)^-1", "x^1024*x^1024*x^(1/12)"}) {
+    for (const char *steep : {"x^1024*x^(1/12)*0^-1", "x^1024*x^1024*x^(1/12)"}) {
         const Run r = run(steep);
         t.check(outcome(r) == "outside envelope" && r.result.detail.find("2048") != std::string::npos &&
                     r.rules.empty(),
