@@ -18,6 +18,8 @@ namespace {
 constexpr size_t kValueBits = 20000;
 constexpr int64_t kMaxLcm = 12;
 constexpr int64_t kMaxExponent = 1024;
+// The check cannot be metered, so the degree in t it has to fix is capped rather than left to the value bound.
+constexpr int64_t kMaxDegreeInT = 2048;
 
 // A GMP rational that can be copied, for values carried through the evaluator.
 class Q {
@@ -247,7 +249,39 @@ bool single_term(const RadicalSum &v, RadicalKey *key, Q *c) {
     return true;
 }
 
-// The exact value at one point, with rational exponents taken as real roots.
+bool add_into(RadicalSum *out, const RadicalSum &part) {
+    for (const auto &[key, c] : part) {
+        Q &slot = (*out)[key];
+        mpq_add(slot.get(), slot.get(), c.get());
+        if (!small(slot))
+            return false;
+    }
+    drop_zeros(out);
+    return out->size() <= kMaxTerms;
+}
+
+bool multiply_into(RadicalSum *out, const RadicalSum &part) {
+    RadicalSum product;
+    for (const auto &[ka, ca] : *out) {
+        for (const auto &[kb, cb] : part) {
+            RadicalKey key;
+            Q c;
+            if (!multiply_terms(ka, ca, kb, cb, &key, &c))
+                return false;
+            Q &slot = product[key];
+            mpq_add(slot.get(), slot.get(), c.get());
+            if (!small(slot))
+                return false;
+        }
+    }
+    drop_zeros(&product);
+    if (product.size() > kMaxTerms)
+        return false;
+    *out = std::move(product);
+    return true;
+}
+
+// The exact value at one point, where a part with no real value outranks one that cannot be computed.
 Eval evaluate(const Arena &arena, NodeId id, mpq_srcptr x, RadicalSum *out, int depth = 0) {
     if (depth > 64 || arena.is_approximate(id))
         return Eval::CannotCompute;
@@ -271,49 +305,29 @@ Eval evaluate(const Arena &arena, NodeId id, mpq_srcptr x, RadicalSum *out, int 
             return Eval::Known;
         }
         case Kind::Add: {
+            bool computed = true;
             for (NodeId child : kids) {
                 RadicalSum part;
                 const Eval e = evaluate(arena, child, x, &part, depth + 1);
-                if (e != Eval::Known)
+                if (e == Eval::NoRealValue)
                     return e;
-                for (const auto &[key, c] : part) {
-                    Q &slot = (*out)[key];
-                    mpq_add(slot.get(), slot.get(), c.get());
-                    if (!small(slot))
-                        return Eval::CannotCompute;
-                }
+                computed = computed && e == Eval::Known && add_into(out, part);
             }
-            drop_zeros(out);
-            return out->size() <= kMaxTerms ? Eval::Known : Eval::CannotCompute;
+            return computed ? Eval::Known : Eval::CannotCompute;
         }
         case Kind::Mul: {
             Q one;
             mpq_set_ui(one.get(), 1, 1);
             (*out)[RadicalKey()] = one;
+            bool computed = true;
             for (NodeId child : kids) {
                 RadicalSum part;
                 const Eval e = evaluate(arena, child, x, &part, depth + 1);
-                if (e != Eval::Known)
+                if (e == Eval::NoRealValue)
                     return e;
-                RadicalSum product;
-                for (const auto &[ka, ca] : *out) {
-                    for (const auto &[kb, cb] : part) {
-                        RadicalKey key;
-                        Q c;
-                        if (!multiply_terms(ka, ca, kb, cb, &key, &c))
-                            return Eval::CannotCompute;
-                        Q &slot = product[key];
-                        mpq_add(slot.get(), slot.get(), c.get());
-                        if (!small(slot))
-                            return Eval::CannotCompute;
-                    }
-                }
-                drop_zeros(&product);
-                if (product.size() > kMaxTerms)
-                    return Eval::CannotCompute;
-                *out = std::move(product);
+                computed = computed && e == Eval::Known && multiply_into(out, part);
             }
-            return Eval::Known;
+            return computed ? Eval::Known : Eval::CannotCompute;
         }
         case Kind::Neg: {
             const Eval e = evaluate(arena, kids[0], x, out, depth + 1);
@@ -465,8 +479,13 @@ bool read_shape(const Arena &arena, NodeId id, Shape *shape, Rational *degree, i
 }
 
 // Points that fix a difference of this degree on one branch, once every power of x is a power of t.
-int64_t points_needed(int64_t L, const Rational &degree) {
-    return 2 * ((degree.num * L + degree.den - 1) / degree.den) + 1;
+bool points_needed(int64_t L, const Rational &degree, int64_t *points) {
+    int64_t scaled = 0;
+    if (__builtin_mul_overflow(degree.num, L, &scaled))
+        return false;
+    const int64_t in_t = scaled / degree.den + (scaled % degree.den != 0 ? 1 : 0);
+    *points = 2 * in_t + 1;
+    return in_t <= kMaxDegreeInT;
 }
 
 // The j-th probe point on the branch of this sign, x = sign ((j + 2) / 2)^L.
@@ -487,7 +506,10 @@ Eval real_somewhere(const Arena &arena, NodeId id, const Shape &shape, const Rat
     if (seen == Eval::Known || shape.symbol.empty())
         return seen;
     const int64_t L = 2 * shape.lcm;
-    const int64_t points = points_needed(L, degree) + 4;
+    int64_t needed = 0;
+    if (!points_needed(L, degree, &needed))
+        return Eval::CannotCompute;
+    const int64_t points = needed + 4;
     for (int sign : {1, -1}) {
         for (int64_t j = 0; j < points; ++j) {
             branch_point(L, sign, j, &x);
@@ -512,7 +534,11 @@ PowerReading power_equivalent(const Arena &arena, NodeId before, NodeId after, s
     }
     const int64_t L = 2 * shape.lcm;
     const Rational top = d_before.num * d_after.den > d_after.num * d_before.den ? d_before : d_after;
-    const int64_t needed = points_needed(L, top);
+    int64_t needed = 0;
+    if (!points_needed(L, top, &needed)) {
+        *why = "a form's degree is past what this check evaluates exactly";
+        return PowerReading::Unreadable;
+    }
     // Each branch x = t^L and x = -t^L makes both sides Laurent polynomials in t with at most
     // 2 bound + 1 terms, so agreeing at that many points of a branch proves them equal on it.
     bool any = false;
@@ -972,6 +998,11 @@ PowerResult simplify_powers(Arena &arena, Derivation &derivation, NodeId express
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode,
                           "every part has to be built from numbers and one variable with sums, products, whole or "
                           "rational powers, square roots and absolute values, with every root taken of a single term");
+    int64_t points = 0;
+    if (!points_needed(2 * shape.lcm, degree, &points))
+        return run.finish(PowerOutcome::OutsideEnvelope, kNoNode,
+                          "the degree times twice the least common exponent denominator exceeds 2048, past what the "
+                          "exact check evaluates");
     if (derivation.request.numeric_mode != NumericMode::Exact)
         return run.finish(PowerOutcome::OutsideEnvelope, kNoNode, "power walkthroughs require Exact mode");
     if (has_no_real_value(arena, expression))

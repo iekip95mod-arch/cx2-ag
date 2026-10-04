@@ -218,7 +218,8 @@ void test_laws(TestSink &t) {
         t.check(r.rules.empty(), "and nothing is recorded");
     }
     t.equal(outcome(run("(-4)^(1/2)")), "no real value", "nor does the same written as an exponent");
-    for (const char *nowhere : {"0^-1", "1/0", "(1-1)^-1", "0^(-1/2)", "x*0^-1", "(x-x)^-1"}) {
+    for (const char *nowhere : {"0^-1", "1/0", "(1-1)^-1", "0^(-1/2)", "x*0^-1", "(x-x)^-1",
+                                "x^1000*(x-x)^-1", "x^1000+(x-x)^-1"}) {
         const Run r = run(nowhere);
         t.check(outcome(r) == "no real value" && r.result.expression == kNoNode && r.rules.empty(),
                 std::string("a form with no real value anywhere is refused rather than called already in form: ") +
@@ -245,6 +246,21 @@ void test_laws(TestSink &t) {
         const PowerReading reading = compare("x^2000", "x^2000", &why);
         t.check(reading == PowerReading::Unreadable && why.find("outside") != std::string::npos,
                 "nor does the checker try to evaluate it: " + why);
+    }
+    t.equal(outcome(run("x^851*x")), "rewritten", "the measured degree boundary still rewrites x^851*x");
+    t.equal(outcome(run("x^852*x")), "outside envelope", "and refuses x^852*x once the check values outgrow their bound");
+    for (const char *steep : {"x^1024*x^(1/12)*(x-x)^-1", "x^1024*x^1024*x^(1/12)"}) {
+        const Run r = run(steep);
+        t.check(outcome(r) == "outside envelope" && r.result.detail.find("2048") != std::string::npos &&
+                    r.rules.empty(),
+                std::string("a degree past the check's point bound is refused before any probe or step: ") + steep +
+                    " gave " + outcome(r) + ", " + r.result.detail);
+    }
+    {
+        std::string why;
+        t.check(compare("x^1024*x^1024*x^(1/12)", "x^1024*x^1024*x^(1/12)", &why) == PowerReading::Unreadable &&
+                    why.find("degree") != std::string::npos,
+                "nor does the exported check walk that many points: " + why);
     }
     t.equal(outcome(run("x*y")), "outside envelope", "two variables are outside the envelope");
     t.equal(outcome(run("sin(x)^2")), "outside envelope", "a function other than a root is outside it");
