@@ -148,6 +148,13 @@ record reads `mass = 2.00 +/- 0.11 kg`. Both are omitted when that text is empty
 state but known, and the bridge computes no uncertainty of its own. The shell has nothing to assemble
 and names the reason for an absent one from `uncertainty_state` instead, at nps_v4.lua:3260.
 
+All five of those states are reachable through that one binding, so none of them is a shell-only
+spelling. measured on 2026-10-04, with env -u NPS_EVIDENCE luajit over build/host nps_split: givens
+with no spread answer none, two stated spreads answer known, a measured given beside a stated one
+answers unstated, a stated spread of zero answers not propagated, and a variance that outgrows the
+exact arithmetic answers too large while the derivation still solves and verifies.
+nps/tests/target/luax_host.lua drives all five from Lua rather than writing a state into a record.
+
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
 lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4957, and
