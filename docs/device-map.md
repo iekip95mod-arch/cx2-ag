@@ -146,7 +146,7 @@ copies the engine's already checked `uncertainty_text` into an `uncertainty` fie
 same text into the answer line between the value and the unit, at lua_module.cc:3660 to 3665, so a
 record reads `mass = 2.00 +/- 0.11 kg`. Both are omitted when that text is empty, which is every
 state but known, and the bridge computes no uncertainty of its own. The shell has nothing to assemble
-and names the reason for an absent one from `uncertainty_state` instead, at nps_v4.lua:3260.
+and names the reason for an absent one from `uncertainty_state` instead, at nps_v4.lua:3275.
 
 All five of those states are reachable through that one binding, so none of them is a shell-only
 spelling. measured on 2026-10-04, with env -u NPS_EVIDENCE luajit over build/host nps_split: givens
@@ -199,7 +199,7 @@ lua_module.cc:5056, and `l_walkthrough` sends a separable `desolve` command to `
 lua_module.cc:3364-3365 and a `linsolve` command to `system_into` at lua_module.cc:3361-3362. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
 nil at lua_module.cc:3274-3278, so the shell's walkthrough branch falls back to Giac at
-nps_v4.lua:4309. A linsolve never
+nps_v4.lua:4324. A linsolve never
 does: system_into answers every outcome with a table at lua_module.cc:2854-2902, and l_walkthrough
 answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3327-3340. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
@@ -236,7 +236,7 @@ not a polynomial, a second variable or decimal mode shows a native refusal and G
 `unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. Every relation the `modern`
 and `relativity` bindings carry has a fixture, the Lorentz transformation included.
 
-`density` has two fixtures. The second, at nps/lua/nps_v4.lua:3091-3101, states an uncertainty on both
+`density` has two fixtures. The second, at nps/lua/nps_v4.lua:3106-3116, states an uncertainty on both
 givens and is PHYS-020's first worked example. It is last in the list on purpose: the smoke test walks
 the browser by counting arrow presses, so a fixture inserted anywhere else renumbers every entry after
 it. Source, read on 2026-10-04: the family id is the same `physics.density.mass-volume` the first
@@ -245,14 +245,14 @@ module at nps/lua/nps_v4.lua:57, so this entry added no manifest row.
 
 When a record's `precision.uncertainty_state` is unstated, not propagated or too large, the summary
 draws one line under SPREAD saying why no uncertainty is given. `source`, read on 2026-10-04:
-`uncertaintyNote` at nps/lua/nps_v4.lua:3260-3271 maps the three states to their reasons and answers
-nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4721-4729, inside the block
+`uncertaintyNote` at nps/lua/nps_v4.lua:3275-3286 maps the three states to their reasons and answers
+nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4736-4744, inside the block
 that hint mode withholds along with the result. nps/tests/target/ui_smoke_v4.lua drives both halves,
 the line on an unstated record and its absence on a known one.
 
-The scalar_product fixture at nps/lua/nps_v4.lua:2721-2729 asks for the angle in degrees. Source,
+The scalar_product fixture at nps/lua/nps_v4.lua:2736-2744 asks for the angle in degrees. Source,
 read on 2026-10-04: the bridge writes the angle's placement, and its measured size when Giac answered,
-into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4740
+into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4755
 with no code of its own for this family. The family id is declared at
 nps/src/core/capability_manifest.cc:62 and required of the loaded module at nps/lua/nps_v4.lua:60.
 
@@ -260,8 +260,8 @@ nps/src/core/capability_manifest.cc:62 and required of the loaded module at nps/
 single entry point and the family is chosen by an optional flag, so one menu entry per family is what
 makes both of them reachable.
 
-`source`: read on 2026-10-04. nps/lua/nps_v4.lua:2894 sends projectile true for the thrown ball, and
-the problem table at nps/lua/nps_v4.lua:2905-2912 carries no projectile key at all, which is how the
+`source`: read on 2026-10-04. nps/lua/nps_v4.lua:2909 sends projectile true for the thrown ball, and
+the problem table at nps/lua/nps_v4.lua:2920-2927 carries no projectile key at all, which is how the
 ball in a sideways wind reaches the general family.
 nps/src/physics/planar_kinematics.cc:169 reads that flag and reports either
 physics.kinematics.constant-acceleration.projectile.two-dimension or
@@ -271,18 +271,18 @@ nps/lua/nps_v4.lua:85-86, so a build missing either one refuses to start rather 
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
-`source`, nps/lua/nps_v4.lua:3132 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4190 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:3147 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:4205 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
-`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2340 is that menu entry, nps/lua/nps_v4.lua:3139
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4246 composes the text with
+`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2355 is that menu entry, nps/lua/nps_v4.lua:3154
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4261 composes the text with
 derivationExportText and calls the binding under pcall.
 
 Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, the `d` and `D`
-reader at nps/lua/nps_v4.lua:5538 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
-definitionParagraphs (nps/lua/nps_v4.lua:5115) for the focused step, and `!u` at
-nps/lua/nps_v4.lua:3131 defines a unit.
+reader at nps/lua/nps_v4.lua:5553 and the Actions entry at nps/lua/nps_v4.lua:2367 both open
+definitionParagraphs (nps/lua/nps_v4.lua:5130) for the focused step, and `!u` at
+nps/lua/nps_v4.lua:3146 defines a unit.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -310,8 +310,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3530, measureMath
-sets the expression at :3564, and the history editor sets its expression at :1457.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3545, measureMath
+sets the expression at :3579, and the history editor sets its expression at :1472.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -321,6 +321,17 @@ sets the expression at :3564, and the history editor sets its expression at :145
 It stacks a fraction under a vinculum, raises a superscript, draws a radical and italicizes unit vectors.
 Inside an expression a Unicode subscript renders and an underscore does not, so write `v₀*t` rather than
 `v_0*t`.
+
+**Every slash inside a box becomes a fraction bar.** `measured` on 2026-10-05 against OS 6.4.0.74 under
+headless Firebird, driving the guided density entry that states an uncertainty. The answer mass = 2.00
++/- 0.11 kg drew as mass = 2.00 + followed by a fraction with an empty numerator over -0.11, then kg.
+Rewriting that three character spelling to the plus-minus sign drew the same answer on one line with
+its unit intact. `source`, read on 2026-10-05: the rewrite sits in mathModeExpression at
+nps/lua/nps_v4.lua:1183, which is the only code in the shell that builds the wrapper above, so it runs
+where a string becomes mathematics rather than in one caller. Both setters named above reach it, the
+step and answer boxes through measureMath and the history row through fitHistory, and so does any box
+added later. The plain text views build no wrapper and keep the engine's spelling, which
+`gc:drawString` has no fraction to build out of.
 
 **A box smaller than its content draws nothing at all.** Not clipped, not truncated: blank. `measured`
 on hardware while building ti_info. The height has to come from the size-change listener, which means an

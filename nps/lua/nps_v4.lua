@@ -1179,6 +1179,21 @@ end
 
 --------------------------------------------------------------------- editable RichText widget 
 
+-- The one place a string becomes D2Editor mathematics, where a slash draws as a fraction bar.
+local function mathModeExpression(expr)
+	local at = expr:find("+/-", 1, true)
+	if not at then return "\\0el {" .. expr .. "}" end
+	local out, from = {}, 1
+	while at do
+		out[#out + 1] = expr:sub(from, at - 1)
+		out[#out + 1] = "±"
+		from = at + 3
+		at = expr:find("+/-", from, true)
+	end
+	out[#out + 1] = expr:sub(from)
+	return "\\0el {" .. table.concat(out) .. "}"
+end
+
 RichTextEditor = class(Widget)
 
 function RichTextEditor:init(view, x, y, w, h, text)
@@ -1454,7 +1469,7 @@ function MathEditor:fitHistory(width, height)
 		self:resize(width, height)
 		self.editor:setFontSize(fsize)
 		self.needw, self.needh = nil, nil
-		self.editor:setExpression("\\0el {" .. self.historyExpression .. "}", 0)
+		self.editor:setExpression(mathModeExpression(self.historyExpression), 0)
 	end
 	if self.historyMode == "math" and self.needw and self.needh
 	   and (self.needw > width - 1 or self.needh > height - 1) then
@@ -3561,7 +3576,7 @@ local function measureMath(box)
 			platform.window:invalidate()
 		end
 	end)
-	box.editor:setExpression("\\0el {" .. box.expr .. "}", 0)
+	box.editor:setExpression(mathModeExpression(box.expr), 0)
 	parkMathBox(box)
 end
 
