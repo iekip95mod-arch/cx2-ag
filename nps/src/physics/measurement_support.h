@@ -53,6 +53,13 @@ inline bool valid_quantity(const Quantity &quantity, std::string *detail) {
     return false;
 }
 
+// A figure count cannot spell a zero, which has no figure to count from, and cannot spell a place a
+// stated uncertainty fixed, which may leave no figure of the value at all. Both are the declared
+// place, which precision_rounded_text spells directly.
+inline bool spelled_by_place(const Rational &value, const Precision &precision) {
+    return value.num == 0 || precision.uncertainty == UncertaintyState::Known;
+}
+
 inline std::string value_text(const Quantity &quantity) {
     Rational normalized;
     if (!normalize_copy(quantity.value, &normalized))
@@ -60,14 +67,17 @@ inline std::string value_text(const Quantity &quantity) {
     std::string text = rational_text(normalized);
     if (quantity.precision.kind == NumberKind::Measured) {
         std::string measured;
-        if (rounded_text(normalized, quantity.precision.significant_digits, &measured))
+        const bool spelled =
+            spelled_by_place(normalized, quantity.precision)
+                ? precision_rounded_text(normalized, quantity.precision, &measured)
+                : rounded_text(normalized, quantity.precision.significant_digits, &measured);
+        if (spelled)
             text = measured;
     }
-    // A stated uncertainty is part of what was given, so it is shown through the same producer the
-    // answer's own uncertainty goes through rather than dropped from the record. #589.
+    // A given's spread is a datum rather than a report, so it is restated exactly. Sending it
+    // through the answer's two-figure round-up instead stated a spread the problem did not. #589.
     std::string spread;
-    int32_t place = 0;
-    if (uncertainty_text(quantity.precision, &spread, &place))
+    if (exact_uncertainty_text(quantity.precision, &spread))
         text += " +/- " + spread;
     return text;
 }
@@ -295,12 +305,7 @@ inline ReportOutcome report_measured_precision(Arena &arena, Derivation &derivat
                                                const std::string &rounding_detailed,
                                                std::string *value_text, std::string *detail) {
     std::string reported;
-    // A figure count cannot spell a zero, which has no figure to count from, and cannot spell a
-    // place a stated uncertainty fixed, which may leave no figure of the value at all. Both of
-    // those are the declared place, which precision_rounded_text spells directly.
-    const bool by_place =
-        candidate.num == 0 || precision.uncertainty == UncertaintyState::Known;
-    const bool spelled = by_place
+    const bool spelled = spelled_by_place(candidate, precision)
                              ? precision_rounded_text(candidate, precision, &reported)
                              : rounded_text(candidate, precision.significant_digits, &reported);
     if (!spelled) {

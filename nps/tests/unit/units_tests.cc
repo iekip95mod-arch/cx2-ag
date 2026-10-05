@@ -1693,6 +1693,31 @@ void run_units_tests(TestSink &t) {
         t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0.10", -2)),
                 "a smaller two-figure value already covers the variance",
                 "and nothing above zero is the smallest cover for it");
+
+        // The spread a given states, which is the exact root rather than the round-up the same
+        // variance reports. #589.
+        std::string exact_spread = "untouched";
+        t.check(exact_uncertainty_text(with_variance(Rational{1, 64}), &exact_spread) &&
+                    exact_spread == "0.125",
+                "the exact root of a stated spread is the decimal it was written as");
+        t.check(exact_uncertainty_text(with_variance(Rational{25, 1}), &exact_spread) &&
+                    exact_spread == "5",
+                "a whole-number spread comes back whole rather than padded to two figures");
+        t.check(exact_uncertainty_text(zero_spread, &exact_spread) && exact_spread == "0",
+                "and a stated zero states zero, which has no two-figure root to report");
+        exact_spread = "untouched";
+        t.check(!exact_uncertainty_text(with_variance(Rational{2, 1}), &exact_spread) &&
+                    exact_spread == "untouched",
+                "a variance that is not a square has no exact root to state");
+        std::string fractional_root = "untouched";
+        t.check(!exact_uncertainty_text(with_variance(Rational{1, 9}), &fractional_root) &&
+                    fractional_root == "untouched",
+                "nor has one whose root needs a fraction to write");
+        std::string unstated_root = "untouched";
+        t.check(!exact_uncertainty_text(at_place(-2), &unstated_root) &&
+                    unstated_root == "untouched",
+                "and a precision that states no uncertainty states none");
+
         t.equal(stated_uncertainty(precision_combine(too_large, Precision())), "too large",
                 "the route-level fold keeps a too-large state rather than calling it not propagated");
 

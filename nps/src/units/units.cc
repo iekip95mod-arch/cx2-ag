@@ -857,6 +857,20 @@ bool uncertainty_text(const Precision &precision, std::string *out, int32_t *pla
     return true;
 }
 
+bool exact_uncertainty_text(const Precision &precision, std::string *out) {
+    Rational deviation;
+    if (precision.uncertainty != UncertaintyState::Known ||
+        !rational_sqrt_exact(precision.variance, &deviation)) {
+        return false;
+    }
+    std::string text = rational_text(deviation);
+    // A root that needs a fraction to write is not a decimal anybody stated, so there is none.
+    if (text.find('/') != std::string::npos)
+        return false;
+    *out = std::move(text);
+    return true;
+}
+
 const char *uncertainty_rounding_name(UncertaintyRounding outcome) {
     switch (outcome) {
     case UncertaintyRounding::Smallest:

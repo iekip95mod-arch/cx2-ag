@@ -259,11 +259,22 @@ void run_density_tests(TestSink &t) {
         // #589. The plan's facts are what the learner reads back as the problem, so a given's
         // stated uncertainty belongs in them rather than only in the answer.
         t.equal(one.plan_facts,
-                "density = 1000 +/- 5.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
-                "a stated uncertainty is shown in the fact line, in the spelling the result uses");
+                "density = 1000 +/- 5 kg/m^3; volume = 0.0020 +/- 0.0001 m^3; find mass",
+                "a stated uncertainty is shown in the fact line, in the spelling it was given in");
         t.equal(three.plan_facts,
-                "density = 1000.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
+                "density = 1000.0 kg/m^3; volume = 0.0020 +/- 0.0001 m^3; find mass",
                 "while a measured given that states none is written without one");
+        // A given's spread is a datum rather than a report, so the fact line states it exactly. The
+        // answer's two-figure round-up would read 0.13 here and misstate the problem by 4 percent.
+        const Run finer_than_two_figures = run(problem(
+            DensityVariable::Mass,
+            uncertain_known(DensityVariable::Density, "1000 +/- 0.125 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        t.equal(finer_than_two_figures.plan_facts,
+                "density = 1000 +/- 0.125 kg/m^3; volume = 2.0 +/- 0.1 m^3; find mass",
+                "a stated uncertainty finer than two figures is stated, not rounded up");
+        t.equal(finer_than_two_figures.result.uncertainty_text, "110",
+                "while the answer's own root is still the two-figure round-up");
         t.equal(one.propagation_evidence,
                 "passed, dm/dV = 1000, dm/drho = 0.002, giving known, which the squared relative "
                 "uncertainties reach too",
@@ -384,6 +395,11 @@ void run_density_tests(TestSink &t) {
         t.check(zero_spread.result.uncertainty_text.empty() &&
                     zero_spread.uncertainty_evidence.empty(),
                 "with no root reported and no rounding check claiming one");
+        // The two sides of the same zero. The answer reports no root because zero has no two-figure
+        // one, while the fact line restates the spread the problem stated.
+        t.equal(zero_spread.plan_facts,
+                "density = 1000 kg/m^3; volume = 0.0020 +/- 0 m^3; find mass",
+                "while the fact line still states the zero the problem gave it");
         t.equal(uncertainty_state_name(zero_spread.result.quantity.precision.uncertainty),
                 "not propagated",
                 "and a first-order variance of zero says so rather than reading as a known zero");
@@ -410,6 +426,18 @@ void run_density_tests(TestSink &t) {
         t.check(contains(zero_density.propagation_evidence,
                          "which the density definition's own variance identity reaches too"),
                 "by the form that closes when there is no answer to divide by");
+        // #590. A figure count cannot spell a zero, so the fact line read a bare 0 beside an answer
+        // the same file already spells to the place it was measured at.
+        t.equal(zero_density.plan_facts,
+                "density = 0.0 +/- 0.1 kg/m^3; volume = 2.0 +/- 0.1 m^3; find mass",
+                "a measured zero given is written to the place it was measured at");
+        const Run zero_density_unstated =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "0.0 kg/m^3"),
+                        known(DensityVariable::Volume, "2.0 m^3")));
+        t.equal(zero_density_unstated.plan_facts,
+                "density = 0.0 kg/m^3; volume = 2.0 m^3; find mass",
+                "and so is one that states no spread, which is the zero's own term and not the "
+                "stated spread's");
         const Run zero_volume = run(problem(
             DensityVariable::Mass, uncertain_known(DensityVariable::Density, "2.0 +/- 0.1 kg/m^3"),
             uncertain_known(DensityVariable::Volume, "0.0 +/- 0.1 m^3")));
@@ -707,6 +735,18 @@ void run_density_tests(TestSink &t) {
                 "a zero divisor that yields no solution is not offered");
         t.check(contains(refused.result.detail, "do not determine one volume"),
                 "the non-unique solve explains the failed determination");
+        // The only two shapes where a zero given would not force a zero answer are these zero
+        // divisors, which is what leaves the quadrature's second zero arm with no input to reach it.
+        const Run zero_divisor_density = run(problem(
+            DensityVariable::Volume, uncertain_known(DensityVariable::Mass, "1.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Density, "0.0 +/- 0.1 kg/m^3")));
+        const Run zero_divisor_volume = run(problem(
+            DensityVariable::Density, uncertain_known(DensityVariable::Mass, "1.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Volume, "0.0 +/- 0.1 m^3")));
+        t.equal(std::string(density_outcome_name(zero_divisor_density.result.outcome)) + ", " +
+                    density_outcome_name(zero_divisor_volume.result.outcome),
+                "invalid problem, invalid problem",
+                "and a stated spread on a zero divisor does not make the problem solvable");
     }
     {
         const Run refused = run(problem(DensityVariable::Volume,

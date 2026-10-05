@@ -144,6 +144,11 @@ void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *ou
 // zero variance, which has no significant figure to round up to.
 bool uncertainty_text(const Precision &precision, std::string *out, int32_t *place);
 
+// The uncertainty a Known variance was squared from, spelled exactly. This is what a given states,
+// as against uncertainty_text's rounded-up report of what a propagation reached. False when the
+// variance has no exact decimal root, since there is then nothing exact to state.
+bool exact_uncertainty_text(const Precision &precision, std::string *out);
+
 // What a reported uncertainty was found to be against the variance behind it. Named for what
 // happened rather than for what a caller should do about it, the same way HalfPlace is.
 enum class UncertaintyRounding : uint8_t {
