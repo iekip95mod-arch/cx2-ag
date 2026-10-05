@@ -1662,6 +1662,8 @@ check(density_rules["physics.density.definition"] and
       "the bridge retains density planning, conversion, solve and verification records")
 check(r.giac_calls == 0 and type(r.equation) == "string" and type(r.substituted) == "string",
       "density stays local and returns both symbolic and substituted relations")
+check(r.precision.uncertainty_state == "none",
+      "a record whose givens stated no uncertainty says so rather than omitting the field")
 
 r = nps.optics("thin lens", "image distance", "focal length", "10 cm", "object distance", "15 cm")
 check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
@@ -1784,6 +1786,51 @@ r = nps.density("mass", "density", "2.00 g/cm^3", "volume", "3.00 cm^3")
 check(r.solved == true and r.precision.kind == "measured" and
       r.precision.significant_digits == 3,
       "the density bridge exposes measured result precision")
+check(r.precision.uncertainty_state == "none",
+      "a measured given with no stated uncertainty leaves the result's state none")
+
+-- PHYS-020's three worked examples. The exact variance 101/10000 roots to 0.100498, up to 0.11.
+-- A refused parse carries no precision, so this reports a failure rather than halting the file.
+local function uncertainty_state_of(record)
+    return type(record.precision) == "table" and record.precision.uncertainty_state or nil
+end
+
+r = nps.density("mass", "density", "1000 +/- 5 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
+check(r.solved == true and r.outcome == "solved",
+      "the density bridge reads a stated uncertainty on both givens and still solves")
+check(uncertainty_state_of(r) == "known",
+      "two stated uncertainties reach the answer as a known uncertainty")
+check(r.uncertainty == "0.11",
+      "the reported uncertainty is the quadrature root rounded up to two significant figures")
+check(r.value == "2.00" and r.unit == "kg",
+      "the value is rounded to the decimal place of that uncertainty's last figure")
+check(r.result == "mass = 2.00 +/- 0.11 kg",
+      "and the answer line carries the value, the uncertainty and the unit together")
+
+r = nps.density("mass", "density", "1000 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
+check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.10",
+      "an exact given scales the one stated uncertainty rather than refusing to propagate it")
+check(r.value == "2.00",
+      "and the value follows that uncertainty's last place as well")
+
+r = nps.density("mass", "density", "1000.0 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
+check(uncertainty_state_of(r) == "unstated",
+      "a measured given with none stated beside one that states it leaves the answer unstated")
+check(r.uncertainty == nil and r.result == "mass = 2.0 kg" and r.value == "2.0",
+      "so no uncertainty is reported and the value keeps the significant-figure rule")
+r = nps.density("mass", "density", "1000 +/- 5 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
+check(r.uncertainty ~= nil,
+      "and the same field is present when the same route does have one to report")
+
+r = nps.optics("thin lens", "image distance", "focal length", "2.50 +/- 0.02 m",
+               "object distance", "15 cm")
+check(r.outcome == "invalid input" and r.solved == false and #r.steps == 0 and
+      r.detail == "an uncertainty such as 2.50 +/- 0.02 m is not propagated here yet",
+      "a binding that does not propagate an uncertainty refuses one rather than dropping it")
+r = nps.optics("thin lens", "image distance", "focal length", "2.50 m", "object distance", "15 cm")
+check(r.outcome ~= "invalid input" and
+      r.detail ~= "an uncertainty such as 2.50 +/- 0.02 m is not propagated here yet",
+      "while the same binding reads the same quantity written without one")
 
 r = nps.density("mass", "density", "4 kg/m^3", "density", "5 kg/m^3")
 check(r.outcome == "duplicate known" and r.solved == false and r.result == nil and #r.steps == 0,

@@ -116,44 +116,54 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-04, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:5080), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:5083 to 5085), `pressure`, `hydrostatic`, `buoyancy`, `continuity`, `sensible_heat`,
-`latent_heat` and `ideal_gas` (lua_module.cc:5086 to 5092), `modern` and `relativity`
-(lua_module.cc:5093 and 5094), `vector_addition` (lua_module.cc:5095), `vector_cross`
-(lua_module.cc:5096), `scalar_product` (lua_module.cc:5097),
+`optics`, `unit_conversion` (lua_module.cc:5081), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:5084 to 5086), `pressure`, `hydrostatic`, `buoyancy`, `continuity`, `sensible_heat`,
+`latent_heat` and `ideal_gas` (lua_module.cc:5087 to 5093), `modern` and `relativity`
+(lua_module.cc:5094 and 5095), `vector_addition` (lua_module.cc:5096), `vector_cross`
+(lua_module.cc:5097), `scalar_product` (lua_module.cc:5098),
 `components_to_magnitude_angle`, `magnitude_angle_to_components`, `math_display`, `giac`,
-`export_text` (lua_module.cc:5051), and a set of platform entry points for memory, tracing, integrity
+`export_text` (lua_module.cc:5052), and a set of platform entry points for memory, tracing, integrity
 and the OS dialogs.
 
 scalar_product takes two vector strings and an optional third argument naming the angle unit. Left
 out, it answers the product alone. Source, read on 2026-10-04: l_scalar_product at
-lua_module.cc:4228 passes Giac to the engine only when GiacBackend::available says it is there, so the
+lua_module.cc:4229 passes Giac to the engine only when GiacBackend::available says it is there, so the
 split build without luagiac places the angle from the product's sign and the unified build also
 measures it. nps/tests/target/luax_host.lua asserts both records.
 
+Every record that carries a precision also says what it knows about an uncertainty. `source`, read on
+2026-10-04: `set_precision` at lua_module.cc:1083 writes `kind`, `significant_digits`,
+`last_significant_decimal_place` and `uncertainty_state` (lua_module.cc:1090), the last of them from
+`uncertainty_state_name`, so a shell sees one of none, known, unstated, not propagated or too large on
+every record rather than an absent field. `density` is the only binding that reads a stated
+uncertainty out of its givens, through `parse_quantity_with_uncertainty` at lua_module.cc:3635 and
+3641. Every other binding keeps `parse_quantity`, which refuses the text rather than dropping the
+uncertainty, and nps/tests/target/luax_host.lua pins that refusal on `optics` beside a control that
+the same binding still reads the quantity written without one.
+
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4953, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4954, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
 `gravitation`, `oscillation`, `wave` and the seven PHYS-018 relations share one binding,
-`relation_into` at lua_module.cc:3820, which reads the variable names against the model's own term
-names (lua_module.cc:3806). Any engine built on
+`relation_into` at lua_module.cc:3821, which reads the variable names against the model's own term
+names (lua_module.cc:3807). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`modern` (lua_module.cc:3966) and `relativity` (lua_module.cc:4058) read their relation and variable
+`modern` (lua_module.cc:3967) and `relativity` (lua_module.cc:4059) read their relation and variable
 names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
 exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
-nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3924 attaches the declared unit
+nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3925 attaches the declared unit
 to a bare number or to the number written with that unit, and leaves any other unit for the engine to
 refuse.
 
-`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:5047 and defined at
-lua_module.cc:1839. It takes the state, the attempt, the later route states and the variable, and
+`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:5048 and defined at
+lua_module.cc:1840. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
 `source`: read on 2026-10-04, `rule_definition` and `unit_definition` are registered at
-lua_module.cc:5049-5050 and defined at lua_module.cc:1938 and 1976. The first reads `rule_schema`
+lua_module.cc:5050-5051 and defined at lua_module.cc:1939 and 1977. The first reads `rule_schema`
 and the second reads the unit table and `quantity_name`, so neither carries prose of its own.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -171,33 +181,33 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:5052, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
-lua_module.cc:3363-3364 and a `linsolve` command to `system_into` at lua_module.cc:3360-3361. Its
+lua_module.cc:5053, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:3364-3365 and a `linsolve` command to `system_into` at lua_module.cc:3361-3362. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:3273-3277, so the shell falls back to Giac at nps_v4.lua:4285. A linsolve never
-does: system_into answers every outcome with a table at lua_module.cc:2853-2901, and l_walkthrough
-answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3326-3339. Outside
+nil at lua_module.cc:3274-3278, so the shell falls back to Giac at nps_v4.lua:4308. A linsolve never
+does: system_into answers every outcome with a table at lua_module.cc:2854-2902, and l_walkthrough
+answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3327-3340. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
 native refusal and Giac is not consulted.
 
 `normal` and `partfrac` behave like linsolve. `source`: `l_walkthrough` sends both to `rational_into`
-at lua_module.cc:3382-3385, which answers every outcome with a table at lua_module.cc:2803-2851. A
+at lua_module.cc:3383-3386, which answers every outcome with a table at lua_module.cc:2804-2852. A
 second symbol, a degree above 12, or a partfrac denominator with a repeated or irreducible factor shows
 a native refusal and Giac is not consulted.
 
 `powsimp` behaves the same way. `source`: `l_walkthrough` sends it to `power_into` at
-lua_module.cc:3380-3381, which answers every outcome with a table at lua_module.cc:2657-2702 and
+lua_module.cc:3381-3382, which answers every outcome with a table at lua_module.cc:2658-2703 and
 carries the derivation's active assumptions as the `assumptions` field. A second variable, a decimal,
 a root of a sum or decimal mode shows a native refusal and Giac is not consulted.
 
 `texpand` and `tcollect` do too. `source`: `l_walkthrough` sends both to `trig_into` at
-lua_module.cc:3378-3379, which answers every outcome with a table at lua_module.cc:2758-2801. A constant
+lua_module.cc:3379-3380, which answers every outcome with a table at lua_module.cc:2759-2802. A constant
 inside an angle, tan, a variable outside sin or cos, or a tcollect product of different angles shows a
 native refusal and Giac is not consulted.
 
 `bisect`, `newtonroot`, `trapsum` and `simpsum` do as well. `source`: `l_walkthrough` sends them to
-`numeric_into` at lua_module.cc:3374-3375, which answers every outcome with a table at
-lua_module.cc:2608-2655 and adds `error_bound`, `bound_certified` and `iterations`. A function that is
+`numeric_into` at lua_module.cc:3375-3376, which answers every outcome with a table at
+lua_module.cc:2609-2656 and adds `error_bound`, `bound_certified` and `iterations`. A function that is
 not a polynomial, a second variable or decimal mode shows a native refusal and Giac is not consulted.
 
 ## What the shell can reach
@@ -211,9 +221,23 @@ not a polynomial, a second variable or decimal mode shows a native refusal and G
 `unit_conversion`, `vector_addition`, `vector_cross`, `wave` and `work`. Every relation the `modern`
 and `relativity` bindings carry has a fixture, the Lorentz transformation included.
 
+`density` has two fixtures. The second, at nps/lua/nps_v4.lua:3091-3101, states an uncertainty on both
+givens and is PHYS-020's first worked example. It is last in the list on purpose: the smoke test walks
+the browser by counting arrow presses, so a fixture inserted anywhere else renumbers every entry after
+it. Source, read on 2026-10-04: the family id is the same `physics.density.mass-volume` the first
+fixture already needs, declared at nps/src/core/capability_manifest.cc:59 and required of the loaded
+module at nps/lua/nps_v4.lua:57, so this entry added no manifest row.
+
+When a record's `precision.uncertainty_state` is unstated, not propagated or too large, the summary
+draws one line under SPREAD saying why no uncertainty is given. `source`, read on 2026-10-04:
+`uncertaintyNote` at nps/lua/nps_v4.lua:3260-3270 maps the three states to their reasons and answers
+nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4720-4728, inside the block
+that hint mode withholds along with the result. nps/tests/target/ui_smoke_v4.lua drives both halves,
+the line on an unstated record and its absence on a known one.
+
 The scalar_product fixture at nps/lua/nps_v4.lua:2721-2729 asks for the angle in degrees. Source,
 read on 2026-10-04: the bridge writes the angle's placement, and its measured size when Giac answered,
-into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4705
+into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4739
 with no code of its own for this family. The family id is declared at
 nps/src/core/capability_manifest.cc:62 and required of the loaded module at nps/lua/nps_v4.lua:60.
 
@@ -232,18 +256,18 @@ nps/lua/nps_v4.lua:85-86, so a build missing either one refuses to start rather 
 menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
-`source`, nps/lua/nps_v4.lua:3121 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4166 calls the binding with the last revealed state and the rest of the route.
+`source`, nps/lua/nps_v4.lua:3132 routes `!a` to the attempt mode and attemptFeedback at
+nps/lua/nps_v4.lua:4189 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
-`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2340 is that menu entry, nps/lua/nps_v4.lua:3128
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4222 composes the text with
+`!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2340 is that menu entry, nps/lua/nps_v4.lua:3139
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4245 composes the text with
 derivationExportText and calls the binding under pcall.
 
 Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, D at
-nps/lua/nps_v4.lua:5503 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
-definitionParagraphs (nps/lua/nps_v4.lua:5080) for the focused step, and `!u` at
-nps/lua/nps_v4.lua:3120 defines a unit.
+nps/lua/nps_v4.lua:5537 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
+definitionParagraphs (nps/lua/nps_v4.lua:5114) for the focused step, and `!u` at
+nps/lua/nps_v4.lua:3131 defines a unit.
 
 `position_motion` and `ranking` still have working
 engines on main with no binding and no menu entry: `source`, neither name appears in nps/lua/nps_v4.lua or
@@ -271,8 +295,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3506, measureMath
-sets the expression at :3540, and the history editor sets its expression at :1457.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3529, measureMath
+sets the expression at :3563, and the history editor sets its expression at :1457.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)

@@ -1087,6 +1087,7 @@ void set_precision(lua_State *L, const Precision &precision) {
     set_field(L, "significant_digits", static_cast<int>(precision.significant_digits));
     set_field(L, "last_significant_decimal_place",
               static_cast<int>(precision.last_significant_decimal_place));
+    set_field(L, "uncertainty_state", uncertainty_state_name(precision.uncertainty));
     lua_settable(L, -3);
 }
 
@@ -3631,13 +3632,13 @@ int l_density(lua_State *L) {
         parsed = false;
         why = "unknown density variable " + std::string(first_variable_text);
     }
-    if (parsed && !parse_quantity(first_quantity_text, &first.quantity, &why))
+    if (parsed && !parse_quantity_with_uncertainty(first_quantity_text, &first.quantity, &why))
         parsed = false;
     if (parsed && !density_variable(second_variable_text, &second.variable)) {
         parsed = false;
         why = "unknown density variable " + std::string(second_variable_text);
     }
-    if (parsed && !parse_quantity(second_quantity_text, &second.quantity, &why))
+    if (parsed && !parse_quantity_with_uncertainty(second_quantity_text, &second.quantity, &why))
         parsed = false;
     if (!parsed)
         return typed_failure(L, "invalid input", "invalid input", why);
