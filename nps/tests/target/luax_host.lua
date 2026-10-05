@@ -1841,6 +1841,37 @@ check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.20",
 check(r.result == "mass = 0.00 +/- 0.20 kg" and r.value == "0.00",
       "and the zero value is written to that uncertainty's place like any other")
 
+-- The state the exact variance outgrowing int64 leaves, reached from Lua rather than written into a
+-- mock. The derivation still solves and verifies, so only the uncertainty is withheld.
+r = nps.density("density", "mass", "2000000000.0 +/- 0.1 kg", "volume", "2.0 +/- 0.1 m^3")
+check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
+      "a stated uncertainty whose variance outgrows the arithmetic still solves and verifies")
+check(uncertainty_state_of(r) == "too large",
+      "and the state says the exact square outgrew its range rather than claiming none was stated")
+check(r.uncertainty == nil,
+      "so the bridge reports no uncertainty field for it")
+check(r.result == "density = 1000000000 kg/m^3" and r.value == "1000000000",
+      "and the answer line carries the value and the unit with no spread spliced into it")
+r = nps.density("density", "mass", "2.0 +/- 0.1 kg", "volume", "2.0 +/- 0.1 m^3")
+check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.071" and
+      r.result == "density = 1.000 +/- 0.071 kg/m^3",
+      "while the same unknown at a magnitude the arithmetic holds does report one")
+
+-- The density route's own two spread refusals, which only units_tests.cc covered.
+r = nps.density("mass", "density", "1000 +/- kg/m^3", "volume", "0.0020 m^3")
+check(r.outcome == "invalid input" and #r.steps == 0 and
+      r.detail == "an uncertainty is a number of zero or more after +/-",
+      "a spread written with no number refuses with the parser's own reason")
+r = nps.density("mass", "density", "1000 +/- 1 percent", "volume", "0.0020 m^3")
+check(r.outcome == "invalid input" and #r.steps == 0 and
+      r.detail == "a relative uncertainty such as 1 percent is not propagated here, so " ..
+                  "state it in the quantity's unit",
+      "and a relative spread is named as one rather than as an unknown unit word")
+r = nps.density("mass", "density", "1000 +/- 1 %", "volume", "0.0020 m^3")
+check(r.detail == "a relative uncertainty such as 1 percent is not propagated here, so " ..
+                  "state it in the quantity's unit",
+      "which the percent sign reaches as well as the word")
+
 r = nps.optics("thin lens", "image distance", "focal length", "2.50 +/- 0.02 m",
                "object distance", "15 cm")
 check(r.outcome == "invalid input" and r.solved == false and #r.steps == 0 and

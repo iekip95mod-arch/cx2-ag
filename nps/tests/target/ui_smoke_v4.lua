@@ -520,6 +520,21 @@ fake_density_replies = {
               failed = false, depth = 0 },
         },
     },
+    -- The unknown density whose exact variance outgrows int64, off the same run luax_host asserts.
+    ["2000000000.0 +/- 0.1 kg"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "density = 1000000000 kg/m^3", nodes = 18,
+        value = "1000000000", exact_value = "1000000000", unit = "kg/m^3", unknown = "density",
+        assumptions = "density is uniform across the sample",
+        precision = { kind = "measured", significant_digits = 2,
+                      last_significant_decimal_place = 8, uncertainty_state = "too large" },
+        step_count = 8, rewrites = 4, giac_calls = 0,
+        steps = {
+            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
+              short = "Use the density definition", claim = "no claim", verified = true,
+              failed = false, depth = 0 },
+        },
+    },
 }
 
 -- Global, since this file is at Lua's ceiling of 200 top-level locals.
@@ -3400,20 +3415,33 @@ do
           "and the line names the given that did not state one")
     on.escapeKey()
 
-    -- The other two states the shell has to explain. Only the route that produced them differs.
-    for _, state in ipairs({ { "not propagated", "none reaches this answer" },
-                             { "too large", "the exact square outgrew its range" } }) do
-        fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = state[1]
-        openPhysicsFixtures()
-        physicsBrowser.focus = index or 1
-        painted()
-        on.enterKey()
-        check(painted():find("SPREAD", 1, true) ~= nil and
-              paintedRun():find("no uncertainty: " .. state[2], 1, true) ~= nil,
-              "a " .. state[1] .. " uncertainty says so in its own words")
-        on.escapeKey()
-    end
+    -- Not propagated has its own route, so the state is written onto this record to reach the shell.
+    fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = "not propagated"
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    check(painted():find("SPREAD", 1, true) ~= nil and
+          paintedRun():find("no uncertainty: none reaches this answer", 1, true) ~= nil,
+          "a not propagated uncertainty says so in its own words")
+    on.escapeKey()
     fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = "unstated"
+
+    -- Too large arrives from a record copied off a real bridge run rather than a written-in state.
+    PHYSICS_FIXTURES[index or 1].run = function()
+        return nps_nspire.density("density", "mass", "2000000000.0 +/- 0.1 kg",
+                                  "volume", "2.0 +/- 0.1 m^3")
+    end
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    check(steps.result.result == "density = 1000000000 kg/m^3",
+          "the too large record reaches the shell with its answer and no spread in it")
+    check(painted():find("SPREAD", 1, true) ~= nil and
+          paintedRun():find("no uncertainty: the exact square outgrew its range", 1, true) ~= nil,
+          "a too large uncertainty says so in its own words")
+    on.escapeKey()
     PHYSICS_FIXTURES[index or 1].run = run_before
     physicsBrowser.focus = focus_before
 end
