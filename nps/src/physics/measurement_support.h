@@ -284,7 +284,12 @@ inline ReportOutcome report_measured_precision(Arena &arena, Derivation &derivat
                                                const std::string &rounding_detailed,
                                                std::string *value_text, std::string *detail) {
     std::string reported;
-    if (!rounded_text(candidate, precision.significant_digits, &reported)) {
+    // A zero has no significant figure to count from, so its declared place is the only thing that
+    // can spell it, and a figure count collapses it to a bare zero whatever that place says.
+    const bool spelled = candidate.num == 0
+                             ? precision_rounded_text(candidate, precision, &reported)
+                             : rounded_text(candidate, precision.significant_digits, &reported);
+    if (!spelled) {
         *detail = "reporting the measured precision exceeds exact integer arithmetic";
         return ReportOutcome::Overflow;
     }

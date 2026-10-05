@@ -323,6 +323,93 @@ void run_density_tests(TestSink &t) {
                 "an uncertainty wider than the value keeps the value's own figure count");
         t.check(wide.result.quantity.precision.last_significant_decimal_place == -2,
                 "and the reported place stays the value's rather than the uncertainty's");
+
+        // 0.040 +/- 0.20: the root's last figure sits at the value's leading one rather than left of
+        // it, so one figure of the value survives there and the value follows the root.
+        const Run at_lead = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.020 +/- 0.1 kg/m^3"),
+            known(DensityVariable::Volume, "2 m^3")));
+        t.equal(at_lead.result.value_text + " +/- " + at_lead.result.uncertainty_text,
+                "0.04 +/- 0.20", "an uncertainty reaching the value's leading figure is still followed");
+        t.check(at_lead.result.quantity.precision.last_significant_decimal_place == -2 &&
+                    at_lead.result.quantity.precision.significant_digits == 1,
+                "leaving the value the one figure that place keeps of it");
+
+        // A stated spread of zero, #588. Zero has no two-figure root, so the answer reports none and
+        // keeps the figures the same givens without the spread give it.
+        const Run zero_spread =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "1000 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0 m^3")));
+        const Run no_spread =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "1000 kg/m^3"),
+                        known(DensityVariable::Volume, "0.0020 m^3")));
+        t.equal(zero_spread.result.value_text, no_spread.result.value_text,
+                "a stated spread of zero costs the answer none of its figures");
+        t.equal(zero_spread.result.value_text, "2.0",
+                "which is the significant-figure rule's own answer");
+        t.check(zero_spread.result.uncertainty_text.empty() &&
+                    zero_spread.uncertainty_evidence.empty(),
+                "with no root reported and no rounding check claiming one");
+        t.equal(uncertainty_state_name(zero_spread.result.quantity.precision.uncertainty),
+                "not propagated",
+                "and a first-order variance of zero says so rather than reading as a known zero");
+        t.equal(derivation_status_name(zero_spread.result.status), "solved and verified",
+                "while the derivation it came from still stands");
+        const Run zero_spread_prefixed =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "2 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "2.0 +/- 0 cm^3")));
+        t.equal(uncertainty_state_name(zero_spread_prefixed.result.quantity.precision.uncertainty),
+                "not propagated",
+                "and a prefixed given's zero spread reads the same as an unprefixed one");
+
+        // A zero answer leaves the relative form nothing to divide by, and the definition's own
+        // variance identity closes exactly there because one of its two terms carries a zero factor.
+        const Run zero_density = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.0 +/- 0.1 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        t.check(rational_equal(zero_density.result.quantity.precision.variance, Rational{1, 25}),
+                "a measured density of zero leaves the volume squared times its own variance");
+        t.equal(zero_density.result.value_text + " +/- " + zero_density.result.uncertainty_text,
+                "0.00 +/- 0.20", "and the zero answer is written to the root's place like any other");
+        t.equal(derivation_status_name(zero_density.result.status), "solved and verified",
+                "with the propagation witnessed rather than left unchecked");
+        t.check(contains(zero_density.propagation_evidence,
+                         "which the density definition's own variance identity reaches too"),
+                "by the form that closes when there is no answer to divide by");
+        const Run zero_volume = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "2.0 +/- 0.1 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "0.0 +/- 0.1 m^3")));
+        const Run zero_mass_density = run(problem(
+            DensityVariable::Density, uncertain_known(DensityVariable::Mass, "0.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        const Run zero_mass_volume = run(problem(
+            DensityVariable::Volume, uncertain_known(DensityVariable::Mass, "0.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Density, "4.0 +/- 0.2 kg/m^3")));
+        t.equal(std::string(derivation_status_name(zero_volume.result.status)) + ", " +
+                    derivation_status_name(zero_mass_density.result.status) + ", " +
+                    derivation_status_name(zero_mass_volume.result.status),
+                "solved and verified, solved and verified, solved and verified",
+                "and the three other shapes that reach a zero answer are witnessed the same way");
+        t.equal(zero_volume.result.value_text + " +/- " + zero_volume.result.uncertainty_text,
+                "0.00 +/- 0.20", "a zero volume leaves the density term alone");
+        t.equal(zero_mass_density.result.value_text + " +/- " +
+                    zero_mass_density.result.uncertainty_text,
+                "0.000 +/- 0.050", "a zero density from a zero mass takes the mass term alone");
+        t.equal(zero_mass_volume.result.value_text + " +/- " +
+                    zero_mass_volume.result.uncertainty_text,
+                "0.000 +/- 0.025", "and so does the zero volume a zero mass gives");
+
+        // The identity needs a given squared, which four thousand million cubic meters does not
+        // leave room for, so nothing witnesses the propagation and the record says exactly that.
+        const Run unwitnessed = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.0 +/- 0.1 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "4000000000.0 +/- 0.1 m^3")));
+        t.equal(density_outcome_name(unwitnessed.result.outcome), "solved",
+                "a check that outgrows exact arithmetic leaves the answer standing");
+        t.equal(derivation_status_name(unwitnessed.result.status), "solved but unchecked",
+                "and is the one shape that reports the uncertainty without a witness for it");
+        t.check(contains(unwitnessed.propagation_evidence, "inconclusive"),
+                "which the propagation step records rather than claiming a check it never ran");
     }
     {
         // VER-010 for the two rules PHYS-020 adds. Their positive cases come off the golden
