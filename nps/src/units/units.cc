@@ -774,6 +774,9 @@ void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *ou
     } else if (unstated) {
         out->variance = Rational();
         out->uncertainty = UncertaintyState::Unstated;
+    } else if (out->variance.num == 0) {
+        // A first-order sum of zero has no root to report, so it carries none rather than a known zero.
+        out->uncertainty = UncertaintyState::NotPropagated;
     } else {
         out->uncertainty = UncertaintyState::Known;
     }
@@ -786,11 +789,9 @@ bool uncertainty_text(const Precision &precision, std::string *out, int32_t *pla
         mpq_sgn(variance.get()) < 0) {
         return false;
     }
-    if (mpq_sgn(variance.get()) == 0) {
-        *out = "0";
-        *place = 0;
-        return true;
-    }
+    // Zero has no significant figure to round up to, so there is no two-figure root and no place.
+    if (mpq_sgn(variance.get()) == 0)
+        return false;
     const int variance_lead = detail::mpq_leading_decimal_place(variance.get());
     const int lead = variance_lead >= 0 ? variance_lead / 2 : -((1 - variance_lead) / 2);
     int32_t last = lead - 1;
@@ -856,10 +857,6 @@ UncertaintyRounding uncertainty_rounding_valid(const Precision &precision,
         !detail::mpq_from_text(value.get(), reported, reported.size()) ||
         mpq_sgn(value.get()) < 0) {
         return UncertaintyRounding::Unreadable;
-    }
-    if (mpq_sgn(variance.get()) == 0) {
-        return mpq_sgn(value.get()) == 0 ? UncertaintyRounding::Smallest
-                                         : UncertaintyRounding::NotSmallest;
     }
     detail::Mpq unit;
     if (!detail::mpq_decimal_place_unit(unit.get(), place))
