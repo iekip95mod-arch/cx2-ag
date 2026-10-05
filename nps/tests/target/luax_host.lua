@@ -1841,8 +1841,7 @@ check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.20",
 check(r.result == "mass = 0.00 +/- 0.20 kg" and r.value == "0.00",
       "and the zero value is written to that uncertainty's place like any other")
 
--- The state the exact variance outgrowing int64 leaves, reached from Lua rather than written into a
--- mock. The derivation still solves and verifies, so only the uncertainty is withheld.
+-- The overflow state reached from Lua rather than written into a mock, with the derivation still sound.
 r = nps.density("density", "mass", "2000000000.0 +/- 0.1 kg", "volume", "2.0 +/- 0.1 m^3")
 check(r.solved == true and r.outcome == "solved" and r.status == "solved and verified",
       "a stated uncertainty whose variance outgrows the arithmetic still solves and verifies")
