@@ -132,9 +132,11 @@ struct UncertaintyTerm {
 };
 
 // First order over distinct inputs: each sensitivity squared times that input's variance, summed.
+// A sum of zero has no root to report, so it comes back not propagated rather than as a known zero.
 void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *out);
 
-// The root rounded up to two significant figures, and the decimal place of its last one.
+// The root rounded up to two significant figures, and the decimal place of its last one. False for a
+// zero variance, which has no significant figure to round up to.
 bool uncertainty_text(const Precision &precision, std::string *out, int32_t *place);
 
 // What a reported uncertainty was found to be against the variance behind it. Named for what

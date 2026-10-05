@@ -1531,7 +1531,15 @@ void run_units_tests(TestSink &t) {
                     whole.precision.significant_digits == 1 &&
                     whole.precision.last_significant_decimal_place == 0,
                 "a whole number with an uncertainty is a measurement to its units place");
-        t.equal(uncertainty_of("5.0 +/- 0 kg"), "0", "a stated zero is a known zero");
+        const Quantity stated_zero = uncertain("5.0 +/- 0 kg");
+        t.check(stated_zero.precision.uncertainty == UncertaintyState::Known &&
+                    stated_zero.precision.variance.num == 0,
+                "a stated zero is read as a known variance of zero");
+        std::string zero_root = "untouched";
+        int32_t zero_root_place = -7;
+        t.check(!uncertainty_text(stated_zero.precision, &zero_root, &zero_root_place) &&
+                    zero_root == "untouched" && zero_root_place == -7,
+                "which has no two-figure root, so neither a text nor a place comes back for it");
         t.equal(uncertainty_of("2.50 +/- -0.02 m"),
                 "refused: an uncertainty is a number of zero or more after +/-",
                 "a negative uncertainty is refused");
@@ -1626,6 +1634,12 @@ void run_units_tests(TestSink &t) {
         t.check(propagated.uncertainty == UncertaintyState::Known &&
                     rational_equal(propagated.variance, Rational{1, 20}),
                 "a first-order propagation weighs each variance by its sensitivity squared");
+        const UncertaintyTerm vanishing[] = {{Rational{0, 1}, &two.precision},
+                                             {Rational{0, 1}, &three.precision}};
+        Precision vanished = at_place(-1);
+        propagate_uncertainty(vanishing, &vanished);
+        t.equal(stated_uncertainty(vanished), "not propagated",
+                "while a sum that comes to zero has no root to report and says so");
 
         const Quantity cubic = uncertain("2.0 +/- 0.1 cm^3");
         Quantity converted;
@@ -1674,8 +1688,8 @@ void run_units_tests(TestSink &t) {
                 "an exact root covers its own variance and nothing smaller does");
         const Precision zero_spread = with_variance(Rational{0, 1});
         t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0", 0)),
-                "the smallest two-figure value whose square covers the variance",
-                "a known zero is reported as zero");
+                "not two significant figures in the place it was reported to",
+                "a root of zero is refused rather than called the smallest cover, #588");
         t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0.10", -2)),
                 "a smaller two-figure value already covers the variance",
                 "and nothing above zero is the smallest cover for it");

@@ -148,6 +148,47 @@ QuadratureCheck relative_quadrature(const Quantity (&si)[kVariableCount], int un
                                                     : QuadratureCheck::Disagrees;
 }
 
+// The definition's own variance identity, read over all three quantities whichever one was solved
+// for. It holds exactly where the answer is zero, which is the only place the relative form is
+// missing: one of its two terms carries a zero factor there, and so does the cross term that
+// propagating a quotient back through the definition would otherwise add.
+QuadratureCheck definition_quadrature(const Quantity (&si)[kVariableCount]) {
+    const Quantity &mass = si[variable_index(DensityVariable::Mass)];
+    const Quantity &volume = si[variable_index(DensityVariable::Volume)];
+    const Quantity &density = si[variable_index(DensityVariable::Density)];
+    Rational volume_square;
+    Rational density_square;
+    Rational from_density;
+    Rational from_volume;
+    Rational total;
+    if (!rational_mul(volume.value, volume.value, &volume_square) ||
+        !rational_mul(density.value, density.value, &density_square) ||
+        !rational_mul(volume_square, density.precision.variance, &from_density) ||
+        !rational_mul(density_square, volume.precision.variance, &from_volume) ||
+        !rational_add(from_density, from_volume, &total)) {
+        return QuadratureCheck::NotApplicable;
+    }
+    return rational_equal(total, mass.precision.variance) ? QuadratureCheck::Agrees
+                                                          : QuadratureCheck::Disagrees;
+}
+
+// The tail of the propagation's observed line: which second route was compared and how it came out.
+const char *quadrature_text(QuadratureCheck quadrature, bool through_definition) {
+    switch (quadrature) {
+        case QuadratureCheck::Agrees:
+            return through_definition
+                       ? ", which the density definition's own variance identity reaches too"
+                       : ", which the squared relative uncertainties reach too";
+        case QuadratureCheck::Disagrees:
+            return through_definition
+                       ? ", which the density definition's own variance identity does not reach"
+                       : ", which the squared relative uncertainties do not reach";
+        case QuadratureCheck::NotApplicable:
+            return ", for which the definition's variance identity does not fit exact arithmetic";
+    }
+    return "";
+}
+
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status) {
     ContextInputs inputs;
@@ -553,8 +594,11 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     // is carried by the result rather than by a step whose obligation nothing could discharge.
     if (si_quantities[unknown_index].precision.uncertainty == UncertaintyState::Known) {
         const Precision &answer = si_quantities[unknown_index].precision;
-        const QuadratureCheck quadrature =
+        QuadratureCheck quadrature =
             relative_quadrature(si_quantities, unknown_index, answer.variance);
+        const bool through_definition = quadrature == QuadratureCheck::NotApplicable;
+        if (through_definition)
+            quadrature = definition_quadrature(si_quantities);
         if (!meter.step())
             return DensityResult();
         {
@@ -578,16 +622,13 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 {"obl.density.variance-is-first-order",
                  "the recorded variance is each given's variance weighted by its partial squared"});
             const std::string partials = partials_text(problem.unknown, sensitivities);
-            const std::string observed =
-                partials + ", giving " + uncertainty_state_name(answer.uncertainty) +
-                (quadrature == QuadratureCheck::Agrees
-                     ? ", which the squared relative uncertainties reach too"
-                 : quadrature == QuadratureCheck::Disagrees
-                     ? ", which the squared relative uncertainties do not reach"
-                     : ", for which there is no relative form to compare");
+            const std::string observed = partials + ", giving " +
+                                         uncertainty_state_name(answer.uncertainty) +
+                                         quadrature_text(quadrature, through_definition);
             step.verifications.push_back(verification(
-                "exact comparison against the relative quadrature identity", observed,
-                EvidenceStrength::CandidateChecked,
+                through_definition ? "exact comparison against the definition's variance identity"
+                                   : "exact comparison against the relative quadrature identity",
+                observed, EvidenceStrength::CandidateChecked,
                 quadrature == QuadratureCheck::Agrees      ? VerificationOutcome::Passed
                 : quadrature == QuadratureCheck::Disagrees ? VerificationOutcome::Failed
                                                            : VerificationOutcome::Inconclusive));
@@ -596,17 +637,25 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 std::string("the variance of ") + variable_symbol(problem.unknown) +
                 " is the first-order sum over " + partials;
             check.check_method =
-                "divide the recorded variance by the answer squared and compare it with the sum of "
-                "each given's variance over that given squared";
-            check.expected_relation = "the squared relative uncertainties add";
+                through_definition
+                    ? "compare the recorded variance with the volume squared times the density's "
+                      "variance plus the density squared times the volume's"
+                    : "divide the recorded variance by the answer squared and compare it with the "
+                      "sum of each given's variance over that given squared";
+            check.expected_relation = through_definition
+                                          ? "the definition's variance identity holds"
+                                          : "the squared relative uncertainties add";
             check.observed_result = observed;
             derivation.add_check(plan_id, std::move(step), std::move(check));
         }
         if (quadrature == QuadratureCheck::Disagrees) {
             result.outcome = DensityOutcome::VerificationFailed;
             result.status = DerivationStatus::VerificationFailed;
-            result.detail =
-                "the propagated variance disagrees with the relative quadrature identity";
+            result.detail = through_definition
+                                ? "the propagated variance disagrees with the definition's variance "
+                                  "identity"
+                                : "the propagated variance disagrees with the relative quadrature "
+                                  "identity";
             return result;
         }
     }
