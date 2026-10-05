@@ -400,16 +400,62 @@ void run_density_tests(TestSink &t) {
                 "0.000 +/- 0.025", "and so does the zero volume a zero mass gives");
 
         // The identity needs a given squared, which four thousand million cubic meters does not
-        // leave room for, so nothing witnesses the propagation and the record says exactly that.
+        // leave room for, so nothing witnesses the propagation and the uncertainty is withheld.
         const Run unwitnessed = run(problem(
             DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.0 +/- 0.1 kg/m^3"),
             uncertain_known(DensityVariable::Volume, "4000000000.0 +/- 0.1 m^3")));
         t.equal(density_outcome_name(unwitnessed.result.outcome), "solved",
                 "a check that outgrows exact arithmetic leaves the answer standing");
-        t.equal(derivation_status_name(unwitnessed.result.status), "solved but unchecked",
-                "and is the one shape that reports the uncertainty without a witness for it");
-        t.check(contains(unwitnessed.propagation_evidence, "inconclusive"),
-                "which the propagation step records rather than claiming a check it never ran");
+        t.equal(derivation_status_name(unwitnessed.result.status), "solved and verified",
+                "and the derivation of that answer reads verified rather than unchecked");
+        t.equal(uncertainty_state_name(unwitnessed.result.quantity.precision.uncertainty),
+                "too large", "with the state saying the uncertainty is what outgrew the arithmetic");
+        t.check(unwitnessed.result.uncertainty_text.empty() &&
+                    unwitnessed.propagation_evidence.empty(),
+                "so no root is reported and no propagation claim is left for nothing to witness");
+        t.equal(unwitnessed.result.value_text, "0.0",
+                "while the value keeps the significant-figure report it would have had anyway");
+
+        // Overflow is not a zero answer, and the definition identity holds only at the zero. These
+        // three have no zero in them, so an overflowing relative form leaves nothing to witness.
+        const Run wide_density = run(problem(
+            DensityVariable::Density,
+            uncertain_known(DensityVariable::Mass, "2000000000.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        const Run wide_volume = run(problem(
+            DensityVariable::Volume,
+            uncertain_known(DensityVariable::Mass, "2000000000.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Density, "2.0 +/- 0.1 kg/m^3")));
+        const Run wide_mass = run(problem(
+            DensityVariable::Mass,
+            uncertain_known(DensityVariable::Density, "2000000000.0 +/- 0.1 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        t.equal(std::string(density_outcome_name(wide_density.result.outcome)) + ", " +
+                    density_outcome_name(wide_volume.result.outcome) + ", " +
+                    density_outcome_name(wide_mass.result.outcome),
+                "solved, solved, solved",
+                "an overflowing propagation is not a verification failure for any unknown");
+        t.equal(std::string(derivation_status_name(wide_density.result.status)) + ", " +
+                    derivation_status_name(wide_volume.result.status) + ", " +
+                    derivation_status_name(wide_mass.result.status),
+                "solved and verified, solved and verified, solved and verified",
+                "and each value stands on the checks that did run");
+        t.equal(wide_density.result.value_text + ", " + wide_volume.result.value_text + ", " +
+                    wide_mass.result.value_text,
+                "1000000000, 1000000000, 4000000000",
+                "at the figures the givens between them were written with");
+        t.equal(std::string(uncertainty_state_name(
+                    wide_density.result.quantity.precision.uncertainty)) +
+                    ", " +
+                    uncertainty_state_name(wide_volume.result.quantity.precision.uncertainty) +
+                    ", " + uncertainty_state_name(wide_mass.result.quantity.precision.uncertainty),
+                "too large, too large, too large",
+                "with the uncertainty withheld rather than failed against an identity that does not "
+                "hold for a quotient");
+        t.check(wide_density.result.uncertainty_text.empty() &&
+                    wide_volume.result.uncertainty_text.empty() &&
+                    wide_mass.result.uncertainty_text.empty(),
+                "and no root offered for any of the three");
     }
     {
         // VER-010 for the two rules PHYS-020 adds. Their positive cases come off the golden
