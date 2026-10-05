@@ -1,5 +1,6 @@
 #include "nps/physics/density.h"
 
+#include <span>
 #include <utility>
 
 #include "nps/core/context.h"
@@ -63,6 +64,137 @@ std::string known_text(const DensityKnown &known) {
 }
 
 Unit si_unit(DensityVariable variable) { return measure::si_unit(variable_dimension(variable)); }
+
+// -x/y^2, the partial of a quotient with respect to its divisor.
+bool negated_quotient(const Rational &numerator, const Rational &divisor, Rational *out) {
+    Rational square;
+    Rational quotient;
+    return rational_mul(divisor, divisor, &square) && rational_div(numerator, square, &quotient) &&
+           negate_fraction(quotient.num, quotient.den, &out->num, &out->den);
+}
+
+// The first-order partials of the solved variable with respect to the two givens, indexed the same
+// way the quantity table is. A product's partials are the other factor; a quotient's second one is
+// negative, which is the sign the squares in the variance throw away.
+bool density_sensitivities(DensityVariable unknown, const Quantity (&si)[kVariableCount],
+                          Rational (&out)[kVariableCount]) {
+    const Rational &mass = si[variable_index(DensityVariable::Mass)].value;
+    const Rational &volume = si[variable_index(DensityVariable::Volume)].value;
+    const Rational &density = si[variable_index(DensityVariable::Density)].value;
+    switch (unknown) {
+        case DensityVariable::Mass:
+            out[variable_index(DensityVariable::Density)] = volume;
+            out[variable_index(DensityVariable::Volume)] = density;
+            return true;
+        case DensityVariable::Density:
+            return rational_div(Rational{1, 1}, volume,
+                                &out[variable_index(DensityVariable::Mass)]) &&
+                   negated_quotient(mass, volume,
+                                    &out[variable_index(DensityVariable::Volume)]);
+        case DensityVariable::Volume:
+            return rational_div(Rational{1, 1}, density,
+                                &out[variable_index(DensityVariable::Mass)]) &&
+                   negated_quotient(mass, density,
+                                    &out[variable_index(DensityVariable::Density)]);
+    }
+    return false;
+}
+
+std::string partials_text(DensityVariable unknown, const Rational (&sensitivities)[kVariableCount]) {
+    const int unknown_index = variable_index(unknown);
+    std::string text;
+    for (size_t index = 0; index < kVariableCount; ++index) {
+        if (static_cast<int>(index) == unknown_index)
+            continue;
+        if (!text.empty())
+            text += ", ";
+        text += std::string("d") + variable_symbol(unknown) + "/d" +
+                variable_symbol(static_cast<DensityVariable>(index)) + " = " +
+                rational_text(sensitivities[index]);
+    }
+    return text;
+}
+
+// A zero quantity and exact arithmetic running out are different facts about the same check, and
+// only the first of them is a place the definition's variance identity holds.
+enum class QuadratureCheck : uint8_t {
+    Agrees,
+    Disagrees,
+    ZeroQuantity,
+    OutgrewArithmetic,
+};
+
+// The same propagation in relative form, where m = rho*V and both its rearrangements add the squared
+// relative uncertainties. It reaches the recorded variance without touching the partials, so a wrong
+// sensitivity does not agree with itself. A zero among the three leaves no relative form to compare.
+QuadratureCheck relative_quadrature(const Quantity (&si)[kVariableCount], int unknown_index,
+                                    const Rational &variance) {
+    Rational answer_square;
+    Rational relative;
+    if (!rational_mul(si[unknown_index].value, si[unknown_index].value, &answer_square))
+        return QuadratureCheck::OutgrewArithmetic;
+    if (answer_square.num == 0)
+        return QuadratureCheck::ZeroQuantity;
+    if (!rational_div(variance, answer_square, &relative))
+        return QuadratureCheck::OutgrewArithmetic;
+    Rational given_relative;
+    for (size_t index = 0; index < kVariableCount; ++index) {
+        if (static_cast<int>(index) == unknown_index)
+            continue;
+        Rational square;
+        Rational term;
+        if (!rational_mul(si[index].value, si[index].value, &square))
+            return QuadratureCheck::OutgrewArithmetic;
+        // No input reaches this: a zero given either forces a zero answer, which the return above
+        // takes, or is the divisor of a quotient, which the problem is refused for upstream.
+        if (square.num == 0)
+            return QuadratureCheck::ZeroQuantity;
+        if (!rational_div(si[index].precision.variance, square, &term) ||
+            !rational_add(given_relative, term, &given_relative)) {
+            return QuadratureCheck::OutgrewArithmetic;
+        }
+    }
+    return rational_equal(relative, given_relative) ? QuadratureCheck::Agrees
+                                                    : QuadratureCheck::Disagrees;
+}
+
+// The definition's own variance identity, read over all three quantities whichever one was solved
+// for. It holds exactly where one of the three is zero, which is the only place the relative form is
+// missing: one of its two terms carries a zero factor there, and so does the cross term that
+// propagating a quotient back through the definition would otherwise add. Away from the zero it
+// disagrees with a quotient's first-order sum by construction, so it is never asked there.
+QuadratureCheck definition_quadrature(const Quantity (&si)[kVariableCount]) {
+    const Quantity &mass = si[variable_index(DensityVariable::Mass)];
+    const Quantity &volume = si[variable_index(DensityVariable::Volume)];
+    const Quantity &density = si[variable_index(DensityVariable::Density)];
+    Rational volume_square;
+    Rational density_square;
+    Rational from_density;
+    Rational from_volume;
+    Rational total;
+    if (!rational_mul(volume.value, volume.value, &volume_square) ||
+        !rational_mul(density.value, density.value, &density_square) ||
+        !rational_mul(volume_square, density.precision.variance, &from_density) ||
+        !rational_mul(density_square, volume.precision.variance, &from_volume) ||
+        !rational_add(from_density, from_volume, &total)) {
+        return QuadratureCheck::OutgrewArithmetic;
+    }
+    return rational_equal(total, mass.precision.variance) ? QuadratureCheck::Agrees
+                                                          : QuadratureCheck::Disagrees;
+}
+
+// The tail of the propagation's observed line: which second route was compared and how it came out.
+// Only a check that reached a verdict is recorded, so there is no line for one that did not.
+const char *quadrature_text(QuadratureCheck quadrature, bool through_definition) {
+    if (quadrature == QuadratureCheck::Agrees) {
+        return through_definition
+                   ? ", which the density definition's own variance identity reaches too"
+                   : ", which the squared relative uncertainties reach too";
+    }
+    return through_definition
+               ? ", which the density definition's own variance identity does not reach"
+               : ", which the squared relative uncertainties do not reach";
+}
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
                     DerivationStatus status) {
@@ -222,17 +354,13 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         if (static_cast<int>(index) == unknown_index)
             continue;
         const DensityKnown &known = *knowns[index];
-        Rational value;
-        if (!to_si(known.quantity, &value)) {
+        Quantity converted;
+        if (!to_si(known.quantity, &converted)) {
             return failed(DensityOutcome::ArithmeticOverflow,
                           DerivationStatus::ResourceLimitReached,
                           "converting " + known_text(known) +
                               " to SI exceeds exact integer arithmetic");
         }
-        Quantity converted;
-        converted.value = value;
-        converted.unit = si_unit(known.variable);
-        converted.precision = known.quantity.precision;
         si_quantities[index] = converted;
         Rational scale;
         normalize_copy(known.quantity.unit.scale, &scale);
@@ -389,9 +517,31 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     si_quantities[unknown_index].value = candidate;
     si_quantities[unknown_index].unit = si_unit(problem.unknown);
     Precision answer_precision;
+    bool uncertainty_stated = false;
     for (size_t index = 0; index < kVariableCount; ++index) {
-        if (static_cast<int>(index) != unknown_index)
-            answer_precision = precision_combine(answer_precision, si_quantities[index].precision);
+        if (static_cast<int>(index) == unknown_index)
+            continue;
+        answer_precision = precision_combine(answer_precision, si_quantities[index].precision);
+        uncertainty_stated = uncertainty_stated ||
+                             si_quantities[index].precision.uncertainty != UncertaintyState::None;
+    }
+    // The fold above settles the figures. It has no values, so it can only say the uncertainty went
+    // unpropagated, and the route does have the values and the partials that propagate it.
+    Rational sensitivities[kVariableCount];
+    const bool partials_fit =
+        uncertainty_stated && density_sensitivities(problem.unknown, si_quantities, sensitivities);
+    if (partials_fit) {
+        UncertaintyTerm terms[kVariableCount - 1];
+        size_t term_count = 0;
+        for (size_t index = 0; index < kVariableCount; ++index) {
+            if (static_cast<int>(index) != unknown_index)
+                terms[term_count++] = {sensitivities[index], &si_quantities[index].precision};
+        }
+        propagate_uncertainty(std::span<const UncertaintyTerm>(terms, term_count),
+                              &answer_precision);
+    } else if (uncertainty_stated) {
+        answer_precision.uncertainty = UncertaintyState::TooLarge;
+        answer_precision.variance = Rational();
     }
     si_quantities[unknown_index].precision = answer_precision;
 
@@ -447,6 +597,79 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         return result;
     }
 
+    // Only a propagation that produced a variance is recorded. A state that says why there is none
+    // is carried by the result rather than by a step whose obligation nothing could discharge.
+    if (si_quantities[unknown_index].precision.uncertainty == UncertaintyState::Known) {
+        const Precision &answer = si_quantities[unknown_index].precision;
+        QuadratureCheck quadrature =
+            relative_quadrature(si_quantities, unknown_index, answer.variance);
+        const bool through_definition = quadrature == QuadratureCheck::ZeroQuantity;
+        if (through_definition)
+            quadrature = definition_quadrature(si_quantities);
+        // Neither route reached a verdict, so the uncertainty is withheld rather than reported
+        // behind an obligation nothing discharged. The value and its own checks are untouched.
+        if (quadrature == QuadratureCheck::OutgrewArithmetic) {
+            si_quantities[unknown_index].precision.uncertainty = UncertaintyState::TooLarge;
+            si_quantities[unknown_index].precision.variance = Rational();
+        } else if (!meter.step()) {
+            return DensityResult();
+        } else {
+            Step step;
+            step.phase = "check";
+            step.goal = "Propagate the stated uncertainties";
+            step.rule_id = "physics.density.propagate-uncertainty";
+            step.rule_name = "First-order uncertainty propagation";
+            step.explanation_short =
+                "Weigh each given's variance by its partial squared and add the two";
+            step.explanation_detailed =
+                "Each given moves the answer by its own partial derivative, so the answer's variance "
+                "is every given's variance multiplied by that partial squared. The squares add "
+                "rather than the uncertainties themselves, because independent errors are as likely "
+                "to cancel as to reinforce and adding them directly would claim they never do. This "
+                "is the first-order rule, which keeps those terms and drops the higher ones the "
+                "relation also contributes.";
+            step.claim = ClaimType::Implication;
+            step.assumptions_before.push_back("the two given measurements are independent");
+            step.proof_obligations.push_back(
+                {"obl.density.variance-is-first-order",
+                 "the recorded variance is each given's variance weighted by its partial squared"});
+            const std::string partials = partials_text(problem.unknown, sensitivities);
+            const std::string observed = partials + ", giving " +
+                                         uncertainty_state_name(answer.uncertainty) +
+                                         quadrature_text(quadrature, through_definition);
+            step.verifications.push_back(verification(
+                through_definition ? "exact comparison against the definition's variance identity"
+                                   : "exact comparison against the relative quadrature identity",
+                observed, EvidenceStrength::CandidateChecked,
+                quadrature == QuadratureCheck::Agrees));
+            CheckPayload check;
+            check.target_claim =
+                std::string("the variance of ") + variable_symbol(problem.unknown) +
+                " is the first-order sum over " + partials;
+            check.check_method =
+                through_definition
+                    ? "compare the recorded variance with the volume squared times the density's "
+                      "variance plus the density squared times the volume's"
+                    : "divide the recorded variance by the answer squared and compare it with the "
+                      "sum of each given's variance over that given squared";
+            check.expected_relation = through_definition
+                                          ? "the definition's variance identity holds"
+                                          : "the squared relative uncertainties add";
+            check.observed_result = observed;
+            derivation.add_check(plan_id, std::move(step), std::move(check));
+        }
+        if (quadrature == QuadratureCheck::Disagrees) {
+            result.outcome = DensityOutcome::VerificationFailed;
+            result.status = DerivationStatus::VerificationFailed;
+            result.detail = through_definition
+                                ? "the propagated variance disagrees with the definition's variance "
+                                  "identity"
+                                : "the propagated variance disagrees with the relative quadrature "
+                                  "identity";
+            return result;
+        }
+    }
+
     result.outcome = DensityOutcome::Solved;
     result.value = solved.solution;
     result.quantity = si_quantities[unknown_index];
@@ -455,6 +678,66 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     result.quantity.precision = precision_at_digits(candidate, result.quantity.precision);
     result.value_text = rational_text(candidate);
     result.unit_text = result.quantity.unit.text;
+
+    // The spread belongs to the report the value is read from, so it is attached once that report
+    // has finished rather than cleared again by every arm that abandons the value.
+    std::string reported_uncertainty;
+    if (result.quantity.precision.uncertainty == UncertaintyState::Known) {
+        std::string reported;
+        int32_t reported_place = 0;
+        const UncertaintyRounding judged =
+            uncertainty_text(result.quantity.precision, &reported, &reported_place)
+                ? uncertainty_rounding_valid(result.quantity.precision, reported, reported_place)
+                : UncertaintyRounding::Unreadable;
+        if (!meter.step())
+            return DensityResult();
+        {
+            Step step;
+            step.phase = "check";
+            step.goal = "Check the reported uncertainty against the exact variance";
+            step.rule_id = "physics.density.check-uncertainty";
+            step.rule_name = "Uncertainty rounding";
+            step.explanation_short =
+                "The reported uncertainty is rounded up, never down, to two figures";
+            step.claim = ClaimType::Implication;
+            step.proof_obligations.push_back(
+                {"obl.density.uncertainty-covers-the-variance",
+                 "the reported uncertainty is the smallest two-figure value whose square covers "
+                 "the variance"});
+            const std::string observed = reported + " is " + uncertainty_rounding_name(judged);
+            step.verifications.push_back(
+                verification("read the reported uncertainty back and square it", observed,
+                             EvidenceStrength::CandidateChecked,
+                             judged == UncertaintyRounding::Smallest ? VerificationOutcome::Passed
+                                                                    : VerificationOutcome::Failed));
+            CheckPayload check;
+            check.target_claim =
+                reported + " " + result.unit_text + " is the uncertainty the exact variance supports";
+            check.check_method =
+                "read the reported text back and compare its square, and the square one unit in its "
+                "last place below it, against the exact variance";
+            check.expected_relation =
+                "the reported square covers the variance and the next one down does not";
+            check.observed_result = observed;
+            derivation.add_check(kNoStep, std::move(step), std::move(check));
+        }
+        if (judged != UncertaintyRounding::Smallest) {
+            result.outcome = DensityOutcome::VerificationFailed;
+            result.status = DerivationStatus::VerificationFailed;
+            result.detail = reported + " is " + uncertainty_rounding_name(judged);
+            result.value = kNoNode;
+            result.value_text.clear();
+            result.unit_text.clear();
+            return result;
+        }
+        reported_uncertainty = reported;
+        // GLP 9 step 1.3: the value is reported to the decimal place of the uncertainty's last
+        // figure, whether or not a figure of the value itself survives there.
+        Precision reporting = result.quantity.precision;
+        reporting.last_significant_decimal_place = reported_place;
+        result.quantity.precision = precision_at_value(candidate, reporting);
+    }
+
     if (result.quantity.precision.kind == NumberKind::Measured) {
         const measure::ReportOutcome reported = measure::report_measured_precision(
             arena, derivation, meter, candidate, solved.solution, result.quantity.precision,
@@ -491,6 +774,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             case measure::ReportOutcome::Rounded: break;
         }
     }
+    result.uncertainty_text = std::move(reported_uncertainty);
     return result;
 }
 

@@ -1531,7 +1531,15 @@ void run_units_tests(TestSink &t) {
                     whole.precision.significant_digits == 1 &&
                     whole.precision.last_significant_decimal_place == 0,
                 "a whole number with an uncertainty is a measurement to its units place");
-        t.equal(uncertainty_of("5.0 +/- 0 kg"), "0", "a stated zero is a known zero");
+        const Quantity stated_zero = uncertain("5.0 +/- 0 kg");
+        t.check(stated_zero.precision.uncertainty == UncertaintyState::Known &&
+                    stated_zero.precision.variance.num == 0,
+                "a stated zero is read as a known variance of zero");
+        std::string zero_root = "untouched";
+        int32_t zero_root_place = -7;
+        t.check(!uncertainty_text(stated_zero.precision, &zero_root, &zero_root_place) &&
+                    zero_root == "untouched" && zero_root_place == -7,
+                "which has no two-figure root, so neither a text nor a place comes back for it");
         t.equal(uncertainty_of("2.50 +/- -0.02 m"),
                 "refused: an uncertainty is a number of zero or more after +/-",
                 "a negative uncertainty is refused");
@@ -1626,6 +1634,89 @@ void run_units_tests(TestSink &t) {
         t.check(propagated.uncertainty == UncertaintyState::Known &&
                     rational_equal(propagated.variance, Rational{1, 20}),
                 "a first-order propagation weighs each variance by its sensitivity squared");
+        const UncertaintyTerm vanishing[] = {{Rational{0, 1}, &two.precision},
+                                             {Rational{0, 1}, &three.precision}};
+        Precision vanished = at_place(-1);
+        propagate_uncertainty(vanishing, &vanished);
+        t.equal(stated_uncertainty(vanished), "not propagated",
+                "while a sum that comes to zero has no root to report and says so");
+
+        const Quantity cubic = uncertain("2.0 +/- 0.1 cm^3");
+        Quantity converted;
+        t.check(to_si(cubic, &converted) && rational_equal(converted.value, Rational{1, 500000}) &&
+                    converted.unit.text == "m^3",
+                "a prefixed quantity converts to SI as a whole");
+        t.check(converted.precision.significant_digits == 2 &&
+                    rational_equal(converted.precision.variance,
+                                   Rational{1, 100000000000000}),
+                "carrying its figures and scaling its variance by the exact scale squared");
+        t.equal(stated_uncertainty(converted.precision), "0.00000010",
+                "so the converted uncertainty is the given one in the new unit");
+        Quantity plain_si;
+        t.check(to_si(uncertain("2.0 m^3"), &plain_si) &&
+                    plain_si.precision.uncertainty == UncertaintyState::None,
+                "and a quantity with no stated uncertainty gains none from the conversion");
+
+        // The reported root read back and judged, which is the check uncertainty_text cannot do for
+        // itself. 101/10000 is the variance of the density lane's first worked example.
+        const Precision reported = with_variance(Rational{101, 10000});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.11", -2)),
+                "the smallest two-figure value whose square covers the variance",
+                "the rounded-up root is the smallest two-figure value that covers the variance");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.10", -2)),
+                "its square is below the variance",
+                "rounding the root down leaves a reported uncertainty the variance outgrows");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.12", -2)),
+                "a smaller two-figure value already covers the variance",
+                "and rounding it up twice is covered but is not the smallest that is");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.101", -2)),
+                "not two significant figures in the place it was reported to",
+                "a third figure is not a whole number of the reported place");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.11", -1)),
+                "not two significant figures in the place it was reported to",
+                "and neither is a correct root offered against the wrong place");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.1e-1", -2)),
+                "could not be read back",
+                "an exponent is not a decimal numeral this reads");
+        t.equal(uncertainty_rounding_name(
+                    uncertainty_rounding_valid(at_place(-2), "0.11", -2)),
+                "could not be read back",
+                "and a precision carrying no known uncertainty has no variance to judge against");
+        const Precision exact_root = with_variance(Rational{1, 100});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(exact_root, "0.10", -2)),
+                "the smallest two-figure value whose square covers the variance",
+                "an exact root covers its own variance and nothing smaller does");
+        const Precision zero_spread = with_variance(Rational{0, 1});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0", 0)),
+                "not two significant figures in the place it was reported to",
+                "a root of zero is refused rather than called the smallest cover, #588");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0.10", -2)),
+                "a smaller two-figure value already covers the variance",
+                "and nothing above zero is the smallest cover for it");
+
+        // The spread a given states, which is the exact root rather than the round-up the same
+        // variance reports. #589.
+        std::string exact_spread = "untouched";
+        t.check(exact_uncertainty_text(with_variance(Rational{1, 64}), &exact_spread) &&
+                    exact_spread == "0.125",
+                "the exact root of a stated spread is the decimal it was written as");
+        t.check(exact_uncertainty_text(with_variance(Rational{25, 1}), &exact_spread) &&
+                    exact_spread == "5",
+                "a whole-number spread comes back whole rather than padded to two figures");
+        t.check(exact_uncertainty_text(zero_spread, &exact_spread) && exact_spread == "0",
+                "and a stated zero states zero, which has no two-figure root to report");
+        exact_spread = "untouched";
+        t.check(!exact_uncertainty_text(with_variance(Rational{2, 1}), &exact_spread) &&
+                    exact_spread == "untouched",
+                "a variance that is not a square has no exact root to state");
+        std::string fractional_root = "untouched";
+        t.check(!exact_uncertainty_text(with_variance(Rational{1, 9}), &fractional_root) &&
+                    fractional_root == "untouched",
+                "nor has one whose root needs a fraction to write");
+        std::string unstated_root = "untouched";
+        t.check(!exact_uncertainty_text(at_place(-2), &unstated_root) &&
+                    unstated_root == "untouched",
+                "and a precision that states no uncertainty states none");
 
         t.equal(stated_uncertainty(precision_combine(too_large, Precision())), "too large",
                 "the route-level fold keeps a too-large state rather than calling it not propagated");
@@ -1668,8 +1759,10 @@ void run_units_tests(TestSink &t) {
         arrow.precision = with_variance(Rational{1, 100});
         t.check(vector_magnitude(arrow, &length, &why) && rational_equal(length.value, Rational{5, 1}),
                 "its magnitude is exact");
+        // The squared sum arrives not propagated, so this pins the state the magnitude reports and
+        // the zero case below is the one that pins the root dropping a variance.
         t.equal(stated_uncertainty(length.precision), "not propagated",
-                "and a root carries no product partials for the squared sum's uncertainty");
+                "a measured vector's magnitude reports its uncertainty as not propagated");
         Vector still;
         t.check(parse_vector("(0.0, 0.0) m", &still, &why), "a measured zero vector reads");
         still.precision = with_variance(Rational{1, 100});
@@ -1677,6 +1770,104 @@ void run_units_tests(TestSink &t) {
                 "its magnitude is zero");
         t.equal(stated_uncertainty(length.precision), "not propagated",
                 "and a zero magnitude does not take the components' uncertainty as its own");
+
+        t.equal(uncertainty_of("1 +/- 1 percent"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "a relative uncertainty is refused for what it is rather than as an unknown unit word");
+        t.equal(uncertainty_of("1 +/- 1 %"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "and the sign spells the same unsupported thing");
+        t.equal(uncertainty_of("1 +/- 1 kg"), "1.0",
+                "while the same spread stated in the quantity's own unit is the supported form");
+
+        // Exact means no variance, in one predicate rather than by convention at each operation.
+        const Precision exact_with_spread = with_variance(Rational{1, 100});
+        Precision exact_claim = exact_with_spread;
+        exact_claim.kind = NumberKind::Exact;
+        t.check(!precision_consistent(exact_claim),
+                "an exact precision carrying a stated uncertainty is not consistent");
+        Precision carried_spread = at_place(-2);
+        carried_spread.uncertainty = UncertaintyState::NotPropagated;
+        carried_spread.variance = Rational{1, 100};
+        t.check(!precision_consistent(carried_spread),
+                "nor is a state that says there is no uncertainty while carrying its square");
+        Precision negative_spread = exact_with_spread;
+        negative_spread.variance = Rational{-1, 100};
+        t.check(!precision_consistent(negative_spread), "nor is a negative variance");
+        Precision unreadable_spread = exact_with_spread;
+        unreadable_spread.variance.den = 0;
+        t.check(!precision_consistent(unreadable_spread), "nor one that is not a fraction");
+        t.check(precision_consistent(Precision()) && precision_consistent(measured(2)) &&
+                    precision_consistent(exact_with_spread) &&
+                    precision_consistent(with_variance(Rational{0, 1})),
+                "while an exact value, a measurement, a stated spread and a stated zero all are");
+
+        {
+            const Precision inputs[] = {Precision(),
+                                        measured(2),
+                                        a.precision,
+                                        unstated.precision,
+                                        too_large,
+                                        with_variance(Rational{0, 1}),
+                                        with_variance(Rational{101, 10000})};
+            const Rational operands[] = {Rational{0, 1}, Rational{2, 1}, Rational{1, 2},
+                                         Rational{-3, 1}};
+            const char *names[] = {"precision_combine",   "precision_product",
+                                   "precision_quotient",  "precision_power",
+                                   "precision_sum",       "precision_at_digits",
+                                   "precision_at_value",  "propagate_uncertainty",
+                                   "to_si"};
+            std::string inconsistent;
+            for (const Precision &left : inputs) {
+                for (const Precision &right : inputs) {
+                    for (const Rational &value : operands) {
+                        const UncertaintyTerm pair[] = {{Rational{2, 1}, &left},
+                                                        {Rational{3, 1}, &right}};
+                        // Seeded with the combined figures, which is the accumulator every caller
+                        // hands it, because it writes the uncertainty and not the kind.
+                        Precision swept = precision_combine(left, right);
+                        propagate_uncertainty(pair, &swept);
+                        Quantity scaled_quantity;
+                        scaled_quantity.value = value;
+                        scaled_quantity.precision = left;
+                        scaled_quantity.unit.scale = Rational{1, 100};
+                        Quantity in_si;
+                        const bool in_si_fits = to_si(scaled_quantity, &in_si);
+                        const Precision results[] = {
+                            precision_combine(left, right),
+                            precision_product(value, Rational{2, 1}, left, Rational{3, 1}, right),
+                            precision_quotient(value, Rational{6, 1}, left, Rational{3, 1}, right),
+                            precision_power(value, Rational{3, 1}, left, 2),
+                            precision_sum(value, left, right),
+                            precision_at_digits(value, left),
+                            precision_at_value(value, left),
+                            swept,
+                            in_si_fits ? in_si.precision : Precision(),
+                        };
+                        for (size_t index = 0; index < sizeof(results) / sizeof(results[0]);
+                             ++index) {
+                            if (precision_consistent(results[index]) ||
+                                inconsistent.find(names[index]) != std::string::npos) {
+                                continue;
+                            }
+                            if (!inconsistent.empty())
+                                inconsistent += ", ";
+                            inconsistent += std::string(names[index]) + " left " +
+                                            uncertainty_state_name(results[index].uncertainty) +
+                                            " carrying " + rational_text(results[index].variance) +
+                                            " from " +
+                                            uncertainty_state_name(left.uncertainty) + " and " +
+                                            uncertainty_state_name(right.uncertainty) + " at " +
+                                            rational_text(value);
+                        }
+                    }
+                }
+            }
+            t.equal(inconsistent, "",
+                    "every precision operation leaves a result the predicate accepts");
+        }
     }
 }
 

@@ -51,6 +51,9 @@ struct DensityResult {
     // The exact SI answer and its precision metadata. Only value_text is rounded for reporting.
     Quantity quantity;
     std::string value_text;
+    // PHYS-020: the reported root in the answer's unit, set only once a known uncertainty has been
+    // propagated and the reported spelling checked back against the exact variance.
+    std::string uncertainty_text;
     std::string unit_text;
     std::string detail;
     NodeId value = kNoNode;
