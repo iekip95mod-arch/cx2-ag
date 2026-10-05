@@ -259,11 +259,22 @@ void run_density_tests(TestSink &t) {
         // #589. The plan's facts are what the learner reads back as the problem, so a given's
         // stated uncertainty belongs in them rather than only in the answer.
         t.equal(one.plan_facts,
-                "density = 1000 +/- 5.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
-                "a stated uncertainty is shown in the fact line, in the spelling the result uses");
+                "density = 1000 +/- 5 kg/m^3; volume = 0.0020 +/- 0.0001 m^3; find mass",
+                "a stated uncertainty is shown in the fact line, in the spelling it was given in");
         t.equal(three.plan_facts,
-                "density = 1000.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
+                "density = 1000.0 kg/m^3; volume = 0.0020 +/- 0.0001 m^3; find mass",
                 "while a measured given that states none is written without one");
+        // A given's spread is a datum rather than a report, so the fact line states it exactly. The
+        // answer's two-figure round-up would read 0.13 here and misstate the problem by 4 percent.
+        const Run finer_than_two_figures = run(problem(
+            DensityVariable::Mass,
+            uncertain_known(DensityVariable::Density, "1000 +/- 0.125 kg/m^3"),
+            uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 m^3")));
+        t.equal(finer_than_two_figures.plan_facts,
+                "density = 1000 +/- 0.125 kg/m^3; volume = 2.0 +/- 0.1 m^3; find mass",
+                "a stated uncertainty finer than two figures is stated, not rounded up");
+        t.equal(finer_than_two_figures.result.uncertainty_text, "110",
+                "while the answer's own root is still the two-figure round-up");
         t.equal(one.propagation_evidence,
                 "passed, dm/dV = 1000, dm/drho = 0.002, giving known, which the squared relative "
                 "uncertainties reach too",
