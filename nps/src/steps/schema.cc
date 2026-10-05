@@ -873,6 +873,24 @@ const ObligationSchema kDensityCandidate[] = {
     {"obl.density.candidate-satisfies", "the candidate satisfies the original density definition",
      kSubstituteOriginalRelation, 1},
 };
+const EvidenceAlternative kRelativeQuadrature[] = {
+    {"exact comparison against the relative quadrature identity",
+     EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
+};
+const ObligationSchema kDensityVarianceFirstOrder[] = {
+    {"obl.density.variance-is-first-order",
+     "the recorded variance is each given's variance weighted by its partial squared",
+     kRelativeQuadrature, 1},
+};
+const EvidenceAlternative kReportedUncertaintyReadBack[] = {
+    {"read the reported uncertainty back and square it", EvidenceStrength::CandidateChecked,
+     CheckKind::CandidateSubstitution},
+};
+const ObligationSchema kUncertaintyCoversVariance[] = {
+    {"obl.density.uncertainty-covers-the-variance",
+     "the reported uncertainty is the smallest two-figure value whose square covers the variance",
+     kReportedUncertaintyReadBack, 1},
+};
 const EvidenceAlternative kUnitTableScale[] = {
     {"divide each stored value by its table scale and compare with the given",
      EvidenceStrength::CandidateChecked, CheckKind::CandidateSubstitution},
@@ -2397,6 +2415,10 @@ const RuleSchema kRules[] = {
     {"physics.density.convert-units", ClaimType::SolutionSetPreserved, kScalePreservesSolutions, 1,
      FailureBehavior::WithholdResult},
     {"physics.density.substitute", ClaimType::SolutionSetPreserved, kLookupPreservesSolutions, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.density.propagate-uncertainty", ClaimType::Implication, kDensityVarianceFirstOrder, 1,
+     FailureBehavior::WithholdResult},
+    {"physics.density.check-uncertainty", ClaimType::Implication, kUncertaintyCoversVariance, 1,
      FailureBehavior::WithholdResult},
     {"physics.density.significant-figures", ClaimType::NoClaim, kReportedWithinHalfPlace, 1,
      FailureBehavior::WithholdResult},

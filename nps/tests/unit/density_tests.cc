@@ -22,6 +22,20 @@ DensityKnown known(DensityVariable variable, const char *text) {
     return entry;
 }
 
+Quantity measured(const char *text) {
+    Quantity parsed;
+    std::string error;
+    parse_quantity_with_uncertainty(text, &parsed, &error);
+    return parsed;
+}
+
+DensityKnown uncertain_known(DensityVariable variable, const char *text) {
+    DensityKnown entry;
+    entry.variable = variable;
+    entry.quantity = measured(text);
+    return entry;
+}
+
 DensityProblem problem(DensityVariable unknown, const DensityKnown &first,
                        const DensityKnown &second) {
     DensityProblem input;
@@ -46,6 +60,9 @@ struct Run {
     std::string substitution_detail;
     std::string substitution_before;
     std::string substitution_after;
+    std::string propagation_evidence;
+    std::string propagation_assumption;
+    std::string uncertainty_evidence;
 };
 
 Run run(const DensityProblem &input, const Budget &budget = Budget()) {
@@ -70,6 +87,22 @@ Run run(const DensityProblem &input, const Budget &budget = Budget()) {
             if (payload) {
                 run.substitution_before = print(arena, payload->before);
                 run.substitution_after = print(arena, payload->after);
+            }
+        }
+        if (step.rule_id == "physics.density.propagate-uncertainty") {
+            for (const VerificationRecord &check : step.verifications) {
+                run.propagation_evidence += verification_outcome_name(check.outcome);
+                run.propagation_evidence += ", ";
+                run.propagation_evidence += check.detail;
+            }
+            for (const std::string &assumption : step.assumptions_before)
+                run.propagation_assumption += assumption;
+        }
+        if (step.rule_id == "physics.density.check-uncertainty") {
+            for (const VerificationRecord &check : step.verifications) {
+                run.uncertainty_evidence += verification_outcome_name(check.outcome);
+                run.uncertainty_evidence += ", ";
+                run.uncertainty_evidence += check.detail;
             }
         }
         if (step.rule_id == "physics.density.significant-figures") {
@@ -171,6 +204,171 @@ void run_density_tests(TestSink &t) {
         t.check(carry.result.quantity.precision.significant_digits == 2 &&
                     carry.result.quantity.precision.last_significant_decimal_place == 0,
                 "and the reported place is the units place its last figure sits in");
+    }
+    {
+        const Run one =
+            run(problem(DensityVariable::Mass,
+                        uncertain_known(DensityVariable::Density, "1000 +/- 5 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")));
+        t.equal(density_outcome_name(one.result.outcome), "solved",
+                "two stated uncertainties still solve the mass");
+        t.check(exact_value(one.result, 2, 1), "whose exact value is unaffected by them");
+        t.equal(uncertainty_state_name(one.result.quantity.precision.uncertainty), "known",
+                "and the route propagates them rather than giving up on them");
+        t.check(rational_equal(one.result.quantity.precision.variance, Rational{101, 10000}),
+                "the combined variance is the exact first-order sum");
+        t.equal(one.result.value_text, "2.00",
+                "the value is reported to the decimal place of the uncertainty's last figure");
+
+        const Run two =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "1000 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")));
+        t.equal(uncertainty_state_name(two.result.quantity.precision.uncertainty), "known",
+                "an exact given contributes no uncertainty of its own");
+        t.check(rational_equal(two.result.quantity.precision.variance, Rational{1, 100}),
+                "so the variance is the one measured term alone");
+        t.equal(two.result.value_text, "2.00", "and the value still follows that term's place");
+
+        const Run three =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "1000.0 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")));
+        t.equal(uncertainty_state_name(three.result.quantity.precision.uncertainty), "unstated",
+                "a measured given with no stated uncertainty leaves the answer's unknown");
+        t.equal(three.result.value_text, "2.0",
+                "and the value keeps the significant-figure rule rather than a place it has not got");
+        t.evidence("PHYS-020",
+                   one.result.value_text + " +/- " + one.result.uncertainty_text + " " +
+                       one.result.unit_text,
+                   "2.00 +/- 0.11 kg",
+                   "a measured density and volume report a mass with the uncertainty they imply");
+        t.equal(one.propagation_evidence,
+                "passed, dm/dV = 1000, dm/drho = 0.002, giving known, which the squared relative "
+                "uncertainties reach too",
+                "the propagation records both partials and a second route to the same variance");
+        t.equal(one.propagation_assumption, "the two given measurements are independent",
+                "and names the assumption first-order quadrature rests on");
+        t.equal(one.uncertainty_evidence,
+                "passed, 0.11 is the smallest two-figure value whose square covers the variance",
+                "the reported root is read back and judged against the exact variance");
+        t.equal(derivation_status_name(one.result.status), "solved and verified",
+                "so a propagated answer is verified rather than merely solved");
+        t.equal(two.result.uncertainty_text, "0.10",
+                "an exact root is reported as it stands rather than pushed up a figure");
+        t.check(three.result.uncertainty_text.empty() && three.propagation_evidence.empty(),
+                "an unpropagated uncertainty reports no root and records no propagation");
+        t.equal(derivation_status_name(three.result.status), "solved and verified",
+                "and does not leave a sound derivation looking unchecked");
+
+        // The sign of each partial, which the variance squares away and only the record keeps.
+        const Run as_density = run(problem(
+            DensityVariable::Density, uncertain_known(DensityVariable::Mass, "2.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Volume, "0.50 +/- 0.01 m^3")));
+        t.check(contains(as_density.propagation_evidence, "drho/dm = 2, drho/dV = -8"),
+                "a density divides by volume, so its volume partial is negative");
+        t.equal(as_density.result.value_text + " +/- " + as_density.result.uncertainty_text,
+                "4.00 +/- 0.22", "and the root of 29/625 rounds up to two figures");
+        const Run as_volume = run(problem(
+            DensityVariable::Volume, uncertain_known(DensityVariable::Mass, "2.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Density, "4.0 +/- 0.2 kg/m^3")));
+        t.check(contains(as_volume.propagation_evidence, "dV/dm = 0.25, dV/drho = -0.125"),
+                "a volume divides by density, so its density partial is negative");
+        t.equal(as_volume.result.value_text + " +/- " + as_volume.result.uncertainty_text,
+                "0.500 +/- 0.036", "and the root of 1/800 rounds up to two figures");
+
+        const Run prefixed =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "2 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 cm^3")));
+        t.equal(uncertainty_state_name(prefixed.result.quantity.precision.uncertainty), "known",
+                "a prefixed given carries its uncertainty through the SI conversion");
+        t.equal(prefixed.result.value_text + " +/- " + prefixed.result.uncertainty_text,
+                "0.00000400 +/- 0.00000020",
+                "which is the given uncertainty scaled by the cubic prefix, not by its root");
+
+        const Run exact_pair = run(problem(DensityVariable::Mass,
+                                           known(DensityVariable::Density, "4 kg/m^3"),
+                                           known(DensityVariable::Volume, "3 m^3")));
+        t.evidence("PHYS-020",
+                   uncertainty_state_name(exact_pair.result.quantity.precision.uncertainty), "none",
+                   "two exact givens carry no uncertainty metadata onto the answer");
+        t.check(exact_pair.result.uncertainty_text.empty() &&
+                    exact_pair.propagation_evidence.empty(),
+                "and reach neither the reported root nor the propagation step");
+        const Run measured_pair = run(problem(DensityVariable::Mass,
+                                              known(DensityVariable::Density, "4.0 kg/m^3"),
+                                              known(DensityVariable::Volume, "3.0 m^3")));
+        t.equal(uncertainty_state_name(measured_pair.result.quantity.precision.uncertainty), "none",
+                "and measurements that state none between them state none together");
+
+        // The partial, not the stated square, is what outgrows exact arithmetic here.
+        const Run huge = run(problem(
+            DensityVariable::Density, uncertain_known(DensityVariable::Mass, "10.0 +/- 0.1 kg"),
+            known(DensityVariable::Volume, "0.000000001 m^3")));
+        t.equal(density_outcome_name(huge.result.outcome), "solved",
+                "a partial that does not fit exact arithmetic leaves the value standing");
+        t.equal(uncertainty_state_name(huge.result.quantity.precision.uncertainty), "too large",
+                "and says the uncertainty outgrew it rather than reporting none");
+        t.check(huge.result.uncertainty_text.empty() && huge.propagation_evidence.empty(),
+                "with no root reported and no propagation claimed");
+
+        // 0.04 +/- 2: the uncertainty's last figure sits left of the value's leading one, so there
+        // is no place to report the value to that keeps a figure of it.
+        const Run wide = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.02 +/- 1 kg/m^3"),
+            known(DensityVariable::Volume, "2 m^3")));
+        t.equal(wide.result.value_text + " +/- " + wide.result.uncertainty_text, "0.04 +/- 2.0",
+                "an uncertainty wider than the value keeps the value's own figure count");
+        t.check(wide.result.quantity.precision.last_significant_decimal_place == -2,
+                "and the reported place stays the value's rather than the uncertainty's");
+    }
+    {
+        // The eleven recorded steps of the first worked example, with the propagation ninth.
+        Budget budget;
+        budget.max_steps = 8;
+        const Run stopped =
+            run(problem(DensityVariable::Mass,
+                        uncertain_known(DensityVariable::Density, "1000 +/- 5 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")),
+                budget);
+        t.equal(density_outcome_name(stopped.result.outcome), "resource exceeded",
+                "a budget that runs out at the propagation halts there");
+        t.check(contains(stopped.rules, "physics.density.check-candidate") &&
+                    !contains(stopped.rules, "physics.density.propagate-uncertainty"),
+                "keeping the checked work before it and recording no propagation");
+        t.check(stopped.result.value == kNoNode && stopped.result.uncertainty_text.empty(),
+                "and answering neither the value nor its uncertainty");
+
+        Budget later;
+        later.max_steps = 9;
+        const Run at_check =
+            run(problem(DensityVariable::Mass,
+                        uncertain_known(DensityVariable::Density, "1000 +/- 5 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")),
+                later);
+        t.equal(density_outcome_name(at_check.result.outcome), "resource exceeded",
+                "one step further the uncertainty check is where it runs out");
+        t.check(contains(at_check.rules, "physics.density.propagate-uncertainty") &&
+                    !contains(at_check.rules, "physics.density.check-uncertainty"),
+                "keeping the propagation and recording no check of its reported root");
+        t.check(at_check.result.uncertainty_text.empty(),
+                "which is not reported, having been checked by nothing");
+
+        PollAfter poll;
+        poll.stop_at = 3;
+        Budget canceling;
+        canceling.poll = cancel_after;
+        canceling.poll_context = &poll;
+        const Run canceled =
+            run(problem(DensityVariable::Mass,
+                        uncertain_known(DensityVariable::Density, "1000 +/- 5 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")),
+                canceling);
+        t.equal(density_outcome_name(canceled.result.outcome), "cancelled",
+                "a canceled uncertain solve answers the same way one with no uncertainty does");
+        t.check(!contains(canceled.rules, "physics.density.propagate-uncertainty") &&
+                    !contains(canceled.rules, "physics.density.check-uncertainty"),
+                "reaching neither new step, because the poll stops inside the linear solve");
+        t.check(canceled.result.uncertainty_text.empty(),
+                "and reports no uncertainty, having checked none");
     }
     {
         const Run solved = run(problem(DensityVariable::Mass,
