@@ -3088,6 +3088,17 @@ PHYSICS_FIXTURES = {
 			                             "0.600 c", "rest energy", "0.511 MeV")
 		end,
 	},
+	{
+		label = "Find a mass from give-or-take measurements",
+		problem = "The stuff weighs 1000 kilograms a cubic meter give or take 5, and there is " ..
+		          "0.0020 of a cubic meter of it give or take 0.0001. How heavy is it, and how " ..
+		          "far out could that answer be?",
+		mode = "density",
+		run = function()
+			return nps_nspire.density("mass", "density", "1000 +/- 5 kg/m^3",
+			                          "volume", "0.0020 +/- 0.0001 m^3")
+		end,
+	},
 }
 
 physicsBrowser = {
@@ -3244,6 +3255,19 @@ local function resultNote(r)
 	             "  |  " .. state .. "  |  " .. stepVerdict(r)
 	if not r.solved and r.detail and r.detail ~= "" then note = note .. "  |  " .. r.detail end
 	return note
+end
+
+local function uncertaintyNote(r)
+	local state = type(r.precision) == "table" and r.precision.uncertainty_state
+	if state == "unstated" then
+		return "no uncertainty: a measured given has none stated"
+	elseif state == "not propagated" then
+		-- A stated zero reaches this state too, so the note names no mechanism for it
+		return "no uncertainty: none reaches this answer"
+	elseif state == "too large" then
+		return "no uncertainty: the exact square outgrew its range"
+	end
+	return nil
 end
 
 local function canonicalStepCount(r)
@@ -4601,6 +4625,7 @@ local function paintStepsHeader(gc, w)
 		return y
 	end
 	local bottom = platform.window:height() - 4 * STEP_LINE
+	local spread = finalResultVisible(r) and uncertaintyNote(r) or nil
 
 	gc:setFont("sansserif", "b", 8)
 	gc:setColorRGB(90, 90, 90)
@@ -4608,7 +4633,7 @@ local function paintStepsHeader(gc, w)
 	gc:setFont("sansserif", "r", 9)
 	local inputX = STEP_MARGIN + 42
 	local inputLines = wrapSummary(gc, "input", r.input or "", w - inputX - STEP_MARGIN)
-	local inputRemaining = finalResultVisible(r) and (2 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)) or 0
+	local inputRemaining = finalResultVisible(r) and (2 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0) + (spread and 1 or 0)) or 0
 	local inputH = mathmax(STEP_LINE, mathmin(4 * STEP_LINE, bottom - y - inputRemaining * STEP_LINE))
 	local inputW, pairedW = w - inputX - STEP_MARGIN, mathmin(96, math.floor(w / 3))
 	local answer = finalResultVisible(r) and answerText(r)
@@ -4652,7 +4677,7 @@ local function paintStepsHeader(gc, w)
 		-- Reserve summary space for trust and conditions before sizing the answer.
 		local answerX = STEP_MARGIN + 48
 		local answerW = w - answerX - STEP_MARGIN
-		local remaining = 1 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
+		local remaining = 1 + (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0) + (spread and 1 or 0)
 		local answerH = mathmax(STEP_LINE, mathmin(math.floor(platform.window:height() / 3),
 		                                       bottom - y - remaining * STEP_LINE))
 		local used = placeMath("answer", answer, answerX, y, answerW, answerH)
@@ -4690,8 +4715,18 @@ local function paintStepsHeader(gc, w)
 		end
 		gc:drawString("TRUST", STEP_MARGIN, y, "top")
 		gc:setFont("sansserif", "r", 8)
-		local remaining = (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)
+		local remaining = (r.assumptions and 1 or 0) + (r.interpretation and 2 or 0) + (spread and 1 or 0)
 		y = wrapUnderLabel(gc, resultNote(r), trustX, y, w, bottom - remaining * STEP_LINE, "trust")
+
+		if spread then
+			gc:setFont("sansserif", "b", 8)
+			gc:setColorRGB(90, 90, 90)
+			gc:drawString("SPREAD", STEP_MARGIN, y, "top")
+			gc:setFont("sansserif", "r", 8)
+			y = wrapUnderLabel(gc, spread, STEP_MARGIN + 54, y, w,
+			                   bottom - ((r.assumptions and 1 or 0) + (r.interpretation and 2 or 0)) * STEP_LINE,
+			                   "spread")
+		end
 
 		if r.assumptions then
 			gc:setFont("sansserif", "b", 8)

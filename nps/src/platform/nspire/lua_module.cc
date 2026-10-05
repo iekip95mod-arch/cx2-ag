@@ -1087,6 +1087,7 @@ void set_precision(lua_State *L, const Precision &precision) {
     set_field(L, "significant_digits", static_cast<int>(precision.significant_digits));
     set_field(L, "last_significant_decimal_place",
               static_cast<int>(precision.last_significant_decimal_place));
+    set_field(L, "uncertainty_state", uncertainty_state_name(precision.uncertainty));
     lua_settable(L, -3);
 }
 
@@ -3631,13 +3632,13 @@ int l_density(lua_State *L) {
         parsed = false;
         why = "unknown density variable " + std::string(first_variable_text);
     }
-    if (parsed && !parse_quantity(first_quantity_text, &first.quantity, &why))
+    if (parsed && !parse_quantity_with_uncertainty(first_quantity_text, &first.quantity, &why))
         parsed = false;
     if (parsed && !density_variable(second_variable_text, &second.variable)) {
         parsed = false;
         why = "unknown density variable " + std::string(second_variable_text);
     }
-    if (parsed && !parse_quantity(second_quantity_text, &second.quantity, &why))
+    if (parsed && !parse_quantity_with_uncertainty(second_quantity_text, &second.quantity, &why))
         parsed = false;
     if (!parsed)
         return typed_failure(L, "invalid input", "invalid input", why);
@@ -3656,9 +3657,12 @@ int l_density(lua_State *L) {
     set_field(L, "status", derivation_status_name(r.status));
     set_field(L, "unknown", density_variable_name(problem.unknown));
     if (r.outcome == DensityOutcome::Solved) {
+        const std::string spread = r.uncertainty_text.empty() ? "" : " +/- " + r.uncertainty_text;
         set_field(L, "result", std::string(density_variable_name(problem.unknown)) + " = " +
-                                   r.value_text + " " + r.unit_text);
+                                   r.value_text + spread + " " + r.unit_text);
         set_field(L, "value", r.value_text);
+        if (!r.uncertainty_text.empty())
+            set_field(L, "uncertainty", r.uncertainty_text);
         set_field(L, "exact_value", rational_text(r.quantity.value));
         set_field(L, "unit", r.unit_text);
         set_precision(L, r.quantity.precision);

@@ -480,12 +480,60 @@ local fake_unit_conversion = {
 local fake_density = {
     outcome = "solved", detail = "", solved = true, answer_only = false,
     status = "solved and verified", result = "mass = 0.006 kg", nodes = 14,
-    precision = { kind = "exact", significant_digits = 0 },
+    precision = { kind = "exact", significant_digits = 0, uncertainty_state = "none" },
     step_count = 4, rewrites = 3, giac_calls = 0,
     steps = {
         { kind = "plan", name = "Density", goal = "Find mass from density and volume",
           short = "Use the density definition", claim = "no claim", verified = true,
           failed = false, depth = 0 },
+    },
+}
+
+-- The records luax_host.lua asserts for the same givens, field by field off a real bridge run.
+-- Global, this file being at 200 locals.
+fake_density_replies = {
+    ["1000 +/- 5 kg/m^3"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "mass = 2.00 +/- 0.11 kg", nodes = 21,
+        value = "2.00", uncertainty = "0.11", unit = "kg",
+        assumptions = "density is uniform across the sample",
+        precision = { kind = "measured", significant_digits = 3,
+                      last_significant_decimal_place = -2, uncertainty_state = "known" },
+        step_count = 11, rewrites = 7, giac_calls = 0,
+        steps = {
+            { kind = "plan", name = "Density definition", goal = "Find mass",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
+        },
+    },
+    ["1000.0 kg/m^3"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "mass = 2.0 kg", nodes = 21,
+        value = "2.0", unit = "kg",
+        assumptions = "density is uniform across the sample",
+        precision = { kind = "measured", significant_digits = 2,
+                      last_significant_decimal_place = -1, uncertainty_state = "unstated" },
+        step_count = 9, rewrites = 7, giac_calls = 0,
+        steps = {
+            { kind = "plan", name = "Density definition", goal = "Find mass",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
+        },
+    },
+    -- The unknown density whose exact variance outgrows int64, off the same run luax_host asserts.
+    ["2000000000.0 +/- 0.1 kg"] = {
+        outcome = "solved", detail = "", solved = true, answer_only = false,
+        status = "solved and verified", result = "density = 1000000000 kg/m^3", nodes = 18,
+        value = "1000000000", exact_value = "1000000000", unit = "kg/m^3", unknown = "density",
+        assumptions = "density is uniform across the sample",
+        precision = { kind = "measured", significant_digits = 2,
+                      last_significant_decimal_place = 8, uncertainty_state = "too large" },
+        step_count = 8, rewrites = 4, giac_calls = 0,
+        steps = {
+            { kind = "plan", name = "Density definition", goal = "Find density",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
+        },
     },
 }
 
@@ -790,7 +838,11 @@ nps_split = {
         if source == "3 m" and target == "s" then return fake_dimension_mismatch end
         return fake_unit_conversion
     end,
-    density = function(...) calls.density = calls.density + 1 last_args = { ... } return fake_density end,
+    density = function(...)
+        calls.density = calls.density + 1
+        last_args = { ... }
+        return fake_density_replies[last_args[3]] or fake_density
+    end,
     optics = function(...)
         calls.optics = calls.optics + 1
         last_args = { ... }
@@ -3312,6 +3364,95 @@ do
               "the " .. case.mode .. " fixture joins document history")
         on.escapeKey()
     end
+    physicsBrowser.focus = focus_before
+end
+
+-- PHYS-020 through the guided browser, both the reported uncertainty and the reason for its absence.
+do
+    local focus_before = physicsBrowser.focus
+    local index = nil
+    for position, fixture in ipairs(PHYSICS_FIXTURES) do
+        if fixture.mode == "density" and fixture.label:find("give-or-take", 1, true) then
+            index = position
+        end
+    end
+    check(index ~= nil, "the guided browser carries an entry for a mass with a stated spread")
+    local before = calls.density
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    check(calls.density == before + 1 and steps.result.mode == "density",
+          "that entry runs the density bridge exactly once")
+    check(last_args[1] == "mass" and last_args[2] == "density" and
+          last_args[3] == "1000 +/- 5 kg/m^3" and last_args[4] == "volume" and
+          last_args[5] == "0.0020 +/- 0.0001 m^3",
+          "and passes both givens with their stated uncertainties")
+    local shown = painted()
+    check(steps.result.result == "mass = 2.00 +/- 0.11 kg",
+          "the answer keeps the uncertainty the bridge reported")
+    check(mathBoxExact("mass = 2.00 +/- 0.11 kg") ~= nil,
+          "and renders whole, uncertainty and unit included, in the viewer")
+    check(shown:find("SPREAD", 1, true) == nil and
+          paintedRun():find("no uncertainty", 1, true) == nil,
+          "a known uncertainty needs no line explaining why there is none")
+    -- Whole row rather than a prefix: "Find mass from density and volume" contains "Find mass".
+    check(stepRowNames() == "1 Density definition: Find mass",
+          "the plan row draws the goal the bridge returned for this unknown")
+    if STEP_DETAILS[steps.detail] ~= "beginner" then stepsToggleDetail() end
+    local why = painted()
+    check(why:find("Use m = rho*V and solve for the requested quantity", 1, true) ~= nil,
+          "and the beginner level draws that step's own short explanation")
+    if STEP_DETAILS[steps.detail] ~= "standard" then stepsToggleDetail() end
+    on.escapeKey()
+
+    -- The same entry, asked about a measured given that states none, which is worked example three.
+    local run_before = PHYSICS_FIXTURES[index or 1].run
+    PHYSICS_FIXTURES[index or 1].run = function()
+        return nps_nspire.density("mass", "density", "1000.0 kg/m^3",
+                                  "volume", "0.0020 +/- 0.0001 m^3")
+    end
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    shown = painted()
+    check(steps.result.result == "mass = 2.0 kg" and shown:find("SPREAD", 1, true) ~= nil,
+          "an unstated uncertainty labels its own absence beside the answer")
+    check(paintedRun():find("no uncertainty: a measured given has none stated", 1, true) ~= nil,
+          "and the line names the given that did not state one")
+    on.escapeKey()
+
+    -- Not propagated has its own route, so the state is written onto this record to reach the shell.
+    fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = "not propagated"
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    check(painted():find("SPREAD", 1, true) ~= nil and
+          paintedRun():find("no uncertainty: none reaches this answer", 1, true) ~= nil,
+          "a not propagated uncertainty says so in its own words")
+    on.escapeKey()
+    fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = "unstated"
+
+    -- Too large arrives from a record copied off a real bridge run rather than a written-in state.
+    PHYSICS_FIXTURES[index or 1].run = function()
+        return nps_nspire.density("density", "mass", "2000000000.0 +/- 0.1 kg",
+                                  "volume", "2.0 +/- 0.1 m^3")
+    end
+    openPhysicsFixtures()
+    physicsBrowser.focus = index or 1
+    painted()
+    on.enterKey()
+    check(steps.result.result == "density = 1000000000 kg/m^3",
+          "the too large record reaches the shell with its answer and no spread in it")
+    check(stepRowNames() == "1 Density definition: Find density",
+          "and its plan row names the unknown this route was asked for")
+    check(painted():find("SPREAD", 1, true) ~= nil and
+          paintedRun():find("no uncertainty: the exact square outgrew its range", 1, true) ~= nil,
+          "a too large uncertainty says so in its own words")
+    on.escapeKey()
+    PHYSICS_FIXTURES[index or 1].run = run_before
     physicsBrowser.focus = focus_before
 end
 

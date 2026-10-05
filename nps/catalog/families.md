@@ -321,7 +321,7 @@ curriculum_source_locations StepCAS_Product_Requirements_Document.md section 9 P
 topic_and_level Mass, volume, and density through the definition m = rho*V, M1 density
 family_envelope_version 1
 accepted_expression_grammar existing quantity grammar for each mass, volume and density field, rather than a free expression
-accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser
+accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser, either of which may state an uncertainty after a +/- sign, as in 1000 +/- 5 kg/m^3
 word_language_profile_ids none, typed entry only
 domains_and_parameter_assumptions the three quantities must have mass, volume, and mass-per-volume dimensions and the requested unknown must be uniquely determined
 supported_branches_and_degenerate_cases any one of mass, volume, or density may be unknown, with exact prefix conversion and explicit refusal of a zero divisor that does not determine one value. A given of zero is accepted where it still determines one value, and it determines a zero answer
@@ -339,7 +339,7 @@ corpus_case_ids density_volume_mixed_units, density_mass_cubic_prefix, density_m
 explanation_review_status three solved derivations covered by golden fixtures, with refusals covered by unit checks alone and no independent explanation review recorded
 learner_transfer_status not measured
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented, the second of the two fixtures passing a stated uncertainty on both givens and the shell naming the reason whenever the answer carries none. Physical keypad qualification pending
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 capability_manifest_ids physics.density.mass-volume
 release_status in development, unreleased
