@@ -518,12 +518,12 @@ required_assumptions each vector is expressed in the named Cartesian frame, carr
 test_group_ids scalar product, units
 proof_obligation_ids obl.scalar-product.ranks-match, obl.scalar-product.frames-match, obl.scalar-product.dimension-product, obl.scalar-product.nonzero, obl.scalar-product.definition-after-checks, obl.physics.lookup-preserves-solutions, obl.physics.converts-by-table, obl.scalar-product.sum-is-the-definition, obl.scalar-product.commutative, obl.scalar-product.within-magnitude-bound, obl.scalar-product.angle-from-sign, obl.scalar-product.angle-satisfies-definition, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
 supported_methods write both readings of the definition, substitute the declared vectors into the component one, convert exactly to SI, sum the matching component products through the existing nps vector_dot, then check the sum against a reversed dot product and against the bound the geometric reading puts on it, and with a backend take atan2 of the root of that bound's slack against the sum, checked by the cosine of the answer times the magnitude product coming back to the sum
-unsupported_near_neighbors a numeric angle with no backend supplied, operands of unequal rank, implicit frame transformation, direct keypad entry, Lua bridge and Ki V4 menu exposure
+unsupported_near_neighbors a numeric angle with no backend supplied, operands of unequal rank, implicit frame transformation, direct keypad entry
 solution_soundness_status verified by rank, frame and dimension-product checks, exact conversion, exact rational summation, an exact reversed dot product and an exact Cauchy-Schwarz comparison against the geometric reading
-solution_completeness_status partial. The product is complete for equal-rank Cartesian operands within exact int64 rational bounds, and the angle is placed against a right angle without a backend and measured in degrees or radians with one. Neither reading reaches a student yet, since the family has no Lua bridge
+solution_completeness_status partial. The product is complete for equal-rank Cartesian operands within exact int64 rational bounds, and the angle is placed against a right angle without a backend and measured in degrees or radians with one. The typed Lua bridge is nps.scalar_product, source with src/platform/nspire/lua_module.cc and tests/target/luax_host.lua, carrying the sign placement without a backend and the measured angle with one, and it is reachable from the Ki V4 guided physics browser
 corpus_case_ids scalar_product_torque_free_mixed_units, scalar_product_obtuse_angle, scalar_product_measured_angle
 device_performance_status not measured
-direct_keypad_entry_status not implemented, typed API only
+direct_keypad_entry_status not implemented, typed Lua bridge only
 isolated_runtime_status not yet built for the device target
 release_status unreleased
 rule vec.dot.plan fixture

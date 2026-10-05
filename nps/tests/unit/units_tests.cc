@@ -1679,6 +1679,56 @@ void run_units_tests(TestSink &t) {
         t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0.10", -2)),
                 "a smaller two-figure value already covers the variance",
                 "and nothing above zero is the smallest cover for it");
+        t.equal(stated_uncertainty(precision_combine(too_large, Precision())), "too large",
+                "the route-level fold keeps a too-large state rather than calling it not propagated");
+
+        const Quantity five = uncertain("5.0 +/- 0.1");
+        t.equal(stated_uncertainty(precision_product(Rational{5, 2}, five.value, five.precision,
+                                                     Rational{2, 1}, Precision())),
+                "not propagated", "a value that is not the product of its operands takes no product partials");
+        t.equal(stated_uncertainty(precision_quotient(Rational{5, 2}, five.value, five.precision,
+                                                      Rational{2, 1}, Precision())),
+                "0.050", "a quotient divides the numerator's uncertainty by an exact denominator");
+        const Quantity divisor = uncertain("3.0 +/- 0.3");
+        t.equal(stated_uncertainty(precision_quotient(Rational{2, 1}, Rational{6, 1}, Precision(),
+                                                      divisor.value, divisor.precision)),
+                "0.20", "and weighs an uncertain denominator by the numerator over its square");
+        t.equal(stated_uncertainty(precision_quotient(Rational{5, 3}, five.value, five.precision,
+                                                      divisor.value, divisor.precision)),
+                "not propagated", "a quotient of two uncertain operands is not propagated either");
+        t.equal(stated_uncertainty(precision_quotient(Rational{5, 1}, five.value, five.precision,
+                                                      Rational{2, 1}, Precision())),
+                "not propagated", "nor is a value that is not the quotient of its operands");
+
+        const Quantity base = uncertain("3.0 +/- 0.1");
+        t.equal(stated_uncertainty(precision_power(Rational{9, 1}, base.value, base.precision, 2)),
+                "0.60", "a power scales the uncertainty by its exponent times the base to one less");
+        t.equal(stated_uncertainty(precision_power(Rational{1, 9}, base.value, base.precision, -2)),
+                "0.0075", "and a negative power by the same rule");
+        t.equal(stated_uncertainty(precision_power(Rational{8, 1}, base.value, base.precision, 2)),
+                "not propagated", "a value that is not the power of its base is not propagated");
+        t.check(precision_power(Rational{1, 1}, base.value, base.precision, 0).kind == NumberKind::Exact,
+                "a zeroth power is exactly one");
+        const Quantity tiny = uncertain("0.0000001 +/- 0.00000001");
+        t.equal(stated_uncertainty(precision_power(Rational{100000000000000, 1}, tiny.value,
+                                                   tiny.precision, -2)),
+                "too large", "a partial that outgrows an exact fraction is too large rather than dropped");
+
+        Vector arrow;
+        Quantity length;
+        t.check(parse_vector("(3.0, 4.0) m", &arrow, &why), "a measured vector reads");
+        arrow.precision = with_variance(Rational{1, 100});
+        t.check(vector_magnitude(arrow, &length, &why) && rational_equal(length.value, Rational{5, 1}),
+                "its magnitude is exact");
+        t.equal(stated_uncertainty(length.precision), "not propagated",
+                "and a root carries no product partials for the squared sum's uncertainty");
+        Vector still;
+        t.check(parse_vector("(0.0, 0.0) m", &still, &why), "a measured zero vector reads");
+        still.precision = with_variance(Rational{1, 100});
+        t.check(vector_magnitude(still, &length, &why) && length.value.num == 0,
+                "its magnitude is zero");
+        t.equal(stated_uncertainty(length.precision), "not propagated",
+                "and a zero magnitude does not take the components' uncertainty as its own");
     }
 }
 
