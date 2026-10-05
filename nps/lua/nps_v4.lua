@@ -1675,17 +1675,19 @@ function on.paint(gc)
 		if dispinfos then
 			gc:setColorRGB(0)
 			gc:setFont("sansserif", "r", 10)
+			-- Row 0 is the angle tag's and the status line's, so the banner starts under it.
+			local line = strHeight
 			local glabel = giacLabel()
 			glabel = fitHeaderText(gc, glabel, scrWidth - 35)
-			gc:drawString(glabel, 2, 0, "top")
+			gc:drawString(glabel, 2, line, "top")
 			if hasGiac and versionShaped(giacRuntimeVersion()) and not backendVersionRefusal() then
 				gc:setColorRGB(0, 127, 0)
-				gc:drawString("OK.", gc:getStringWidth(glabel) + 6, 0, "top")
+				gc:drawString("OK.", gc:getStringWidth(glabel) + 6, line, "top")
 			else
 				gc:setColorRGB(255, 0, 0)
-				gc:drawString("NO.", gc:getStringWidth(glabel) + 6, 0, "top")
+				gc:drawString("NO.", gc:getStringWidth(glabel) + 6, line, "top")
 			end
-			local line = strHeight
+			line = line + strHeight
 			if launchHeap then
 				gc:setColorRGB(0)
 				gc:drawString(fitHeaderText(gc, heapText(launchHeap), scrWidth - 4), 2, line, "top")
