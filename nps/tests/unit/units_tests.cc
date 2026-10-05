@@ -1746,6 +1746,17 @@ void run_units_tests(TestSink &t) {
         t.equal(stated_uncertainty(length.precision), "not propagated",
                 "and a zero magnitude does not take the components' uncertainty as its own");
 
+        t.equal(uncertainty_of("1 +/- 1 percent"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "a relative uncertainty is refused for what it is rather than as an unknown unit word");
+        t.equal(uncertainty_of("1 +/- 1 %"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "and the sign spells the same unsupported thing");
+        t.equal(uncertainty_of("1 +/- 1 kg"), "1.0",
+                "while the same spread stated in the quantity's own unit is the supported form");
+
         // Exact means no variance, in one predicate rather than by convention at each operation.
         const Precision exact_with_spread = with_variance(Rational{1, 100});
         Precision exact_claim = exact_with_spread;

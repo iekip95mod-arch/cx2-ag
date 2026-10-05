@@ -627,6 +627,16 @@ size_t uncertainty_sign_length(const std::string &text, size_t at) {
     return 0;
 }
 
+// Either spelling of a relative uncertainty, which the catalog lists as unsupported and which the
+// unit table would otherwise refuse as a word it does not know.
+bool relative_uncertainty(const std::string &text, size_t at) {
+    size_t end = text.size();
+    while (end > at && text[end - 1] == ' ')
+        --end;
+    const size_t length = end - at;
+    return (length == 1 && text[at] == '%') || (length == 7 && text.compare(at, 7, "percent") == 0);
+}
+
 bool read_quantity(const std::string &text, bool uncertainty_allowed, Quantity *out,
                    std::string *error) {
     size_t i = 0;
@@ -680,6 +690,11 @@ bool read_quantity(const std::string &text, bool uncertainty_allowed, Quantity *
         q.precision.uncertainty = UncertaintyState::Known;
         while (i < text.size() && text[i] == ' ')
             ++i;
+        if (relative_uncertainty(text, i)) {
+            *error = "a relative uncertainty such as 1 percent is not propagated here, so state it "
+                     "in the quantity's unit";
+            return false;
+        }
     }
     size_t end = text.size();
     while (end > i && text[end - 1] == ' ')
