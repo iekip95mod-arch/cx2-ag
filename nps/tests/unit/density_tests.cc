@@ -64,6 +64,7 @@ struct Run {
     std::string propagation_evidence;
     std::string propagation_assumption;
     std::string uncertainty_evidence;
+    std::string plan_facts;
     // Kept so a VER-010 case can be held to the record rather than to the returned result alone.
     Derivation derivation;
 };
@@ -82,6 +83,16 @@ Run run(const DensityProblem &input, const Budget &budget = Budget()) {
             run.rules += ' ';
         run.rules += step.rule_id;
         run.all_verified = run.all_verified && step.verified();
+        if (step.rule_id == "physics.density.definition") {
+            const PlanPayload *payload = derivation.plan(step.id);
+            if (payload) {
+                for (const std::string &fact : payload->matched_problem_facts) {
+                    if (!run.plan_facts.empty())
+                        run.plan_facts += "; ";
+                    run.plan_facts += fact;
+                }
+            }
+        }
         if (step.rule_id == "physics.density.convert-units")
             run.conversion_detail = step.explanation_detailed;
         if (step.rule_id == "physics.density.substitute") {
@@ -245,6 +256,14 @@ void run_density_tests(TestSink &t) {
                        one.result.unit_text,
                    "2.00 +/- 0.11 kg",
                    "a measured density and volume report a mass with the uncertainty they imply");
+        // #589. The plan's facts are what the learner reads back as the problem, so a given's
+        // stated uncertainty belongs in them rather than only in the answer.
+        t.equal(one.plan_facts,
+                "density = 1000 +/- 5.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
+                "a stated uncertainty is shown in the fact line, in the spelling the result uses");
+        t.equal(three.plan_facts,
+                "density = 1000.0 kg/m^3; volume = 0.0020 +/- 0.00010 m^3; find mass",
+                "while a measured given that states none is written without one");
         t.equal(one.propagation_evidence,
                 "passed, dm/dV = 1000, dm/drho = 0.002, giving known, which the squared relative "
                 "uncertainties reach too",

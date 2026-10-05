@@ -63,6 +63,12 @@ inline std::string value_text(const Quantity &quantity) {
         if (rounded_text(normalized, quantity.precision.significant_digits, &measured))
             text = measured;
     }
+    // A stated uncertainty is part of what was given, so it is shown through the same producer the
+    // answer's own uncertainty goes through rather than dropped from the record. #589.
+    std::string spread;
+    int32_t place = 0;
+    if (uncertainty_text(quantity.precision, &spread, &place))
+        text += " +/- " + spread;
     return text;
 }
 
