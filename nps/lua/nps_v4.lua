@@ -1181,6 +1181,8 @@ end
 
 -- The one place a string becomes D2Editor mathematics, where a slash draws as a fraction bar.
 local function mathModeExpression(expr)
+	-- The error handler hands this whatever was raised, which the concatenation here used to coerce.
+	if type(expr) == "number" then expr = tostring(expr) end
 	local at = expr:find("+/-", 1, true)
 	if not at then return "\\0el {" .. expr .. "}" end
 	local out, from = {}, 1

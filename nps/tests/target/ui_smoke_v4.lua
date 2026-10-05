@@ -3408,6 +3408,11 @@ do
     painted()
     check(mathBoxExact("mass \226\137\164 2.00 \194\177 0.11 kg") ~= nil,
           "a relation beside a spread reaches one box as both glyphs")
+    -- Issue 598. Two spreads in one answer, so the rewrite has to run past the first one.
+    steps.result.display_result = "a +/- 1 and b +/- 2"
+    painted()
+    check(mathBoxExact("a \194\177 1 and b \194\177 2") ~= nil,
+          "both spreads in one expression reach the box as the plus-minus sign")
     steps.result.display_result = mathcase.spread_display
     painted()
     on.charIn("t")
@@ -9818,6 +9823,24 @@ do
     check(#evaluated == 1 and evaluated[1] == "sin(30)", "radian mode evaluates without touching the Giac setting")
     evidence("MATH-007", selected and requested[1].angle == "degrees" and header:find("DEG (now RAD)", 1, true) ~= nil,
              "the shell selects degree or radian mode from the Steps menu, shows it on every screen, sends it with each request and names a reopened record's mode")
+    end)()
+end
+
+-- Issue 598. The OS error handler hands the shell whatever was raised, and a history row built
+-- from a number used to draw because the wrapper was a concatenation.
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local added, failure = pcall(env.addME, " Script error", 42)
+    check(added, "a history row built from a number is accepted: " .. tostring(failure))
+    drawn, draw_calls = {}, {}
+    local repainted = pcall(env.on.paint, gc)
+    local numeric = nil
+    for _, editor in ipairs(editors) do
+        if editor.expr == "\\0el {42}" or editor.expr == 42 then numeric = editor end
+    end
+    check(repainted and numeric ~= nil, "and reaches its editor as the text the number spells")
     end)()
 end
 
