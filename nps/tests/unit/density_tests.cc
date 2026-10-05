@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "nps/core/print.h"
 #include "nps/physics/density.h"
@@ -63,6 +64,8 @@ struct Run {
     std::string propagation_evidence;
     std::string propagation_assumption;
     std::string uncertainty_evidence;
+    // Kept so a VER-010 case can be held to the record rather than to the returned result alone.
+    Derivation derivation;
 };
 
 Run run(const DensityProblem &input, const Budget &budget = Budget()) {
@@ -121,6 +124,7 @@ Run run(const DensityProblem &input, const Budget &budget = Budget()) {
             case StepKind::Branch: break;
         }
     }
+    run.derivation = std::move(derivation);
     return run;
 }
 
@@ -319,6 +323,47 @@ void run_density_tests(TestSink &t) {
                 "an uncertainty wider than the value keeps the value's own figure count");
         t.check(wide.result.quantity.precision.last_significant_decimal_place == -2,
                 "and the reported place stays the value's rather than the uncertainty's");
+    }
+    {
+        // VER-010 for the two rules PHYS-020 adds. Their positive cases come off the golden
+        // fixture, so these are the boundary and regression kinds the invariant pass cannot read.
+        using nps_tools::RuleCaseKind;
+        const Run exact_given =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "1000 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.0001 m^3")));
+        t.rule_case("physics.density.propagate-uncertainty", RuleCaseKind::Boundary,
+                    exact_given.derivation,
+                    rational_equal(exact_given.result.quantity.precision.variance,
+                                   Rational{1, 100}) &&
+                        contains(exact_given.propagation_evidence, "dm/drho = 0.002"),
+                    "an exact given still has a partial and contributes no variance through it");
+
+        // 9901/1000000 is the variance whose root is 0.099 before rounding, so the round up
+        // reaches a third figure and the reported place moves one left to keep two.
+        const Run carried =
+            run(problem(DensityVariable::Mass,
+                        uncertain_known(DensityVariable::Density, "1000 +/- 5 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "0.0020 +/- 0.000099 m^3")));
+        t.check(rational_equal(carried.result.quantity.precision.variance, Rational{9901, 1000000}),
+                "a volume uncertainty two places finer gives a variance just under a hundredth");
+        t.rule_case("physics.density.check-uncertainty", RuleCaseKind::Boundary, carried.derivation,
+                    carried.result.uncertainty_text == "0.10" &&
+                        carried.result.quantity.precision.last_significant_decimal_place == -2,
+                    "a root rounding up into a third figure is reported one place left as 0.10");
+
+        // The scale, not the root, is what the cubic prefix multiplies the variance by.
+        const Run prefixed_case =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "2 kg/m^3"),
+                        uncertain_known(DensityVariable::Volume, "2.0 +/- 0.1 cm^3")));
+        const bool scaled_through =
+            prefixed_case.result.uncertainty_text == "0.00000020" &&
+            prefixed_case.result.quantity.precision.uncertainty == UncertaintyState::Known;
+        t.rule_case("physics.density.propagate-uncertainty", RuleCaseKind::Regression,
+                    prefixed_case.derivation, scaled_through,
+                    "a prefixed given's variance is scaled by the SI scale squared, #161");
+        t.rule_case("physics.density.check-uncertainty", RuleCaseKind::Regression,
+                    prefixed_case.derivation, scaled_through,
+                    "and the root checked back is the scaled one rather than the typed one, #161");
     }
     {
         // The eleven recorded steps of the first worked example, with the propagation ninth.
