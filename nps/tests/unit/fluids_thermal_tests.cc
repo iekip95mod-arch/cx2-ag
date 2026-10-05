@@ -83,6 +83,18 @@ void test_fluids(TestSink &t) {
                    "the pressure context records that the force is normal and spread uniformly");
     }
     {
+        // The reporting tail spells a zero from its declared place rather than from a figure count,
+        // which has no figure to count from. It read "0" here before #586 fixed that, #589.
+        const Run r = run(solve_pressure, 0, {{1, "0.0 N"}, {2, "2.0 m^2"}});
+        t.check(outcome(r) == "solved" && exact(r, 0, 1),
+                "a zero force still determines a zero pressure");
+        t.equal(r.result.value_text, "0.0",
+                "which is reported to the place its measured givens leave it");
+        const Run finer = run(solve_pressure, 0, {{1, "0.00 N"}, {2, "2.000 m^2"}});
+        t.equal(finer.result.value_text, "0.00",
+                "and a place further right is written out rather than collapsing to a bare zero");
+    }
+    {
         const Run r = run(solve_pressure, 2, {{0, "5 Pa"}, {1, "10 N"}});
         t.check(outcome(r) == "unsupported unknown" && contains(r.result.detail, "power -1"),
                 "an unknown area sits at power minus one and is refused by the linear path: " + r.result.detail);
