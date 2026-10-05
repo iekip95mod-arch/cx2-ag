@@ -830,8 +830,77 @@ bool uncertainty_text(const Precision &precision, std::string *out, int32_t *pla
     return true;
 }
 
+const char *uncertainty_rounding_name(UncertaintyRounding outcome) {
+    switch (outcome) {
+    case UncertaintyRounding::Smallest:
+        return "the smallest two-figure value whose square covers the variance";
+    case UncertaintyRounding::TooSmall:
+        return "its square is below the variance";
+    case UncertaintyRounding::NotSmallest:
+        return "a smaller two-figure value already covers the variance";
+    case UncertaintyRounding::NotTwoFigures:
+        return "not two significant figures in the place it was reported to";
+    case UncertaintyRounding::Unreadable:
+        return "could not be read back";
+    }
+    return "could not be read back";
+}
+
+UncertaintyRounding uncertainty_rounding_valid(const Precision &precision,
+                                               const std::string &reported, int32_t place) {
+    detail::Mpq variance;
+    detail::Mpq value;
+    if (precision.uncertainty != UncertaintyState::Known ||
+        !detail::mpq_set_rational(variance.get(), precision.variance) ||
+        mpq_sgn(variance.get()) < 0 ||
+        !detail::mpq_from_text(value.get(), reported, reported.size()) ||
+        mpq_sgn(value.get()) < 0) {
+        return UncertaintyRounding::Unreadable;
+    }
+    if (mpq_sgn(variance.get()) == 0) {
+        return mpq_sgn(value.get()) == 0 ? UncertaintyRounding::Smallest
+                                         : UncertaintyRounding::NotSmallest;
+    }
+    detail::Mpq unit;
+    if (!detail::mpq_decimal_place_unit(unit.get(), place))
+        return UncertaintyRounding::Unreadable;
+    // Two figures means a whole number of the reported place between ten and ninety-nine.
+    detail::Mpq figures;
+    mpq_div(figures.get(), value.get(), unit.get());
+    if (mpz_cmp_ui(mpq_denref(figures.get()), 1) != 0 ||
+        mpz_cmp_ui(mpq_numref(figures.get()), 10) < 0 ||
+        mpz_cmp_ui(mpq_numref(figures.get()), 99) > 0) {
+        return UncertaintyRounding::NotTwoFigures;
+    }
+    detail::Mpq square;
+    mpq_mul(square.get(), value.get(), value.get());
+    if (mpq_cmp(square.get(), variance.get()) < 0)
+        return UncertaintyRounding::TooSmall;
+    detail::Mpq below;
+    mpq_sub(below.get(), value.get(), unit.get());
+    mpq_mul(below.get(), below.get(), below.get());
+    return mpq_cmp(below.get(), variance.get()) < 0 ? UncertaintyRounding::Smallest
+                                                    : UncertaintyRounding::NotSmallest;
+}
+
 bool to_si(const Quantity &q, Rational *value) {
     return rational_mul(q.value, q.unit.scale, value);
+}
+
+bool to_si(const Quantity &q, Quantity *out) {
+    Rational value;
+    if (!to_si(q, &value))
+        return false;
+    Quantity converted = q;
+    converted.value = value;
+    converted.unit.text = si_unit_text(q.unit.dimension);
+    converted.unit.scale = Rational{1, 1};
+    // The scale is one exact operand, which is the rule that already scales a vector's uncertainty.
+    if (!rational_equal(q.unit.scale, Rational{1, 1}))
+        converted.precision =
+            precision_product(value, q.value, q.precision, q.unit.scale, Precision());
+    *out = std::move(converted);
+    return true;
 }
 
 namespace {
@@ -1118,6 +1187,8 @@ int rounded_leading_decimal_place(const Rational &value, int32_t place) {
     return mpq_cmp(reach.get(), next_place.get()) >= 0 ? above : lead;
 }
 
+}  // namespace
+
 Precision precision_at_value(const Rational &value, Precision precision) {
     if (precision.kind == NumberKind::Exact)
         return precision;
@@ -1143,8 +1214,6 @@ Precision precision_at_value(const Rational &value, Precision precision) {
                            : static_cast<uint16_t>(digits));
     return precision;
 }
-
-}  // namespace
 
 Precision precision_at_digits(const Rational &value, Precision precision) {
     if (precision.kind != NumberKind::Measured || value.num == 0)

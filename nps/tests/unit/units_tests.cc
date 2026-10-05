@@ -1626,6 +1626,59 @@ void run_units_tests(TestSink &t) {
         t.check(propagated.uncertainty == UncertaintyState::Known &&
                     rational_equal(propagated.variance, Rational{1, 20}),
                 "a first-order propagation weighs each variance by its sensitivity squared");
+
+        const Quantity cubic = uncertain("2.0 +/- 0.1 cm^3");
+        Quantity converted;
+        t.check(to_si(cubic, &converted) && rational_equal(converted.value, Rational{1, 500000}) &&
+                    converted.unit.text == "m^3",
+                "a prefixed quantity converts to SI as a whole");
+        t.check(converted.precision.significant_digits == 2 &&
+                    rational_equal(converted.precision.variance,
+                                   Rational{1, 100000000000000}),
+                "carrying its figures and scaling its variance by the exact scale squared");
+        t.equal(stated_uncertainty(converted.precision), "0.00000010",
+                "so the converted uncertainty is the given one in the new unit");
+        Quantity plain_si;
+        t.check(to_si(uncertain("2.0 m^3"), &plain_si) &&
+                    plain_si.precision.uncertainty == UncertaintyState::None,
+                "and a quantity with no stated uncertainty gains none from the conversion");
+
+        // The reported root read back and judged, which is the check uncertainty_text cannot do for
+        // itself. 101/10000 is the variance of the density lane's first worked example.
+        const Precision reported = with_variance(Rational{101, 10000});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.11", -2)),
+                "the smallest two-figure value whose square covers the variance",
+                "the rounded-up root is the smallest two-figure value that covers the variance");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.10", -2)),
+                "its square is below the variance",
+                "rounding the root down leaves a reported uncertainty the variance outgrows");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.12", -2)),
+                "a smaller two-figure value already covers the variance",
+                "and rounding it up twice is covered but is not the smallest that is");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.101", -2)),
+                "not two significant figures in the place it was reported to",
+                "a third figure is not a whole number of the reported place");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.11", -1)),
+                "not two significant figures in the place it was reported to",
+                "and neither is a correct root offered against the wrong place");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(reported, "0.1e-1", -2)),
+                "could not be read back",
+                "an exponent is not a decimal numeral this reads");
+        t.equal(uncertainty_rounding_name(
+                    uncertainty_rounding_valid(at_place(-2), "0.11", -2)),
+                "could not be read back",
+                "and a precision carrying no known uncertainty has no variance to judge against");
+        const Precision exact_root = with_variance(Rational{1, 100});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(exact_root, "0.10", -2)),
+                "the smallest two-figure value whose square covers the variance",
+                "an exact root covers its own variance and nothing smaller does");
+        const Precision zero_spread = with_variance(Rational{0, 1});
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0", 0)),
+                "the smallest two-figure value whose square covers the variance",
+                "a known zero is reported as zero");
+        t.equal(uncertainty_rounding_name(uncertainty_rounding_valid(zero_spread, "0.10", -2)),
+                "a smaller two-figure value already covers the variance",
+                "and nothing above zero is the smallest cover for it");
     }
 }
 
