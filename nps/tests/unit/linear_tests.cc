@@ -400,6 +400,43 @@ void run_linear_tests(TestSink &t) {
                 "a reciprocal outside the denominator boundary is refused atomically");
     }
     {
+        // PHYS-020: each operation's own partials, not the product's, carry a stated uncertainty.
+        const auto solved_uncertainty = [](const std::string &equation, const std::string &given) {
+            Arena arena;
+            const NodeId root = parse(arena, equation).root;
+            Quantity m;
+            std::string why;
+            if (!parse_quantity_with_uncertainty(given, &m, &why))
+                return std::string("unparsed");
+            const std::vector<LinearKnown> knowns = {{"m", m.value, m.precision}};
+            Rational value;
+            Precision precision;
+            if (!linear_solution_precision(arena, root, arena.symbol("x"), knowns, &value, &precision))
+                return std::string("unsolved");
+            std::string text;
+            int32_t place = 0;
+            if (!uncertainty_text(precision, &text, &place))
+                return std::string(uncertainty_state_name(precision.uncertainty));
+            return text;
+        };
+        t.equal(solved_uncertainty("x = m^2", "3.0 +/- 0.1"), "0.60",
+                "a square scales the uncertainty by twice the base");
+        t.equal(solved_uncertainty("x = m^(-1)", "4.0 +/- 0.2"), "0.013",
+                "a reciprocal scales it by the reciprocal squared");
+        t.equal(solved_uncertainty("x = 8/m", "4.0 +/- 0.2"), "0.10",
+                "a constant over the given takes the reciprocal's partial");
+        t.equal(solved_uncertainty("m*x = 8", "4.0 +/- 0.2"), "0.10",
+                "solving through an uncertain coefficient divides by it rather than multiplying");
+        t.equal(solved_uncertainty("2*x = m", "4.0 +/- 0.2"), "0.10",
+                "solving through an exact coefficient divides the uncertainty by it");
+        t.equal(solved_uncertainty("x = m + 1", "4.0 +/- 0.2"), "0.20",
+                "a sum still carries the uncertainty unchanged");
+        t.equal(solved_uncertainty("x = m*m", "3.0 +/- 0.1"), "not propagated",
+                "while a product of one given with itself is still not propagated");
+        t.equal(solved_uncertainty("m*x = m + 1", "4.0 +/- 0.2"), "not propagated",
+                "and neither is a quotient whose two sides both depend on the given");
+    }
+    {
         Arena arena;
         Derivation d;
         NodeId equation = parse(arena, "x = 4").root;

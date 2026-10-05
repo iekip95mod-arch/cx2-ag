@@ -109,8 +109,13 @@ Precision precision_combine(const Precision &a, const Precision &b);
 // tenths its operands were written to.
 Precision precision_at_digits(const Rational &value, Precision precision);
 
+// Each carries an uncertainty through its own partials only when value really is that operation.
 Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
                             const Rational &b_value, const Precision &b);
+Precision precision_quotient(const Rational &value, const Rational &a_value, const Precision &a,
+                             const Rational &b_value, const Precision &b);
+Precision precision_power(const Rational &value, const Rational &base_value, const Precision &base,
+                          int64_t exponent);
 Precision precision_sum(const Rational &value, const Precision &a, const Precision &b);
 
 struct UncertaintyTerm {
