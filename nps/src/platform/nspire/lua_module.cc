@@ -3657,9 +3657,12 @@ int l_density(lua_State *L) {
     set_field(L, "status", derivation_status_name(r.status));
     set_field(L, "unknown", density_variable_name(problem.unknown));
     if (r.outcome == DensityOutcome::Solved) {
+        const std::string spread = r.uncertainty_text.empty() ? "" : " +/- " + r.uncertainty_text;
         set_field(L, "result", std::string(density_variable_name(problem.unknown)) + " = " +
-                                   r.value_text + " " + r.unit_text);
+                                   r.value_text + spread + " " + r.unit_text);
         set_field(L, "value", r.value_text);
+        if (!r.uncertainty_text.empty())
+            set_field(L, "uncertainty", r.uncertainty_text);
         set_field(L, "exact_value", rational_text(r.quantity.value));
         set_field(L, "unit", r.unit_text);
         set_precision(L, r.quantity.precision);

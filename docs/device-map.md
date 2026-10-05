@@ -116,18 +116,18 @@ that table lists is callable from Lua.
 
 `source`: read on 2026-10-04, the table registers `caseval`, `canonical`, `solve`, `differentiate`,
 `integrate`, `kinematics`, `catch_up`, `planar_kinematics`, `relative_motion`, `forces`, `density`,
-`optics`, `unit_conversion` (lua_module.cc:5081), `gravitation`, `oscillation` and `wave`
-(lua_module.cc:5084 to 5086), `pressure`, `hydrostatic`, `buoyancy`, `continuity`, `sensible_heat`,
-`latent_heat` and `ideal_gas` (lua_module.cc:5087 to 5093), `modern` and `relativity`
-(lua_module.cc:5094 and 5095), `vector_addition` (lua_module.cc:5096), `vector_cross`
-(lua_module.cc:5097), `scalar_product` (lua_module.cc:5098),
+`optics`, `unit_conversion` (lua_module.cc:5084), `gravitation`, `oscillation` and `wave`
+(lua_module.cc:5087 to 5089), `pressure`, `hydrostatic`, `buoyancy`, `continuity`, `sensible_heat`,
+`latent_heat` and `ideal_gas` (lua_module.cc:5090 to 5096), `modern` and `relativity`
+(lua_module.cc:5097 and 5098), `vector_addition` (lua_module.cc:5099), `vector_cross`
+(lua_module.cc:5100), `scalar_product` (lua_module.cc:5101),
 `components_to_magnitude_angle`, `magnitude_angle_to_components`, `math_display`, `giac`,
-`export_text` (lua_module.cc:5052), and a set of platform entry points for memory, tracing, integrity
+`export_text` (lua_module.cc:5055), and a set of platform entry points for memory, tracing, integrity
 and the OS dialogs.
 
 scalar_product takes two vector strings and an optional third argument naming the angle unit. Left
 out, it answers the product alone. Source, read on 2026-10-04: l_scalar_product at
-lua_module.cc:4229 passes Giac to the engine only when GiacBackend::available says it is there, so the
+lua_module.cc:4232 passes Giac to the engine only when GiacBackend::available says it is there, so the
 split build without luagiac places the angle from the product's sign and the unified build also
 measures it. nps/tests/target/luax_host.lua asserts both records.
 
@@ -141,29 +141,36 @@ uncertainty out of its givens, through `parse_quantity_with_uncertainty` at lua_
 uncertainty, and nps/tests/target/luax_host.lua pins that refusal on `optics` beside a control that
 the same binding still reads the quantity written without one.
 
+`density` is also the only binding that reports one back. `source`: read on 2026-10-04, `l_density`
+copies the engine's already checked `uncertainty_text` into an `uncertainty` field and splices the
+same text into the answer line between the value and the unit, at lua_module.cc:3660 to 3665, so a
+record reads `mass = 2.00 +/- 0.11 kg`. Both are omitted when that text is empty, which is every
+state but known, and the bridge computes no uncertainty of its own. The shell has nothing to assemble
+and names the reason for an absent one from `uncertainty_state` instead, at nps_v4.lua:3260.
+
 `export_text` is the only entry that writes a file for the shell, because the shell's Lua has no io
 library. `source`: read on 2026-10-04, it writes `/documents/ndl/<name>.txt.tns` for a name of 1 to 32
-lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4954, and
+lower case letters, digits, `-` or `_` and at most 64 KiB of text, at lua_module.cc:4957, and
 nps/tests/target/luax_host.cc points it at a host directory for the bridge tests.
 
 `gravitation`, `oscillation`, `wave` and the seven PHYS-018 relations share one binding,
-`relation_into` at lua_module.cc:3821, which reads the variable names against the model's own term
-names (lua_module.cc:3807). Any engine built on
+`relation_into` at lua_module.cc:3824, which reads the variable names against the model's own term
+names (lua_module.cc:3810). Any engine built on
 `RelationModel` can be exposed the same way with a one-line binding.
 
-`modern` (lua_module.cc:3967) and `relativity` (lua_module.cc:4059) read their relation and variable
+`modern` (lua_module.cc:3970) and `relativity` (lua_module.cc:4062) read their relation and variable
 names against the engine's own name functions, so a caller passes "Time dilation" or "proper time"
 exactly as the derivation prints them. Both families work in units the unit table does not carry (eV,
-nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3925 attaches the declared unit
+nm, MeV, u and fractions of c), so `declared_quantity` at lua_module.cc:3928 attaches the declared unit
 to a bare number or to the number written with that unit, and leaves any other unit for the engine to
 refuse.
 
-`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:5048 and defined at
+`source`: read on 2026-10-04, `judge_attempt` is registered at lua_module.cc:5051 and defined at
 lua_module.cc:1840. It takes the state, the attempt, the later route states and the variable, and
 returns a verdict table without reading or writing any derivation.
 
 `source`: read on 2026-10-04, `rule_definition` and `unit_definition` are registered at
-lua_module.cc:5050-5051 and defined at lua_module.cc:1939 and 1977. The first reads `rule_schema`
+lua_module.cc:5053-5054 and defined at lua_module.cc:1939 and 1977. The first reads `rule_schema`
 and the second reads the unit table and `quantity_name`, so neither carries prose of its own.
 
 Two things an agent adding a binding needs to know, both learned from a review that caught them:
@@ -181,7 +188,7 @@ reachable.** A family needs three separate things: the engine, a `lib[]` entry, 
 
 A command family typed as text needs no `lib[]` entry of its own, because it arrives through the
 `walkthrough` entry and `parse_command` picks the engine. `source`: `walkthrough` is registered at
-lua_module.cc:5053, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
+lua_module.cc:5056, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
 lua_module.cc:3364-3365 and a `linsolve` command to `system_into` at lua_module.cc:3361-3362. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
 nil at lua_module.cc:3274-3278, so the shell falls back to Giac at nps_v4.lua:4308. A linsolve never

@@ -320,7 +320,7 @@ reference_curriculum_set_ids StepCAS product requirements PHYS-020, PHYS-025
 curriculum_source_locations StepCAS_Product_Requirements_Document.md section 9 PHYS-020 and PHYS-025, NIST GLP 9 (2019) step 1.3 and Option C at https://www.nist.gov/document/glp-9-rounding-20190506pdf
 topic_and_level Mass, volume, and density through the definition m = rho*V, M1 density
 accepted_expression_grammar existing quantity grammar for each mass, volume and density field, rather than a free expression
-accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser
+accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser, either of which may state an uncertainty after a +/- sign, as in 1000 +/- 5 kg/m^3
 domains_and_parameter_assumptions the three quantities must have mass, volume, and mass-per-volume dimensions and the requested unknown must be uniquely determined
 supported_branches_and_degenerate_cases any one of mass, volume, or density may be unknown, with exact prefix conversion and explicit refusal of a zero divisor that does not determine one value
 exact_special_function_and_numerical_result_policy exact rational SI conversion and linear isolation, with measured precision applied only after candidate verification. A stated uncertainty is carried as its exact squared variance and propagated to first order over the two distinct givens, with the square root taken only to report it, rounded up and never down to two significant figures, and the value then reported to the decimal place of that root's last figure. Where that place sits left of the value's leading digit the value keeps its own significant-figure count instead, since rounding there would leave no figure of it
@@ -334,7 +334,7 @@ solution_soundness_status verified by dimensional analysis and exact substitutio
 solution_completeness_status complete for one unknown and two compatible knowns when the unique exact rational answer fits
 corpus_case_ids density_volume_mixed_units, density_mass_cubic_prefix, density_mass_propagated_uncertainty
 device_performance_status not measured
-direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
+direct_keypad_entry_status native Lua bridge and Ki V4 guided physics fixture implemented, the second of the two fixtures passing a stated uncertainty on both givens and the shell naming the reason whenever the answer carries none. Physical keypad qualification pending
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
 release_status in development, unreleased
 rule physics.density.definition fixture

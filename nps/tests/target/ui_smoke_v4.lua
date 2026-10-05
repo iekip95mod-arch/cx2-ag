@@ -489,30 +489,33 @@ local fake_density = {
     },
 }
 
--- The records luax_host.lua asserts for the same givens. Global, this file being at 200 locals.
+-- The records luax_host.lua asserts for the same givens, field by field off a real bridge run.
+-- Global, this file being at 200 locals.
 fake_density_replies = {
     ["1000 +/- 5 kg/m^3"] = {
         outcome = "solved", detail = "", solved = true, answer_only = false,
-        status = "solved and verified", result = "mass = 2.00 +/- 0.11 kg", nodes = 14,
+        status = "solved and verified", result = "mass = 2.00 +/- 0.11 kg", nodes = 21,
         value = "2.00", uncertainty = "0.11", unit = "kg",
+        assumptions = "density is uniform across the sample",
         precision = { kind = "measured", significant_digits = 3,
                       last_significant_decimal_place = -2, uncertainty_state = "known" },
-        step_count = 4, rewrites = 3, giac_calls = 0,
+        step_count = 11, rewrites = 7, giac_calls = 0,
         steps = {
-            { kind = "plan", name = "Density", goal = "Find mass from density and volume",
+            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
               short = "Use the density definition", claim = "no claim", verified = true,
               failed = false, depth = 0 },
         },
     },
     ["1000.0 kg/m^3"] = {
         outcome = "solved", detail = "", solved = true, answer_only = false,
-        status = "solved and verified", result = "mass = 2.0 kg", nodes = 14,
+        status = "solved and verified", result = "mass = 2.0 kg", nodes = 21,
         value = "2.0", unit = "kg",
+        assumptions = "density is uniform across the sample",
         precision = { kind = "measured", significant_digits = 2,
                       last_significant_decimal_place = -1, uncertainty_state = "unstated" },
-        step_count = 4, rewrites = 3, giac_calls = 0,
+        step_count = 9, rewrites = 7, giac_calls = 0,
         steps = {
-            { kind = "plan", name = "Density", goal = "Find mass from density and volume",
+            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
               short = "Use the density definition", claim = "no claim", verified = true,
               failed = false, depth = 0 },
         },
