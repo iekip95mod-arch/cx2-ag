@@ -198,7 +198,8 @@ A command family typed as text needs no `lib[]` entry of its own, because it arr
 lua_module.cc:5056, and `l_walkthrough` sends a separable `desolve` command to `separable_into` at
 lua_module.cc:3364-3365 and a `linsolve` command to `system_into` at lua_module.cc:3361-3362. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
-nil at lua_module.cc:3274-3278, so the shell falls back to Giac at nps_v4.lua:4308. A linsolve never
+nil at lua_module.cc:3274-3278, so the shell's walkthrough branch falls back to Giac at
+nps_v4.lua:4309. A linsolve never
 does: system_into answers every outcome with a table at lua_module.cc:2854-2902, and l_walkthrough
 answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3327-3340. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
@@ -244,14 +245,14 @@ module at nps/lua/nps_v4.lua:57, so this entry added no manifest row.
 
 When a record's `precision.uncertainty_state` is unstated, not propagated or too large, the summary
 draws one line under SPREAD saying why no uncertainty is given. `source`, read on 2026-10-04:
-`uncertaintyNote` at nps/lua/nps_v4.lua:3260-3270 maps the three states to their reasons and answers
-nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4720-4728, inside the block
+`uncertaintyNote` at nps/lua/nps_v4.lua:3260-3271 maps the three states to their reasons and answers
+nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4721-4729, inside the block
 that hint mode withholds along with the result. nps/tests/target/ui_smoke_v4.lua drives both halves,
 the line on an unstated record and its absence on a known one.
 
 The scalar_product fixture at nps/lua/nps_v4.lua:2721-2729 asks for the angle in degrees. Source,
 read on 2026-10-04: the bridge writes the angle's placement, and its measured size when Giac answered,
-into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4739
+into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4740
 with no code of its own for this family. The family id is declared at
 nps/src/core/capability_manifest.cc:62 and required of the loaded module at nps/lua/nps_v4.lua:60.
 
@@ -271,16 +272,16 @@ menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
 `source`, nps/lua/nps_v4.lua:3132 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4189 calls the binding with the last revealed state and the rest of the route.
+nps/lua/nps_v4.lua:4190 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
 `!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2340 is that menu entry, nps/lua/nps_v4.lua:3139
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4245 composes the text with
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4246 composes the text with
 derivationExportText and calls the binding under pcall.
 
-Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, D at
-nps/lua/nps_v4.lua:5537 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
-definitionParagraphs (nps/lua/nps_v4.lua:5114) for the focused step, and `!u` at
+Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, the `d` and `D`
+reader at nps/lua/nps_v4.lua:5538 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
+definitionParagraphs (nps/lua/nps_v4.lua:5115) for the focused step, and `!u` at
 nps/lua/nps_v4.lua:3131 defines a unit.
 
 `position_motion` and `ranking` still have working
@@ -309,8 +310,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3529, measureMath
-sets the expression at :3563, and the history editor sets its expression at :1457.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3530, measureMath
+sets the expression at :3564, and the history editor sets its expression at :1457.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
