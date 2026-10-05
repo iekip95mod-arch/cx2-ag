@@ -3396,6 +3396,21 @@ do
     check(paintedRun():find("no uncertainty: a measured given has none stated", 1, true) ~= nil,
           "and the line names the given that did not state one")
     on.escapeKey()
+
+    -- The other two states the shell has to explain. Only the route that produced them differs.
+    for _, state in ipairs({ { "not propagated", "this route does not carry one through" },
+                             { "too large", "the exact square outgrew its range" } }) do
+        fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = state[1]
+        openPhysicsFixtures()
+        physicsBrowser.focus = index or 1
+        painted()
+        on.enterKey()
+        check(painted():find("SPREAD", 1, true) ~= nil and
+              paintedRun():find("no uncertainty: " .. state[2], 1, true) ~= nil,
+              "a " .. state[1] .. " uncertainty says so in its own words")
+        on.escapeKey()
+    end
+    fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = "unstated"
     PHYSICS_FIXTURES[index or 1].run = run_before
     physicsBrowser.focus = focus_before
 end

@@ -1798,6 +1798,8 @@ end
 r = nps.density("mass", "density", "1000 +/- 5 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
 check(r.solved == true and r.outcome == "solved",
       "the density bridge reads a stated uncertainty on both givens and still solves")
+check(uncertainty_state_of(r) ~= nil and uncertainty_state_of(r) ~= "none",
+      "and reports a state other than none, so the field is read rather than written as a literal")
 check(uncertainty_state_of(r) == "known",
       "two stated uncertainties reach the answer as a known uncertainty")
 check(r.uncertainty == "0.11",
