@@ -29,6 +29,11 @@ inline bool valid_quantity(const Quantity &quantity, std::string *detail) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
+    if (!precision_consistent(quantity.precision)) {
+        *detail = "an exact value cannot state an uncertainty, and only a known one carries a "
+                  "variance";
+        return false;
+    }
     switch (quantity.precision.kind) {
         case NumberKind::Exact:
             if (quantity.precision.significant_digits != 0) {

@@ -722,6 +722,17 @@ const char *uncertainty_state_name(UncertaintyState state) {
     return "none";
 }
 
+bool precision_consistent(const Precision &precision) {
+    const Rational &variance = precision.variance;
+    if (variance.den == 0)
+        return false;
+    if (precision.kind == NumberKind::Exact)
+        return precision.uncertainty == UncertaintyState::None && variance.num == 0;
+    if (precision.uncertainty != UncertaintyState::Known)
+        return variance.num == 0;
+    return variance.num == 0 || (variance.num > 0) == (variance.den > 0);
+}
+
 void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *out) {
     bool stated = false;
     bool unstated = false;

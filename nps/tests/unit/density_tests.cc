@@ -707,6 +707,27 @@ void run_density_tests(TestSink &t) {
         t.equal(density_outcome_name(refused.result.outcome), "invalid problem",
                 "inconsistent precision metadata is rejected");
     }
+    {
+        DensityProblem input = problem(DensityVariable::Mass,
+                                       known(DensityVariable::Density, "4 kg/m^3"),
+                                       known(DensityVariable::Volume, "3 m^3"));
+        input.knowns[0].quantity.precision.uncertainty = UncertaintyState::Known;
+        input.knowns[0].quantity.precision.variance = Rational{1, 100};
+        const Run refused = run(input);
+        t.equal(density_outcome_name(refused.result.outcome), "invalid problem",
+                "an exact quantity carrying a stated uncertainty is rejected rather than propagated");
+        t.check(contains(refused.result.detail, "an exact value cannot state an uncertainty"),
+                "and the refusal says which half of the precision disagrees with the other");
+    }
+    {
+        DensityProblem input = problem(DensityVariable::Mass,
+                                       known(DensityVariable::Density, "4.0 kg/m^3"),
+                                       known(DensityVariable::Volume, "3 m^3"));
+        input.knowns[0].quantity.precision.variance = Rational{1, 100};
+        const Run refused = run(input);
+        t.equal(density_outcome_name(refused.result.outcome), "invalid problem",
+                "and so is a measurement that says it states none while carrying a variance");
+    }
 
     {
         DensityProblem input = problem(DensityVariable::Mass,
