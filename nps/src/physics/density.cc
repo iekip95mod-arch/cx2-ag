@@ -145,6 +145,8 @@ QuadratureCheck relative_quadrature(const Quantity (&si)[kVariableCount], int un
         Rational term;
         if (!rational_mul(si[index].value, si[index].value, &square))
             return QuadratureCheck::OutgrewArithmetic;
+        // No input reaches this: a zero given either forces a zero answer, which the return above
+        // takes, or is the divisor of a quotient, which the problem is refused for upstream.
         if (square.num == 0)
             return QuadratureCheck::ZeroQuantity;
         if (!rational_div(si[index].precision.variance, square, &term) ||
@@ -677,6 +679,9 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
     result.value_text = rational_text(candidate);
     result.unit_text = result.quantity.unit.text;
 
+    // The spread belongs to the report the value is read from, so it is attached once that report
+    // has finished rather than cleared again by every arm that abandons the value.
+    std::string reported_uncertainty;
     if (result.quantity.precision.uncertainty == UncertaintyState::Known) {
         std::string reported;
         int32_t reported_place = 0;
@@ -725,7 +730,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             result.unit_text.clear();
             return result;
         }
-        result.uncertainty_text = reported;
+        reported_uncertainty = reported;
         // GLP 9 step 1.3: the value is reported to the decimal place of the uncertainty's last
         // figure, whether or not a figure of the value itself survives there.
         Precision reporting = result.quantity.precision;
@@ -749,7 +754,6 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 result.status = DerivationStatus::ResourceLimitReached;
                 result.value = kNoNode;
                 result.value_text.clear();
-                result.uncertainty_text.clear();
                 result.unit_text.clear();
                 return result;
             case measure::ReportOutcome::OutsideHalfPlace:
@@ -757,7 +761,6 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 result.status = DerivationStatus::VerificationFailed;
                 result.value = kNoNode;
                 result.value_text.clear();
-                result.uncertainty_text.clear();
                 result.unit_text.clear();
                 return result;
             case measure::ReportOutcome::Cancelled: return DensityResult();
@@ -771,6 +774,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             case measure::ReportOutcome::Rounded: break;
         }
     }
+    result.uncertainty_text = std::move(reported_uncertainty);
     return result;
 }
 

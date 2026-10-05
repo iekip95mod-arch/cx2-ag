@@ -718,6 +718,18 @@ void run_density_tests(TestSink &t) {
                 "a zero divisor that yields no solution is not offered");
         t.check(contains(refused.result.detail, "do not determine one volume"),
                 "the non-unique solve explains the failed determination");
+        // The only two shapes where a zero given would not force a zero answer are these zero
+        // divisors, which is what leaves the quadrature's second zero arm with no input to reach it.
+        const Run zero_divisor_density = run(problem(
+            DensityVariable::Volume, uncertain_known(DensityVariable::Mass, "1.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Density, "0.0 +/- 0.1 kg/m^3")));
+        const Run zero_divisor_volume = run(problem(
+            DensityVariable::Density, uncertain_known(DensityVariable::Mass, "1.0 +/- 0.1 kg"),
+            uncertain_known(DensityVariable::Volume, "0.0 +/- 0.1 m^3")));
+        t.equal(std::string(density_outcome_name(zero_divisor_density.result.outcome)) + ", " +
+                    density_outcome_name(zero_divisor_volume.result.outcome),
+                "invalid problem, invalid problem",
+                "and a stated spread on a zero divisor does not make the problem solvable");
     }
     {
         const Run refused = run(problem(DensityVariable::Volume,
