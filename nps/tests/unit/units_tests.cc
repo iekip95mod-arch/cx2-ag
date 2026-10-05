@@ -1720,8 +1720,10 @@ void run_units_tests(TestSink &t) {
         arrow.precision = with_variance(Rational{1, 100});
         t.check(vector_magnitude(arrow, &length, &why) && rational_equal(length.value, Rational{5, 1}),
                 "its magnitude is exact");
+        // The squared sum arrives not propagated, so this pins the state the magnitude reports and
+        // the zero case below is the one that pins the root dropping a variance.
         t.equal(stated_uncertainty(length.precision), "not propagated",
-                "and a root carries no product partials for the squared sum's uncertainty");
+                "a measured vector's magnitude reports its uncertainty as not propagated");
         Vector still;
         t.check(parse_vector("(0.0, 0.0) m", &still, &why), "a measured zero vector reads");
         still.precision = with_variance(Rational{1, 100});
