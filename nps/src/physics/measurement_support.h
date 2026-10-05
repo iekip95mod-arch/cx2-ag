@@ -29,6 +29,11 @@ inline bool valid_quantity(const Quantity &quantity, std::string *detail) {
         *detail = "the unit has an invalid SI conversion scale";
         return false;
     }
+    if (!precision_consistent(quantity.precision)) {
+        *detail = "an exact value cannot state an uncertainty, and only a known one carries a "
+                  "variance";
+        return false;
+    }
     switch (quantity.precision.kind) {
         case NumberKind::Exact:
             if (quantity.precision.significant_digits != 0) {
@@ -58,6 +63,12 @@ inline std::string value_text(const Quantity &quantity) {
         if (rounded_text(normalized, quantity.precision.significant_digits, &measured))
             text = measured;
     }
+    // A stated uncertainty is part of what was given, so it is shown through the same producer the
+    // answer's own uncertainty goes through rather than dropped from the record. #589.
+    std::string spread;
+    int32_t place = 0;
+    if (uncertainty_text(quantity.precision, &spread, &place))
+        text += " +/- " + spread;
     return text;
 }
 
@@ -284,9 +295,12 @@ inline ReportOutcome report_measured_precision(Arena &arena, Derivation &derivat
                                                const std::string &rounding_detailed,
                                                std::string *value_text, std::string *detail) {
     std::string reported;
-    // A zero has no significant figure to count from, so its declared place is the only thing that
-    // can spell it, and a figure count collapses it to a bare zero whatever that place says.
-    const bool spelled = candidate.num == 0
+    // A figure count cannot spell a zero, which has no figure to count from, and cannot spell a
+    // place a stated uncertainty fixed, which may leave no figure of the value at all. Both of
+    // those are the declared place, which precision_rounded_text spells directly.
+    const bool by_place =
+        candidate.num == 0 || precision.uncertainty == UncertaintyState::Known;
+    const bool spelled = by_place
                              ? precision_rounded_text(candidate, precision, &reported)
                              : rounded_text(candidate, precision.significant_digits, &reported);
     if (!spelled) {

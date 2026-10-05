@@ -27,8 +27,8 @@ steps
     strategy: Apply the density definition m = rho*V
     applicability: mass, volume and density use compatible dimensions
     applicability: the density definition is linear in the requested unknown
-    fact: density = 1000 kg/m^3
-    fact: volume = 0.0020 m^3
+    fact: density = 1000 +/- 5.0 kg/m^3
+    fact: volume = 0.0020 +/- 0.00010 m^3
     fact: find mass
     alternative: general symbolic backend isolation
     rationale: the density definition is linear in each possible unknown, so the local exact linear solver is sufficient and deterministic

@@ -115,10 +115,13 @@ std::string partials_text(DensityVariable unknown, const Rational (&sensitivitie
     return text;
 }
 
+// A zero quantity and exact arithmetic running out are different facts about the same check, and
+// only the first of them is a place the definition's variance identity holds.
 enum class QuadratureCheck : uint8_t {
     Agrees,
     Disagrees,
-    NotApplicable,
+    ZeroQuantity,
+    OutgrewArithmetic,
 };
 
 // The same propagation in relative form, where m = rho*V and both its rearrangements add the squared
@@ -128,20 +131,25 @@ QuadratureCheck relative_quadrature(const Quantity (&si)[kVariableCount], int un
                                     const Rational &variance) {
     Rational answer_square;
     Rational relative;
-    if (!rational_mul(si[unknown_index].value, si[unknown_index].value, &answer_square) ||
-        answer_square.num == 0 || !rational_div(variance, answer_square, &relative)) {
-        return QuadratureCheck::NotApplicable;
-    }
+    if (!rational_mul(si[unknown_index].value, si[unknown_index].value, &answer_square))
+        return QuadratureCheck::OutgrewArithmetic;
+    if (answer_square.num == 0)
+        return QuadratureCheck::ZeroQuantity;
+    if (!rational_div(variance, answer_square, &relative))
+        return QuadratureCheck::OutgrewArithmetic;
     Rational given_relative;
     for (size_t index = 0; index < kVariableCount; ++index) {
         if (static_cast<int>(index) == unknown_index)
             continue;
         Rational square;
         Rational term;
-        if (!rational_mul(si[index].value, si[index].value, &square) || square.num == 0 ||
-            !rational_div(si[index].precision.variance, square, &term) ||
+        if (!rational_mul(si[index].value, si[index].value, &square))
+            return QuadratureCheck::OutgrewArithmetic;
+        if (square.num == 0)
+            return QuadratureCheck::ZeroQuantity;
+        if (!rational_div(si[index].precision.variance, square, &term) ||
             !rational_add(given_relative, term, &given_relative)) {
-            return QuadratureCheck::NotApplicable;
+            return QuadratureCheck::OutgrewArithmetic;
         }
     }
     return rational_equal(relative, given_relative) ? QuadratureCheck::Agrees
@@ -149,9 +157,10 @@ QuadratureCheck relative_quadrature(const Quantity (&si)[kVariableCount], int un
 }
 
 // The definition's own variance identity, read over all three quantities whichever one was solved
-// for. It holds exactly where the answer is zero, which is the only place the relative form is
+// for. It holds exactly where one of the three is zero, which is the only place the relative form is
 // missing: one of its two terms carries a zero factor there, and so does the cross term that
-// propagating a quotient back through the definition would otherwise add.
+// propagating a quotient back through the definition would otherwise add. Away from the zero it
+// disagrees with a quotient's first-order sum by construction, so it is never asked there.
 QuadratureCheck definition_quadrature(const Quantity (&si)[kVariableCount]) {
     const Quantity &mass = si[variable_index(DensityVariable::Mass)];
     const Quantity &volume = si[variable_index(DensityVariable::Volume)];
@@ -166,27 +175,23 @@ QuadratureCheck definition_quadrature(const Quantity (&si)[kVariableCount]) {
         !rational_mul(volume_square, density.precision.variance, &from_density) ||
         !rational_mul(density_square, volume.precision.variance, &from_volume) ||
         !rational_add(from_density, from_volume, &total)) {
-        return QuadratureCheck::NotApplicable;
+        return QuadratureCheck::OutgrewArithmetic;
     }
     return rational_equal(total, mass.precision.variance) ? QuadratureCheck::Agrees
                                                           : QuadratureCheck::Disagrees;
 }
 
 // The tail of the propagation's observed line: which second route was compared and how it came out.
+// Only a check that reached a verdict is recorded, so there is no line for one that did not.
 const char *quadrature_text(QuadratureCheck quadrature, bool through_definition) {
-    switch (quadrature) {
-        case QuadratureCheck::Agrees:
-            return through_definition
-                       ? ", which the density definition's own variance identity reaches too"
-                       : ", which the squared relative uncertainties reach too";
-        case QuadratureCheck::Disagrees:
-            return through_definition
-                       ? ", which the density definition's own variance identity does not reach"
-                       : ", which the squared relative uncertainties do not reach";
-        case QuadratureCheck::NotApplicable:
-            return ", for which the definition's variance identity does not fit exact arithmetic";
+    if (quadrature == QuadratureCheck::Agrees) {
+        return through_definition
+                   ? ", which the density definition's own variance identity reaches too"
+                   : ", which the squared relative uncertainties reach too";
     }
-    return "";
+    return through_definition
+               ? ", which the density definition's own variance identity does not reach"
+               : ", which the squared relative uncertainties do not reach";
 }
 
 void record_context(Derivation &derivation, const Budget &budget, NodeId model,
@@ -596,12 +601,17 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
         const Precision &answer = si_quantities[unknown_index].precision;
         QuadratureCheck quadrature =
             relative_quadrature(si_quantities, unknown_index, answer.variance);
-        const bool through_definition = quadrature == QuadratureCheck::NotApplicable;
+        const bool through_definition = quadrature == QuadratureCheck::ZeroQuantity;
         if (through_definition)
             quadrature = definition_quadrature(si_quantities);
-        if (!meter.step())
+        // Neither route reached a verdict, so the uncertainty is withheld rather than reported
+        // behind an obligation nothing discharged. The value and its own checks are untouched.
+        if (quadrature == QuadratureCheck::OutgrewArithmetic) {
+            si_quantities[unknown_index].precision.uncertainty = UncertaintyState::TooLarge;
+            si_quantities[unknown_index].precision.variance = Rational();
+        } else if (!meter.step()) {
             return DensityResult();
-        {
+        } else {
             Step step;
             step.phase = "check";
             step.goal = "Propagate the stated uncertainties";
@@ -629,9 +639,7 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
                 through_definition ? "exact comparison against the definition's variance identity"
                                    : "exact comparison against the relative quadrature identity",
                 observed, EvidenceStrength::CandidateChecked,
-                quadrature == QuadratureCheck::Agrees      ? VerificationOutcome::Passed
-                : quadrature == QuadratureCheck::Disagrees ? VerificationOutcome::Failed
-                                                           : VerificationOutcome::Inconclusive));
+                quadrature == QuadratureCheck::Agrees));
             CheckPayload check;
             check.target_claim =
                 std::string("the variance of ") + variable_symbol(problem.unknown) +
@@ -718,13 +726,11 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             return result;
         }
         result.uncertainty_text = reported;
-        // The value follows the uncertainty's place only where that place still leaves a figure of it.
-        int lead = 0;
-        if (rational_leading_decimal_place(candidate, &lead) && reported_place <= lead) {
-            Precision reporting = result.quantity.precision;
-            reporting.last_significant_decimal_place = reported_place;
-            result.quantity.precision = precision_at_value(candidate, reporting);
-        }
+        // GLP 9 step 1.3: the value is reported to the decimal place of the uncertainty's last
+        // figure, whether or not a figure of the value itself survives there.
+        Precision reporting = result.quantity.precision;
+        reporting.last_significant_decimal_place = reported_place;
+        result.quantity.precision = precision_at_value(candidate, reporting);
     }
 
     if (result.quantity.precision.kind == NumberKind::Measured) {

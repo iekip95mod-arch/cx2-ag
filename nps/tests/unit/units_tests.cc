@@ -1745,6 +1745,104 @@ void run_units_tests(TestSink &t) {
                 "its magnitude is zero");
         t.equal(stated_uncertainty(length.precision), "not propagated",
                 "and a zero magnitude does not take the components' uncertainty as its own");
+
+        t.equal(uncertainty_of("1 +/- 1 percent"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "a relative uncertainty is refused for what it is rather than as an unknown unit word");
+        t.equal(uncertainty_of("1 +/- 1 %"),
+                "refused: a relative uncertainty such as 1 percent is not propagated here, so state "
+                "it in the quantity's unit",
+                "and the sign spells the same unsupported thing");
+        t.equal(uncertainty_of("1 +/- 1 kg"), "1.0",
+                "while the same spread stated in the quantity's own unit is the supported form");
+
+        // Exact means no variance, in one predicate rather than by convention at each operation.
+        const Precision exact_with_spread = with_variance(Rational{1, 100});
+        Precision exact_claim = exact_with_spread;
+        exact_claim.kind = NumberKind::Exact;
+        t.check(!precision_consistent(exact_claim),
+                "an exact precision carrying a stated uncertainty is not consistent");
+        Precision carried_spread = at_place(-2);
+        carried_spread.uncertainty = UncertaintyState::NotPropagated;
+        carried_spread.variance = Rational{1, 100};
+        t.check(!precision_consistent(carried_spread),
+                "nor is a state that says there is no uncertainty while carrying its square");
+        Precision negative_spread = exact_with_spread;
+        negative_spread.variance = Rational{-1, 100};
+        t.check(!precision_consistent(negative_spread), "nor is a negative variance");
+        Precision unreadable_spread = exact_with_spread;
+        unreadable_spread.variance.den = 0;
+        t.check(!precision_consistent(unreadable_spread), "nor one that is not a fraction");
+        t.check(precision_consistent(Precision()) && precision_consistent(measured(2)) &&
+                    precision_consistent(exact_with_spread) &&
+                    precision_consistent(with_variance(Rational{0, 1})),
+                "while an exact value, a measurement, a stated spread and a stated zero all are");
+
+        {
+            const Precision inputs[] = {Precision(),
+                                        measured(2),
+                                        a.precision,
+                                        unstated.precision,
+                                        too_large,
+                                        with_variance(Rational{0, 1}),
+                                        with_variance(Rational{101, 10000})};
+            const Rational operands[] = {Rational{0, 1}, Rational{2, 1}, Rational{1, 2},
+                                         Rational{-3, 1}};
+            const char *names[] = {"precision_combine",   "precision_product",
+                                   "precision_quotient",  "precision_power",
+                                   "precision_sum",       "precision_at_digits",
+                                   "precision_at_value",  "propagate_uncertainty",
+                                   "to_si"};
+            std::string inconsistent;
+            for (const Precision &left : inputs) {
+                for (const Precision &right : inputs) {
+                    for (const Rational &value : operands) {
+                        const UncertaintyTerm pair[] = {{Rational{2, 1}, &left},
+                                                        {Rational{3, 1}, &right}};
+                        // Seeded with the combined figures, which is the accumulator every caller
+                        // hands it, because it writes the uncertainty and not the kind.
+                        Precision swept = precision_combine(left, right);
+                        propagate_uncertainty(pair, &swept);
+                        Quantity scaled_quantity;
+                        scaled_quantity.value = value;
+                        scaled_quantity.precision = left;
+                        scaled_quantity.unit.scale = Rational{1, 100};
+                        Quantity in_si;
+                        const bool in_si_fits = to_si(scaled_quantity, &in_si);
+                        const Precision results[] = {
+                            precision_combine(left, right),
+                            precision_product(value, Rational{2, 1}, left, Rational{3, 1}, right),
+                            precision_quotient(value, Rational{6, 1}, left, Rational{3, 1}, right),
+                            precision_power(value, Rational{3, 1}, left, 2),
+                            precision_sum(value, left, right),
+                            precision_at_digits(value, left),
+                            precision_at_value(value, left),
+                            swept,
+                            in_si_fits ? in_si.precision : Precision(),
+                        };
+                        for (size_t index = 0; index < sizeof(results) / sizeof(results[0]);
+                             ++index) {
+                            if (precision_consistent(results[index]) ||
+                                inconsistent.find(names[index]) != std::string::npos) {
+                                continue;
+                            }
+                            if (!inconsistent.empty())
+                                inconsistent += ", ";
+                            inconsistent += std::string(names[index]) + " left " +
+                                            uncertainty_state_name(results[index].uncertainty) +
+                                            " carrying " + rational_text(results[index].variance) +
+                                            " from " +
+                                            uncertainty_state_name(left.uncertainty) + " and " +
+                                            uncertainty_state_name(right.uncertainty) + " at " +
+                                            rational_text(value);
+                        }
+                    }
+                }
+            }
+            t.equal(inconsistent, "",
+                    "every precision operation leaves a result the predicate accepts");
+        }
     }
 }
 
