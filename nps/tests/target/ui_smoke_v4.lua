@@ -3401,7 +3401,7 @@ do
     on.escapeKey()
 
     -- The other two states the shell has to explain. Only the route that produced them differs.
-    for _, state in ipairs({ { "not propagated", "this route does not carry one through" },
+    for _, state in ipairs({ { "not propagated", "none reaches this answer" },
                              { "too large", "the exact square outgrew its range" } }) do
         fake_density_replies["1000.0 kg/m^3"].precision.uncertainty_state = state[1]
         openPhysicsFixtures()

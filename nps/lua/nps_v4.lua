@@ -3262,7 +3262,8 @@ local function uncertaintyNote(r)
 	if state == "unstated" then
 		return "no uncertainty: a measured given has none stated"
 	elseif state == "not propagated" then
-		return "no uncertainty: this route does not carry one through"
+		-- A stated zero reaches this state too, so the note names no mechanism for it
+		return "no uncertainty: none reaches this answer"
 	elseif state == "too large" then
 		return "no uncertainty: the exact square outgrew its range"
 	end

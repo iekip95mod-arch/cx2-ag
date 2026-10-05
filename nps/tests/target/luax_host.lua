@@ -1824,6 +1824,23 @@ r = nps.density("mass", "density", "1000 +/- 5 kg/m^3", "volume", "0.0020 +/- 0.
 check(r.uncertainty ~= nil,
       "and the same field is present when the same route does have one to report")
 
+-- A stated zero has no two-figure root, so it arrives as not propagated rather than a known zero.
+r = nps.density("mass", "density", "1000 kg/m^3", "volume", "0.0020 +/- 0 m^3")
+check(uncertainty_state_of(r) == "not propagated",
+      "a stated spread of zero reaches the bridge as not propagated rather than as a known zero")
+check(r.uncertainty == nil and r.result == "mass = 2.0 kg" and r.value == "2.0",
+      "so the answer line carries no spread and the value keeps the significant-figure rule")
+r = nps.density("mass", "density", "1000 kg/m^3", "volume", "2.0 +/- 0 cm^3")
+check(uncertainty_state_of(r) == "not propagated",
+      "and a prefixed given's zero spread reads the same state as an unprefixed one")
+
+-- The zero answer the density definition's own variance identity witnesses, which still reports one.
+r = nps.density("mass", "density", "0.0 +/- 0.1 kg/m^3", "volume", "2.0 +/- 0.1 m^3")
+check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.20",
+      "a zero answer still carries the propagated uncertainty rather than losing it")
+check(r.result == "mass = 0.00 +/- 0.20 kg" and r.value == "0.00",
+      "and the zero value is written to that uncertainty's place like any other")
+
 r = nps.optics("thin lens", "image distance", "focal length", "2.50 +/- 0.02 m",
                "object distance", "15 cm")
 check(r.outcome == "invalid input" and r.solved == false and #r.steps == 0 and
