@@ -395,6 +395,11 @@ void run_density_tests(TestSink &t) {
         t.check(zero_spread.result.uncertainty_text.empty() &&
                     zero_spread.uncertainty_evidence.empty(),
                 "with no root reported and no rounding check claiming one");
+        // The two sides of the same zero. The answer reports no root because zero has no two-figure
+        // one, while the fact line restates the spread the problem stated.
+        t.equal(zero_spread.plan_facts,
+                "density = 1000 kg/m^3; volume = 0.0020 +/- 0 m^3; find mass",
+                "while the fact line still states the zero the problem gave it");
         t.equal(uncertainty_state_name(zero_spread.result.quantity.precision.uncertainty),
                 "not propagated",
                 "and a first-order variance of zero says so rather than reading as a known zero");
