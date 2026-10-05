@@ -3408,6 +3408,11 @@ do
     painted()
     check(mathBoxExact("mass \226\137\164 2.00 \194\177 0.11 kg") ~= nil,
           "a relation beside a spread reaches one box as both glyphs")
+    -- Issue 598. Two spreads in one answer, so the rewrite has to run past the first one.
+    steps.result.display_result = "a +/- 1 and b +/- 2"
+    painted()
+    check(mathBoxExact("a \194\177 1 and b \194\177 2") ~= nil,
+          "both spreads in one expression reach the box as the plus-minus sign")
     steps.result.display_result = mathcase.spread_display
     painted()
     on.charIn("t")
@@ -9818,6 +9823,109 @@ do
     check(#evaluated == 1 and evaluated[1] == "sin(30)", "radian mode evaluates without touching the Giac setting")
     evidence("MATH-007", selected and requested[1].angle == "degrees" and header:find("DEG (now RAD)", 1, true) ~= nil,
              "the shell selects degree or radian mode from the Steps menu, shows it on every screen, sends it with each request and names a reopened record's mode")
+    end)()
+end
+
+-- Issue 598. The OS error handler hands the shell whatever was raised, and a history row built
+-- from a number used to draw because the wrapper was a concatenation.
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    env.on.paint(gc)
+    local added, failure = pcall(env.addME, " Script error", 42)
+    check(added, "a history row built from a number is accepted: " .. tostring(failure))
+    drawn, draw_calls = {}, {}
+    local repainted = pcall(env.on.paint, gc)
+    local numeric = nil
+    for _, editor in ipairs(editors) do
+        if editor.expr == "\\0el {42}" or editor.expr == 42 then numeric = editor end
+    end
+    check(repainted and numeric ~= nil, "and reaches its editor as the text the number spells")
+    end)()
+end
+
+-- Issue 597. Row 0 carries the angle tag and the status line. The launch header shared it and drew
+-- over the tag, so this records the x range of every string on a row and asserts no two meet.
+do
+    (function()
+    local env = loadIsolated(copyModule())
+    local function rowRanges(y)
+        local ranges = {}
+        for _, call in ipairs(draw_calls) do
+            if call.y == y then
+                ranges[#ranges + 1] = { text = call.text, left = call.x,
+                                        right = call.x + gc:getStringWidth(call.text) }
+            end
+        end
+        return ranges
+    end
+    local function overlapOn(y)
+        local ranges = rowRanges(y)
+        for i = 1, #ranges do
+            for j = i + 1, #ranges do
+                if ranges[i].left < ranges[j].right and ranges[j].left < ranges[i].right then
+                    return "[" .. ranges[i].text .. "] over [" .. ranges[j].text .. "]"
+                end
+            end
+        end
+        return nil
+    end
+    local function holds(y, text)
+        for _, range in ipairs(rowRanges(y)) do
+            if range.text == text then return true end
+        end
+        return false
+    end
+    local function repaint()
+        drawn, draw_calls = {}, {}
+        env.on.paint(gc)
+        return table.concat(drawn, "\n")
+    end
+    local screen = repaint()
+    local headerRow = env.strHeight
+    local label = env.giacLabel()
+    check(env.dispinfos and env.steps.status == nil and label == "Giac 1.9.0 :",
+          "the launch banner is up with no status for the first row-0 state")
+    check(screen:find(label, 1, true) ~= nil and screen:find("OK.", 1, true) ~= nil,
+          "and that frame really does paint the Giac label and its verdict")
+    check(holds(0, env.angleTag(env.steps.angle)) and overlapOn(0) == nil,
+          "the launch frame keeps the angle tag on row 0 with nothing over it: " ..
+          tostring(overlapOn(0)))
+    check(not holds(0, label) and holds(headerRow, label) and holds(headerRow, "OK."),
+          "the launch header and its verdict take the row under the tag")
+    check(overlapOn(headerRow) == nil,
+          "and share that row with nothing: " .. tostring(overlapOn(headerRow)))
+
+    -- The banner with a status beside it, which is the state the layout was never laid out for.
+    env.stepsSetAngle("degrees")
+    screen = repaint()
+    check(env.dispinfos and env.steps.status == "angles: degrees" and
+          screen:find(label, 1, true) ~= nil,
+          "the banner stays up when a status arrives")
+    check(holds(0, "DEG") and overlapOn(0) == nil,
+          "the tag follows the selected unit and still owns row 0: " .. tostring(overlapOn(0)))
+    check(overlapOn(headerRow) == nil,
+          "the header row survives a status beside it: " .. tostring(overlapOn(headerRow)))
+
+    -- A status long enough to earn the HELP cue, which is the widest row 0 can ask for.
+    env.steps.status = string.rep("reopened an archived history row ", 4)
+    screen = repaint()
+    check(screen:find("HELP text", 1, true) ~= nil, "a long status is cut back to a HELP cue")
+    check(holds(0, "DEG") and overlapOn(0) == nil,
+          "the longest status leaves the tag alone: " .. tostring(overlapOn(0)))
+    check(overlapOn(headerRow) == nil,
+          "and leaves the header row alone: " .. tostring(overlapOn(headerRow)))
+
+    -- The banner cleared, with and without a status, where row 0 was always correct.
+    env.dispinfos = false
+    screen = repaint()
+    check(screen:find(label, 1, true) == nil and holds(0, "DEG") and overlapOn(0) == nil,
+          "the cleared banner takes the Giac label off the frame and leaves the tag: " ..
+          tostring(overlapOn(0)))
+    env.steps.status = nil
+    screen = repaint()
+    check(screen:find(label, 1, true) == nil and holds(0, "DEG") and overlapOn(0) == nil,
+          "and the tag is still there with no status and no banner: " .. tostring(overlapOn(0)))
     end)()
 end
 
