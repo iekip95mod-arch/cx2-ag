@@ -501,9 +501,9 @@ fake_density_replies = {
                       last_significant_decimal_place = -2, uncertainty_state = "known" },
         step_count = 11, rewrites = 7, giac_calls = 0,
         steps = {
-            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
-              short = "Use the density definition", claim = "no claim", verified = true,
-              failed = false, depth = 0 },
+            { kind = "plan", name = "Density definition", goal = "Find mass",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
         },
     },
     ["1000.0 kg/m^3"] = {
@@ -515,9 +515,9 @@ fake_density_replies = {
                       last_significant_decimal_place = -1, uncertainty_state = "unstated" },
         step_count = 9, rewrites = 7, giac_calls = 0,
         steps = {
-            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
-              short = "Use the density definition", claim = "no claim", verified = true,
-              failed = false, depth = 0 },
+            { kind = "plan", name = "Density definition", goal = "Find mass",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
         },
     },
     -- The unknown density whose exact variance outgrows int64, off the same run luax_host asserts.
@@ -530,9 +530,9 @@ fake_density_replies = {
                       last_significant_decimal_place = 8, uncertainty_state = "too large" },
         step_count = 8, rewrites = 4, giac_calls = 0,
         steps = {
-            { kind = "plan", name = "Density definition", goal = "Find mass from density and volume",
-              short = "Use the density definition", claim = "no claim", verified = true,
-              failed = false, depth = 0 },
+            { kind = "plan", name = "Density definition", goal = "Find density",
+              short = "Use m = rho*V and solve for the requested quantity", claim = "no claim",
+              verified = true, failed = false, depth = 0 },
         },
     },
 }
@@ -3396,6 +3396,14 @@ do
     check(shown:find("SPREAD", 1, true) == nil and
           paintedRun():find("no uncertainty", 1, true) == nil,
           "a known uncertainty needs no line explaining why there is none")
+    -- Whole row rather than a prefix: "Find mass from density and volume" contains "Find mass".
+    check(stepRowNames() == "1 Density definition: Find mass",
+          "the plan row draws the goal the bridge returned for this unknown")
+    if STEP_DETAILS[steps.detail] ~= "beginner" then stepsToggleDetail() end
+    local why = painted()
+    check(why:find("Use m = rho*V and solve for the requested quantity", 1, true) ~= nil,
+          "and the beginner level draws that step's own short explanation")
+    if STEP_DETAILS[steps.detail] ~= "standard" then stepsToggleDetail() end
     on.escapeKey()
 
     -- The same entry, asked about a measured given that states none, which is worked example three.
@@ -3438,6 +3446,8 @@ do
     on.enterKey()
     check(steps.result.result == "density = 1000000000 kg/m^3",
           "the too large record reaches the shell with its answer and no spread in it")
+    check(stepRowNames() == "1 Density definition: Find density",
+          "and its plan row names the unknown this route was asked for")
     check(painted():find("SPREAD", 1, true) ~= nil and
           paintedRun():find("no uncertainty: the exact square outgrew its range", 1, true) ~= nil,
           "a too large uncertainty says so in its own words")

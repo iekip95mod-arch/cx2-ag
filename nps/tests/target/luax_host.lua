@@ -1808,6 +1808,11 @@ check(r.value == "2.00" and r.unit == "kg",
       "the value is rounded to the decimal place of that uncertainty's last figure")
 check(r.result == "mass = 2.00 +/- 0.11 kg",
       "and the answer line carries the value, the uncertainty and the unit together")
+-- The plan step the shell draws as its first row, which ui_smoke_v4's density mocks copy.
+check(type(r.steps) == "table" and type(r.steps[1]) == "table" and
+      r.steps[1].name == "Density definition" and r.steps[1].goal == "Find mass" and
+      r.steps[1].short == "Use m = rho*V and solve for the requested quantity",
+      "the plan step names the unknown it was asked for and the relation it solves")
 
 r = nps.density("mass", "density", "1000 kg/m^3", "volume", "0.0020 +/- 0.0001 m^3")
 check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.10",
@@ -1851,6 +1856,9 @@ check(r.uncertainty == nil,
       "so the bridge reports no uncertainty field for it")
 check(r.result == "density = 1000000000 kg/m^3" and r.value == "1000000000",
       "and the answer line carries the value and the unit with no spread spliced into it")
+check(r.steps[1].goal == "Find density" and
+      r.steps[1].short == "Use m = rho*V and solve for the requested quantity",
+      "and its plan step names this unknown rather than the one the mass route asks for")
 r = nps.density("density", "mass", "2.0 +/- 0.1 kg", "volume", "2.0 +/- 0.1 m^3")
 check(uncertainty_state_of(r) == "known" and r.uncertainty == "0.071" and
       r.result == "density = 1.000 +/- 0.071 kg/m^3",
