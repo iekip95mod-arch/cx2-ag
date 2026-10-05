@@ -421,6 +421,18 @@ void run_density_tests(TestSink &t) {
         t.check(contains(zero_density.propagation_evidence,
                          "which the density definition's own variance identity reaches too"),
                 "by the form that closes when there is no answer to divide by");
+        // #590. A figure count cannot spell a zero, so the fact line read a bare 0 beside an answer
+        // the same file already spells to the place it was measured at.
+        t.equal(zero_density.plan_facts,
+                "density = 0.0 +/- 0.1 kg/m^3; volume = 2.0 +/- 0.1 m^3; find mass",
+                "a measured zero given is written to the place it was measured at");
+        const Run zero_density_unstated =
+            run(problem(DensityVariable::Mass, known(DensityVariable::Density, "0.0 kg/m^3"),
+                        known(DensityVariable::Volume, "2.0 m^3")));
+        t.equal(zero_density_unstated.plan_facts,
+                "density = 0.0 kg/m^3; volume = 2.0 m^3; find mass",
+                "and so is one that states no spread, which is the zero's own term and not the "
+                "stated spread's");
         const Run zero_volume = run(problem(
             DensityVariable::Mass, uncertain_known(DensityVariable::Density, "2.0 +/- 0.1 kg/m^3"),
             uncertain_known(DensityVariable::Volume, "0.0 +/- 0.1 m^3")));
