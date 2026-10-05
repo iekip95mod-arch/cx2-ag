@@ -99,6 +99,10 @@ bool parse_quantity_with_uncertainty(const std::string &text, Quantity *out, std
 // The value in the SI unit of its dimension. False when the conversion overflows.
 bool to_si(const Quantity &q, Rational *value);
 
+// The whole quantity in SI: the value by the exact scale, the figures it was written with, and the
+// variance by that scale squared. False when the conversion overflows.
+bool to_si(const Quantity &q, Quantity *out);
+
 // Products and quotients use the fewest significant digits among measured operands.
 Precision precision_combine(const Precision &a, const Precision &b);
 
@@ -109,8 +113,17 @@ Precision precision_combine(const Precision &a, const Precision &b);
 // tenths its operands were written to.
 Precision precision_at_digits(const Rational &value, Precision precision);
 
+// The figure count that agrees with a place already fixed, which is precision_at_digits read the
+// other way round. A place left of the value's leading digit leaves one figure rather than none.
+Precision precision_at_value(const Rational &value, Precision precision);
+
+// Each carries an uncertainty through its own partials only when value really is that operation.
 Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
                             const Rational &b_value, const Precision &b);
+Precision precision_quotient(const Rational &value, const Rational &a_value, const Precision &a,
+                             const Rational &b_value, const Precision &b);
+Precision precision_power(const Rational &value, const Rational &base_value, const Precision &base,
+                          int64_t exponent);
 Precision precision_sum(const Rational &value, const Precision &a, const Precision &b);
 
 struct UncertaintyTerm {
@@ -123,6 +136,23 @@ void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *ou
 
 // The root rounded up to two significant figures, and the decimal place of its last one.
 bool uncertainty_text(const Precision &precision, std::string *out, int32_t *place);
+
+// What a reported uncertainty was found to be against the variance behind it. Named for what
+// happened rather than for what a caller should do about it, the same way HalfPlace is.
+enum class UncertaintyRounding : uint8_t {
+    Smallest,
+    TooSmall,
+    NotSmallest,
+    NotTwoFigures,
+    Unreadable,
+};
+
+const char *uncertainty_rounding_name(UncertaintyRounding outcome);
+
+// Reads the reported text back and judges whether it is the smallest two-significant-figure value in
+// place whose square covers the exact variance. Shares no path with uncertainty_text's integer root.
+UncertaintyRounding uncertainty_rounding_valid(const Precision &precision,
+                                               const std::string &reported, int32_t place);
 
 bool precision_rounded_text(const Rational &value, const Precision &precision, std::string *out);
 HalfPlace precision_rounding_valid(const Rational &exact, const std::string &reported,

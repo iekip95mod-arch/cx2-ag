@@ -175,8 +175,8 @@ Coroutine<Linear> analyse(TaskContext &task, const Arena &arena, NodeId id, Node
             Rational powered;
             if (!rational_power(base_value, exponent, &powered))
                 co_return overflow();
-            const Precision precision = exponent == 0 ? Precision() :
-                precision_product(powered, base_value, base.const_precision, Rational{1, 1}, Precision());
+            const Precision precision =
+                precision_power(powered, base_value, base.const_precision, exponent);
             co_return constant(powered.num, powered.den, precision);
         }
         default:
@@ -582,8 +582,8 @@ bool linear_solution_precision(const Arena &arena, NodeId equation, NodeId unkno
         !rational_div(negative_constant, coefficient, value)) {
         return false;
     }
-    *precision = precision_product(*value, negative_constant, constant_precision, coefficient,
-                                   coefficient_precision);
+    *precision = precision_quotient(*value, negative_constant, constant_precision, coefficient,
+                                    coefficient_precision);
     return true;
 }
 

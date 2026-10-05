@@ -487,9 +487,9 @@ std::string density_record(DensityVariable unknown, DensityVariable first_variab
     DensityKnown second;
     second.variable = second_variable;
     std::string why;
-    if (!parse_quantity(first_text, &first.quantity, &why))
+    if (!parse_quantity_with_uncertainty(first_text, &first.quantity, &why))
         return std::string("the fixture's own input did not parse: ") + why;
-    if (!parse_quantity(second_text, &second.quantity, &why))
+    if (!parse_quantity_with_uncertainty(second_text, &second.quantity, &why))
         return std::string("the fixture's own input did not parse: ") + why;
 
     DensityProblem problem;
@@ -504,8 +504,12 @@ std::string density_record(DensityVariable unknown, DensityVariable first_variab
         density_variable_name(first_variable) + " = " + first_text + "; " +
         density_variable_name(second_variable) + " = " + second_text;
     std::string answer;
-    if (result.outcome == DensityOutcome::Solved)
-        answer = result.value_text + " " + result.unit_text;
+    if (result.outcome == DensityOutcome::Solved) {
+        answer = result.value_text;
+        if (!result.uncertainty_text.empty())
+            answer += " +/- " + result.uncertainty_text;
+        answer += " " + result.unit_text;
+    }
     return header(problem_text, density_variable_name(unknown), density_outcome_name(result.outcome),
                   answer, result.detail) +
            render_derivation(arena, derivation);
@@ -1294,6 +1298,10 @@ void run_golden_tests(TestSink &t) {
     check_golden(t, "density_mass_cubic_prefix",
                  density_record(DensityVariable::Mass, DensityVariable::Density, "2 g/cm^3",
                                 DensityVariable::Volume, "3 cm^3", Budget()));
+    check_golden(t, "density_mass_propagated_uncertainty",
+                 density_record(DensityVariable::Mass, DensityVariable::Density,
+                                "1000 +/- 5 kg/m^3", DensityVariable::Volume,
+                                "0.0020 +/- 0.0001 m^3", Budget()));
     check_golden(t, "modern_photon_energy_measured",
                  modern_record(ModernRelation::PhotonWavelength, ModernVariable::PhotonEnergy,
                                {{ModernVariable::Wavelength, "620.0"}}, Budget()));

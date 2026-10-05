@@ -830,8 +830,77 @@ bool uncertainty_text(const Precision &precision, std::string *out, int32_t *pla
     return true;
 }
 
+const char *uncertainty_rounding_name(UncertaintyRounding outcome) {
+    switch (outcome) {
+    case UncertaintyRounding::Smallest:
+        return "the smallest two-figure value whose square covers the variance";
+    case UncertaintyRounding::TooSmall:
+        return "its square is below the variance";
+    case UncertaintyRounding::NotSmallest:
+        return "a smaller two-figure value already covers the variance";
+    case UncertaintyRounding::NotTwoFigures:
+        return "not two significant figures in the place it was reported to";
+    case UncertaintyRounding::Unreadable:
+        return "could not be read back";
+    }
+    return "could not be read back";
+}
+
+UncertaintyRounding uncertainty_rounding_valid(const Precision &precision,
+                                               const std::string &reported, int32_t place) {
+    detail::Mpq variance;
+    detail::Mpq value;
+    if (precision.uncertainty != UncertaintyState::Known ||
+        !detail::mpq_set_rational(variance.get(), precision.variance) ||
+        mpq_sgn(variance.get()) < 0 ||
+        !detail::mpq_from_text(value.get(), reported, reported.size()) ||
+        mpq_sgn(value.get()) < 0) {
+        return UncertaintyRounding::Unreadable;
+    }
+    if (mpq_sgn(variance.get()) == 0) {
+        return mpq_sgn(value.get()) == 0 ? UncertaintyRounding::Smallest
+                                         : UncertaintyRounding::NotSmallest;
+    }
+    detail::Mpq unit;
+    if (!detail::mpq_decimal_place_unit(unit.get(), place))
+        return UncertaintyRounding::Unreadable;
+    // Two figures means a whole number of the reported place between ten and ninety-nine.
+    detail::Mpq figures;
+    mpq_div(figures.get(), value.get(), unit.get());
+    if (mpz_cmp_ui(mpq_denref(figures.get()), 1) != 0 ||
+        mpz_cmp_ui(mpq_numref(figures.get()), 10) < 0 ||
+        mpz_cmp_ui(mpq_numref(figures.get()), 99) > 0) {
+        return UncertaintyRounding::NotTwoFigures;
+    }
+    detail::Mpq square;
+    mpq_mul(square.get(), value.get(), value.get());
+    if (mpq_cmp(square.get(), variance.get()) < 0)
+        return UncertaintyRounding::TooSmall;
+    detail::Mpq below;
+    mpq_sub(below.get(), value.get(), unit.get());
+    mpq_mul(below.get(), below.get(), below.get());
+    return mpq_cmp(below.get(), variance.get()) < 0 ? UncertaintyRounding::Smallest
+                                                    : UncertaintyRounding::NotSmallest;
+}
+
 bool to_si(const Quantity &q, Rational *value) {
     return rational_mul(q.value, q.unit.scale, value);
+}
+
+bool to_si(const Quantity &q, Quantity *out) {
+    Rational value;
+    if (!to_si(q, &value))
+        return false;
+    Quantity converted = q;
+    converted.value = value;
+    converted.unit.text = si_unit_text(q.unit.dimension);
+    converted.unit.scale = Rational{1, 1};
+    // The scale is one exact operand, which is the rule that already scales a vector's uncertainty.
+    if (!rational_equal(q.unit.scale, Rational{1, 1}))
+        converted.precision =
+            precision_product(value, q.value, q.precision, q.unit.scale, Precision());
+    *out = std::move(converted);
+    return true;
 }
 
 namespace {
@@ -1061,14 +1130,31 @@ void operation_uncertainty(const Rational &a_sensitivity, const Precision &a,
     }
 }
 
+void unpropagated(const Precision &a, const Precision &b, Precision *out) {
+    out->variance = Rational();
+    if (a.uncertainty == UncertaintyState::TooLarge || b.uncertainty == UncertaintyState::TooLarge)
+        out->uncertainty = UncertaintyState::TooLarge;
+    else if (a.uncertainty == UncertaintyState::None && b.uncertainty == UncertaintyState::None)
+        out->uncertainty = UncertaintyState::None;
+    else
+        out->uncertainty = UncertaintyState::NotPropagated;
+}
+
+bool carries_uncertainty(const Precision &a, const Precision &b) {
+    return a.uncertainty != UncertaintyState::None || b.uncertainty != UncertaintyState::None;
+}
+
+bool exact_zero_factor(const Rational &a_value, const Precision &a, const Rational &b_value,
+                       const Precision &b) {
+    return (a.kind == NumberKind::Exact && a_value.num == 0) ||
+           (b.kind == NumberKind::Exact && b_value.num == 0);
+}
+
 }  // namespace
 
 Precision precision_combine(const Precision &a, const Precision &b) {
     Precision p = combined_figures(a, b);
-    p.variance = Rational();
-    p.uncertainty = a.uncertainty == UncertaintyState::None && b.uncertainty == UncertaintyState::None
-                        ? UncertaintyState::None
-                        : UncertaintyState::NotPropagated;
+    unpropagated(a, b, &p);
     return p;
 }
 
@@ -1118,6 +1204,8 @@ int rounded_leading_decimal_place(const Rational &value, int32_t place) {
     return mpq_cmp(reach.get(), next_place.get()) >= 0 ? above : lead;
 }
 
+}  // namespace
+
 Precision precision_at_value(const Rational &value, Precision precision) {
     if (precision.kind == NumberKind::Exact)
         return precision;
@@ -1144,8 +1232,6 @@ Precision precision_at_value(const Rational &value, Precision precision) {
     return precision;
 }
 
-}  // namespace
-
 Precision precision_at_digits(const Rational &value, Precision precision) {
     if (precision.kind != NumberKind::Measured || value.num == 0)
         return precision;
@@ -1157,14 +1243,13 @@ Precision precision_at_digits(const Rational &value, Precision precision) {
     return precision;
 }
 
-Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
-                            const Rational &b_value, const Precision &b) {
-    if ((a.kind == NumberKind::Exact && a_value.num == 0) ||
-        (b.kind == NumberKind::Exact && b_value.num == 0)) {
+namespace {
+
+Precision product_figures(const Rational &value, const Rational &a_value, const Precision &a,
+                          const Rational &b_value, const Precision &b) {
+    if (exact_zero_factor(a_value, a, b_value, b))
         return Precision();
-    }
     Precision precision = combined_figures(a, b);
-    operation_uncertainty(b_value, a, a_value, b, &precision);
     if (precision.kind == NumberKind::Measured && value.num != 0) {
         precision = precision_at_digits(value, precision);
     } else if (precision.kind == NumberKind::Measured) {
@@ -1183,6 +1268,78 @@ Precision precision_product(const Rational &value, const Rational &a_value, cons
             std::numeric_limits<int32_t>::min(),
             std::min<int64_t>(std::numeric_limits<int32_t>::max(), shifted)));
     }
+    return precision;
+}
+
+void too_large(Precision *precision) {
+    precision->variance = Rational();
+    precision->uncertainty = UncertaintyState::TooLarge;
+}
+
+}  // namespace
+
+Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
+                            const Rational &b_value, const Precision &b) {
+    Precision precision = product_figures(value, a_value, a, b_value, b);
+    if (exact_zero_factor(a_value, a, b_value, b))
+        return precision;
+    Rational product;
+    if (!carries_uncertainty(a, b) ||
+        (rational_mul(a_value, b_value, &product) && rational_equal(product, value))) {
+        operation_uncertainty(b_value, a, a_value, b, &precision);
+    } else {
+        unpropagated(a, b, &precision);
+    }
+    return precision;
+}
+
+Precision precision_quotient(const Rational &value, const Rational &a_value, const Precision &a,
+                             const Rational &b_value, const Precision &b) {
+    Precision precision = product_figures(value, a_value, a, b_value, b);
+    if (exact_zero_factor(a_value, a, b_value, b))
+        return precision;
+    Rational recomputed;
+    if (!carries_uncertainty(a, b) || b_value.num == 0 ||
+        !rational_mul(value, b_value, &recomputed) || !rational_equal(recomputed, a_value)) {
+        unpropagated(a, b, &precision);
+        return precision;
+    }
+    // Only a partial's square counts, so -a/b^2 enters as value/b.
+    Rational a_sensitivity;
+    Rational b_sensitivity;
+    if (!rational_div(Rational{1, 1}, b_value, &a_sensitivity) ||
+        !rational_div(value, b_value, &b_sensitivity)) {
+        too_large(&precision);
+        return precision;
+    }
+    operation_uncertainty(a_sensitivity, a, b_sensitivity, b, &precision);
+    return precision;
+}
+
+Precision precision_power(const Rational &value, const Rational &base_value, const Precision &base,
+                          int64_t exponent) {
+    if (exponent == 0)
+        return Precision();
+    const Precision one;
+    Precision precision = product_figures(value, base_value, base, Rational{1, 1}, one);
+    if (exact_zero_factor(base_value, base, Rational{1, 1}, one))
+        return precision;
+    Rational recomputed;
+    if (base.uncertainty == UncertaintyState::None ||
+        !rational_power(base_value, exponent, &recomputed) || !rational_equal(recomputed, value)) {
+        unpropagated(base, one, &precision);
+        return precision;
+    }
+    Rational slope;
+    Rational sensitivity;
+    if (exponent == std::numeric_limits<int64_t>::min() ||
+        !rational_power(base_value, exponent - 1, &slope) ||
+        !rational_mul(slope, Rational{exponent, 1}, &sensitivity)) {
+        too_large(&precision);
+        return precision;
+    }
+    const UncertaintyTerm terms[] = {{sensitivity, &base}};
+    propagate_uncertainty(terms, &precision);
     return precision;
 }
 
@@ -1638,11 +1795,13 @@ bool vector_magnitude(const Vector &v, Quantity *out, std::string *error) {
     magnitude.unit.dimension = v.unit.dimension;
     magnitude.unit.scale.num = 1;
     magnitude.unit.scale.den = 1;
-    magnitude.precision = precision_product(magnitude.value, magnitude.value, sum_precision,
-                                            Rational{1, 1}, Precision());
+    magnitude.precision = product_figures(magnitude.value, magnitude.value, sum_precision,
+                                          Rational{1, 1}, Precision());
     // The squared sum's place is twice the components' until the root is taken back out of it.
     if (magnitude.value.num == 0 && magnitude.precision.kind == NumberKind::Measured)
         magnitude.precision = precision_at_value(magnitude.value, vector_si.precision);
+    // A root has no product partials, so the squared sum's uncertainty is not carried into it.
+    unpropagated(sum_precision, Precision(), &magnitude.precision);
     *out = std::move(magnitude);
     return true;
 }
