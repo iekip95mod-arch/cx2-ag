@@ -289,9 +289,12 @@ inline ReportOutcome report_measured_precision(Arena &arena, Derivation &derivat
                                                const std::string &rounding_detailed,
                                                std::string *value_text, std::string *detail) {
     std::string reported;
-    // A zero has no significant figure to count from, so its declared place is the only thing that
-    // can spell it, and a figure count collapses it to a bare zero whatever that place says.
-    const bool spelled = candidate.num == 0
+    // A figure count cannot spell a zero, which has no figure to count from, and cannot spell a
+    // place a stated uncertainty fixed, which may leave no figure of the value at all. Both of
+    // those are the declared place, which precision_rounded_text spells directly.
+    const bool by_place =
+        candidate.num == 0 || precision.uncertainty == UncertaintyState::Known;
+    const bool spelled = by_place
                              ? precision_rounded_text(candidate, precision, &reported)
                              : rounded_text(candidate, precision.significant_digits, &reported);
     if (!spelled) {

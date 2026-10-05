@@ -314,15 +314,30 @@ void run_density_tests(TestSink &t) {
         t.check(huge.result.uncertainty_text.empty() && huge.propagation_evidence.empty(),
                 "with no root reported and no propagation claimed");
 
-        // 0.04 +/- 2: the uncertainty's last figure sits left of the value's leading one, so there
-        // is no place to report the value to that keeps a figure of it.
+        // GLP 9 step 1.3 rounds the value to the uncertainty's place even where that place is left
+        // of the value's leading digit, so 0.04 against a reported 2.0 is reported as 0.0.
         const Run wide = run(problem(
             DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.02 +/- 1 kg/m^3"),
             known(DensityVariable::Volume, "2 m^3")));
-        t.equal(wide.result.value_text + " +/- " + wide.result.uncertainty_text, "0.04 +/- 2.0",
-                "an uncertainty wider than the value keeps the value's own figure count");
-        t.check(wide.result.quantity.precision.last_significant_decimal_place == -2,
-                "and the reported place stays the value's rather than the uncertainty's");
+        t.equal(wide.result.value_text + " +/- " + wide.result.uncertainty_text, "0.0 +/- 2.0",
+                "an uncertainty wider than the value still sets the place the value is reported to");
+        t.check(wide.result.quantity.precision.last_significant_decimal_place == -1,
+                "which is the uncertainty's place rather than the value's own");
+        // The same place on a value that does not round away at it, so the rule is the place and
+        // not a blanket zero: 0.08 rounded to the tenths is 0.1.
+        const Run wide_survivor = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "0.04 +/- 1 kg/m^3"),
+            known(DensityVariable::Volume, "2 m^3")));
+        t.equal(wide_survivor.result.value_text + " +/- " + wide_survivor.result.uncertainty_text,
+                "0.1 +/- 2.0",
+                "a value that survives rounding at that place is reported rounded, not as zero");
+        // And the control on the other side of the leading digit, where the figure count already
+        // reached the same answer: 3.4 against a reported 20 is reported as 3.
+        const Run narrow = run(problem(
+            DensityVariable::Mass, uncertain_known(DensityVariable::Density, "3.4 +/- 20 kg/m^3"),
+            known(DensityVariable::Volume, "1 m^3")));
+        t.equal(narrow.result.value_text + " +/- " + narrow.result.uncertainty_text, "3 +/- 20",
+                "and a value with a figure left at that place keeps that figure");
 
         // 0.040 +/- 0.20: the root's last figure sits at the value's leading one rather than left of
         // it, so one figure of the value survives there and the value follows the root.

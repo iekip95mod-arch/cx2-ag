@@ -726,13 +726,11 @@ DensityResult solve_body(Arena &arena, Derivation &derivation, Meter &meter,
             return result;
         }
         result.uncertainty_text = reported;
-        // The value follows the uncertainty's place only where that place still leaves a figure of it.
-        int lead = 0;
-        if (rational_leading_decimal_place(candidate, &lead) && reported_place <= lead) {
-            Precision reporting = result.quantity.precision;
-            reporting.last_significant_decimal_place = reported_place;
-            result.quantity.precision = precision_at_value(candidate, reporting);
-        }
+        // GLP 9 step 1.3: the value is reported to the decimal place of the uncertainty's last
+        // figure, whether or not a figure of the value itself survives there.
+        Precision reporting = result.quantity.precision;
+        reporting.last_significant_decimal_place = reported_place;
+        result.quantity.precision = precision_at_value(candidate, reporting);
     }
 
     if (result.quantity.precision.kind == NumberKind::Measured) {
