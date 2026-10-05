@@ -316,21 +316,23 @@ rule unit.convert.si-to-target fixture
 rule unit.convert.report-precision fixture
 
 family id physics.density.mass-volume
+reference_curriculum_set_ids StepCAS product requirements PHYS-020, PHYS-025
+curriculum_source_locations StepCAS_Product_Requirements_Document.md section 9 PHYS-020 and PHYS-025, NIST GLP 9 (2019) step 1.3 and Option C at https://www.nist.gov/document/glp-9-rounding-20190506pdf
 topic_and_level Mass, volume, and density through the definition m = rho*V, M1 density
 accepted_expression_grammar existing quantity grammar for each mass, volume and density field, rather than a free expression
 accepted_input_forms one typed unknown and exactly two distinct typed known quantities parsed with the existing quantity parser
 domains_and_parameter_assumptions the three quantities must have mass, volume, and mass-per-volume dimensions and the requested unknown must be uniquely determined
 supported_branches_and_degenerate_cases any one of mass, volume, or density may be unknown, with exact prefix conversion and explicit refusal of a zero divisor that does not determine one value
-exact_special_function_and_numerical_result_policy exact rational SI conversion and linear isolation, with measured precision applied only after candidate verification
+exact_special_function_and_numerical_result_policy exact rational SI conversion and linear isolation, with measured precision applied only after candidate verification. A stated uncertainty is carried as its exact squared variance and propagated to first order over the two distinct givens, with the square root taken only to report it, rounded up and never down to two significant figures, and the value then reported to the decimal place of that root's last figure. Where that place sits left of the value's leading digit the value keeps its own significant-figure count instead, since rounding there would leave no figure of it
 parser_module_ids src/units/units.cc, src/physics/density.cc, src/steps/linear.cc
-required_assumptions the supplied scalars describe one uniform-density relation, carried as "density is uniform across the sample"
+required_assumptions the supplied scalars describe one uniform-density relation, carried as "density is uniform across the sample", and a propagated uncertainty additionally carries "the two given measurements are independent"
 test_group_ids density, units
-proof_obligation_ids obl.density.dimensions-agree, obl.density.candidate-satisfies, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
+proof_obligation_ids obl.density.dimensions-agree, obl.density.candidate-satisfies, obl.density.variance-is-first-order, obl.density.uncertainty-covers-the-variance, obl.linear.candidate-satisfies, obl.eq.same-solutions, obl.physics.scale-preserves-solutions, obl.physics.lookup-preserves-solutions, obl.physics.reported-within-half-place, obl.plan.preconditions-hold
 supported_methods exact SI substitution into m = rho*V followed by the existing exact linear solver
-unsupported_near_neighbors buoyancy, mixtures, spatially varying density, geometric volume derivation, and more than one unknown
+unsupported_near_neighbors buoyancy, mixtures, spatially varying density, geometric volume derivation, more than one unknown, correlated givens whose errors are not independent, a relative uncertainty written as a percentage such as 1 percent, coverage factors and expanded uncertainty, and the second-order terms the first-order propagation drops
 solution_soundness_status verified by dimensional analysis and exact substitution into both the density definition and collected linear equation
 solution_completeness_status complete for one unknown and two compatible knowns when the unique exact rational answer fits
-corpus_case_ids density_volume_mixed_units, density_mass_cubic_prefix
+corpus_case_ids density_volume_mixed_units, density_mass_cubic_prefix, density_mass_propagated_uncertainty
 device_performance_status not measured
 direct_keypad_entry_status native Lua bridge implemented, guided keypad entry not yet implemented
 isolated_runtime_status ARM module compiles and packages, calculator runtime not yet measured
@@ -340,6 +342,8 @@ rule physics.density.check-dimensions fixture
 rule physics.density.convert-units fixture
 rule physics.density.substitute fixture
 rule physics.density.check-candidate fixture
+rule physics.density.propagate-uncertainty fixture
+rule physics.density.check-uncertainty fixture
 rule physics.density.significant-figures fixture
 rule eq.linear.inverse-operations fixture
 rule eq.linear.check-by-substitution fixture
