@@ -617,7 +617,18 @@ bool parse_unit(const std::string &text, Unit *out, std::string *error) {
     return true;
 }
 
-bool parse_quantity(const std::string &text, Quantity *out, std::string *error) {
+namespace {
+
+size_t uncertainty_sign_length(const std::string &text, size_t at) {
+    if (text.compare(at, 3, "+/-") == 0)
+        return 3;
+    if (text.compare(at, 2, "\xC2\xB1") == 0)
+        return 2;
+    return 0;
+}
+
+bool read_quantity(const std::string &text, bool uncertainty_allowed, Quantity *out,
+                   std::string *error) {
     size_t i = 0;
     while (i < text.size() && text[i] == ' ')
         ++i;
@@ -638,6 +649,38 @@ bool parse_quantity(const std::string &text, Quantity *out, std::string *error) 
     q.precision = precision_of_literal(number);
     while (i < text.size() && text[i] == ' ')
         ++i;
+    if (const size_t sign = uncertainty_sign_length(text, i); sign != 0) {
+        if (!uncertainty_allowed) {
+            *error = "an uncertainty such as 2.50 +/- 0.02 m is not propagated here yet";
+            return false;
+        }
+        i += sign;
+        while (i < text.size() && text[i] == ' ')
+            ++i;
+        const size_t spread_start = i;
+        while (i < text.size() && (is_digit(text[i]) || text[i] == '.'))
+            ++i;
+        const std::string spread = text.substr(spread_start, i - spread_start);
+        Rational deviation;
+        if (spread.empty()) {
+            *error = "an uncertainty is a number of zero or more after +/-";
+            return false;
+        }
+        if (!rational_from_text(spread, &deviation)) {
+            *error = "not a number this reads exactly: " + spread;
+            return false;
+        }
+        // A stated uncertainty makes a whole number a measurement written to its units place.
+        if (q.precision.kind == NumberKind::Exact)
+            q.precision = precision_of_literal(number + ".");
+        if (!rational_mul(deviation, deviation, &q.precision.variance)) {
+            *error = "the uncertainty is too large to square exactly";
+            return false;
+        }
+        q.precision.uncertainty = UncertaintyState::Known;
+        while (i < text.size() && text[i] == ' ')
+            ++i;
+    }
     size_t end = text.size();
     while (end > i && text[end - 1] == ' ')
         --end;
@@ -650,6 +693,140 @@ bool parse_quantity(const std::string &text, Quantity *out, std::string *error) 
         return false;
     }
     *out = std::move(q);
+    return true;
+}
+
+}  // namespace
+
+bool parse_quantity(const std::string &text, Quantity *out, std::string *error) {
+    return read_quantity(text, false, out, error);
+}
+
+bool parse_quantity_with_uncertainty(const std::string &text, Quantity *out, std::string *error) {
+    return read_quantity(text, true, out, error);
+}
+
+const char *uncertainty_state_name(UncertaintyState state) {
+    switch (state) {
+    case UncertaintyState::None:
+        return "none";
+    case UncertaintyState::Known:
+        return "known";
+    case UncertaintyState::Unstated:
+        return "unstated";
+    case UncertaintyState::NotPropagated:
+        return "not propagated";
+    case UncertaintyState::TooLarge:
+        return "too large";
+    }
+    return "none";
+}
+
+void propagate_uncertainty(std::span<const UncertaintyTerm> terms, Precision *out) {
+    bool stated = false;
+    bool unstated = false;
+    bool not_propagated = false;
+    bool too_large = false;
+    detail::Mpq total;
+    for (const UncertaintyTerm &term : terms) {
+        const Precision &input = *term.precision;
+        switch (input.uncertainty) {
+        case UncertaintyState::None:
+            unstated = unstated || input.kind == NumberKind::Measured;
+            break;
+        case UncertaintyState::Known: {
+            stated = true;
+            detail::Mpq weight;
+            detail::Mpq variance;
+            if (!detail::mpq_set_rational(weight.get(), term.sensitivity) ||
+                !detail::mpq_set_rational(variance.get(), input.variance)) {
+                too_large = true;
+                break;
+            }
+            mpq_mul(weight.get(), weight.get(), weight.get());
+            mpq_mul(weight.get(), weight.get(), variance.get());
+            mpq_add(total.get(), total.get(), weight.get());
+            break;
+        }
+        case UncertaintyState::Unstated:
+            stated = true;
+            unstated = true;
+            break;
+        case UncertaintyState::NotPropagated:
+            stated = true;
+            not_propagated = true;
+            break;
+        case UncertaintyState::TooLarge:
+            stated = true;
+            too_large = true;
+            break;
+        }
+    }
+    out->variance = Rational();
+    if (!stated) {
+        out->uncertainty = UncertaintyState::None;
+    } else if (too_large || !detail::mpq_get_rational(total.get(), &out->variance)) {
+        out->variance = Rational();
+        out->uncertainty = UncertaintyState::TooLarge;
+    } else if (not_propagated) {
+        out->variance = Rational();
+        out->uncertainty = UncertaintyState::NotPropagated;
+    } else if (unstated) {
+        out->variance = Rational();
+        out->uncertainty = UncertaintyState::Unstated;
+    } else {
+        out->uncertainty = UncertaintyState::Known;
+    }
+}
+
+bool uncertainty_text(const Precision &precision, std::string *out, int32_t *place) {
+    detail::Mpq variance;
+    if (precision.uncertainty != UncertaintyState::Known ||
+        !detail::mpq_set_rational(variance.get(), precision.variance) ||
+        mpq_sgn(variance.get()) < 0) {
+        return false;
+    }
+    if (mpq_sgn(variance.get()) == 0) {
+        *out = "0";
+        *place = 0;
+        return true;
+    }
+    const int variance_lead = detail::mpq_leading_decimal_place(variance.get());
+    const int lead = variance_lead >= 0 ? variance_lead / 2 : -((1 - variance_lead) / 2);
+    int32_t last = lead - 1;
+    detail::Mpz shift;
+    detail::mpz_pow10(shift.get(), static_cast<unsigned long>(last < 0 ? -2 * last : 2 * last));
+    detail::Mpq scaled;
+    detail::Mpq factor;
+    mpq_set_z(factor.get(), shift.get());
+    if (last < 0)
+        mpq_mul(scaled.get(), variance.get(), factor.get());
+    else
+        mpq_div(scaled.get(), variance.get(), factor.get());
+    detail::Mpz whole;
+    detail::Mpz root;
+    detail::Mpz square;
+    mpz_fdiv_q(whole.get(), mpq_numref(scaled.get()), mpq_denref(scaled.get()));
+    mpz_sqrt(root.get(), whole.get());
+    mpz_mul(square.get(), root.get(), root.get());
+    if (mpz_cmp_ui(mpq_denref(scaled.get()), 1) != 0 || mpz_cmp(square.get(), whole.get()) != 0)
+        mpz_add_ui(root.get(), root.get(), 1);
+    // Rounding up from 99.x reaches a third figure, so it moves one place left as 10.
+    if (mpz_cmp_ui(root.get(), 100) >= 0) {
+        mpz_cdiv_q_ui(root.get(), root.get(), 10);
+        ++last;
+    }
+    std::string body = detail::mpz_text(root.get());
+    if (last >= 0) {
+        body.append(static_cast<size_t>(last), '0');
+    } else {
+        const size_t places = static_cast<size_t>(-last);
+        if (body.size() <= places)
+            body.insert(0, places + 1 - body.size(), '0');
+        body.insert(body.size() - places, 1, '.');
+    }
+    *out = body;
+    *place = last;
     return true;
 }
 
@@ -857,7 +1034,9 @@ bool parse_vector(const std::string &text, Vector *out, std::string *error) {
     return true;
 }
 
-Precision precision_combine(const Precision &a, const Precision &b) {
+namespace {
+
+Precision combined_figures(const Precision &a, const Precision &b) {
     if (a.kind == NumberKind::Exact)
         return b;
     if (b.kind == NumberKind::Exact)
@@ -867,6 +1046,46 @@ Precision precision_combine(const Precision &a, const Precision &b) {
     p.significant_digits = std::min(a.significant_digits, b.significant_digits);
     p.last_significant_decimal_place =
         std::max(a.last_significant_decimal_place, b.last_significant_decimal_place);
+    return p;
+}
+
+// Two operands may be one input read twice, so only an exact operand is combined with an uncertainty.
+void operation_uncertainty(const Rational &a_sensitivity, const Precision &a,
+                           const Rational &b_sensitivity, const Precision &b, Precision *out) {
+    const UncertaintyTerm terms[] = {{a_sensitivity, &a}, {b_sensitivity, &b}};
+    propagate_uncertainty(terms, out);
+    if (out->uncertainty == UncertaintyState::Known && a.uncertainty != UncertaintyState::None &&
+        b.uncertainty != UncertaintyState::None) {
+        out->uncertainty = UncertaintyState::NotPropagated;
+        out->variance = Rational();
+    }
+}
+
+void unpropagated(const Precision &a, const Precision &b, Precision *out) {
+    out->variance = Rational();
+    if (a.uncertainty == UncertaintyState::TooLarge || b.uncertainty == UncertaintyState::TooLarge)
+        out->uncertainty = UncertaintyState::TooLarge;
+    else if (a.uncertainty == UncertaintyState::None && b.uncertainty == UncertaintyState::None)
+        out->uncertainty = UncertaintyState::None;
+    else
+        out->uncertainty = UncertaintyState::NotPropagated;
+}
+
+bool carries_uncertainty(const Precision &a, const Precision &b) {
+    return a.uncertainty != UncertaintyState::None || b.uncertainty != UncertaintyState::None;
+}
+
+bool exact_zero_factor(const Rational &a_value, const Precision &a, const Rational &b_value,
+                       const Precision &b) {
+    return (a.kind == NumberKind::Exact && a_value.num == 0) ||
+           (b.kind == NumberKind::Exact && b_value.num == 0);
+}
+
+}  // namespace
+
+Precision precision_combine(const Precision &a, const Precision &b) {
+    Precision p = combined_figures(a, b);
+    unpropagated(a, b, &p);
     return p;
 }
 
@@ -955,13 +1174,13 @@ Precision precision_at_digits(const Rational &value, Precision precision) {
     return precision;
 }
 
-Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
-                            const Rational &b_value, const Precision &b) {
-    if ((a.kind == NumberKind::Exact && a_value.num == 0) ||
-        (b.kind == NumberKind::Exact && b_value.num == 0)) {
+namespace {
+
+Precision product_figures(const Rational &value, const Rational &a_value, const Precision &a,
+                          const Rational &b_value, const Precision &b) {
+    if (exact_zero_factor(a_value, a, b_value, b))
         return Precision();
-    }
-    Precision precision = precision_combine(a, b);
+    Precision precision = combined_figures(a, b);
     if (precision.kind == NumberKind::Measured && value.num != 0) {
         precision = precision_at_digits(value, precision);
     } else if (precision.kind == NumberKind::Measured) {
@@ -983,15 +1202,90 @@ Precision precision_product(const Rational &value, const Rational &a_value, cons
     return precision;
 }
 
+void too_large(Precision *precision) {
+    precision->variance = Rational();
+    precision->uncertainty = UncertaintyState::TooLarge;
+}
+
+}  // namespace
+
+Precision precision_product(const Rational &value, const Rational &a_value, const Precision &a,
+                            const Rational &b_value, const Precision &b) {
+    Precision precision = product_figures(value, a_value, a, b_value, b);
+    if (exact_zero_factor(a_value, a, b_value, b))
+        return precision;
+    Rational product;
+    if (!carries_uncertainty(a, b) ||
+        (rational_mul(a_value, b_value, &product) && rational_equal(product, value))) {
+        operation_uncertainty(b_value, a, a_value, b, &precision);
+    } else {
+        unpropagated(a, b, &precision);
+    }
+    return precision;
+}
+
+Precision precision_quotient(const Rational &value, const Rational &a_value, const Precision &a,
+                             const Rational &b_value, const Precision &b) {
+    Precision precision = product_figures(value, a_value, a, b_value, b);
+    if (exact_zero_factor(a_value, a, b_value, b))
+        return precision;
+    Rational recomputed;
+    if (!carries_uncertainty(a, b) || b_value.num == 0 ||
+        !rational_mul(value, b_value, &recomputed) || !rational_equal(recomputed, a_value)) {
+        unpropagated(a, b, &precision);
+        return precision;
+    }
+    // Only a partial's square counts, so -a/b^2 enters as value/b.
+    Rational a_sensitivity;
+    Rational b_sensitivity;
+    if (!rational_div(Rational{1, 1}, b_value, &a_sensitivity) ||
+        !rational_div(value, b_value, &b_sensitivity)) {
+        too_large(&precision);
+        return precision;
+    }
+    operation_uncertainty(a_sensitivity, a, b_sensitivity, b, &precision);
+    return precision;
+}
+
+Precision precision_power(const Rational &value, const Rational &base_value, const Precision &base,
+                          int64_t exponent) {
+    if (exponent == 0)
+        return Precision();
+    const Precision one;
+    Precision precision = product_figures(value, base_value, base, Rational{1, 1}, one);
+    if (exact_zero_factor(base_value, base, Rational{1, 1}, one))
+        return precision;
+    Rational recomputed;
+    if (base.uncertainty == UncertaintyState::None ||
+        !rational_power(base_value, exponent, &recomputed) || !rational_equal(recomputed, value)) {
+        unpropagated(base, one, &precision);
+        return precision;
+    }
+    Rational slope;
+    Rational sensitivity;
+    if (exponent == std::numeric_limits<int64_t>::min() ||
+        !rational_power(base_value, exponent - 1, &slope) ||
+        !rational_mul(slope, Rational{exponent, 1}, &sensitivity)) {
+        too_large(&precision);
+        return precision;
+    }
+    const UncertaintyTerm terms[] = {{sensitivity, &base}};
+    propagate_uncertainty(terms, &precision);
+    return precision;
+}
+
 Precision precision_sum(const Rational &value, const Precision &a, const Precision &b) {
-    if (a.kind == NumberKind::Exact)
-        return precision_at_value(value, b);
-    if (b.kind == NumberKind::Exact)
-        return precision_at_value(value, a);
     Precision precision;
-    precision.kind = NumberKind::Measured;
-    precision.last_significant_decimal_place =
-        std::max(a.last_significant_decimal_place, b.last_significant_decimal_place);
+    if (a.kind == NumberKind::Exact) {
+        precision = b;
+    } else if (b.kind == NumberKind::Exact) {
+        precision = a;
+    } else {
+        precision.kind = NumberKind::Measured;
+        precision.last_significant_decimal_place =
+            std::max(a.last_significant_decimal_place, b.last_significant_decimal_place);
+    }
+    operation_uncertainty(Rational{1, 1}, a, Rational{1, 1}, b, &precision);
     return precision_at_value(value, precision);
 }
 
@@ -1432,11 +1726,13 @@ bool vector_magnitude(const Vector &v, Quantity *out, std::string *error) {
     magnitude.unit.dimension = v.unit.dimension;
     magnitude.unit.scale.num = 1;
     magnitude.unit.scale.den = 1;
-    magnitude.precision = precision_product(magnitude.value, magnitude.value, sum_precision,
-                                            Rational{1, 1}, Precision());
+    magnitude.precision = product_figures(magnitude.value, magnitude.value, sum_precision,
+                                          Rational{1, 1}, Precision());
     // The squared sum's place is twice the components' until the root is taken back out of it.
     if (magnitude.value.num == 0 && magnitude.precision.kind == NumberKind::Measured)
         magnitude.precision = precision_at_value(magnitude.value, vector_si.precision);
+    // A root has no product partials, so the squared sum's uncertainty is not carried into it.
+    unpropagated(sum_precision, Precision(), &magnitude.precision);
     *out = std::move(magnitude);
     return true;
 }
