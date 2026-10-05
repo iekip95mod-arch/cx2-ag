@@ -6468,6 +6468,21 @@ do
     local saved = env.on.save()
     check(saved.history[#saved.history - 3][2] == original,
           "saving oversized history retains the complete original result")
+    env.addME("x", "2 +/- 1")
+    local spread = env.histME2[#env.histME2]
+    check(not spread.editor.plain and mathBoxFits(spread.editor),
+          "a short spread fits the history column and stays in measured math")
+    check(spread.editor.expr == "\\0el {2 \194\177 1}",
+          "and that box is given the spread as the plus-minus sign")
+    check(spread.editor.expr:find("+/-", 1, true) == nil,
+          "with nothing left for the history box to draw as a fraction")
+    check(spread:getExpression() == "2 +/- 1"
+          and env.steps.histText[#env.steps.histText][2] == "2 +/- 1",
+          "while the row and the history entry keep the answer the engine wrote")
+    env.addME("x", string.rep("9", 60) .. " +/- 1")
+    local unfitted = env.histME2[#env.histME2]
+    check(unfitted.editor.plain and unfitted.editor.expr:find("+/-", 1, true) ~= nil,
+          "a spread too wide for math mode keeps the engine spelling in its text fallback")
     env.fsize = 18
     env.applyFontSizeChange()
     env.theView:setFocus(row)
