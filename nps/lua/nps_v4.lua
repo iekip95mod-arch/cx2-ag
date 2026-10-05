@@ -3429,6 +3429,9 @@ end
 local DISPLAY_WORDS = { int = "∫", integrate = "∫", sqrt = "√", sum = "∑", product = "∏" }
 local DISPLAY_CONSTANTS = { pi = "π", infinity = "∞" }
 local DISPLAY_RELATIONS = { ["<="] = "≤", [">="] = "≥", ["~="] = "≈", ["=="] = "≡", ["!="] = "≠" }
+-- A math box lays the slash in a stated uncertainty out as a fraction bar, so a box gets the sign
+-- instead. Text views are given the engine's spelling, which already draws as written.
+local DISPLAY_SPREAD = "±"
 
 local function isWordChar(c)
 	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or (c >= "0" and c <= "9")
@@ -3505,6 +3508,9 @@ local function displayExpression(expr, native)
 			out[#out + 1] = (sign and supported) and sign
 				or DISPLAY_CONSTANTS[word] or word
 			i = j
+		elseif native and expr:sub(i, i + 2) == "+/-" then
+			out[#out + 1] = DISPLAY_SPREAD
+			i = i + 3
 		else
 			local relation = DISPLAY_RELATIONS[expr:sub(i, i + 1)]
 			out[#out + 1] = relation or c

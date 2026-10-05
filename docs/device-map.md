@@ -199,7 +199,7 @@ lua_module.cc:5056, and `l_walkthrough` sends a separable `desolve` command to `
 lua_module.cc:3364-3365 and a `linsolve` command to `system_into` at lua_module.cc:3361-3362. Its
 menu entry is still needed. A desolve that solve_separable reports as unsupported or refused returns
 nil at lua_module.cc:3274-3278, so the shell's walkthrough branch falls back to Giac at
-nps_v4.lua:4309. A linsolve never
+nps_v4.lua:4315. A linsolve never
 does: system_into answers every outcome with a table at lua_module.cc:2854-2902, and l_walkthrough
 answers a malformed linsolve or decimal mode with a refusal table at lua_module.cc:3327-3340. Outside
 exact mode, 4 equations, 5 unknowns (system.h:15-16) and rational coefficients the shell shows a
@@ -246,13 +246,13 @@ module at nps/lua/nps_v4.lua:57, so this entry added no manifest row.
 When a record's `precision.uncertainty_state` is unstated, not propagated or too large, the summary
 draws one line under SPREAD saying why no uncertainty is given. `source`, read on 2026-10-04:
 `uncertaintyNote` at nps/lua/nps_v4.lua:3260-3271 maps the three states to their reasons and answers
-nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4721-4729, inside the block
+nil for none and known, and the summary draws it at nps/lua/nps_v4.lua:4727-4735, inside the block
 that hint mode withholds along with the result. nps/tests/target/ui_smoke_v4.lua drives both halves,
 the line on an unstated record and its absence on a known one.
 
 The scalar_product fixture at nps/lua/nps_v4.lua:2721-2729 asks for the angle in degrees. Source,
 read on 2026-10-04: the bridge writes the angle's placement, and its measured size when Giac answered,
-into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4740
+into the record's interpretation field, which the summary draws under MEANING at nps/lua/nps_v4.lua:4746
 with no code of its own for this family. The family id is declared at
 nps/src/core/capability_manifest.cc:62 and required of the loaded module at nps/lua/nps_v4.lua:60.
 
@@ -272,16 +272,16 @@ menu entry that cannot run.
 
 `judge_attempt` is reachable from the entry line and from the Steps menu entry that types `!a`:
 `source`, nps/lua/nps_v4.lua:3132 routes `!a` to the attempt mode and attemptFeedback at
-nps/lua/nps_v4.lua:4190 calls the binding with the last revealed state and the rest of the route.
+nps/lua/nps_v4.lua:4196 calls the binding with the last revealed state and the rest of the route.
 
 `export_text` is reachable the same way, from the entry line and from the Steps menu entry that types
 `!x`: `source`, read on 2026-10-04, nps/lua/nps_v4.lua:2340 is that menu entry, nps/lua/nps_v4.lua:3139
-routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4246 composes the text with
+routes `!x` to the export mode, and runSteps at nps/lua/nps_v4.lua:4252 composes the text with
 derivationExportText and calls the binding under pcall.
 
 Definitions are reachable from an open walkthrough: `source`, read on 2026-10-04, the `d` and `D`
-reader at nps/lua/nps_v4.lua:5538 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
-definitionParagraphs (nps/lua/nps_v4.lua:5115) for the focused step, and `!u` at
+reader at nps/lua/nps_v4.lua:5544 and the Actions entry at nps/lua/nps_v4.lua:2352 both open
+definitionParagraphs (nps/lua/nps_v4.lua:5121) for the focused step, and `!u` at
 nps/lua/nps_v4.lua:3131 defines a unit.
 
 `position_motion` and `ranking` still have working
@@ -310,8 +310,8 @@ glyphs and reading the screenshot back:
   glyph. Write it plainly instead.
 - Fails: letter subscripts. `vₓ` and `vᵧ` do not render. Write `vx` and `vy`.
 
-**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3530, measureMath
-sets the expression at :3564, and the history editor sets its expression at :1457.
+**`D2Editor` rich text**, the typeset path. mathBox builds it at nps/lua/nps_v4.lua:3536, measureMath
+sets the expression at :3570, and the history editor sets its expression at :1457.
 
     local box = D2Editor.newRichText()
     box:setExpression("\\0el {" .. expr .. "}", 0)
@@ -321,6 +321,14 @@ sets the expression at :3564, and the history editor sets its expression at :145
 It stacks a fraction under a vinculum, raises a superscript, draws a radical and italicizes unit vectors.
 Inside an expression a Unicode subscript renders and an underscore does not, so write `v₀*t` rather than
 `v_0*t`.
+
+**Every slash inside a box becomes a fraction bar.** `measured` on 2026-10-05 against OS 6.4.0.74 under
+headless Firebird, driving the guided density entry that states an uncertainty. The answer mass = 2.00
++/- 0.11 kg drew as mass = 2.00 + followed by a fraction with an empty numerator over -0.11, then kg.
+displayExpression now rewrites that three character spelling to the plus-minus sign at
+nps/lua/nps_v4.lua:3434 before any box is given it, and the same answer drew on one line with its unit
+intact. The rewrite is confined to the box path, so the plain text views keep the engine's spelling,
+which `gc:drawString` has no fraction to build out of.
 
 **A box smaller than its content draws nothing at all.** Not clipped, not truncated: blank. `measured`
 on hardware while building ti_info. The height has to come from the size-change listener, which means an

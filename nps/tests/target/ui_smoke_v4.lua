@@ -3391,14 +3391,31 @@ do
     local shown = painted()
     check(steps.result.result == "mass = 2.00 +/- 0.11 kg",
           "the answer keeps the uncertainty the bridge reported")
-    check(mathBoxExact("mass = 2.00 +/- 0.11 kg") ~= nil,
-          "and renders whole, uncertainty and unit included, in the viewer")
+    mathcase.spread_box = mathBoxExact("mass = 2.00 \194\177 0.11 kg")
+    check(mathcase.spread_box ~= nil and
+          mathcase.spread_box.expr:find("+/-", 1, true) == nil,
+          "and renders whole, uncertainty and unit included, with no slash in its spread")
+    check(mathBoxShowing("+/-") == nil,
+          "no math box on this frame holds a spread the OS would draw as a fraction")
     check(shown:find("SPREAD", 1, true) == nil and
           paintedRun():find("no uncertainty", 1, true) == nil,
           "a known uncertainty needs no line explaining why there is none")
     -- Whole row rather than a prefix: "Find mass from density and volume" contains "Find mass".
     check(stepRowNames() == "1 Density definition: Find mass",
           "the plan row draws the goal the bridge returned for this unknown")
+    mathcase.spread_display = steps.result.display_result
+    steps.result.display_result = "mass <= 2.00 +/- 0.11 kg"
+    painted()
+    check(mathBoxExact("mass \226\137\164 2.00 \194\177 0.11 kg") ~= nil,
+          "a relation beside a spread reaches one box as both glyphs")
+    steps.result.display_result = mathcase.spread_display
+    painted()
+    on.charIn("t")
+    painted()
+    check(paintedRun():find("Answer: mass = 2.00 +/- 0.11 kg", 1, true) ~= nil,
+          "the full text reader still reads the spread the engine wrote")
+    on.escapeKey()
+    painted()
     if STEP_DETAILS[steps.detail] ~= "beginner" then stepsToggleDetail() end
     local why = painted()
     check(why:find("Use m = rho*V and solve for the requested quantity", 1, true) ~= nil,
@@ -7808,6 +7825,7 @@ do
         {"sqrt(x)", "√(x)"}, {"sum(x,x,1,4)", "∑(x,x,1,4)"},
         {"product(x,x,1,4)", "∏(x,x,1,4)"}, {"pi<=infinity", "π≤∞"},
         {"x>=y", "x≥y"}, {"x~=y", "x≈y"}, {"x==y", "x≡y"}, {"x!=y", "x≠y"},
+        {"2 +/- 1", "2 ± 1"}, {"x+y/z", "x+y/z"}, {"2 +/- 1 <= 4", "2 ± 1 ≤ 4"},
         {'"int(x)"', '"int(x)"'}, {'"a\\\"int(x)"', '"a\\\"int(x)"'},
         {"interval(x)", "interval(x)"}, {"αint(x)", "αint(x)"}, {"intα(x)", "intα(x)"},
     }) do
